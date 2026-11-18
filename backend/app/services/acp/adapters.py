@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from collections.abc import Iterable
 from typing import Any
 
@@ -167,7 +167,6 @@ class AgentAdapter:
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
-        reasoning_effort: str | None = None,
         permission_mode: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(binary=self.binary, cli_args=list(self.cli_args))
@@ -239,7 +238,6 @@ class ClaudeAgentAdapter(AgentAdapter):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
-        reasoning_effort: str | None = None,
         permission_mode: str | None = None,
     ) -> LaunchConfig:
         return LaunchConfig(
@@ -282,7 +280,6 @@ class CodexAgentAdapter(AgentAdapter):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
-        reasoning_effort: str | None = None,
         permission_mode: str | None = None,
     ) -> LaunchConfig:
         # codex-acp uses CODEX_CONFIG only; modes bundle approval/sandbox.
@@ -342,16 +339,39 @@ class CursorAgentAdapter(AgentAdapter):
 
 
 class GrokAgentAdapter(AgentAdapter):
-    # Effort and permission mode are launch-baked; changes respawn via fingerprint.
+    # Permission mode is launch-baked; changes respawn via fingerprint.
     binary = "grok"
     model_id_namespace = "grok:"
-    # Current stable Grok advertises no ACP session modes and silently ignores
-    # set_mode ids. `always-approve` uses the launch flag; `auto` keeps the CLI's
-    # default classifier behavior (routine calls pass, risky ones prompt); `plan`
-    # stays for the set_mode plan-hop and revives if ACP modes return. The legacy
-    # `code` mode never prompted, so it falls back to always-approve.
+    # The CLI ignores --reasoning-effort on session/load and keeps the saved tier.
+    effort_config_id = "reasoning_effort"
+    # UI labels, not CLI mode ids (AcpSession maps them to `default`/`plan`).
+    # `always-approve` uses the launch flag; `auto` requests the CLI's
+    # auto-review via session _meta (over ACP, risky calls are blocked, not
+    # prompted). The legacy `code` mode never prompted, so it falls back to
+    # always-approve.
     session_modes = frozenset({"auto", "always-approve", "plan"})
     fallback_session_mode = "always-approve"
+
+    def build_session_config(
+        self,
+        *,
+        system_prompt: str | None,
+        system_prompt_is_full_replace: bool,
+        model_id: str,
+        thinking_mode: str | None,
+        permission_mode: str,
+    ) -> SessionConfig:
+        config = super().build_session_config(
+            system_prompt=system_prompt,
+            system_prompt_is_full_replace=system_prompt_is_full_replace,
+            model_id=model_id,
+            thinking_mode=thinking_mode,
+            permission_mode=permission_mode,
+        )
+        if config.session_mode != "auto":
+            return config
+        # Without it a `grok agent` session starts in ask mode; also honored on load.
+        return replace(config, meta={**config.meta, "autoMode": True})
 
     def build_launch_config(
         self,
@@ -359,7 +379,6 @@ class GrokAgentAdapter(AgentAdapter):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
-        reasoning_effort: str | None = None,
         permission_mode: str | None = None,
     ) -> LaunchConfig:
         # Agent-level flags must precede the `stdio` subcommand.
@@ -369,8 +388,6 @@ class GrokAgentAdapter(AgentAdapter):
             and self.map_session_mode(permission_mode) == "always-approve"
         ):
             cli_args.append("--always-approve")
-        if reasoning_effort:
-            cli_args.extend(["--reasoning-effort", reasoning_effort])
         cli_args.append("stdio")
         return LaunchConfig(binary=self.binary, cli_args=cli_args)
 
@@ -461,7 +478,6 @@ class OpencodeAgentAdapter(AgentAdapter):
         system_prompt: str | None,
         system_prompt_is_full_replace: bool,
         instructions_file_path: str | None = None,
-        reasoning_effort: str | None = None,
         permission_mode: str | None = None,
     ) -> LaunchConfig:
         env = (

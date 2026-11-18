@@ -72,7 +72,7 @@ export const GROK_PERMISSION_MODES: PermissionModeOption[] = [
   {
     value: 'auto',
     label: 'Auto',
-    description: 'Approves routine tool calls, asks for risky ones',
+    description: 'Approves routine tool calls, blocks risky ones',
   },
   {
     value: 'always-approve',

@@ -47,6 +47,8 @@ from acp.stdio import stdio_streams
 SCENARIO = os.environ.get("FAKE_ACP_SCENARIO", "normal")
 LOG_PATH = os.environ.get("FAKE_ACP_LOG")
 NEW_SESSION_GATE = os.environ.get("FAKE_ACP_NEW_SESSION_GATE")
+# Grok CLI 1.0.89 accepts only these ids and rejects others with -32602.
+GROK_MODE_IDS = ("default", "plan")
 # Real agents advertise their effort option after a model set; offer every tier
 # under each agent's config id so effort validation sees a live list.
 EFFORT_TIERS = (
@@ -174,6 +176,7 @@ class FakeAgent:
             {
                 "event": "new_session",
                 "cwd": cwd,
+                "meta": kwargs,
                 "mcp_servers": [
                     server.model_dump(mode="json", by_alias=True)
                     for server in (mcp_servers or [])
@@ -229,6 +232,8 @@ class FakeAgent:
         log_event({"event": "set_session_mode", "mode_id": mode_id})
         if SCENARIO == "config_error":
             raise RuntimeError("simulated set_session_mode failure")
+        if SCENARIO == "grok_mode_ids" and mode_id not in GROK_MODE_IDS:
+            raise RequestError(-32602, "Invalid params", f"unknown mode id: {mode_id}")
         return SetSessionModeResponse()
 
     async def set_config_option(

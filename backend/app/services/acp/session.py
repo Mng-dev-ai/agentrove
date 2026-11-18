@@ -613,10 +613,9 @@ class AcpSession:
         session_id: str,
         mode_id: str,
     ) -> None:
-        # Stable Grok ignores set_mode; always-approve is enforced at launch.
-        # Keep the plan hop in case ACP modes return; no turn runs between calls.
+        # Grok's CLI only knows `default` and `plan`; approval is a launch flag.
         if agent_kind == AgentKind.GROK and mode_id != "plan":
-            await conn.set_session_mode(mode_id="plan", session_id=session_id)
+            mode_id = "default"
         await conn.set_session_mode(mode_id=mode_id, session_id=session_id)
 
     @staticmethod
@@ -719,7 +718,6 @@ class AcpSession:
             system_prompt=config.system_prompt,
             system_prompt_is_full_replace=config.system_prompt_is_full_replace,
             instructions_file_path=config.instructions_file_path,
-            reasoning_effort=config.reasoning_effort,
             permission_mode=config.permission_mode,
         )
 

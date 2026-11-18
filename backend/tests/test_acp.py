@@ -829,9 +829,7 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
             ["https://agentclientprotocol.com/protocol/session-modes#agent"],
         ),
         ("cursor:auto", "bypassPermissions", False, ["agent"]),
-        # Grok mode-sets hop through plan first — direct auto <->
-        # always-approve switches are silently ignored by the CLI.
-        ("grok:grok-4.5", "bypassPermissions", False, ["plan", "always-approve"]),
+        ("grok:grok-4.5", "bypassPermissions", False, ["default"]),
         ("opencode:opencode/gpt-5-nano", "bypassPermissions", False, ["plan"]),
     ],
 )
@@ -900,6 +898,101 @@ async def test_chat_default_permission_mode_is_sent_to_agent(
     assert fake_agent.events_of("set_session_mode")[0]["mode_id"] == "default"
 
 
+async def test_grok_always_approve_chat_starts_with_strict_mode_ids(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", "grok_mode_ids")
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="grok:grok-4.5")
+
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="grok:grok-4.5",
+        prompt="hello",
+        permission_mode="always-approve",
+    )
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+
+    assert message["stream_status"] == "completed"
+    assert fake_agent.events_of("set_session_mode")[0]["mode_id"] == "default"
+
+
+async def test_grok_tier_change_sets_effort_on_the_loaded_session(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    # Grok keeps a loaded session's saved effort and ignores a launch flag.
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="grok:grok-4.7")
+
+    for tier in ("low", "high"):
+        response = await send_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            model_id="grok:grok-4.7",
+            prompt=f"turn at {tier}",
+            permission_mode="always-approve",
+            thinking_mode=tier,
+        )
+        message = await wait_for_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            message_id=response.json()["message_id"],
+        )
+        assert message["stream_status"] == "completed"
+
+    second_pid = fake_agent.main_turn_prompts()[1]["pid"]
+    second_process = [e for e in fake_agent.events() if e["pid"] == second_pid]
+    assert "--reasoning-effort" not in second_process[0]["argv"]
+    assert [e["event"] for e in second_process].count("load_session") == 1
+    efforts = [
+        e["value"]
+        for e in second_process
+        if e["event"] == "set_config_option" and e["config_id"] == "reasoning_effort"
+    ]
+    assert efforts == ["high"]
+
+
+async def test_grok_auto_mode_requests_auto_review(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="grok:grok-4.5")
+
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="grok:grok-4.5",
+        prompt="hello",
+        permission_mode="auto",
+    )
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+
+    assert message["stream_status"] == "completed"
+    new_session = fake_agent.events_of("new_session")[0]
+    assert new_session["meta"]["autoMode"] is True
+    argv = fake_agent.events_of("initialize")[0]["argv"]
+    assert "--always-approve" not in argv
+
+
 @pytest.mark.parametrize(
     "model_id,first_mode,second_mode,respawns",
     [
@@ -946,14 +1039,8 @@ async def test_permission_mode_change_respawns_only_launch_baked_agents(
         return
     assert second["pid"] != first["pid"]
     argv = {e["pid"]: e["argv"] for e in fake_agent.events_of("initialize")}
-    assert argv[first["pid"]] == ["agent", "--reasoning-effort", "medium", "stdio"]
-    assert argv[second["pid"]] == [
-        "agent",
-        "--always-approve",
-        "--reasoning-effort",
-        "medium",
-        "stdio",
-    ]
+    assert argv[first["pid"]] == ["agent", "stdio"]
+    assert argv[second["pid"]] == ["agent", "--always-approve", "stdio"]
 
 
 @pytest.mark.parametrize(
