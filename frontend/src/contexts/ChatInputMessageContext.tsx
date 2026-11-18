@@ -1,4 +1,4 @@
-import { type ReactNode, useMemo } from 'react';
+import { type Dispatch, type ReactNode, type SetStateAction, useMemo } from 'react';
 import {
   ChatInputMessageContext,
   SetChatInputMessageContext,
@@ -6,7 +6,7 @@ import {
 
 interface ChatInputMessageProviderProps {
   inputMessage: string;
-  setInputMessage: (msg: string) => void;
+  setInputMessage: Dispatch<SetStateAction<string>>;
   children: ReactNode;
 }
 
