@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useLayoutEffect, useRef } from 'react';
 import toast from 'react-hot-toast';
 import { useDragAndDrop } from '@/hooks/useDragAndDrop';
 import { useFileHandling } from '@/hooks/useFileHandling';
@@ -35,6 +35,11 @@ export function useInputAttachments({ attachedFiles, onAttach }: UseInputAttachm
     onFilesDrop: handleDroppedFiles,
   });
 
+  const handleDroppedFilesRef = useRef(handleDroppedFiles);
+  useLayoutEffect(() => {
+    handleDroppedFilesRef.current = handleDroppedFiles;
+  }, [handleDroppedFiles]);
+
   const handlePaste = useCallback(
     (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
       // Pasted screenshots/files arrive as clipboard files — route them through the
@@ -46,19 +51,24 @@ export function useInputAttachments({ attachedFiles, onAttach }: UseInputAttachm
         handleDroppedFiles(files);
         return;
       }
-      const copied = getCopiedAttachments(event.clipboardData.getData('text/plain'));
-      switch (copied?.status) {
-        case 'ready':
-          handleDroppedFiles(copied.files);
-          break;
-        case 'loading':
-          event.preventDefault();
-          toast('Attachments are still downloading, paste again in a moment');
-          break;
-        case 'failed':
-          toast.error('Could not load the copied attachments');
-          break;
-      }
+      const pastedText = event.clipboardData.getData('text/plain');
+      const copiedFiles = getCopiedAttachments(pastedText);
+      if (!copiedFiles) return;
+      event.preventDefault();
+      const textarea = event.currentTarget;
+      void toast
+        .promise(copiedFiles, {
+          loading: 'Loading copied attachments…',
+          success: 'Attachments added',
+          error: 'Could not load the copied attachments',
+        })
+        .catch(() => [])
+        .then((files) => {
+          if (!textarea.isConnected) return;
+          handleDroppedFilesRef.current(files);
+          textarea.focus();
+          document.execCommand('insertText', false, pastedText);
+        });
     },
     [onAttach, handleDroppedFiles],
   );

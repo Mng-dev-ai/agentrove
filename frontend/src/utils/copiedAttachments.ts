@@ -3,14 +3,9 @@ import type { MessageAttachment } from '@/types/chat.types';
 import { getDefaultFilename, resolveAttachmentBlob } from '@/utils/file';
 import { logger } from '@/utils/logger';
 
-type CopiedFiles =
-  | { status: 'loading' }
-  | { status: 'ready'; files: File[] }
-  | { status: 'failed' };
-
 interface CopiedAttachments {
   text: string;
-  files: CopiedFiles;
+  files: Promise<File[]>;
 }
 
 let copied: CopiedAttachments | null = null;
@@ -39,22 +34,16 @@ export function rememberCopiedAttachments(
     copied = null;
     return;
   }
-  const entry: CopiedAttachments = {
-    text: normalizeLineEndings(text),
-    files: { status: 'loading' },
-  };
-  copied = entry;
   const apiClient = resolveChatClient(chatId);
-  Promise.all(attachments.map((attachment, index) => toFile(attachment, index, apiClient)))
-    .then((files) => {
-      entry.files = { status: 'ready', files };
-    })
-    .catch((error) => {
-      logger.error('Copied attachments download failed', 'copiedAttachments', error);
-      entry.files = { status: 'failed' };
-    });
+  const files = Promise.all(
+    attachments.map((attachment, index) => toFile(attachment, index, apiClient)),
+  );
+  files.catch((error) =>
+    logger.error('Copied attachments download failed', 'copiedAttachments', error),
+  );
+  copied = { text: normalizeLineEndings(text), files };
 }
 
-export function getCopiedAttachments(pastedText: string): CopiedFiles | null {
+export function getCopiedAttachments(pastedText: string): Promise<File[]> | null {
   return copied?.text === normalizeLineEndings(pastedText) ? copied.files : null;
 }
