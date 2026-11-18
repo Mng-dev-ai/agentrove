@@ -7,6 +7,9 @@ fn main() {
             "machine_unpair",
             "machine_forget",
             "machine_probe",
+            "update_check",
+            "update_download",
+            "update_install",
         ]),
     ))
     .expect("failed to run tauri-build");

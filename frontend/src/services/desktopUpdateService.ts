@@ -1,40 +1,29 @@
-import { check, type Update } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
-import { useDesktopUpdateStore } from '@/store/updateStore';
+import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import { useDesktopUpdateStore, type DesktopUpdateState } from '@/store/updateStore';
 
-// Stage an available update without downloading (download only on user click).
-export async function checkDesktopUpdate(): Promise<void> {
-  const update = await check();
-  if (!update) return;
-
-  useDesktopUpdateStore.getState().setAvailable(
-    {
-      version: update.version,
-      body: update.body ?? null,
-    },
-    () => downloadAndInstall(update),
-  );
+// Events are the store's only writer: Rust emits them under its state lock, so they arrive in order.
+export async function attachDesktopUpdate(): Promise<UnlistenFn> {
+  const unlisten = await listen<DesktopUpdateState>('update-state', (event) => {
+    useDesktopUpdateStore.getState().setUpdate(event.payload);
+  });
+  try {
+    await invoke('update_check');
+  } catch (error) {
+    console.error('Desktop updater check failed:', error);
+  }
+  return unlisten;
 }
 
-async function downloadAndInstall(update: Update): Promise<void> {
-  const store = useDesktopUpdateStore.getState();
-  store.setDownloading();
-  try {
-    await update.download((event) => {
-      const s = useDesktopUpdateStore.getState();
-      if (event.event === 'Started') {
-        s.setDownloadStarted(event.data.contentLength ?? null);
-      } else if (event.event === 'Progress') {
-        s.addDownloadChunk(event.data.chunkLength);
-      }
-    });
-    useDesktopUpdateStore.getState().setInstalling();
-    await update.install();
-    // Windows install() exits; macOS/Linux replace in place and need relaunch.
-    await relaunch();
-  } catch (error) {
-    useDesktopUpdateStore
-      .getState()
-      .setError(error instanceof Error ? error.message : 'Update failed');
-  }
+export async function downloadDesktopUpdate(): Promise<void> {
+  await invoke('update_download');
+}
+
+export async function installDesktopUpdate(): Promise<void> {
+  await invoke('update_install');
+}
+
+export async function retryDesktopUpdate(): Promise<void> {
+  const update = await invoke<DesktopUpdateState>('update_check');
+  if (update.status === 'available') await downloadDesktopUpdate();
 }

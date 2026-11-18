@@ -2,6 +2,8 @@
 mod desktop;
 #[cfg(desktop)]
 mod machine;
+#[cfg(desktop)]
+mod update;
 
 // Shared entry: mobile via tauri::mobile_entry_point; desktop from main.rs.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]

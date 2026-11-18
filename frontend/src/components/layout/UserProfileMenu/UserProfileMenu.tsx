@@ -1,12 +1,16 @@
-import { Download, Loader2, AlertCircle, Settings, LogOut } from 'lucide-react';
+import { Settings, LogOut } from 'lucide-react';
 import clsx from 'clsx';
 import { UserAvatarCircle } from '@/components/chat/message-bubble/MessageAvatars';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { useDesktopUpdateStore } from '@/store/updateStore';
+import { useDesktopUpdateStore, type DesktopUpdateState } from '@/store/updateStore';
 import { useUIStore } from '@/store/uiStore';
 import { useDropdown } from '@/hooks/useDropdown';
 import { formatBytes } from '@/utils/format';
-import { checkDesktopUpdate } from '@/services/desktopUpdateService';
+import {
+  downloadDesktopUpdate,
+  installDesktopUpdate,
+  retryDesktopUpdate,
+} from '@/services/desktopUpdateService';
 import { getThemeMeta } from '@/utils/theme';
 import styles from './UserProfileMenu.module.scss';
 
@@ -16,13 +20,68 @@ interface UserProfileMenuProps {
   onSignOut: () => void;
 }
 
+interface UpdatePill {
+  label: string;
+  tone: 'action' | 'neutral' | 'error';
+  description: string;
+  action: (() => Promise<void>) | null;
+}
+
+function updatePill(update: DesktopUpdateState): UpdatePill | null {
+  switch (update.status) {
+    case 'idle':
+      return null;
+    case 'available':
+      return {
+        label: 'Update',
+        tone: 'action',
+        description: `Update to ${update.version}`,
+        action: downloadDesktopUpdate,
+      };
+    case 'downloading': {
+      const { downloadedBytes, totalBytes } = update;
+      if (!totalBytes) {
+        return {
+          label: 'Updating',
+          tone: 'neutral',
+          description: `Downloading update · ${formatBytes(downloadedBytes)}`,
+          action: null,
+        };
+      }
+      const percent = Math.round(Math.min(1, downloadedBytes / totalBytes) * 100);
+      return {
+        label: `${percent}%`,
+        tone: 'neutral',
+        description: `Downloading update · ${formatBytes(downloadedBytes)} of ${formatBytes(totalBytes)}`,
+        action: null,
+      };
+    }
+    case 'ready':
+      return {
+        label: 'Restart',
+        tone: 'action',
+        description: `Restart to install ${update.version}`,
+        action: installDesktopUpdate,
+      };
+    case 'installing':
+      return {
+        label: 'Installing',
+        tone: 'neutral',
+        description: 'Installing update',
+        action: null,
+      };
+    case 'error':
+      return {
+        label: 'Retry',
+        tone: 'error',
+        description: update.message,
+        action: retryDesktopUpdate,
+      };
+  }
+}
+
 export function UserProfileMenu({ displayName, onOpenSettings, onSignOut }: UserProfileMenuProps) {
-  const updateStatus = useDesktopUpdateStore((s) => s.status);
-  const updateVersion = useDesktopUpdateStore((s) => s.version);
-  const downloadedBytes = useDesktopUpdateStore((s) => s.downloadedBytes);
-  const totalBytes = useDesktopUpdateStore((s) => s.totalBytes);
-  const releaseNotes = useDesktopUpdateStore((s) => s.releaseNotes);
-  const errorMessage = useDesktopUpdateStore((s) => s.errorMessage);
+  const update = useDesktopUpdateStore((s) => s.update);
 
   const theme = useUIStore((s) => s.theme);
   const themeMeta = getThemeMeta(theme);
@@ -30,20 +89,7 @@ export function UserProfileMenu({ displayName, onOpenSettings, onSignOut }: User
 
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
 
-  const hasUpdate = updateStatus !== 'idle';
-  const progress = totalBytes && totalBytes > 0 ? Math.min(1, downloadedBytes / totalBytes) : null;
-
-  function handleInstall() {
-    const trigger = useDesktopUpdateStore.getState().triggerInstall;
-    if (!trigger) return;
-    void trigger();
-  }
-
-  function handleRetry() {
-    checkDesktopUpdate().catch((error) => {
-      console.error('Desktop updater retry failed:', error);
-    });
-  }
+  const pill = updatePill(update);
 
   return (
     <div ref={dropdownRef} className={styles['user-profile-menu']}>
@@ -55,98 +101,28 @@ export function UserProfileMenu({ displayName, onOpenSettings, onSignOut }: User
       >
         <span className={styles['avatar-wrap']}>
           <UserAvatarCircle displayName={displayName ?? ''} size="large" />
-          {hasUpdate && <span className={styles['update-dot']} />}
         </span>
         {displayName && <span className={styles.name}>{displayName}</span>}
       </Button>
+      {pill && (
+        <Button
+          variant="unstyled"
+          onClick={() => {
+            pill.action?.().catch((error) => {
+              console.error('Desktop update failed:', error);
+            });
+          }}
+          aria-disabled={pill.action === null}
+          aria-label={pill.description}
+          title={pill.description}
+          className={clsx(styles['update-pill'], styles[`update-pill--${pill.tone}`])}
+        >
+          {pill.label}
+        </Button>
+      )}
 
       {isOpen && (
         <div className={styles.panel}>
-          {hasUpdate && (
-            <div className={styles['update-section']}>
-              {updateStatus === 'downloading' && (
-                <div className={styles['update-downloading']}>
-                  <Loader2
-                    className={clsx(
-                      styles['update-icon'],
-                      styles['update-icon--top'],
-                      styles['update-icon--spin'],
-                    )}
-                  />
-                  <div className={styles['update-text']}>
-                    <div className={styles['update-title']}>
-                      Downloading update
-                      {progress != null ? ` · ${Math.round(progress * 100)}%` : ''}
-                    </div>
-                    <div className={styles['update-subtitle']}>
-                      {totalBytes != null
-                        ? `${formatBytes(downloadedBytes)} of ${formatBytes(totalBytes)}`
-                        : formatBytes(downloadedBytes)}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {updateStatus === 'available' && (
-                <Button
-                  variant="unstyled"
-                  onClick={() => {
-                    setIsOpen(false);
-                    handleInstall();
-                  }}
-                  className={styles['update-action']}
-                >
-                  <Download
-                    className={clsx(
-                      styles['update-icon'],
-                      styles['update-icon--top'],
-                      styles['update-icon--primary'],
-                    )}
-                  />
-                  <div className={styles['update-text']}>
-                    <div className={styles['update-title']}>Update to {updateVersion}</div>
-                    <div className={styles['update-subtitle']}>Download and restart</div>
-                    {releaseNotes && (
-                      <div className={styles['update-notes']}>{releaseNotes.trim()}</div>
-                    )}
-                  </div>
-                </Button>
-              )}
-
-              {updateStatus === 'installing' && (
-                <div className={styles['update-installing']}>
-                  <Loader2 className={clsx(styles['update-icon'], styles['update-icon--spin'])} />
-                  <div className={styles['update-title']}>Installing…</div>
-                </div>
-              )}
-
-              {updateStatus === 'error' && (
-                <Button
-                  variant="unstyled"
-                  onClick={() => {
-                    setIsOpen(false);
-                    handleRetry();
-                  }}
-                  className={styles['update-action']}
-                >
-                  <AlertCircle
-                    className={clsx(
-                      styles['update-icon'],
-                      styles['update-icon--top'],
-                      styles['update-icon--error'],
-                    )}
-                  />
-                  <div className={styles['update-text']}>
-                    <div className={styles['update-title']}>Update failed — retry</div>
-                    {errorMessage && (
-                      <div className={styles['update-error-msg']}>{errorMessage}</div>
-                    )}
-                  </div>
-                </Button>
-              )}
-            </div>
-          )}
-
           <div className={styles['menu-list']}>
             <Button
               variant="unstyled"
