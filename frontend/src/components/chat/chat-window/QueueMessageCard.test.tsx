@@ -8,8 +8,10 @@ import { SetChatInputMessageContext } from '@/contexts/ChatInputMessageContextDe
 import type { LocalQueuedMessage } from '@/types/queue.types';
 
 function makeMessage(over: Partial<LocalQueuedMessage> = {}): LocalQueuedMessage {
+  const id = over.id ?? 'msg-1';
   return {
-    id: 'msg-1',
+    id,
+    key: id,
     content: 'queued text',
     queuedAt: 0,
     synced: true,

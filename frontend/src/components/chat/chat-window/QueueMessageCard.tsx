@@ -23,8 +23,8 @@ interface QueueMessageCardProps {
   onEdit: (messageId: string, newContent: string) => void;
   onSendNow: (messageId: string) => void;
   rescued: boolean;
-  onDirtyChange: (messageId: string, dirty: boolean) => void;
-  onDiscard: (messageId: string) => void;
+  onDirtyChange: (key: string, dirty: boolean) => void;
+  onDiscard: (key: string) => void;
 }
 
 function UploadingOverlay() {
@@ -244,9 +244,9 @@ export const QueueMessageCard = memo(function QueueMessageCard({
 
   useEffect(() => {
     if (!isDirty) return;
-    onDirtyChange(message.id, true);
-    return () => onDirtyChange(message.id, false);
-  }, [isDirty, message.id, onDirtyChange]);
+    onDirtyChange(message.key, true);
+    return () => onDirtyChange(message.key, false);
+  }, [isDirty, message.key, onDirtyChange]);
 
   const handleStartEdit = useCallback(() => {
     setEditContent(message.content);
@@ -268,9 +268,11 @@ export const QueueMessageCard = memo(function QueueMessageCard({
   }, [draft, message.id, onCancel, onEdit]);
 
   const handleMoveToComposer = useCallback(() => {
-    setComposerMessage((current) => (current.trim() ? `${current}\n\n${draft}` : draft));
-    onDiscard(message.id);
-  }, [draft, message.id, onDiscard, setComposerMessage]);
+    if (draft) {
+      setComposerMessage((current) => (current.trim() ? `${current}\n\n${draft}` : draft));
+    }
+    onDiscard(message.key);
+  }, [draft, message.key, onDiscard, setComposerMessage]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -370,7 +372,7 @@ export const QueueMessageCard = memo(function QueueMessageCard({
         <div className={styles['edit-footer']}>
           <span className={styles['rescued-note']}>Original already sent. Edit not saved.</span>
           <Button
-            onClick={() => onDiscard(message.id)}
+            onClick={() => onDiscard(message.key)}
             variant="unstyled"
             className={clsx(styles['action-btn'], styles['action-btn--cancel-edit'])}
           >

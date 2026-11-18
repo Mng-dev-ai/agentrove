@@ -16,28 +16,30 @@ export const ChatQueueBanner = memo(function ChatQueueBanner({
   onEdit,
   onSendNow,
 }: ChatQueueBannerProps) {
-  const [dirtyIds, setDirtyIds] = useState<ReadonlySet<string>>(new Set());
+  const [dirtyKeys, setDirtyKeys] = useState<ReadonlySet<string>>(new Set());
   const [rescued, setRescued] = useState<LocalQueuedMessage[]>([]);
   const [prevMessages, setPrevMessages] = useState(messages);
 
   if (messages !== prevMessages) {
     setPrevMessages(messages);
-    const remaining = new Set(messages.map((m) => m.id));
-    const left = prevMessages.filter((m) => !remaining.has(m.id) && dirtyIds.has(m.id));
+    const remaining = new Set(messages.map((m) => m.key));
+    const left = prevMessages.filter(
+      (m) => m.synced && !remaining.has(m.key) && dirtyKeys.has(m.key),
+    );
     if (left.length > 0) setRescued((current) => [...current, ...left]);
   }
 
-  const handleDirtyChange = useCallback((messageId: string, dirty: boolean) => {
-    setDirtyIds((current) => {
+  const handleDirtyChange = useCallback((key: string, dirty: boolean) => {
+    setDirtyKeys((current) => {
       const next = new Set(current);
-      if (dirty) next.add(messageId);
-      else next.delete(messageId);
+      if (dirty) next.add(key);
+      else next.delete(key);
       return next;
     });
   }, []);
 
-  const handleDiscard = useCallback((messageId: string) => {
-    setRescued((current) => current.filter((m) => m.id !== messageId));
+  const handleDiscard = useCallback((key: string) => {
+    setRescued((current) => current.filter((m) => m.key !== key));
   }, []);
 
   if (messages.length === 0 && rescued.length === 0) {
@@ -49,7 +51,7 @@ export const ChatQueueBanner = memo(function ChatQueueBanner({
       <div className={styles['queue-card-list']}>
         {[...rescued, ...messages].map((pending) => (
           <QueueMessageCard
-            key={pending.id}
+            key={pending.key}
             message={pending}
             onCancel={onCancel}
             onEdit={onEdit}

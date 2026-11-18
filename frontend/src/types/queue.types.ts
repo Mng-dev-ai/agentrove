@@ -44,6 +44,7 @@ export interface QueueAddResponse {
 
 export interface LocalQueuedMessage {
   id: string;
+  key: string;
   content: string;
   files?: File[];
   attachments?: QueueMessageAttachment[];

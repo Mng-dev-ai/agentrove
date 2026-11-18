@@ -51,6 +51,7 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
       const tempId = crypto.randomUUID();
       const tempMessage: LocalQueuedMessage = {
         id: tempId,
+        key: tempId,
         content,
         files: api.filesOf(...args),
         queuedAt: Date.now(),
@@ -250,6 +251,7 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
 
           const syncedMessages: LocalQueuedMessage[] = serverMessages.map((msg) => ({
             id: msg.id,
+            key: existingQueue.find((m) => m.id === msg.id)?.key ?? msg.id,
             content: msg.content,
             attachments: msg.attachments,
             queuedAt: new Date(msg.queued_at).getTime(),

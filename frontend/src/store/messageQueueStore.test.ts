@@ -21,6 +21,7 @@ vi.mock('@/services/queueService', () => ({
 const svc = vi.mocked(queueService);
 
 const localMsg = (over: Partial<LocalQueuedMessage> & { id: string }): LocalQueuedMessage => ({
+  key: over.id,
   content: 'hi',
   queuedAt: 1000,
   synced: true,
@@ -47,11 +48,13 @@ afterEach(() => {
 describe('queueMessage', () => {
   it('optimistically adds a message, then swaps in the server id and marks it synced', async () => {
     svc.queueMessage.mockResolvedValue({ id: 'server-1', send_now_failed: false, started: false });
-    const returned = await useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5');
+    const pending = useMessageQueueStore.getState().queueMessage('c1', 'hello', 'gpt-5');
+    const { key } = queueOf('c1')[0];
+    const returned = await pending;
 
     expect(returned).toEqual({ id: 'server-1', send_now_failed: false, started: false });
     expect(queueOf('c1')).toHaveLength(1);
-    expect(queueOf('c1')[0]).toMatchObject({ id: 'server-1', content: 'hello', synced: true });
+    expect(queueOf('c1')[0]).toMatchObject({ id: 'server-1', key, content: 'hello', synced: true });
   });
 
   it('rolls back the optimistic add and rethrows on a network error', async () => {
