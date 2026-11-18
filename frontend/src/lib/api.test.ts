@@ -172,6 +172,62 @@ describe('APIClient 401 handling', () => {
     expect(authStorage.getToken()).toBe('access');
     expect(authStorage.getRefreshToken()).toBe('refresh-tok');
   });
+
+  it('retries a late 401 on the pre-refresh token without refreshing again', async () => {
+    const fresh = jwtWithExp(Math.floor(Date.now() / 1000) + 3600);
+    await signIn('old-access', 'refresh-tok');
+    let refreshes = 0;
+    let releaseStream: ((response: Response) => void) | undefined;
+    fetchMock.mockImplementation((url, init) => {
+      if (isRefresh(url)) {
+        refreshes += 1;
+        return Promise.resolve(tokens(refreshes === 1 ? fresh : 'second', `r${refreshes + 1}`));
+      }
+      if (String(url).endsWith('/events') && bearerOf(init) === 'Bearer old-access') {
+        return new Promise<Response>((resolve) => (releaseStream = resolve));
+      }
+      return Promise.resolve(
+        bearerOf(init) === `Bearer ${fresh}` ? json({ ok: true }) : json({}, 401),
+      );
+    });
+
+    const stream = apiClient.openStream('/events', new AbortController().signal);
+    await vi.waitFor(() => expect(releaseStream).toBeDefined());
+    await apiClient.get('/a');
+    releaseStream!(json({}, 401));
+
+    await expect(stream).resolves.toMatchObject({ status: 200 });
+    expect(refreshes).toBe(1);
+    expect(bearerOf(fetchMock.mock.lastCall?.[1])).toBe(`Bearer ${fresh}`);
+  });
+
+  it('refreshes on a late 401 when the replacement token has also expired', async () => {
+    const fresh = jwtWithExp(Math.floor(Date.now() / 1000) + 3600);
+    await signIn('old-access', 'refresh-tok');
+    let refreshes = 0;
+    let releaseSlow: ((response: Response) => void) | undefined;
+    fetchMock.mockImplementation((url, init) => {
+      if (isRefresh(url)) {
+        refreshes += 1;
+        return Promise.resolve(tokens(fresh, 'r3'));
+      }
+      if (bearerOf(init) === 'Bearer old-access') {
+        return new Promise<Response>((resolve) => (releaseSlow = resolve));
+      }
+      return Promise.resolve(
+        bearerOf(init) === `Bearer ${fresh}` ? json({ ok: true }) : json({}, 401),
+      );
+    });
+
+    const slow = apiClient.get('/slow');
+    await vi.waitFor(() => expect(releaseSlow).toBeDefined());
+    await authStorage.setTokens(jwtWithExp(Math.floor(Date.now() / 1000) - 10), 'r2');
+    releaseSlow!(json({}, 401));
+
+    await expect(slow).resolves.toEqual({ ok: true });
+    expect(refreshes).toBe(1);
+    expect(bearerOf(fetchMock.mock.lastCall?.[1])).toBe(`Bearer ${fresh}`);
+  });
 });
 
 describe('withAuth error classification', () => {
