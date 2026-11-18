@@ -347,11 +347,14 @@ export async function downloadAttachmentFile(
     return;
   }
 
-  const blob =
-    fileUrl instanceof File
-      ? fileUrl
-      : await fetchAttachmentBlob(toDownloadUrl(fileUrl), apiClient);
-  saveBlob(blob, fileName);
+  saveBlob(await resolveAttachmentBlob(fileUrl, apiClient), fileName);
+}
+
+export async function resolveAttachmentBlob(
+  fileUrl: string | File,
+  apiClient: { getBlob: (endpoint: string, signal?: AbortSignal) => Promise<Blob> },
+): Promise<Blob> {
+  return fileUrl instanceof File ? fileUrl : fetchAttachmentBlob(toDownloadUrl(fileUrl), apiClient);
 }
 
 export function saveBlob(blob: Blob, fileName: string) {

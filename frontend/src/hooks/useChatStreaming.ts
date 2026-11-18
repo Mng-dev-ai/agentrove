@@ -9,6 +9,7 @@ import type {
   ContextUsage,
   ElicitationRequest,
   Message,
+  MessageAttachment,
   PermissionRequest,
 } from '@/types/chat.types';
 import type { StreamState } from '@/types/stream.types';
@@ -48,7 +49,7 @@ interface UseChatStreamingResult {
   inputFiles: File[];
   setInputFiles: Dispatch<SetStateAction<File[]>>;
   copiedMessageId: string | null;
-  handleCopy: (content: string, id: string) => Promise<void>;
+  handleCopy: (content: string, id: string, attachments?: MessageAttachment[]) => Promise<void>;
   handleMessageSend: (event: FormEvent) => Promise<void>;
   handleStop: () => void;
   sendMessage: (

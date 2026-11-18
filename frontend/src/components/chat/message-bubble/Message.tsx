@@ -117,7 +117,7 @@ export const UserMessage = memo(function UserMessage({
 
       {contentText.trim() && !isStreaming && (
         <UserActions>
-          <MessageActions messageId={id} contentText={contentText} />
+          <MessageActions messageId={id} contentText={contentText} attachments={attachments} />
         </UserActions>
       )}
     </MessageRow>

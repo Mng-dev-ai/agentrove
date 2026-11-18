@@ -1,4 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
+import type { MessageAttachment } from '@/types/chat.types';
+import { rememberCopiedAttachments } from '@/utils/copiedAttachments';
 import { logger } from '@/utils/logger';
 import { extractAssistantText } from '@/utils/stream';
 
@@ -8,7 +10,7 @@ interface UseClipboardParams {
 
 interface UseClipboardResult {
   copiedMessageId: string | null;
-  handleCopy: (content: string, id: string) => Promise<void>;
+  handleCopy: (content: string, id: string, attachments?: MessageAttachment[]) => Promise<void>;
 }
 
 export function useClipboard({ chatId }: UseClipboardParams): UseClipboardResult {
@@ -20,16 +22,20 @@ export function useClipboard({ chatId }: UseClipboardParams): UseClipboardResult
     setCopiedMessageId(null);
   }
 
-  const handleCopy = useCallback(async (content: string, id: string) => {
-    try {
-      const textToCopy = extractAssistantText(content) || content;
-      await navigator.clipboard.writeText(textToCopy);
-      setCopiedMessageId(id);
-      setTimeout(() => setCopiedMessageId(null), 2000);
-    } catch (error) {
-      logger.error('Clipboard copy failed', 'useClipboard', error);
-    }
-  }, []);
+  const handleCopy = useCallback(
+    async (content: string, id: string, attachments?: MessageAttachment[]) => {
+      try {
+        const textToCopy = extractAssistantText(content) || content;
+        await navigator.clipboard.writeText(textToCopy);
+        rememberCopiedAttachments(textToCopy, attachments ?? [], chatId);
+        setCopiedMessageId(id);
+        setTimeout(() => setCopiedMessageId(null), 2000);
+      } catch (error) {
+        logger.error('Clipboard copy failed', 'useClipboard', error);
+      }
+    },
+    [chatId],
+  );
 
   return {
     copiedMessageId,

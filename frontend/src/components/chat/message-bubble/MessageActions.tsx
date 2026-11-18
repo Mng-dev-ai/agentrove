@@ -4,11 +4,13 @@ import { CheckCircle2, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Tooltip } from '@/components/ui/Tooltip/Tooltip';
 import { useChatCopiedMessageContext } from '@/hooks/useChatCopiedMessageContext';
+import type { MessageAttachment } from '@/types/chat.types';
 import styles from './MessageActions.module.scss';
 
 interface MessageActionsProps {
   messageId: string;
   contentText: string;
+  attachments?: MessageAttachment[];
   copyLabel?: string;
   showTooltip?: boolean;
 }
@@ -16,6 +18,7 @@ interface MessageActionsProps {
 export const MessageActions = memo(function MessageActions({
   messageId,
   contentText,
+  attachments,
   copyLabel = 'Copy',
   showTooltip = true,
 }: MessageActionsProps) {
@@ -28,7 +31,7 @@ export const MessageActions = memo(function MessageActions({
 
   const button = (
     <Button
-      onClick={() => onCopy(contentText, messageId)}
+      onClick={() => onCopy(contentText, messageId, attachments)}
       aria-label={label}
       variant="unstyled"
       className={clsx(
