@@ -1,9 +1,10 @@
 import { type ReactNode, useMemo } from 'react';
+import type { MessageAttachment } from '@/types/chat.types';
 import { ChatCopiedMessageContext } from './ChatCopiedMessageContextDefinition';
 
 interface ChatCopiedMessageProviderProps {
   copiedMessageId: string | null;
-  onCopy: (content: string, id: string) => void;
+  onCopy: (content: string, id: string, attachments?: MessageAttachment[]) => void;
   children: ReactNode;
 }
 
