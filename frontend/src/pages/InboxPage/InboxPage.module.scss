@@ -41,9 +41,20 @@
   }
 }
 
+.title-row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
 .title {
   @include type.type-body(500);
   color: var(--theme-text-primary);
+}
+
+.unread-count {
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
 }
 
 .description {
@@ -100,107 +111,96 @@
   flex-direction: column;
 }
 
+.group {
+  display: flex;
+  flex-direction: column;
+}
+
+.group-label {
+  @include type.type-meta(500);
+  padding: var(--space-4) var(--space-2-5) var(--space-1)
+    calc(var(--space-2-5) * 2 + var(--space-3-5));
+  color: var(--theme-text-tertiary);
+}
+
 .show-more-btn {
   align-self: center;
   margin-top: var(--space-3);
 }
 
+@mixin static-actions {
+  position: static;
+  justify-content: flex-start;
+  gap: var(--space-2-5);
+  padding: 0 var(--space-2-5) var(--space-2) calc(var(--space-2-5) * 2 + var(--space-3-5));
+  background: none;
+  opacity: 1;
+}
+
 .row {
   @include anim.transition-colors;
+  position: relative;
   border-radius: var(--radius-lg);
-  border: 1px solid transparent;
 
   @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    border-color: colors.theme-color('border', 0.5);
+    background-color: colors.theme-color('surface-hover', 0.5);
+  }
+
+  &:has(:focus-visible) {
+    background-color: colors.theme-color('surface-hover', 0.5);
   }
 }
 
 .open-btn {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2-5);
+  display: grid;
+  grid-template-columns: var(--space-3-5) minmax(0, 1fr) auto;
+  column-gap: var(--space-2-5);
+  row-gap: var(--space-0-5);
   width: 100%;
-  padding: var(--space-3) var(--space-2-5);
+  padding: var(--space-2) var(--space-2-5);
   text-align: left;
-
-  @include responsive.media('mobile') {
-    display: grid;
-    grid-template-columns: var(--space-3-5) minmax(0, 1fr);
-    column-gap: var(--space-2-5);
-    row-gap: var(--space-0-5);
-  }
-
-  @include responsive.media('md-up') {
-    padding-block: var(--space-2);
-  }
-}
-
-.footer {
-  display: flex;
-  gap: var(--space-3);
-  padding: 0 var(--space-2-5) var(--space-2) calc(var(--space-2-5) * 2 + var(--space-3-5));
-}
-
-.footer-btn {
-  @include type.type-meta;
-  @include responsive.touch-target;
-  color: var(--theme-text-tertiary);
-
-  @include responsive.hover {
-    color: var(--theme-text-primary);
-  }
-}
-
-.status-slot {
-  display: flex;
-  height: var(--space-5);
-  width: var(--space-3-5);
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-
-  @include responsive.media('mobile') {
-    grid-row: 1 / span 3;
-    grid-column: 1;
-  }
-}
-
-.text {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-0-5);
-  min-width: 0;
-  flex: 1;
-
-  @include responsive.media('mobile') {
-    display: contents;
-  }
 }
 
 .item-title {
   @include type.type-default(500);
   @include type.type-overflow;
+  grid-column: 2;
   color: var(--theme-text-primary);
 
-  @include responsive.media('mobile') {
-    grid-column: 2;
-  }
-
-  &--read {
+  .row--read & {
     @include type.type-default;
+    color: var(--theme-text-secondary);
+  }
+}
+
+.time {
+  @include type.type-meta;
+  grid-column: 3;
+  align-self: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-quaternary);
+  transition: opacity var(--duration-instant);
+
+  @include responsive.media('not-touch') {
+    @include responsive.media('desktop') {
+      .row:hover &,
+      .row:has(:focus-visible) & {
+        opacity: 0;
+      }
+    }
   }
 }
 
 .body {
   @include type.type-default;
-  @include type.type-lineclamp(3);
+  @include type.type-lineclamp(2);
+  grid-column: 2 / 4;
   color: var(--theme-text-secondary);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 
-  @include responsive.media('mobile') {
-    grid-column: 2;
+  .row--read & {
+    color: var(--theme-text-tertiary);
   }
 
   &--expanded {
@@ -211,36 +211,106 @@
   }
 }
 
-.machine-badge {
+.meta {
   @include type.type-meta;
   display: flex;
-  flex-shrink: 0;
+  grid-column: 2 / 4;
+  min-width: 0;
   align-items: center;
   gap: var(--space-1);
-  border: 1px solid colors.theme-color('border', 0.5);
-  border-radius: var(--radius-md);
-  padding: var(--space-0-5) var(--space-1-5);
+  margin-top: var(--space-0-5);
   color: var(--theme-text-tertiary);
+}
 
-  @include responsive.media('mobile') {
-    grid-column: 2;
-    justify-self: start;
+.meta-part {
+  @include type.type-overflow;
+  min-width: 0;
+
+  &--fixed {
+    flex-shrink: 0;
+    max-width: 40%;
   }
+}
+
+.separator {
+  flex-shrink: 0;
+}
+
+.machine-badge {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
 }
 
 .machine-icon {
-  height: var(--space-3);
-  width: var(--space-3);
+  height: var(--space-2-5);
+  width: var(--space-2-5);
+  flex-shrink: 0;
 }
 
-.time {
-  @include type.type-meta;
-  color: var(--theme-text-quaternary);
-  flex-shrink: 0;
-  padding-top: var(--space-0-5);
+.dot-btn {
+  @include responsive.touch-target;
+  position: absolute;
+  top: var(--space-2);
+  left: var(--space-2-5);
+  display: flex;
+  height: type.$type-default-line-height;
+  width: var(--space-3-5);
+  align-items: center;
+  justify-content: center;
+}
+
+.actions {
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1-5);
+  display: flex;
+  align-items: center;
+  gap: var(--space-0-5);
+  padding-left: var(--space-1);
+  border-radius: var(--radius-md);
+  background-color: var(--theme-surface);
+  background-image: linear-gradient(
+    colors.theme-color('surface-hover', 0.5),
+    colors.theme-color('surface-hover', 0.5)
+  );
+  opacity: 0;
+  transition: opacity var(--duration-instant);
+
+  .row:hover &,
+  .row:has(:focus-visible) & {
+    opacity: 1;
+  }
+
+  @include responsive.media('touch') {
+    @include static-actions;
+  }
 
   @include responsive.media('mobile') {
-    grid-column: 2;
-    padding-top: 0;
+    @include static-actions;
   }
+}
+
+.action-btn {
+  @include anim.transition-colors;
+  @include responsive.touch-target;
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    background-color: colors.theme-color('border', 0.5);
+    color: var(--theme-text-primary);
+  }
+
+  @include responsive.media('touch') {
+    padding: var(--space-1-5);
+  }
+}
+
+.action-icon {
+  display: block;
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }

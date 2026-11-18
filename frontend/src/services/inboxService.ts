@@ -27,6 +27,19 @@ async function markRead(itemId: string, machineId: string): Promise<InboxItem> {
   });
 }
 
+async function markUnread(itemId: string, machineId: string): Promise<InboxItem> {
+  return serviceCall(async () => {
+    const response = await getMachineClient(machineId).post<InboxItem>(`/inbox/${itemId}/unread`);
+    return ensureResponse(response, 'Failed to mark message as unread');
+  });
+}
+
+async function deleteItem(itemId: string, machineId: string): Promise<void> {
+  await serviceCall(async () => {
+    await getMachineClient(machineId).delete(`/inbox/${itemId}`);
+  });
+}
+
 async function markAllRead(machineId: string): Promise<void> {
   await serviceCall(async () => {
     await getMachineClient(machineId).post('/inbox/read-all');
@@ -42,6 +55,8 @@ async function clearRead(machineId: string): Promise<void> {
 export const inboxService = {
   listInbox,
   markRead,
+  markUnread,
+  deleteItem,
   markAllRead,
   clearRead,
 };

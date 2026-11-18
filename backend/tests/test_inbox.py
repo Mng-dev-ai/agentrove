@@ -188,3 +188,51 @@ async def test_create_message_rejects_channel_member_chat(
     assert response.status_code == 404
     assert (await client.get("/api/v1/inbox", headers=headers)).json()["items"] == []
     assert await deliveries(db_session) == []
+
+
+async def test_mark_unread_and_delete_item(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    other_headers, _other, _ws = await create_authenticated_workspace(
+        db_session, create_user, login, email="o@example.com", username="other"
+    )
+    chat = await create_chat_row(db_session, user, workspace, title="Deploy chat")
+    created = (await post_message(client, headers, chat.id, "First")).json()
+    second = (await post_message(client, headers, chat.id, "Second")).json()
+    assert created["chat_title"] == "Deploy chat"
+    assert created["workspace_name"] == "Test Workspace"
+
+    listed = (await client.get("/api/v1/inbox", headers=headers)).json()
+    assert [(i["chat_title"], i["workspace_name"]) for i in listed["items"]] == [
+        ("Deploy chat", "Test Workspace"),
+        ("Deploy chat", "Test Workspace"),
+    ]
+
+    await client.post(f"/api/v1/inbox/{created['id']}/read", headers=headers)
+    foreign_unread = await client.post(
+        f"/api/v1/inbox/{created['id']}/unread", headers=other_headers
+    )
+    assert foreign_unread.status_code == 404
+    unread = await client.post(f"/api/v1/inbox/{created['id']}/unread", headers=headers)
+    assert unread.status_code == 200
+    assert unread.json()["read_at"] is None
+    assert unread.json()["chat_title"] == "Deploy chat"
+    assert unread.json()["workspace_name"] == "Test Workspace"
+
+    foreign_delete = await client.delete(
+        f"/api/v1/inbox/{second['id']}", headers=other_headers
+    )
+    assert foreign_delete.status_code == 404
+    deleted = await client.delete(f"/api/v1/inbox/{second['id']}", headers=headers)
+    assert deleted.status_code == 204
+    listed = (await client.get("/api/v1/inbox", headers=headers)).json()
+    assert [i["title"] for i in listed["items"]] == ["First"]
+    assert listed["unread_count"] == 1
+    missing = await client.delete(f"/api/v1/inbox/{second['id']}", headers=headers)
+    assert missing.status_code == 404
