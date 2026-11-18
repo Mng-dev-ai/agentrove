@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import type { InvalidateOptions, QueryClient, UseQueryOptions } from '@tanstack/react-query';
+import type { Query, QueryClient, UseQueryOptions } from '@tanstack/react-query';
 import { sandboxService } from '@/services/sandboxService';
 import type {
   DiffMode,
@@ -69,22 +69,34 @@ export const useUpdateFileMutation = createMutation<UpdateFileResult, Error, Upd
 );
 
 // All git-derived caches — refresh together or diff/indicators go stale.
-export const invalidateGitState = (
+export const invalidateGitState = (queryClient: QueryClient, sandboxId: string) =>
+  Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitFileBaselineAll(sandboxId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitChangedPathsAll(sandboxId) }),
+  ]);
+
+// Git keys end with cwd (undefined without a worktree). Keeps an in-flight refetch rather than
+// restarting it, so frequent calls can't stop a slow git call from settling.
+export const invalidateWorktreeGitState = (
   queryClient: QueryClient,
   sandboxId: string,
-  options?: InvalidateOptions,
-) =>
-  Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }, options),
-    queryClient.invalidateQueries(
-      { queryKey: queryKeys.sandbox.gitFileBaselineAll(sandboxId) },
-      options,
+  cwd: string | undefined,
+) => {
+  const predicate = (query: Query) => query.queryKey[query.queryKey.length - 1] === cwd;
+  return Promise.all(
+    [
+      queryKeys.sandbox.gitDiffAll,
+      queryKeys.sandbox.gitFileBaselineAll,
+      queryKeys.sandbox.gitChangedPathsAll,
+    ].map((key) =>
+      queryClient.invalidateQueries(
+        { queryKey: key(sandboxId), predicate },
+        { cancelRefetch: false },
+      ),
     ),
-    queryClient.invalidateQueries(
-      { queryKey: queryKeys.sandbox.gitChangedPathsAll(sandboxId) },
-      options,
-    ),
-  ]);
+  );
+};
 
 export const useGitBranchesQuery = (
   sandboxId: string | undefined,

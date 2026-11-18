@@ -6,7 +6,7 @@ import { extractAssistantText, type StreamContentBuffer } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { markChatViewed } from '@/hooks/queries/useChatQueries';
-import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
+import { invalidateGitState, invalidateWorktreeGitState } from '@/hooks/queries/useSandboxQueries';
 import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import type {
   AssistantStreamEvent,
@@ -220,17 +220,20 @@ export function useStreamCallbacks({
   );
 
   const scheduleGitRefresh = useCallback(
-    (sandboxId: string) => {
+    (streamChatId: string, sandboxId: string) => {
       const timers = gitRefreshTimersRef.current;
-      if (timers.has(sandboxId)) {
+      if (timers.has(streamChatId)) {
         return;
       }
       const timer = setTimeout(() => {
-        timers.delete(sandboxId);
-        // Don't restart an in-flight git refetch, or a steady tool stream never lets it settle.
-        void invalidateGitState(queryClient, sandboxId, { cancelRefetch: false });
+        timers.delete(streamChatId);
+        // Read at fire time — a system envelope can move the chat into a worktree mid-turn.
+        const chat = queryClient.getQueryData<Chat>(queryKeys.chat(streamChatId));
+        if (chat) {
+          void invalidateWorktreeGitState(queryClient, sandboxId, chat.worktree_cwd ?? undefined);
+        }
       }, MID_TURN_GIT_REFRESH_INTERVAL_MS);
-      timers.set(sandboxId, timer);
+      timers.set(streamChatId, timer);
     },
     [queryClient],
   );
@@ -374,7 +377,7 @@ export function useStreamCallbacks({
           getStreamSession(envelope.streamId)?.sandboxId ??
           (chatId === chatIdRef.current ? currentChat?.sandbox_id : undefined);
         if (sandboxId) {
-          scheduleGitRefresh(sandboxId);
+          scheduleGitRefresh(envelope.chatId, sandboxId);
         }
         const tool = (envelope.payload as { tool?: ToolEventPayload })?.tool;
         if (tool?.name === 'EnterPlanMode' && chatId) {
@@ -488,8 +491,10 @@ export function useStreamCallbacks({
       const targetSandboxId =
         sessionSandboxId ?? (isCurrentChat ? currentChat?.sandbox_id : undefined);
       if (targetSandboxId) {
-        clearTimeout(gitRefreshTimersRef.current.get(targetSandboxId));
-        gitRefreshTimersRef.current.delete(targetSandboxId);
+        if (targetChatId) {
+          clearTimeout(gitRefreshTimersRef.current.get(targetChatId));
+          gitRefreshTimersRef.current.delete(targetChatId);
+        }
         queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.filesMetadataAll(targetSandboxId),
         });

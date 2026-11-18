@@ -219,13 +219,17 @@ describe('side-effect envelopes', () => {
     expect(useChatSettingsStore.getState().permissionModeByChat.c1).toBe('auto');
   });
 
-  it('refreshes git state once per window after a burst of tool completions', () => {
+  it("refreshes only the stream chat's worktree git state, once per window after a burst", () => {
+    queryClient.setQueryData(queryKeys.chat('c1'), {
+      id: 'c1',
+      sandbox_id: 'sb1',
+      worktree_cwd: '/wt/a',
+    } as Chat);
+    const ownStats = queryKeys.sandbox.gitDiffStats('sb1', '/wt/a');
+    const otherStats = queryKeys.sandbox.gitDiffStats('sb1', '/wt/b');
+    queryClient.setQueryData(ownStats, {});
+    queryClient.setQueryData(otherStats, {});
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
-    const gitDiffInvalidations = () =>
-      invalidate.mock.calls.filter(
-        ([filters]) =>
-          JSON.stringify(filters?.queryKey) === JSON.stringify(queryKeys.sandbox.gitDiffAll('sb1')),
-      );
     const { result } = renderCallbacks();
 
     act(() => {
@@ -238,12 +242,17 @@ describe('side-effect envelopes', () => {
       }
     });
     act(() => vi.advanceTimersByTime(2999));
-    expect(gitDiffInvalidations()).toHaveLength(0);
+    expect(queryClient.getQueryState(ownStats)?.isInvalidated).toBe(false);
 
     act(() => vi.advanceTimersByTime(1));
-    expect(gitDiffInvalidations()).toEqual([
-      [{ queryKey: queryKeys.sandbox.gitDiffAll('sb1') }, { cancelRefetch: false }],
-    ]);
+    expect(queryClient.getQueryState(ownStats)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(otherStats)?.isInvalidated).toBe(false);
+    expect(
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(queryKeys.sandbox.gitDiffAll('sb1')),
+      ),
+    ).toHaveLength(1);
   });
 
   it('drops a pending git refresh when the pane unmounts', () => {
