@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from app.models.schemas.pagination import CursorPaginatedResponse
 
@@ -13,14 +13,14 @@ class InboxMessageCreate(BaseModel):
 
 
 class InboxItem(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     id: UUID
     chat_id: UUID
     title: str
     body: str
     read_at: datetime | None = None
     created_at: datetime
+    chat_title: str
+    workspace_name: str
 
 
 class InboxList(CursorPaginatedResponse[InboxItem]):

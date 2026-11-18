@@ -65,3 +65,27 @@ async def mark_read(
         return await inbox_service.mark_read(item_id, current_user)
     except ServiceException as e:
         raise HTTPException(status_code=e.status_code, detail=e.message) from e
+
+
+@router.post("/{item_id}/unread", response_model=InboxItem)
+async def mark_unread(
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    inbox_service: InboxService = Depends(get_inbox_service),
+) -> InboxItem:
+    try:
+        return await inbox_service.mark_unread(item_id, current_user)
+    except ServiceException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
+
+
+@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_item(
+    item_id: UUID,
+    current_user: User = Depends(get_current_user),
+    inbox_service: InboxService = Depends(get_inbox_service),
+) -> None:
+    try:
+        await inbox_service.delete_item(item_id, current_user)
+    except ServiceException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
