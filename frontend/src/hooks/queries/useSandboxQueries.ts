@@ -76,26 +76,24 @@ export const invalidateGitState = (queryClient: QueryClient, sandboxId: string) 
     queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitChangedPathsAll(sandboxId) }),
   ]);
 
-// Git keys end with cwd (undefined without a worktree). Keeps an in-flight refetch rather than
-// restarting it, so frequent calls can't stop a slow git call from settling.
-export const invalidateWorktreeGitState = (
+// Git keys end with cwd (undefined without a worktree). Skips while one is fetching: that fetch
+// would absorb the invalidation and may predate the change. Returns whether it invalidated.
+export const invalidateWorktreeGitStateIfIdle = (
   queryClient: QueryClient,
   sandboxId: string,
   cwd: string | undefined,
 ) => {
   const predicate = (query: Query) => query.queryKey[query.queryKey.length - 1] === cwd;
-  return Promise.all(
-    [
-      queryKeys.sandbox.gitDiffAll,
-      queryKeys.sandbox.gitFileBaselineAll,
-      queryKeys.sandbox.gitChangedPathsAll,
-    ].map((key) =>
-      queryClient.invalidateQueries(
-        { queryKey: key(sandboxId), predicate },
-        { cancelRefetch: false },
-      ),
-    ),
-  );
+  const filters = [
+    queryKeys.sandbox.gitDiffAll,
+    queryKeys.sandbox.gitFileBaselineAll,
+    queryKeys.sandbox.gitChangedPathsAll,
+  ].map((key) => ({ queryKey: key(sandboxId), predicate }));
+  if (filters.some((f) => queryClient.isFetching(f) > 0)) {
+    return false;
+  }
+  filters.forEach((f) => void queryClient.invalidateQueries(f));
+  return true;
 };
 
 export const useGitBranchesQuery = (

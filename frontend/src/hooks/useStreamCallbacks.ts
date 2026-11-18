@@ -6,7 +6,10 @@ import { extractAssistantText, type StreamContentBuffer } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { markChatViewed } from '@/hooks/queries/useChatQueries';
-import { invalidateGitState, invalidateWorktreeGitState } from '@/hooks/queries/useSandboxQueries';
+import {
+  invalidateGitState,
+  invalidateWorktreeGitStateIfIdle,
+} from '@/hooks/queries/useSandboxQueries';
 import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import type {
   AssistantStreamEvent,
@@ -91,6 +94,29 @@ interface UseStreamCallbacksResult {
   addMessageToCache: ReturnType<typeof useMessageCache>['addMessageToCache'];
   removeMessagesFromCache: ReturnType<typeof useMessageCache>['removeMessagesFromCache'];
   setPendingUserMessageId: (id: string | null) => void;
+}
+
+function scheduleGitRefresh(
+  timers: Map<string, ReturnType<typeof setTimeout>>,
+  queryClient: QueryClient,
+  streamChatId: string,
+  sandboxId: string,
+) {
+  if (timers.has(streamChatId)) {
+    return;
+  }
+  const timer = setTimeout(() => {
+    timers.delete(streamChatId);
+    // Read at fire time — a system envelope can move the chat into a worktree mid-turn.
+    const chat = queryClient.getQueryData<Chat>(queryKeys.chat(streamChatId));
+    if (
+      chat &&
+      !invalidateWorktreeGitStateIfIdle(queryClient, sandboxId, chat.worktree_cwd ?? undefined)
+    ) {
+      scheduleGitRefresh(timers, queryClient, streamChatId, sandboxId);
+    }
+  }, MID_TURN_GIT_REFRESH_INTERVAL_MS);
+  timers.set(streamChatId, timer);
 }
 
 // SSE pipeline: buffer envelopes, flush on a coalescing timer, own start/replay/stop + terminal handlers.
@@ -215,25 +241,6 @@ export function useStreamCallbacks({
         seedEvents,
         seedText,
       );
-    },
-    [queryClient],
-  );
-
-  const scheduleGitRefresh = useCallback(
-    (streamChatId: string, sandboxId: string) => {
-      const timers = gitRefreshTimersRef.current;
-      if (timers.has(streamChatId)) {
-        return;
-      }
-      const timer = setTimeout(() => {
-        timers.delete(streamChatId);
-        // Read at fire time — a system envelope can move the chat into a worktree mid-turn.
-        const chat = queryClient.getQueryData<Chat>(queryKeys.chat(streamChatId));
-        if (chat) {
-          void invalidateWorktreeGitState(queryClient, sandboxId, chat.worktree_cwd ?? undefined);
-        }
-      }, MID_TURN_GIT_REFRESH_INTERVAL_MS);
-      timers.set(streamChatId, timer);
     },
     [queryClient],
   );
@@ -377,7 +384,7 @@ export function useStreamCallbacks({
           getStreamSession(envelope.streamId)?.sandboxId ??
           (chatId === chatIdRef.current ? currentChat?.sandbox_id : undefined);
         if (sandboxId) {
-          scheduleGitRefresh(envelope.chatId, sandboxId);
+          scheduleGitRefresh(gitRefreshTimersRef.current, queryClient, envelope.chatId, sandboxId);
         }
         const tool = (envelope.payload as { tool?: ToolEventPayload })?.tool;
         if (tool?.name === 'EnterPlanMode' && chatId) {
@@ -417,7 +424,6 @@ export function useStreamCallbacks({
       pendingStopRef,
       queryClient,
       scheduleContentFlush,
-      scheduleGitRefresh,
       setPendingUserMessageId,
     ],
   );

@@ -255,6 +255,40 @@ describe('side-effect envelopes', () => {
     ).toHaveLength(1);
   });
 
+  it('defers a git refresh due while the worktree query is fetching until it settles', async () => {
+    queryClient.setQueryData(queryKeys.chat('c1'), {
+      id: 'c1',
+      sandbox_id: 'sb1',
+      worktree_cwd: '/wt/a',
+    } as Chat);
+    const ownStats = queryKeys.sandbox.gitDiffStats('sb1', '/wt/a');
+    let settle: (value: object) => void = () => {};
+    void queryClient.prefetchQuery({
+      queryKey: ownStats,
+      queryFn: () => new Promise<object>((resolve) => (settle = resolve)),
+    });
+    const { result } = renderCallbacks();
+
+    act(() =>
+      result.current.onEnvelope(
+        envelope('tool_completed', {
+          tool: { id: 't1', name: 'Edit', title: 't1', status: 'completed' },
+        }),
+      ),
+    );
+    act(() => vi.advanceTimersByTime(3000));
+    expect(queryClient.getQueryState(ownStats)).toMatchObject({
+      fetchStatus: 'fetching',
+      isInvalidated: false,
+    });
+
+    await act(async () => settle({}));
+    expect(queryClient.getQueryState(ownStats)?.isInvalidated).toBe(false);
+
+    act(() => vi.advanceTimersByTime(3000));
+    expect(queryClient.getQueryState(ownStats)?.isInvalidated).toBe(true);
+  });
+
   it('drops a pending git refresh when the pane unmounts', () => {
     const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
     const { result, unmount } = renderCallbacks();
