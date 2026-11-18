@@ -59,7 +59,6 @@ export function useInputAttachments({ attachedFiles, onAttach }: UseInputAttachm
       void toast
         .promise(copiedFiles, {
           loading: 'Loading copied attachments…',
-          success: 'Attachments added',
           error: 'Could not load the copied attachments',
         })
         .catch(() => [])
