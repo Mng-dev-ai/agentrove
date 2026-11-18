@@ -26,6 +26,7 @@ export function BaseModal({
   variant = 'dialog',
 }: BaseModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const pressOnBackdrop = useRef(false);
   useModalLayer(containerRef, isOpen, onClose);
 
   if (!isOpen) return null;
@@ -33,7 +34,15 @@ export function BaseModal({
   return createPortal(
     <div
       className={clsx(styles.backdrop, variant === 'lightbox' && styles['backdrop--lightbox'])}
-      onClick={onClose}
+      onMouseDown={(e) => {
+        pressOnBackdrop.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        pressOnBackdrop.current &&= e.target === e.currentTarget;
+      }}
+      onClick={() => {
+        if (pressOnBackdrop.current) onClose();
+      }}
       role="presentation"
     >
       <div

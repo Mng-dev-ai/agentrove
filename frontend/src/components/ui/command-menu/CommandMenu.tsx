@@ -54,6 +54,7 @@ export function CommandMenu() {
     modKey,
   } = useCommandMenu();
   const dialogRef = useRef<HTMLDivElement>(null);
+  const pressOnOverlay = useRef(false);
   useModalLayer(dialogRef, isOpen, close);
 
   if (!isOpen) return null;
@@ -68,7 +69,15 @@ export function CommandMenu() {
   return createPortal(
     <div
       className={styles.overlay}
-      onClick={close}
+      onMouseDown={(e) => {
+        pressOnOverlay.current = e.target === e.currentTarget;
+      }}
+      onMouseUp={(e) => {
+        pressOnOverlay.current &&= e.target === e.currentTarget;
+      }}
+      onClick={() => {
+        if (pressOnOverlay.current) close();
+      }}
       role="dialog"
       aria-modal="true"
       aria-label="Command menu"
