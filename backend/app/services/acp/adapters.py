@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from collections.abc import Iterable
 from typing import Any
 
@@ -346,11 +346,33 @@ class GrokAgentAdapter(AgentAdapter):
     binary = "grok"
     model_id_namespace = "grok:"
     # UI labels, not CLI mode ids (AcpSession maps them to `default`/`plan`).
-    # `always-approve` uses the launch flag; `auto` keeps the CLI's default
-    # classifier behavior (routine calls pass, risky ones prompt). The legacy
-    # `code` mode never prompted, so it falls back to always-approve.
+    # `always-approve` uses the launch flag; `auto` requests the CLI's
+    # auto-review via session _meta (over ACP, risky calls are blocked, not
+    # prompted). The legacy `code` mode never prompted, so it falls back to
+    # always-approve.
     session_modes = frozenset({"auto", "always-approve", "plan"})
     fallback_session_mode = "always-approve"
+
+    def build_session_config(
+        self,
+        *,
+        system_prompt: str | None,
+        system_prompt_is_full_replace: bool,
+        model_id: str,
+        thinking_mode: str | None,
+        permission_mode: str,
+    ) -> SessionConfig:
+        config = super().build_session_config(
+            system_prompt=system_prompt,
+            system_prompt_is_full_replace=system_prompt_is_full_replace,
+            model_id=model_id,
+            thinking_mode=thinking_mode,
+            permission_mode=permission_mode,
+        )
+        if config.session_mode != "auto":
+            return config
+        # Without it a `grok agent` session starts in ask mode; also honored on load.
+        return replace(config, meta={**config.meta, "autoMode": True})
 
     def build_launch_config(
         self,

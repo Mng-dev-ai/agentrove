@@ -925,6 +925,34 @@ async def test_grok_always_approve_chat_starts_with_strict_mode_ids(
     assert fake_agent.events_of("set_session_mode")[0]["mode_id"] == "default"
 
 
+async def test_grok_auto_mode_requests_auto_review(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="grok:grok-4.5")
+
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="grok:grok-4.5",
+        prompt="hello",
+        permission_mode="auto",
+    )
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+
+    assert message["stream_status"] == "completed"
+    new_session = fake_agent.events_of("new_session")[0]
+    assert new_session["meta"]["autoMode"] is True
+    argv = fake_agent.events_of("initialize")[0]["argv"]
+    assert "--always-approve" not in argv
+
+
 @pytest.mark.parametrize(
     "model_id,first_mode,second_mode,respawns",
     [

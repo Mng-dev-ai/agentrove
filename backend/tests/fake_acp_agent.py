@@ -176,6 +176,7 @@ class FakeAgent:
             {
                 "event": "new_session",
                 "cwd": cwd,
+                "meta": kwargs,
                 "mcp_servers": [
                     server.model_dump(mode="json", by_alias=True)
                     for server in (mcp_servers or [])
