@@ -101,6 +101,36 @@ async def test_unhandled_error_returns_generic_500_without_leaking_details(
     assert "secret connection string" not in response.text
 
 
+async def test_unhandled_error_response_carries_cors_and_request_id_headers(
+    app: FastAPI,
+) -> None:
+    async def explode() -> None:
+        raise RuntimeError("boom")
+
+    app.add_api_route("/explode", explode)
+    origin = get_settings().ALLOWED_ORIGINS[0]
+    transport = httpx.ASGITransport(
+        app=app, raise_app_exceptions=False, client=("testclient", 50000)
+    )
+    async with httpx.AsyncClient(
+        transport=transport, base_url="http://testserver"
+    ) as test_client:
+        response = await test_client.get(
+            "/explode", headers={"Origin": origin, "X-Request-ID": "req-cors-500"}
+        )
+
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == origin
+    assert response.headers["X-Request-ID"] == "req-cors-500"
+    assert response.json() == {
+        "detail": "An internal server error occurred",
+        "error_code": "INTERNAL_SERVER_ERROR",
+        "message": "An internal server error occurred",
+        "details": {},
+        "request_id": "req-cors-500",
+    }
+
+
 async def test_readyz_skips_redis_check_in_desktop_mode(
     client: AsyncClient,
     monkeypatch: pytest.MonkeyPatch,
