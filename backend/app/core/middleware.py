@@ -236,9 +236,6 @@ async def _global_exception_handler(request: Request, exc: Exception) -> JSONRes
 
 
 def setup_middleware(app: FastAPI) -> None:
-    # Starlette runs an Exception handler outside all user middleware, so its
-    # 500 would skip CORS, request-id and security headers; run it inside them.
-    app.add_middleware(ServerErrorMiddleware, handler=_global_exception_handler)
     app.add_middleware(
         TextGZipMiddleware,
         minimum_size=GZIP_MINIMUM_SIZE,
@@ -247,6 +244,11 @@ def setup_middleware(app: FastAPI) -> None:
 
     session_secret = settings.SESSION_SECRET_KEY or settings.SECRET_KEY
     app.add_middleware(SessionMiddleware, secret_key=session_secret)
+
+    # Starlette runs an Exception handler outside all user middleware, so its
+    # 500 would skip CORS, request-id and security headers; run it inside those
+    # but outside gzip and the session, which the 500 bypassed before.
+    app.add_middleware(ServerErrorMiddleware, handler=_global_exception_handler)
 
     app.add_middleware(SecurityHeadersMiddleware)
     app.add_middleware(RequestIdMiddleware)
