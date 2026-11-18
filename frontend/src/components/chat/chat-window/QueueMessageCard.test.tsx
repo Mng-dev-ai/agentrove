@@ -60,7 +60,7 @@ describe('QueueMessageCard', () => {
     const { onEdit, onCancel } = renderCard({ content: 'old' });
     fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
 
-    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Edit message' });
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Edit message' });
     fireEvent.change(input, { target: { value: '  new text  ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -72,7 +72,7 @@ describe('QueueMessageCard', () => {
     const { onEdit, onCancel } = renderCard({ content: 'old' });
     fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
 
-    const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Edit message' });
+    const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Edit message' });
     fireEvent.change(input, { target: { value: '   ' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -84,17 +84,31 @@ describe('QueueMessageCard', () => {
     const { onEdit } = renderCard({ content: 'first' });
 
     fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
-    let input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Edit message' });
+    let input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Edit message' });
     fireEvent.change(input, { target: { value: 'committed' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     expect(onEdit).toHaveBeenCalledWith('msg-1', 'committed');
 
     onEdit.mockReset();
     fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
-    input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Edit message' });
+    input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Edit message' });
     fireEvent.change(input, { target: { value: 'discarded' } });
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(onEdit).not.toHaveBeenCalled();
     expect(screen.getByText('first')).toBeTruthy();
+  });
+
+  it('keeps newlines when a multi-line edit is saved with Enter after Shift+Enter', () => {
+    const { onEdit } = renderCard({ content: 'line one\nline two' });
+    fireEvent.click(screen.getByRole('button', { name: 'Edit message' }));
+
+    const textarea = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Edit message' });
+    expect(textarea.value).toBe('line one\nline two');
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true });
+    expect(onEdit).not.toHaveBeenCalled();
+
+    fireEvent.change(textarea, { target: { value: 'line one\nline two\n\nline four' } });
+    fireEvent.keyDown(textarea, { key: 'Enter' });
+    expect(onEdit).toHaveBeenCalledWith('msg-1', 'line one\nline two\n\nline four');
   });
 });

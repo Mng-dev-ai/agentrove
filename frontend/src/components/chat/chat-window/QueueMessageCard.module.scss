@@ -106,6 +106,10 @@
   flex: 1;
   align-items: center;
   gap: var(--space-2);
+
+  &--editing {
+    align-items: flex-start;
+  }
 }
 
 .reply-icon {
@@ -113,6 +117,10 @@
   width: var(--space-3);
   flex-shrink: 0;
   color: var(--theme-text-quaternary);
+
+  .card-main--editing & {
+    margin-top: var(--space-1);
+  }
 }
 
 .thumbs {
@@ -121,20 +129,24 @@
   gap: var(--space-1);
 }
 
-.edit-input {
+.edit-textarea {
   @include type.type-default;
+  display: block;
   min-width: 0;
   flex: 1;
+  max-height: 40dvh;
+  overflow: hidden auto;
+  scrollbar-width: thin;
+  line-height: 1.5;
   background: transparent;
   color: var(--theme-text-primary);
+}
 
-  &::placeholder {
-    color: var(--theme-text-quaternary);
-  }
-
-  &:focus {
-    outline: none;
-  }
+.edit-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  padding-top: var(--space-1-5);
 }
 
 .message-preview {

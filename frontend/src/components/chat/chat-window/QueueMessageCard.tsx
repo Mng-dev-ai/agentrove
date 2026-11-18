@@ -1,9 +1,9 @@
-import { memo, useState, useCallback, useRef, useEffect } from 'react';
+import { memo, useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react';
 import clsx from 'clsx';
 import { X, Pencil, CornerDownRight, FileText, FileSpreadsheet, Send } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { Input } from '@/components/ui/primitives/Input/Input';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
+import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { resolveChatClient } from '@/lib/api';
 import { useChatContext } from '@/hooks/useChatContext';
 import { detectFileType } from '@/utils/fileTypes';
@@ -191,16 +191,27 @@ export const QueueMessageCard = memo(function QueueMessageCard({
 }: QueueMessageCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const hasLocalFiles = message.files && message.files.length > 0;
   const hasServerAttachments = message.attachments && message.attachments.length > 0;
 
-  useEffect(() => {
-    if (isEditing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.setSelectionRange(editContent.length, editContent.length);
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${textarea.scrollHeight}px`;
     }
-  }, [isEditing, editContent.length]);
+  }, [editContent, isEditing]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (isEditing && textarea) {
+      const end = textarea.value.length;
+      textarea.focus();
+      textarea.setSelectionRange(end, end);
+      textarea.scrollTop = textarea.scrollHeight;
+    }
+  }, [isEditing]);
 
   const handleStartEdit = useCallback(() => {
     setEditContent(message.content);
@@ -223,8 +234,8 @@ export const QueueMessageCard = memo(function QueueMessageCard({
   }, [editContent, message.id, onCancel, onEdit]);
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
         e.preventDefault();
         handleSaveEdit();
       } else if (e.key === 'Escape') {
@@ -237,7 +248,7 @@ export const QueueMessageCard = memo(function QueueMessageCard({
   return (
     <div className={styles.card}>
       <div className={styles['card-row']}>
-        <div className={styles['card-main']}>
+        <div className={clsx(styles['card-main'], isEditing && styles['card-main--editing'])}>
           <CornerDownRight className={styles['reply-icon']} />
           {hasLocalFiles && !hasServerAttachments && (
             <div className={styles.thumbs}>
@@ -258,15 +269,15 @@ export const QueueMessageCard = memo(function QueueMessageCard({
             </div>
           )}
           {isEditing ? (
-            <Input
-              ref={inputRef}
+            <Textarea
+              ref={textareaRef}
               variant="unstyled"
-              type="text"
+              rows={1}
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
               onKeyDown={handleKeyDown}
               aria-label="Edit message"
-              className={styles['edit-input']}
+              className={styles['edit-textarea']}
             />
           ) : (
             <span className={styles['message-preview']}>
@@ -274,61 +285,64 @@ export const QueueMessageCard = memo(function QueueMessageCard({
             </span>
           )}
         </div>
-        <div className={styles['card-actions']}>
-          {message.sendingNow ? (
-            <span className={styles.sending}>
-              <Spinner size="xs" />
-              Sending...
-            </span>
-          ) : isEditing ? (
-            <>
-              <Button
-                onClick={handleSaveEdit}
-                variant="unstyled"
-                className={clsx(styles['action-btn'], styles['action-btn--save'])}
-              >
-                Save
-              </Button>
-              <Button
-                onClick={handleCancelEdit}
-                variant="unstyled"
-                className={clsx(styles['action-btn'], styles['action-btn--cancel-edit'])}
-              >
-                Cancel
-              </Button>
-            </>
-          ) : (
-            <>
-              {message.synced && (
+        {!isEditing && (
+          <div className={styles['card-actions']}>
+            {message.sendingNow ? (
+              <span className={styles.sending}>
+                <Spinner size="xs" />
+                Sending...
+              </span>
+            ) : (
+              <>
+                {message.synced && (
+                  <Button
+                    onClick={() => onSendNow(message.id)}
+                    variant="unstyled"
+                    className={clsx(styles['action-btn'], styles['action-btn--icon'])}
+                    aria-label="Send now"
+                  >
+                    <Send className={styles['action-glyph']} />
+                  </Button>
+                )}
                 <Button
-                  onClick={() => onSendNow(message.id)}
+                  onClick={handleStartEdit}
                   variant="unstyled"
                   className={clsx(styles['action-btn'], styles['action-btn--icon'])}
-                  aria-label="Send now"
+                  aria-label="Edit message"
                 >
-                  <Send className={styles['action-glyph']} />
+                  <Pencil className={styles['action-glyph']} />
                 </Button>
-              )}
-              <Button
-                onClick={handleStartEdit}
-                variant="unstyled"
-                className={clsx(styles['action-btn'], styles['action-btn--icon'])}
-                aria-label="Edit message"
-              >
-                <Pencil className={styles['action-glyph']} />
-              </Button>
-              <Button
-                onClick={() => onCancel(message.id)}
-                variant="unstyled"
-                className={clsx(styles['action-btn'], styles['action-btn--delete'])}
-                aria-label="Cancel message"
-              >
-                <X className={styles['action-glyph']} />
-              </Button>
-            </>
-          )}
-        </div>
+                <Button
+                  onClick={() => onCancel(message.id)}
+                  variant="unstyled"
+                  className={clsx(styles['action-btn'], styles['action-btn--delete'])}
+                  aria-label="Cancel message"
+                >
+                  <X className={styles['action-glyph']} />
+                </Button>
+              </>
+            )}
+          </div>
+        )}
       </div>
+      {isEditing && (
+        <div className={styles['edit-footer']}>
+          <Button
+            onClick={handleCancelEdit}
+            variant="unstyled"
+            className={clsx(styles['action-btn'], styles['action-btn--cancel-edit'])}
+          >
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveEdit}
+            variant="unstyled"
+            className={clsx(styles['action-btn'], styles['action-btn--save'])}
+          >
+            Save
+          </Button>
+        </div>
+      )}
     </div>
   );
 });
