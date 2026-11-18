@@ -5,8 +5,8 @@ export function useDraftField(savedValue: string, onPersist: (value: string) => 
   const [draft, setDraft] = useState(savedValue);
   const prevSavedRef = useRef(savedValue);
   if (prevSavedRef.current !== savedValue) {
+    if (draft === prevSavedRef.current) setDraft(savedValue);
     prevSavedRef.current = savedValue;
-    setDraft(savedValue);
   }
 
   const handleBlur = () => {
