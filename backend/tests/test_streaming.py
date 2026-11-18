@@ -2204,3 +2204,32 @@ async def test_failed_turn_start_discards_both_messages(
         f"/api/v1/chat/chats/{chat.id}/messages", headers=headers
     )
     assert messages_response.json()["items"] == []
+
+
+async def test_json_is_gzipped_but_sse_stays_unencoded_and_unbuffered(
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    live_server_url: str,
+) -> None:
+    headers, _, _ = await create_authenticated_workspace(db_session, create_user, login)
+    gzip_headers = {**headers, "Accept-Encoding": "gzip"}
+
+    async with (
+        asyncio.timeout(5),
+        httpx.AsyncClient(base_url=live_server_url, timeout=10.0) as http,
+    ):
+        json_response = await http.get("/api/v1/openapi.json", headers=gzip_headers)
+        assert json_response.status_code == 200
+        assert json_response.headers["content-encoding"] == "gzip"
+        assert "Accept-Encoding" in json_response.headers["vary"]
+        assert json_response.json()["paths"]
+
+        # /chats/events sends nothing until its 15 s ping, so headers arriving
+        # inside the timeout prove the compressor isn't holding the response.
+        async with http.stream(
+            "GET", "/api/v1/chat/chats/events", headers=gzip_headers
+        ) as response:
+            assert response.status_code == 200
+            assert response.headers["content-type"].startswith("text/event-stream")
+            assert "content-encoding" not in response.headers
