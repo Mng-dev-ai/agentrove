@@ -218,6 +218,50 @@ describe('side-effect envelopes', () => {
     act(() => result.current.onEnvelope(toolCompleted('ExitPlanMode', 'auto')));
     expect(useChatSettingsStore.getState().permissionModeByChat.c1).toBe('auto');
   });
+
+  it('refreshes git state once per window after a burst of tool completions', () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const gitDiffInvalidations = () =>
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(queryKeys.sandbox.gitDiffAll('sb1')),
+      );
+    const { result } = renderCallbacks();
+
+    act(() => {
+      for (const id of ['t1', 't2', 't3']) {
+        result.current.onEnvelope(
+          envelope('tool_completed', {
+            tool: { id, name: 'Edit', title: id, status: 'completed' },
+          }),
+        );
+      }
+    });
+    act(() => vi.advanceTimersByTime(2999));
+    expect(gitDiffInvalidations()).toHaveLength(0);
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(gitDiffInvalidations()).toEqual([
+      [{ queryKey: queryKeys.sandbox.gitDiffAll('sb1') }, { cancelRefetch: false }],
+    ]);
+  });
+
+  it('drops a pending git refresh when the pane unmounts', () => {
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const { result, unmount } = renderCallbacks();
+
+    act(() =>
+      result.current.onEnvelope(
+        envelope('tool_completed', {
+          tool: { id: 't1', name: 'Edit', title: 't1', status: 'completed' },
+        }),
+      ),
+    );
+    unmount();
+    vi.advanceTimersByTime(3000);
+
+    expect(invalidate).not.toHaveBeenCalled();
+  });
 });
 
 describe('terminal events', () => {

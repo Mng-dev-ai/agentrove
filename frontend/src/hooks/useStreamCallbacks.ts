@@ -52,6 +52,7 @@ import {
 
 // Token envelopes arrive ~10-50ms apart; 50ms batching (~20/s) avoids thrashing React/cache.
 const STREAM_FLUSH_INTERVAL_MS = 50;
+const MID_TURN_GIT_REFRESH_INTERVAL_MS = 3000;
 
 interface UseStreamCallbacksParams {
   messages: Message[];
@@ -128,6 +129,7 @@ export function useStreamCallbacks({
   messagesRef.current = messages;
   const timerIdsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const flushTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const gitRefreshTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const chatIdRef = useRef(chatId);
   chatIdRef.current = chatId;
 
@@ -217,11 +219,30 @@ export function useStreamCallbacks({
     [queryClient],
   );
 
+  const scheduleGitRefresh = useCallback(
+    (sandboxId: string) => {
+      const timers = gitRefreshTimersRef.current;
+      if (timers.has(sandboxId)) {
+        return;
+      }
+      const timer = setTimeout(() => {
+        timers.delete(sandboxId);
+        // Don't restart an in-flight git refetch, or a steady tool stream never lets it settle.
+        void invalidateGitState(queryClient, sandboxId, { cancelRefetch: false });
+      }, MID_TURN_GIT_REFRESH_INTERVAL_MS);
+      timers.set(sandboxId, timer);
+    },
+    [queryClient],
+  );
+
   useEffect(() => {
     const flushTimers = flushTimersRef.current;
+    const gitRefreshTimers = gitRefreshTimersRef.current;
     return () => {
       timerIdsRef.current.forEach(clearTimeout);
       timerIdsRef.current = [];
+      gitRefreshTimers.forEach(clearTimeout);
+      gitRefreshTimers.clear();
       // Persist the buffered tail — the next envelope can be minutes away.
       for (const [streamId, timer] of flushTimers) {
         clearTimeout(timer);
@@ -349,6 +370,12 @@ export function useStreamCallbacks({
       }
 
       if (envelope.kind === 'tool_completed') {
+        const sandboxId =
+          getStreamSession(envelope.streamId)?.sandboxId ??
+          (chatId === chatIdRef.current ? currentChat?.sandbox_id : undefined);
+        if (sandboxId) {
+          scheduleGitRefresh(sandboxId);
+        }
         const tool = (envelope.payload as { tool?: ToolEventPayload })?.tool;
         if (tool?.name === 'EnterPlanMode' && chatId) {
           useChatSettingsStore.getState().setPermissionMode(chatId, 'plan');
@@ -378,6 +405,7 @@ export function useStreamCallbacks({
     },
     [
       chatId,
+      currentChat?.sandbox_id,
       ensureBuffer,
       onContextUsageUpdate,
       onElicitationDismissed,
@@ -386,6 +414,7 @@ export function useStreamCallbacks({
       pendingStopRef,
       queryClient,
       scheduleContentFlush,
+      scheduleGitRefresh,
       setPendingUserMessageId,
     ],
   );
@@ -459,6 +488,8 @@ export function useStreamCallbacks({
       const targetSandboxId =
         sessionSandboxId ?? (isCurrentChat ? currentChat?.sandbox_id : undefined);
       if (targetSandboxId) {
+        clearTimeout(gitRefreshTimersRef.current.get(targetSandboxId));
+        gitRefreshTimersRef.current.delete(targetSandboxId);
         queryClient.invalidateQueries({
           queryKey: queryKeys.sandbox.filesMetadataAll(targetSandboxId),
         });

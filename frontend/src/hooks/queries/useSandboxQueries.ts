@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import type { QueryClient, UseQueryOptions } from '@tanstack/react-query';
+import type { InvalidateOptions, QueryClient, UseQueryOptions } from '@tanstack/react-query';
 import { sandboxService } from '@/services/sandboxService';
 import type {
   DiffMode,
@@ -69,11 +69,21 @@ export const useUpdateFileMutation = createMutation<UpdateFileResult, Error, Upd
 );
 
 // All git-derived caches — refresh together or diff/indicators go stale.
-export const invalidateGitState = (queryClient: QueryClient, sandboxId: string) =>
+export const invalidateGitState = (
+  queryClient: QueryClient,
+  sandboxId: string,
+  options?: InvalidateOptions,
+) =>
   Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitFileBaselineAll(sandboxId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitChangedPathsAll(sandboxId) }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }, options),
+    queryClient.invalidateQueries(
+      { queryKey: queryKeys.sandbox.gitFileBaselineAll(sandboxId) },
+      options,
+    ),
+    queryClient.invalidateQueries(
+      { queryKey: queryKeys.sandbox.gitChangedPathsAll(sandboxId) },
+      options,
+    ),
   ]);
 
 export const useGitBranchesQuery = (
