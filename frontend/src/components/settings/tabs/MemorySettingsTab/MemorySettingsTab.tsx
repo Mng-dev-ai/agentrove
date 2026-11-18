@@ -8,7 +8,7 @@ import {
 import type { ListFilterCategory } from '@/components/ui/ListManagementTab/ListFilterMenu';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
-import { machineFilterCategories } from '@/hooks/useMachineFilter';
+import { machineFilterCategories, useDefaultMachineId } from '@/hooks/useMachineFilter';
 import {
   type MachineMemory,
   type MemoryFilter,
@@ -81,9 +81,12 @@ export function MemorySettingsTab() {
     }),
     [remoteWorkspaces, localWorkspaces],
   );
-  const [filter, setFilter] = useState<MemoryFilter | null>(null);
+  const defaultMachineId = useDefaultMachineId(machineOptions);
+  const [filter, setFilter] = useState<MemoryFilter | null>();
   const activeFilter = resolveFilter(
-    filter,
+    filter === undefined && defaultMachineId
+      ? { machineId: defaultMachineId, workspaceId: null }
+      : (filter ?? null),
     machineOptions.map((machine) => machine.id),
     workspacesByMachine,
   );

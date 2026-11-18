@@ -44,6 +44,10 @@ export interface StreamAction {
   thinking_mode: string;
 }
 
+export interface StreamActionForm extends StreamAction {
+  machineId: string;
+}
+
 export type SandboxProviderType = 'docker' | 'host';
 
 export interface UserSettings {
