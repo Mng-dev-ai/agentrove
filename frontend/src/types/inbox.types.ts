@@ -7,6 +7,8 @@ export interface InboxItem {
   body: string;
   read_at: string | null;
   created_at: string;
+  chat_title?: string;
+  workspace_name?: string;
 }
 
 export interface InboxList extends CursorPaginatedResponse<InboxItem> {

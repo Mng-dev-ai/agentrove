@@ -3,6 +3,7 @@ import {
   useMutation,
   useQueries,
   useQueryClient,
+  type InfiniteData,
   type QueryClient,
 } from '@tanstack/react-query';
 import { inboxService } from '@/services/inboxService';
@@ -46,6 +47,27 @@ function invalidateInbox(queryClient: QueryClient, machineId: string) {
   return queryClient.invalidateQueries({
     queryKey: machineId === LOCAL_MACHINE_ID ? queryKeys.inbox : queryKeys.machine.inbox(machineId),
   });
+}
+
+function withoutItem(page: InboxList, itemId: string): InboxList {
+  return { ...page, items: page.items.filter((item) => item.id !== itemId) };
+}
+
+async function removeInboxItem(queryClient: QueryClient, machineId: string, itemId: string) {
+  const isLocal = machineId === LOCAL_MACHINE_ID;
+  const queryKey = isLocal ? queryKeys.inbox : queryKeys.machine.inbox(machineId);
+  await queryClient.cancelQueries({ queryKey });
+  if (isLocal) {
+    queryClient.setQueryData<InfiniteData<InboxList>>(
+      queryKey,
+      (data) => data && { ...data, pages: data.pages.map((page) => withoutItem(page, itemId)) },
+    );
+  } else {
+    queryClient.setQueryData<InboxList[]>(
+      queryKey,
+      (pages) => pages && pages.map((page) => withoutItem(page, itemId)),
+    );
+  }
 }
 
 async function failedMachines(
@@ -136,6 +158,27 @@ export const useMarkInboxReadMutation = createMutation<
 >(
   ({ itemId, machineId }) => inboxService.markRead(itemId, machineId),
   (queryClient, _data, variables) => invalidateInbox(queryClient, variables.machineId),
+);
+
+export const useMarkInboxUnreadMutation = createMutation<
+  InboxItem,
+  Error,
+  { itemId: string; machineId: string }
+>(
+  ({ itemId, machineId }) => inboxService.markUnread(itemId, machineId),
+  (queryClient, _data, variables) => invalidateInbox(queryClient, variables.machineId),
+);
+
+export const useDeleteInboxItemMutation = createMutation<
+  void,
+  Error,
+  { itemId: string; machineId: string }
+>(
+  ({ itemId, machineId }) => inboxService.deleteItem(itemId, machineId),
+  async (queryClient, _data, { itemId, machineId }) => {
+    await removeInboxItem(queryClient, machineId, itemId);
+    await invalidateInbox(queryClient, machineId);
+  },
 );
 
 export const useMarkAllInboxReadMutation = createMutation<string[], Error, string[]>(
