@@ -151,6 +151,13 @@
   padding-top: var(--space-1-5);
 }
 
+.rescued-note {
+  @include type.type-meta;
+  flex: 1;
+  align-self: center;
+  color: var(--theme-text-tertiary);
+}
+
 .message-preview {
   @include type.type-default;
   @include type.type-overflow;

@@ -2,12 +2,16 @@
 
 import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ChatQueueBanner } from './ChatQueueBanner';
 import { QueueMessageCard } from './QueueMessageCard';
+import { SetChatInputMessageContext } from '@/contexts/ChatInputMessageContextDefinition';
 import type { LocalQueuedMessage } from '@/types/queue.types';
 
 function makeMessage(over: Partial<LocalQueuedMessage> = {}): LocalQueuedMessage {
+  const id = over.id ?? 'msg-1';
   return {
-    id: 'msg-1',
+    id,
+    key: id,
     content: 'queued text',
     queuedAt: 0,
     synced: true,
@@ -21,14 +25,36 @@ function renderCard(over: Partial<LocalQueuedMessage> = {}) {
   const onEdit = vi.fn();
   const onSendNow = vi.fn();
   render(
-    <QueueMessageCard
-      message={makeMessage(over)}
-      onCancel={onCancel}
-      onEdit={onEdit}
-      onSendNow={onSendNow}
-    />,
+    <SetChatInputMessageContext.Provider value={vi.fn()}>
+      <QueueMessageCard
+        message={makeMessage(over)}
+        onCancel={onCancel}
+        onEdit={onEdit}
+        onSendNow={onSendNow}
+        rescued={false}
+        onDirtyChange={vi.fn()}
+        onDiscard={vi.fn()}
+      />
+    </SetChatInputMessageContext.Provider>,
   );
   return { onCancel, onEdit, onSendNow };
+}
+
+function renderBanner(messages: LocalQueuedMessage[]) {
+  const banner = (queue: LocalQueuedMessage[]) => (
+    <SetChatInputMessageContext.Provider value={vi.fn()}>
+      <ChatQueueBanner messages={queue} onCancel={vi.fn()} onEdit={vi.fn()} onSendNow={vi.fn()} />
+    </SetChatInputMessageContext.Provider>
+  );
+  const { container, rerender } = render(banner(messages));
+  return { container, setQueue: (queue: LocalQueuedMessage[]) => rerender(banner(queue)) };
+}
+
+function editFirst(value: string) {
+  fireEvent.click(screen.getAllByRole('button', { name: 'Edit message' })[0]);
+  const input = screen.getByRole<HTMLTextAreaElement>('textbox', { name: 'Edit message' });
+  fireEvent.change(input, { target: { value } });
+  return input;
 }
 
 describe('QueueMessageCard', () => {
@@ -124,5 +150,47 @@ describe('QueueMessageCard', () => {
     fireEvent.change(textarea, { target: { value: 'line one\nline two\n\nline four' } });
     fireEvent.keyDown(textarea, { key: 'Enter' });
     expect(onEdit).toHaveBeenCalledWith('msg-1', 'line one\nline two\n\nline four');
+  });
+});
+
+describe('ChatQueueBanner', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('keeps a changed draft on screen when its row leaves the queue', () => {
+    const { setQueue } = renderBanner([makeMessage({ content: 'old' })]);
+    const input = editFirst('my new draft');
+
+    setQueue([]);
+
+    expect(screen.getByRole('textbox', { name: 'Edit message' })).toBe(input);
+    expect(input.value).toBe('my new draft');
+    expect(screen.getByText('Original already sent. Edit not saved.')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.queryByRole('textbox')).toBeNull();
+  });
+
+  it('drops an unchanged draft and a non-editing row when they leave the queue', () => {
+    const { container, setQueue } = renderBanner([
+      makeMessage({ id: 'a', content: 'first' }),
+      makeMessage({ id: 'b', content: 'second' }),
+    ]);
+    editFirst('first');
+
+    setQueue([]);
+
+    expect(container.innerHTML).toBe('');
   });
 });

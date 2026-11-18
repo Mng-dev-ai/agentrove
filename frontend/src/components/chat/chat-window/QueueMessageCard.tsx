@@ -6,6 +6,7 @@ import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
 import { resolveChatClient } from '@/lib/api';
 import { useChatContext } from '@/hooks/useChatContext';
+import { useSetChatInputMessage } from '@/hooks/useChatInputMessageContext';
 import { detectFileType } from '@/utils/fileTypes';
 import { HighlightedText } from '@/components/ui/shared/HighlightedText/HighlightedText';
 import { fetchAttachmentBlob } from '@/utils/file';
@@ -21,6 +22,9 @@ interface QueueMessageCardProps {
   onCancel: (messageId: string) => void;
   onEdit: (messageId: string, newContent: string) => void;
   onSendNow: (messageId: string) => void;
+  rescued: boolean;
+  onDirtyChange: (key: string, dirty: boolean) => void;
+  onDiscard: (key: string) => void;
 }
 
 function UploadingOverlay() {
@@ -193,10 +197,16 @@ export const QueueMessageCard = memo(function QueueMessageCard({
   onCancel,
   onEdit,
   onSendNow,
+  rescued,
+  onDirtyChange,
+  onDiscard,
 }: QueueMessageCardProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const setComposerMessage = useSetChatInputMessage();
+  const draft = editContent.trim();
+  const isDirty = isEditing && draft !== '' && draft !== message.content;
   const hasLocalFiles = message.files && message.files.length > 0;
   const hasServerAttachments = message.attachments && message.attachments.length > 0;
 
@@ -232,6 +242,12 @@ export const QueueMessageCard = memo(function QueueMessageCard({
     }
   }, [isEditing]);
 
+  useEffect(() => {
+    if (!isDirty) return;
+    onDirtyChange(message.key, true);
+    return () => onDirtyChange(message.key, false);
+  }, [isDirty, message.key, onDirtyChange]);
+
   const handleStartEdit = useCallback(() => {
     setEditContent(message.content);
     setIsEditing(true);
@@ -243,26 +259,33 @@ export const QueueMessageCard = memo(function QueueMessageCard({
   }, [message.content]);
 
   const handleSaveEdit = useCallback(() => {
-    const trimmed = editContent.trim();
-    if (!trimmed) {
+    if (!draft) {
       onCancel(message.id);
     } else {
-      onEdit(message.id, trimmed);
+      onEdit(message.id, draft);
     }
     setIsEditing(false);
-  }, [editContent, message.id, onCancel, onEdit]);
+  }, [draft, message.id, onCancel, onEdit]);
+
+  const handleMoveToComposer = useCallback(() => {
+    if (draft) {
+      setComposerMessage((current) => (current.trim() ? `${current}\n\n${draft}` : draft));
+    }
+    onDiscard(message.key);
+  }, [draft, message.key, onDiscard, setComposerMessage]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
       if (e.nativeEvent.isComposing) return;
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        handleSaveEdit();
-      } else if (e.key === 'Escape') {
+        if (rescued) handleMoveToComposer();
+        else handleSaveEdit();
+      } else if (e.key === 'Escape' && !rescued) {
         handleCancelEdit();
       }
     },
-    [handleSaveEdit, handleCancelEdit],
+    [rescued, handleMoveToComposer, handleSaveEdit, handleCancelEdit],
   );
 
   return (
@@ -345,23 +368,43 @@ export const QueueMessageCard = memo(function QueueMessageCard({
           </div>
         )}
       </div>
-      {isEditing && (
+      {rescued ? (
         <div className={styles['edit-footer']}>
+          <span className={styles['rescued-note']}>Original already sent. Edit not saved.</span>
           <Button
-            onClick={handleCancelEdit}
+            onClick={() => onDiscard(message.key)}
             variant="unstyled"
             className={clsx(styles['action-btn'], styles['action-btn--cancel-edit'])}
           >
-            Cancel
+            Discard
           </Button>
           <Button
-            onClick={handleSaveEdit}
+            onClick={handleMoveToComposer}
             variant="unstyled"
             className={clsx(styles['action-btn'], styles['action-btn--save'])}
           >
-            Save
+            Move to composer
           </Button>
         </div>
+      ) : (
+        isEditing && (
+          <div className={styles['edit-footer']}>
+            <Button
+              onClick={handleCancelEdit}
+              variant="unstyled"
+              className={clsx(styles['action-btn'], styles['action-btn--cancel-edit'])}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              variant="unstyled"
+              className={clsx(styles['action-btn'], styles['action-btn--save'])}
+            >
+              Save
+            </Button>
+          </div>
+        )
       )}
     </div>
   );
