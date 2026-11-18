@@ -1,4 +1,5 @@
 import {
+  infiniteQueryOptions,
   keepPreviousData,
   useInfiniteQuery,
   useMutation,
@@ -123,24 +124,29 @@ export const useSearchChatsQuery = (
   });
 };
 
-export const useInfiniteMessagesQuery = (
-  chatId: string | undefined,
-  limit: number = MESSAGE_PAGE_SIZE,
-) => {
-  return useInfiniteQuery({
+const messagesQuery = (chatId: string | undefined, limit: number = MESSAGE_PAGE_SIZE) =>
+  infiniteQueryOptions({
     queryKey: queryKeys.messages(chatId),
     queryFn: async ({ pageParam }) => {
       return chatService.getMessages(chatId!, {
-        cursor: pageParam as string | undefined,
+        cursor: pageParam,
         limit,
       });
     },
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     initialPageParam: undefined as string | undefined,
-    enabled: !!chatId,
     // Pages are small once tool results are omitted, so switching back to a
     // recent chat can skip the download.
     gcTime: 1000 * 60 * 10,
+  });
+
+export const useInfiniteMessagesQuery = (
+  chatId: string | undefined,
+  limit: number = MESSAGE_PAGE_SIZE,
+) => {
+  return useInfiniteQuery({
+    ...messagesQuery(chatId, limit),
+    enabled: !!chatId,
   });
 };
 
@@ -170,6 +176,13 @@ export const useChatQuery = (
     ...options,
   });
 };
+
+// Remote chats throw until their machine is online, which it never is this early.
+export function prefetchChatOpen(queryClient: QueryClient, chatId: string): void {
+  if (chatMachineId(chatId) !== LOCAL_MACHINE_ID) return;
+  void queryClient.prefetchQuery(chatQuery(chatId));
+  void queryClient.prefetchInfiniteQuery(messagesQuery(chatId));
+}
 
 // A failed lookup counts as top-level, so it notifies rather than drops.
 export async function fetchIsSubThread(queryClient: QueryClient, chatId: string): Promise<boolean> {
