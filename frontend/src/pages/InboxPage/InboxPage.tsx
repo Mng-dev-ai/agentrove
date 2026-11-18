@@ -39,7 +39,7 @@ import { machineName } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import styles from './InboxPage.module.scss';
 
-const DATE_GROUP_LABELS = ['Today', 'Yesterday', 'Earlier this week', 'Older'] as const;
+const DATE_GROUP_LABELS = ['Today', 'Yesterday', 'Previous 7 days', 'Older'] as const;
 
 interface InboxGroup {
   label: (typeof DATE_GROUP_LABELS)[number];
