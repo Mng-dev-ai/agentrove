@@ -8,7 +8,7 @@ ensure_docker_network() {
     NETWORK_NAME="${DOCKER_NETWORK:-}"
     if [ -z "$NETWORK_NAME" ]; then
         # Prefer the compose "sandbox" network this container is already on so
-        # production and Coolify PR previews stay isolated without a fixed name.
+        # production and preview deploys stay isolated without a fixed name.
         CONTAINER_ID="$(hostname)"
         NETWORK_NAME="$(
             docker inspect -f '{{range $k, $v := .NetworkSettings.Networks}}{{println $k}}{{end}}' "$CONTAINER_ID" 2>/dev/null \

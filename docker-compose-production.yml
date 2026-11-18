@@ -14,7 +14,7 @@ services:
       retries: 5
     networks:
       default:
-        # Coolify renames services to redis-pr-N on preview deploys; keep the
+        # Some platforms rename services per deploy (e.g. redis-pr-N); keep the
         # stable "redis" DNS name so REDIS_URL and other clients still resolve.
         aliases:
           - redis
@@ -46,7 +46,7 @@ services:
     volumes:
       # Absolute path → host bind (default keeps production data at
       # /data/agentrove/storage). Non-path name → named volume (set
-      # AGENTROVE_STORAGE_SOURCE=agentrove_storage in Coolify preview env
+      # AGENTROVE_STORAGE_SOURCE=agentrove_storage in the preview env
       # so each PR gets isolated SQLite/storage).
       - ${AGENTROVE_STORAGE_SOURCE:-/data/agentrove/storage}:/data/agentrove/storage
       - /var/run/docker.sock:/var/run/docker.sock
@@ -56,7 +56,7 @@ services:
       REDIS_URL: redis://${SERVICE_NAME_REDIS:-redis}:6379/0
       SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY to a 32+ character value before starting production}
       SESSION_SECRET_KEY: ${SESSION_SECRET_KEY:-}
-      # Set in Coolify preview env so each fresh preview DB gets your superuser
+      # Set in the preview env so each fresh preview DB gets your superuser
       # (no-op once a superuser exists).
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
@@ -69,12 +69,12 @@ services:
       DOCKER_NETWORK: ${DOCKER_NETWORK:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       PYTHONUNBUFFERED: "1"
-      # Prefer Coolify SERVICE_URL_WEB_80 so PR previews get the right origin without
+      # Prefer the optional platform-injected SERVICE_URL_WEB_80 so previews get the right origin without
       # hardcoding production APP_URL into preview env.
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-${SERVICE_URL_WEB_80:-http://localhost,http://127.0.0.1}}
       BASE_URL: ${APP_URL:-${SERVICE_URL_WEB_80:-http://localhost}}
       FRONTEND_URL: ${APP_URL:-${SERVICE_URL_WEB_80:-http://localhost}}
-      # Coolify/Traefik (and the web nginx container) sit in front of the API.
+      # A reverse proxy and the web nginx container sit in front of the API.
       # Without this, ProxyHeadersMiddleware ignores X-Forwarded-Proto and
       # SQLAdmin emits http:// asset URLs on an https:// page (unstyled admin).
       TRUSTED_PROXY_HOSTS: ${TRUSTED_PROXY_HOSTS:-*}
@@ -101,7 +101,7 @@ services:
       api:
         condition: service_healthy
     environment:
-      # Coolify renames api → api-pr-N; nginx proxies to this hostname.
+      # Platforms that rename services per deploy (api-pr-N) set the optional SERVICE_NAME_API.
       API_HOST: ${SERVICE_NAME_API:-api}
       SERVICE_URL_WEB_80: ${SERVICE_URL_WEB_80:-}
     expose:
@@ -113,7 +113,7 @@ services:
       retries: 12
 
 networks:
-  # No fixed `name:` — Coolify / compose project isolation gives each deploy
+  # No fixed `name:` — compose project isolation gives each deploy
   # (production + every PR preview) its own sandbox network.
   sandbox:
 
