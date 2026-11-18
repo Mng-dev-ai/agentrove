@@ -789,6 +789,12 @@ MODELS: dict[str, ModelInfo] = {
         legacy=True,
         effort_levels=("low", "medium", "high"),
     ),
+    "antigravity:gemini-4-neon": ModelInfo(
+        "Gemini 4 Neon",
+        AgentKind.ANTIGRAVITY,
+        1_048_576,
+        effort_levels=("low", "medium", "high", "xhigh"),
+    ),
     "antigravity:gemini-4-hydrogen": ModelInfo(
         "Gemini 4 Hydrogen",
         AgentKind.ANTIGRAVITY,
