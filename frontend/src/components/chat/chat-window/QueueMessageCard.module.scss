@@ -125,6 +125,8 @@
 
 .thumbs {
   display: flex;
+  max-width: 50%;
+  flex-shrink: 0;
   flex-wrap: wrap;
   gap: var(--space-1);
 }
