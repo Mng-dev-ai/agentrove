@@ -8,6 +8,8 @@ import type { StreamSessionState } from '@/hooks/stream/messageUpdates';
 const streamBuffers = new Map<string, StreamContentBuffer>();
 const streamSessions = new Map<string, StreamSessionState>();
 const pendingStopEnvelopesByMessage = new Map<string, StreamEnvelope[]>();
+const gitRefreshTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const GIT_REFRESH_INTERVAL_MS = 3000;
 
 export function getStreamSession(streamId: string | undefined): StreamSessionState | undefined {
   return streamId ? streamSessions.get(streamId) : undefined;
@@ -81,4 +83,21 @@ export function clearAllStreamState(): void {
   streamBuffers.clear();
   streamSessions.clear();
   pendingStopEnvelopesByMessage.clear();
+  gitRefreshTimers.forEach(clearTimeout);
+  gitRefreshTimers.clear();
+}
+
+// One pending refresh per chat; re-armed for another window while `refresh` returns false.
+export function scheduleGitRefresh(chatId: string, refresh: () => boolean): void {
+  if (gitRefreshTimers.has(chatId)) return;
+  const timer = setTimeout(() => {
+    gitRefreshTimers.delete(chatId);
+    if (!refresh()) scheduleGitRefresh(chatId, refresh);
+  }, GIT_REFRESH_INTERVAL_MS);
+  gitRefreshTimers.set(chatId, timer);
+}
+
+export function cancelGitRefresh(chatId: string): void {
+  clearTimeout(gitRefreshTimers.get(chatId));
+  gitRefreshTimers.delete(chatId);
 }

@@ -6,7 +6,10 @@ import { extractAssistantText, type StreamContentBuffer } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { markChatViewed } from '@/hooks/queries/useChatQueries';
-import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
+import {
+  invalidateGitState,
+  invalidateWorktreeGitStateIfIdle,
+} from '@/hooks/queries/useSandboxQueries';
 import { useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import type {
   AssistantStreamEvent,
@@ -40,11 +43,13 @@ import {
 import { envelopeToRenderEvent, extractPayloadData } from '@/hooks/stream/envelopeTranslation';
 import {
   advanceStreamSession,
+  cancelGitRefresh,
   clearStreamSession,
   createStreamSession,
   findStreamIdByMessage,
   getStreamBuffer,
   getStreamSession,
+  scheduleGitRefresh,
   stashPendingStopEnvelope,
   streamSessionsForChat,
   takePendingStopEnvelopes,
@@ -90,6 +95,16 @@ interface UseStreamCallbacksResult {
   addMessageToCache: ReturnType<typeof useMessageCache>['addMessageToCache'];
   removeMessagesFromCache: ReturnType<typeof useMessageCache>['removeMessagesFromCache'];
   setPendingUserMessageId: (id: string | null) => void;
+}
+
+// False defers to the next window: an in-flight git fetch would absorb the refresh.
+function refreshChatGitState(queryClient: QueryClient, chatId: string): boolean {
+  // Read at fire time — a system envelope can move the chat into a worktree mid-turn.
+  const chat = queryClient.getQueryData<Chat>(queryKeys.chat(chatId));
+  return (
+    !chat ||
+    invalidateWorktreeGitStateIfIdle(queryClient, chat.sandbox_id, chat.worktree_cwd ?? undefined)
+  );
 }
 
 // SSE pipeline: buffer envelopes, flush on a coalescing timer, own start/replay/stop + terminal handlers.
@@ -349,6 +364,9 @@ export function useStreamCallbacks({
       }
 
       if (envelope.kind === 'tool_completed') {
+        scheduleGitRefresh(envelope.chatId, () =>
+          refreshChatGitState(queryClient, envelope.chatId),
+        );
         const tool = (envelope.payload as { tool?: ToolEventPayload })?.tool;
         if (tool?.name === 'EnterPlanMode' && chatId) {
           useChatSettingsStore.getState().setPermissionMode(chatId, 'plan');
@@ -453,6 +471,10 @@ export function useStreamCallbacks({
         if (streamId) {
           queryClient.invalidateQueries({ queryKey: queryKeys.messages(targetChatId) });
         }
+      }
+
+      if (targetChatId) {
+        cancelGitRefresh(targetChatId);
       }
 
       // Refresh sandbox caches even off-screen (incl. cancelled — real file/branch effects).

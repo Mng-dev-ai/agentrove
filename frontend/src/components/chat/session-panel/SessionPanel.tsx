@@ -54,7 +54,7 @@ import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import { getAgentKindForModelId, type Chat } from '@/types/chat.types';
 import type { Channel, ChannelMember, ChannelMemberCreateRequest } from '@/types/channel.types';
-import type { DiffMode, GitDiffTotals } from '@/types/sandbox.types';
+import type { DiffMode, GitDiffStatsData, GitDiffTotals } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineName } from '@/store/machineStore';
@@ -443,8 +443,20 @@ function ContextCard({ chat }: { chat: Chat }) {
   );
 }
 
-function SubThreadStats({ thread, onOpenDiff }: { thread: Chat; onOpenDiff: () => void }) {
-  const { data: stats } = useGitDiffStatsQuery(thread.sandbox_id, thread.worktree_cwd ?? undefined);
+function SubThreadStats({
+  thread,
+  gitEnabled,
+  onOpenDiff,
+}: {
+  thread: Chat;
+  gitEnabled: boolean;
+  onOpenDiff: () => void;
+}) {
+  const { data: stats } = useGitDiffStatsQuery(
+    thread.sandbox_id,
+    gitEnabled,
+    thread.worktree_cwd ?? undefined,
+  );
   const total = stats?.total;
   if (!total || (total.additions === 0 && total.deletions === 0)) return null;
   return (
@@ -461,10 +473,10 @@ function SubThreadStats({ thread, onOpenDiff }: { thread: Chat; onOpenDiff: () =
   );
 }
 
-function SubThreadBranch({ thread }: { thread: Chat }) {
+function SubThreadBranch({ thread, gitEnabled }: { thread: Chat; gitEnabled: boolean }) {
   const { data: branches, isPending } = useGitBranchesQuery(
     thread.sandbox_id,
-    true,
+    gitEnabled,
     thread.worktree_cwd ?? undefined,
   );
   const branch = branches?.is_git_repo ? branches.current_branch : null;
@@ -480,11 +492,13 @@ function SubThreadBranch({ thread }: { thread: Chat }) {
 function SubThreadRow({
   thread,
   parentWorktreeCwd,
+  gitEnabled,
   onSelect,
   onOpenDiff,
 }: {
   thread: Chat;
   parentWorktreeCwd: string | null;
+  gitEnabled: boolean;
   onSelect: (chatId: string) => void;
   onOpenDiff: (chatId: string) => void;
 }) {
@@ -524,10 +538,16 @@ function SubThreadRow({
         </span>
         <span className={styles['thread-text']}>
           <span className={styles['row-text']}>{stripMarkdownTitle(thread.title)}</span>
-          {ownWorktree && <SubThreadBranch thread={thread} />}
+          {ownWorktree && <SubThreadBranch thread={thread} gitEnabled={gitEnabled} />}
         </span>
       </Button>
-      {ownWorktree && <SubThreadStats thread={thread} onOpenDiff={() => onOpenDiff(thread.id)} />}
+      {ownWorktree && (
+        <SubThreadStats
+          thread={thread}
+          gitEnabled={gitEnabled}
+          onOpenDiff={() => onOpenDiff(thread.id)}
+        />
+      )}
       <span className={styles.timestamp}>{getRelativeTime(thread.updated_at)}</span>
     </div>
   );
@@ -555,7 +575,15 @@ function ParentThreadCard({ parentChatId }: { parentChatId: string }) {
   );
 }
 
-function SubThreadsCard({ chatId, worktreeCwd }: { chatId: string; worktreeCwd: string | null }) {
+function SubThreadsCard({
+  chatId,
+  worktreeCwd,
+  gitEnabled,
+}: {
+  chatId: string;
+  worktreeCwd: string | null;
+  gitEnabled: boolean;
+}) {
   const navigate = useNavigate();
   const { data: subThreads } = useSubThreadsQuery(chatId);
   const [expanded, setExpanded] = useState(false);
@@ -586,6 +614,7 @@ function SubThreadsCard({ chatId, worktreeCwd }: { chatId: string; worktreeCwd: 
               key={thread.id}
               thread={thread}
               parentWorktreeCwd={worktreeCwd}
+              gitEnabled={gitEnabled}
               onSelect={(id) => navigate(`/chat/${id}`)}
               onOpenDiff={(id) => {
                 useUIStore.setState({ pendingDiffMode: { chatId: id, mode: 'total' } });
@@ -660,19 +689,19 @@ function ChangesCard({
   sandboxId,
   worktreeCwd,
   branch,
+  stats,
 }: {
   chatId: string;
   sandboxId: string;
   worktreeCwd: string | undefined;
   branch: string;
+  stats: GitDiffStatsData;
 }) {
-  const { data: stats } = useGitDiffStatsQuery(sandboxId, worktreeCwd);
   const { mutate: fetchBase } = useGitFetchBaseMutation();
   useEffect(() => {
     fetchBase({ sandboxId, cwd: worktreeCwd });
   }, [fetchBase, sandboxId, worktreeCwd]);
   const { openPR, mergedPR } = useBranchPullRequests(sandboxId, worktreeCwd, branch, chatId);
-  if (!stats) return null;
   const hasUncommitted = stats.uncommitted.files_changed > 0;
   // A PR only carries committed work, so the PR action belongs to the branch row.
   const mergedAtHead = mergedPR && mergedPR.head.sha === stats.head_sha ? mergedPR : undefined;
@@ -751,7 +780,16 @@ export const SessionPanel = memo(function SessionPanel({
   channel,
 }: SessionPanelProps) {
   const worktreeCwd = chat.worktree_cwd ?? undefined;
-  const { data: branches } = useGitBranchesQuery(chat.sandbox_id, true, worktreeCwd);
+  const { data: branches, isPending: branchesPending } = useGitBranchesQuery(
+    chat.sandbox_id,
+    true,
+    worktreeCwd,
+  );
+  const { data: stats, isPending: statsPending } = useGitDiffStatsQuery(
+    chat.sandbox_id,
+    true,
+    worktreeCwd,
+  );
   const branch = branches?.is_git_repo ? branches.current_branch : null;
   return (
     <aside className={styles.panel} aria-label="Session details">
@@ -766,16 +804,21 @@ export const SessionPanel = memo(function SessionPanel({
           {chat.parent_chat_id ? (
             <ParentThreadCard parentChatId={chat.parent_chat_id} />
           ) : (
-            <SubThreadsCard chatId={chat.id} worktreeCwd={chat.worktree_cwd} />
+            <SubThreadsCard
+              chatId={chat.id}
+              worktreeCwd={chat.worktree_cwd}
+              gitEnabled={!branchesPending && !statsPending}
+            />
           )}
         </>
       )}
-      {branch && (
+      {branch && stats && (
         <ChangesCard
           chatId={chat.id}
           sandboxId={chat.sandbox_id}
           worktreeCwd={worktreeCwd}
           branch={branch}
+          stats={stats}
         />
       )}
     </aside>

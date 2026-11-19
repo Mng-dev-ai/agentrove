@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from '@tanstack/react-query';
-import type { QueryClient, UseQueryOptions } from '@tanstack/react-query';
+import type { Query, QueryClient, UseQueryOptions } from '@tanstack/react-query';
 import { sandboxService } from '@/services/sandboxService';
 import type {
   DiffMode,
@@ -16,6 +16,13 @@ import type {
 } from '@/types/sandbox.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
+
+// All git-derived caches — refresh together or diff/indicators go stale.
+const GIT_STATE_KEY_GROUPS = [
+  queryKeys.sandbox.gitDiffAll,
+  queryKeys.sandbox.gitFileBaselineAll,
+  queryKeys.sandbox.gitChangedPathsAll,
+];
 
 export const useFileContentQuery = (
   sandboxId: string | undefined,
@@ -68,13 +75,26 @@ export const useUpdateFileMutation = createMutation<UpdateFileResult, Error, Upd
   },
 );
 
-// All git-derived caches — refresh together or diff/indicators go stale.
 export const invalidateGitState = (queryClient: QueryClient, sandboxId: string) =>
-  Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitFileBaselineAll(sandboxId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitChangedPathsAll(sandboxId) }),
-  ]);
+  Promise.all(
+    GIT_STATE_KEY_GROUPS.map((key) => queryClient.invalidateQueries({ queryKey: key(sandboxId) })),
+  );
+
+// Git keys end with cwd (undefined without a worktree). Skips while one is fetching: that fetch
+// would absorb the invalidation and may predate the change. Returns whether it invalidated.
+export const invalidateWorktreeGitStateIfIdle = (
+  queryClient: QueryClient,
+  sandboxId: string,
+  cwd: string | undefined,
+) => {
+  const predicate = (query: Query) => query.queryKey[query.queryKey.length - 1] === cwd;
+  const filters = GIT_STATE_KEY_GROUPS.map((key) => ({ queryKey: key(sandboxId), predicate }));
+  if (filters.some((f) => queryClient.isFetching(f) > 0)) {
+    return false;
+  }
+  filters.forEach((f) => void queryClient.invalidateQueries(f));
+  return true;
+};
 
 export const useGitBranchesQuery = (
   sandboxId: string | undefined,
@@ -87,6 +107,8 @@ export const useGitBranchesQuery = (
     enabled: !!sandboxId && enabled,
     // Out-of-band branch changes (terminal/external) — focus refetch, short stale.
     staleTime: 30_000,
+    // Keep across chat switches so a revisit renders the last-known branch at once.
+    gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: true,
   });
 };
@@ -133,12 +155,17 @@ export const useGitDiffQuery = (
 };
 
 // Line totals for the diff view's Uncommitted and Branch modes.
-export const useGitDiffStatsQuery = (sandboxId: string | undefined, cwd?: string) => {
+export const useGitDiffStatsQuery = (
+  sandboxId: string | undefined,
+  enabled: boolean,
+  cwd?: string,
+) => {
   return useQuery({
     queryKey: queryKeys.sandbox.gitDiffStats(sandboxId, cwd),
     queryFn: () => sandboxService.getGitDiffStats(sandboxId!, cwd),
-    enabled: !!sandboxId,
+    enabled: !!sandboxId && enabled,
     staleTime: 30_000,
+    gcTime: 1000 * 60 * 30,
     refetchOnWindowFocus: true,
   });
 };

@@ -218,6 +218,99 @@ describe('side-effect envelopes', () => {
     act(() => result.current.onEnvelope(toolCompleted('ExitPlanMode', 'auto')));
     expect(useChatSettingsStore.getState().permissionModeByChat.c1).toBe('auto');
   });
+
+  it("refreshes only the stream chat's worktree git state, once per window after a burst", () => {
+    queryClient.setQueryData(queryKeys.chat('c1'), {
+      id: 'c1',
+      sandbox_id: 'sb1',
+      worktree_cwd: '/wt/a',
+    } as Chat);
+    const ownStats = queryKeys.sandbox.gitDiffStats('sb1', '/wt/a');
+    const otherStats = queryKeys.sandbox.gitDiffStats('sb1', '/wt/b');
+    queryClient.setQueryData(ownStats, {});
+    queryClient.setQueryData(otherStats, {});
+    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+    const { result } = renderCallbacks();
+
+    act(() => {
+      for (const id of ['t1', 't2', 't3']) {
+        result.current.onEnvelope(
+          envelope('tool_completed', {
+            tool: { id, name: 'Edit', title: id, status: 'completed' },
+          }),
+        );
+      }
+    });
+    act(() => vi.advanceTimersByTime(2999));
+    expect(queryClient.getQueryState(ownStats)?.isInvalidated).toBe(false);
+
+    act(() => vi.advanceTimersByTime(1));
+    expect(queryClient.getQueryState(ownStats)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(otherStats)?.isInvalidated).toBe(false);
+    expect(
+      invalidate.mock.calls.filter(
+        ([filters]) =>
+          JSON.stringify(filters?.queryKey) === JSON.stringify(queryKeys.sandbox.gitDiffAll('sb1')),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('defers a git refresh due while the worktree query is fetching until it settles', async () => {
+    queryClient.setQueryData(queryKeys.chat('c1'), {
+      id: 'c1',
+      sandbox_id: 'sb1',
+      worktree_cwd: '/wt/a',
+    } as Chat);
+    const ownStats = queryKeys.sandbox.gitDiffStats('sb1', '/wt/a');
+    let settle: (value: object) => void = () => {};
+    void queryClient.prefetchQuery({
+      queryKey: ownStats,
+      queryFn: () => new Promise<object>((resolve) => (settle = resolve)),
+    });
+    const { result } = renderCallbacks();
+
+    act(() =>
+      result.current.onEnvelope(
+        envelope('tool_completed', {
+          tool: { id: 't1', name: 'Edit', title: 't1', status: 'completed' },
+        }),
+      ),
+    );
+    act(() => vi.advanceTimersByTime(3000));
+    expect(queryClient.getQueryState(ownStats)).toMatchObject({
+      fetchStatus: 'fetching',
+      isInvalidated: false,
+    });
+
+    await act(async () => settle({}));
+    expect(queryClient.getQueryState(ownStats)?.isInvalidated).toBe(false);
+
+    act(() => vi.advanceTimersByTime(3000));
+    expect(queryClient.getQueryState(ownStats)?.isInvalidated).toBe(true);
+  });
+
+  it('keeps a pending git refresh across unmount so a chat switch does not lose it', () => {
+    queryClient.setQueryData(queryKeys.chat('c1'), {
+      id: 'c1',
+      sandbox_id: 'sb1',
+      worktree_cwd: null,
+    } as Chat);
+    const stats = queryKeys.sandbox.gitDiffStats('sb1', undefined);
+    queryClient.setQueryData(stats, {});
+    const { result, unmount } = renderCallbacks();
+
+    act(() =>
+      result.current.onEnvelope(
+        envelope('tool_completed', {
+          tool: { id: 't1', name: 'Edit', title: 't1', status: 'completed' },
+        }),
+      ),
+    );
+    unmount();
+    vi.advanceTimersByTime(3000);
+
+    expect(queryClient.getQueryState(stats)?.isInvalidated).toBe(true);
+  });
 });
 
 describe('terminal events', () => {
