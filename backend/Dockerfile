@@ -37,7 +37,7 @@ RUN . /etc/os-release && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.327 @agentclientprotocol/claude-agent-acp@0.108.0 @agentclientprotocol/codex-acp@2.7.0 @openai/codex@0.170.0 @github/copilot@1.0.114
+RUN npm install -g @anthropic-ai/claude-code@2.1.328 @agentclientprotocol/claude-agent-acp@0.108.1 @agentclientprotocol/codex-acp@2.7.0 @openai/codex@0.170.0 @github/copilot@1.0.114
 
 # Playwright + Chromium for browser-testing local dev servers.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
@@ -51,7 +51,7 @@ RUN npm install -g playwright@1.64.1 && \
 # Cursor CLI — used for the Cursor ACP server (`cursor-agent acp`). Pinned
 # download replicating cursor.com/install, which always fetches its own latest.
 RUN set -eux; \
-    v=2026.11.17-f532c45; \
+    v=2026.11.19-f005e9d; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
     dir=/opt/cursor-agent/versions/$v; \
     mkdir -p "$dir" /root/.local/bin; \
