@@ -17,6 +17,13 @@ import type {
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
+// All git-derived caches — refresh together or diff/indicators go stale.
+const GIT_STATE_KEY_GROUPS = [
+  queryKeys.sandbox.gitDiffAll,
+  queryKeys.sandbox.gitFileBaselineAll,
+  queryKeys.sandbox.gitChangedPathsAll,
+];
+
 export const useFileContentQuery = (
   sandboxId: string | undefined,
   filePath: string | undefined,
@@ -68,13 +75,10 @@ export const useUpdateFileMutation = createMutation<UpdateFileResult, Error, Upd
   },
 );
 
-// All git-derived caches — refresh together or diff/indicators go stale.
 export const invalidateGitState = (queryClient: QueryClient, sandboxId: string) =>
-  Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitDiffAll(sandboxId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitFileBaselineAll(sandboxId) }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.sandbox.gitChangedPathsAll(sandboxId) }),
-  ]);
+  Promise.all(
+    GIT_STATE_KEY_GROUPS.map((key) => queryClient.invalidateQueries({ queryKey: key(sandboxId) })),
+  );
 
 // Git keys end with cwd (undefined without a worktree). Skips while one is fetching: that fetch
 // would absorb the invalidation and may predate the change. Returns whether it invalidated.
@@ -84,11 +88,7 @@ export const invalidateWorktreeGitStateIfIdle = (
   cwd: string | undefined,
 ) => {
   const predicate = (query: Query) => query.queryKey[query.queryKey.length - 1] === cwd;
-  const filters = [
-    queryKeys.sandbox.gitDiffAll,
-    queryKeys.sandbox.gitFileBaselineAll,
-    queryKeys.sandbox.gitChangedPathsAll,
-  ].map((key) => ({ queryKey: key(sandboxId), predicate }));
+  const filters = GIT_STATE_KEY_GROUPS.map((key) => ({ queryKey: key(sandboxId), predicate }));
   if (filters.some((f) => queryClient.isFetching(f) > 0)) {
     return false;
   }

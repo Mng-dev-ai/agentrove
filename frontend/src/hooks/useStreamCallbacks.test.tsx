@@ -289,8 +289,14 @@ describe('side-effect envelopes', () => {
     expect(queryClient.getQueryState(ownStats)?.isInvalidated).toBe(true);
   });
 
-  it('drops a pending git refresh when the pane unmounts', () => {
-    const invalidate = vi.spyOn(queryClient, 'invalidateQueries');
+  it('keeps a pending git refresh across unmount so a chat switch does not lose it', () => {
+    queryClient.setQueryData(queryKeys.chat('c1'), {
+      id: 'c1',
+      sandbox_id: 'sb1',
+      worktree_cwd: null,
+    } as Chat);
+    const stats = queryKeys.sandbox.gitDiffStats('sb1', undefined);
+    queryClient.setQueryData(stats, {});
     const { result, unmount } = renderCallbacks();
 
     act(() =>
@@ -303,7 +309,7 @@ describe('side-effect envelopes', () => {
     unmount();
     vi.advanceTimersByTime(3000);
 
-    expect(invalidate).not.toHaveBeenCalled();
+    expect(queryClient.getQueryState(stats)?.isInvalidated).toBe(true);
   });
 });
 
