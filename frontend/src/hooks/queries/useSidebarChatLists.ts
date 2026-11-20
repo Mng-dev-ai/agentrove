@@ -210,6 +210,7 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     workspaceBadgeById,
     machineWorkspaces,
     isLoadingChats: isLoadingLocal || remoteSourceList.some((source) => source.isLoading),
+    isLoadingPinned: pinnedQuery.isLoading,
     hasMore: !!hasMoreLocal || remoteWithMore.length > 0,
     isFetchingMore: isFetchingMoreLocal || remoteSourceList.some((source) => source.isFetchingMore),
     loadMore,
