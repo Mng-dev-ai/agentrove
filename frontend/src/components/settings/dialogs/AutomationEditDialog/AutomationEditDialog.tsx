@@ -61,7 +61,7 @@ export function AutomationEditDialog({
   onSubmit,
   onChange,
 }: AutomationEditDialogProps) {
-  const { data: models = [] } = useModelsQuery();
+  const { data: models = [] } = useModelsQuery({ machineId: form.machineId });
   const isLocal = form.machineId === LOCAL_MACHINE_ID;
   const localWorkspaces = useWorkspacesList();
   const { data: machineWorkspaces = [] } = useMachineWorkspacesQuery(form.machineId, !isLocal);
@@ -236,6 +236,7 @@ export function AutomationEditDialog({
               <div>
                 <Label className={styles.label}>Model</Label>
                 <ModelSelector
+                  machineId={form.machineId}
                   selectedModelId={form.model_id}
                   onModelChange={(modelId) => onChange('model_id', modelId)}
                   dropdownPosition="bottom"

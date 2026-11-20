@@ -131,7 +131,6 @@ function AutomationTargetChip({ machineId, channelId }: { machineId: string; cha
 
 export function AutomationsSettingsTab() {
   const { localSettings } = useSettingsContext();
-  const { items: allItems, load } = useAutomationsAcrossMachines();
   const machines = useMachineStore((state) => state.machines);
   const connections = useMachineStore((state) => state.connections);
   const machineNames = useMemo(
@@ -151,13 +150,7 @@ export function AutomationsSettingsTab() {
     machineOptions,
     'No automations match these filters',
   );
-  const items = useMemo(
-    () =>
-      machineFilter && allItems
-        ? allItems.filter((item) => item.machineId === machineFilter)
-        : allItems,
-    [allItems, machineFilter],
-  );
+  const { items, load } = useAutomationsAcrossMachines(machineFilter);
   const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
   const modelMap = useModelMap();
   const queryClient = useQueryClient();

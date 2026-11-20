@@ -65,10 +65,6 @@ function toggleAction(actions: StreamAction[], label: string, enabled: boolean) 
 export function StreamActionsSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
   const remoteIds = useOnlineRemoteMachineIds();
-  const { byMachine: remoteActions, load: remoteLoad } = useMachinesSettingsList(
-    remoteIds,
-    'stream_actions',
-  );
   const machines = useMachineStore((state) => state.machines);
   const machineNames = useMemo(
     () => new Map(machines.map((machine) => [machine.id, machine.name])),
@@ -81,16 +77,21 @@ export function StreamActionsSettingsTab() {
     ],
     [remoteIds, machineNames],
   );
+  const { machineId: machineFilter, filter } = useMachineFilter(
+    machineOptions,
+    'No stream actions match these filters',
+  );
+  const { byMachine: remoteActions, load: remoteLoad } = useMachinesSettingsList(
+    remoteIds,
+    'stream_actions',
+    machineFilter,
+  );
   const actionsByMachine = useMemo(
     (): Record<string, StreamAction[]> => ({
       ...remoteActions,
       [LOCAL_MACHINE_ID]: localSettings.stream_actions ?? [],
     }),
     [remoteActions, localSettings.stream_actions],
-  );
-  const { machineId: machineFilter, filter } = useMachineFilter(
-    machineOptions,
-    'No stream actions match these filters',
   );
   const items = useMemo(
     (): MachineStreamAction[] =>

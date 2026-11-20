@@ -55,10 +55,6 @@ function deletePersona(personas: Persona[], name: string) {
 export function PersonasSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
   const remoteIds = useOnlineRemoteMachineIds();
-  const { byMachine: remotePersonas, load: remoteLoad } = useMachinesSettingsList(
-    remoteIds,
-    'personas',
-  );
   const machines = useMachineStore((state) => state.machines);
   const machineNames = useMemo(
     () => new Map(machines.map((machine) => [machine.id, machine.name])),
@@ -71,16 +67,21 @@ export function PersonasSettingsTab() {
     ],
     [remoteIds, machineNames],
   );
+  const { machineId: machineFilter, filter } = useMachineFilter(
+    machineOptions,
+    'No personas match these filters',
+  );
+  const { byMachine: remotePersonas, load: remoteLoad } = useMachinesSettingsList(
+    remoteIds,
+    'personas',
+    machineFilter,
+  );
   const personasByMachine = useMemo(
     (): Record<string, Persona[]> => ({
       ...remotePersonas,
       [LOCAL_MACHINE_ID]: localSettings.personas ?? [],
     }),
     [remotePersonas, localSettings.personas],
-  );
-  const { machineId: machineFilter, filter } = useMachineFilter(
-    machineOptions,
-    'No personas match these filters',
   );
   const items = useMemo(
     (): MachinePersona[] =>

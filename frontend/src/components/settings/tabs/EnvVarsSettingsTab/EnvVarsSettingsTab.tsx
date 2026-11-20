@@ -61,10 +61,6 @@ function deleteEnvVar(envVars: CustomEnvVar[], key: string) {
 export function EnvVarsSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
   const remoteIds = useOnlineRemoteMachineIds();
-  const { byMachine: remoteEnvVars, load: remoteLoad } = useMachinesSettingsList(
-    remoteIds,
-    'custom_env_vars',
-  );
   const machines = useMachineStore((state) => state.machines);
   const machineNames = useMemo(
     () => new Map(machines.map((machine) => [machine.id, machine.name])),
@@ -77,16 +73,21 @@ export function EnvVarsSettingsTab() {
     ],
     [remoteIds, machineNames],
   );
+  const { machineId: machineFilter, filter } = useMachineFilter(
+    machineOptions,
+    'No environment variables match these filters',
+  );
+  const { byMachine: remoteEnvVars, load: remoteLoad } = useMachinesSettingsList(
+    remoteIds,
+    'custom_env_vars',
+    machineFilter,
+  );
   const envVarsByMachine = useMemo(
     (): Record<string, CustomEnvVar[]> => ({
       ...remoteEnvVars,
       [LOCAL_MACHINE_ID]: localSettings.custom_env_vars ?? [],
     }),
     [remoteEnvVars, localSettings.custom_env_vars],
-  );
-  const { machineId: machineFilter, filter } = useMachineFilter(
-    machineOptions,
-    'No environment variables match these filters',
   );
   const items = useMemo(
     (): MachineEnvVar[] =>

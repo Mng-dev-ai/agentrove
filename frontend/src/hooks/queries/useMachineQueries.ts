@@ -106,6 +106,7 @@ export const useMachinesSettingsList = <
 >(
   machineIds: string[],
   key: K,
+  filterMachineId: string | null,
 ) => {
   const combine = useCallback(
     (results: UseQueryResult<UserSettings>[]) => {
@@ -114,10 +115,14 @@ export const useMachinesSettingsList = <
       );
       return {
         byMachine,
-        load: listLoadState(results),
+        load: listLoadState(
+          results.filter(
+            (_result, index) => !filterMachineId || machineIds[index] === filterMachineId,
+          ),
+        ),
       };
     },
-    [machineIds, key],
+    [machineIds, key, filterMachineId],
   );
   return useQueries({
     queries: machineIds.map(machineSettingsQuery),

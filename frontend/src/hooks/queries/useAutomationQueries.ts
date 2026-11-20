@@ -25,23 +25,28 @@ export interface MachineAutomation {
   machineId: string;
 }
 
-export const useAutomationsAcrossMachines = (): {
+export const useAutomationsAcrossMachines = (
+  filterMachineId: string | null,
+): {
   items: MachineAutomation[] | null;
   load: ListLoadState;
 } => {
   const remoteIds = useOnlineRemoteMachineIds();
   const combine = useCallback(
     (results: UseQueryResult<Automation[]>[]) => {
-      const load = listLoadState(results);
-      if (results.some((result) => result.isLoading)) return { items: null, load };
+      const shown = [LOCAL_MACHINE_ID, ...remoteIds]
+        .map((machineId, index) => ({ machineId, result: results[index] }))
+        .filter(({ machineId }) => !filterMachineId || machineId === filterMachineId);
+      const load = listLoadState(shown.map(({ result }) => result));
+      if (shown.some(({ result }) => result.isLoading)) return { items: null, load };
       return {
-        items: [LOCAL_MACHINE_ID, ...remoteIds].flatMap((machineId, index) =>
-          (results[index]?.data ?? []).map((automation) => ({ automation, machineId })),
+        items: shown.flatMap(({ machineId, result }) =>
+          (result.data ?? []).map((automation) => ({ automation, machineId })),
         ),
         load,
       };
     },
-    [remoteIds],
+    [remoteIds, filterMachineId],
   );
   return useQueries({
     queries: [LOCAL_MACHINE_ID, ...remoteIds].map((machineId) => ({
