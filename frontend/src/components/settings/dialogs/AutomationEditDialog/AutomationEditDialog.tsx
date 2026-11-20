@@ -41,6 +41,7 @@ interface AutomationEditDialogProps {
   isEditing: boolean;
   form: AutomationForm;
   personas: Persona[];
+  personasLoaded: boolean;
   machineOptions: { id: string; name: string }[];
   error: string | null;
   isSaving: boolean;
@@ -54,6 +55,7 @@ export function AutomationEditDialog({
   isEditing,
   form,
   personas,
+  personasLoaded,
   machineOptions,
   error,
   isSaving,
@@ -127,7 +129,8 @@ export function AutomationEditDialog({
     !!form.workspace_id &&
     (schedule.frequency !== 'custom' || !!schedule.cron.trim()) &&
     (!isChannel || channelPicked) &&
-    !machineOffline;
+    !machineOffline &&
+    personasLoaded;
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="sm" className={styles.dialog}>

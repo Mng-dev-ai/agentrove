@@ -393,6 +393,7 @@ export function AutomationsSettingsTab() {
             isEditing={editingItem !== null}
             form={form}
             personas={formPersonas}
+            personasLoaded={formMachineId === LOCAL_MACHINE_ID || formMachineSettings !== undefined}
             machineOptions={machineOptions}
             error={formError}
             isSaving={

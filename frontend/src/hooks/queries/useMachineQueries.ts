@@ -113,13 +113,13 @@ export const useMachinesSettingsList = <
       const byMachine: Record<string, NonNullable<UserSettings[K]>> = Object.fromEntries(
         machineIds.map((machineId, index) => [machineId, results[index]?.data?.[key] ?? []]),
       );
+      const shown = results.filter(
+        (_result, index) => !filterMachineId || machineIds[index] === filterMachineId,
+      );
       return {
         byMachine,
-        load: listLoadState(
-          results.filter(
-            (_result, index) => !filterMachineId || machineIds[index] === filterMachineId,
-          ),
-        ),
+        isLoading: shown.some((result) => result.isLoading),
+        load: listLoadState(shown),
       };
     },
     [machineIds, key, filterMachineId],
