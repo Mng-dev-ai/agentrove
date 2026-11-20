@@ -110,6 +110,7 @@ export type ChatEvent =
   | {
       kind: 'stream_started';
       chat_id: string;
+      parent_chat_id?: string | null;
       message_id: string;
       user_message_id?: string;
       content?: string;

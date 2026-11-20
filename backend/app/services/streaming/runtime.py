@@ -884,6 +884,7 @@ class ChatStreamRuntime:
             thinking_mode=queued_msg["thinking_mode"],
             permission_mode=queued_msg["permission_mode"],
             selected_persona_name=queued_msg["selected_persona_name"],
+            parent_chat_id=chat.parent_chat_id,
         )
 
     @staticmethod

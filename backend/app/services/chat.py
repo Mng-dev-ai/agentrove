@@ -410,12 +410,14 @@ class ChatService(BaseDbService[Chat]):
         thinking_mode: str | None,
         permission_mode: str,
         selected_persona_name: str,
+        parent_chat_id: UUID | None,
     ) -> None:
         await cls.publish_user_chat_event(
             user_id,
             {
                 "kind": "stream_started",
                 "chat_id": str(user_message.chat_id),
+                "parent_chat_id": str(parent_chat_id) if parent_chat_id else None,
                 "message_id": str(assistant_message.id),
                 "user_message_id": str(user_message.id),
                 "content": content,
@@ -1243,6 +1245,7 @@ class ChatService(BaseDbService[Chat]):
                 thinking_mode=request.thinking_mode,
                 permission_mode=request.permission_mode,
                 selected_persona_name=request.selected_persona_name,
+                parent_chat_id=chat.parent_chat_id,
             )
 
         return {

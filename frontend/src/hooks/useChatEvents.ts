@@ -57,6 +57,9 @@ export function useChatEvents(options?: { enabled?: boolean }) {
         queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
         queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
         queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
+        if (parsed.parent_chat_id) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.subThreads(parsed.parent_chat_id) });
+        }
         insertStartedTurnInCache(queryClient, parsed);
         // Self-starts already have addStream; settled orphans pruned by useGlobalStream.
         useStreamStore.getState().addStreamMetadataIfAbsent({
