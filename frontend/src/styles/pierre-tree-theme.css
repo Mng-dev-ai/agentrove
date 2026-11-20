@@ -12,7 +12,7 @@
 
 file-tree-container {
   --trees-fg-override: var(--theme-text-secondary);
-  --trees-fg-muted-override: var(--theme-text-quaternary);
+  --trees-fg-muted-override: var(--theme-text-tertiary);
   --trees-bg-override: transparent;
   --trees-bg-muted-override: var(--theme-surface-hover);
   --trees-accent-override: var(--theme-text-primary);

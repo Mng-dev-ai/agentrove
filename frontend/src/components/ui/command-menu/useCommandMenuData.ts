@@ -176,7 +176,10 @@ export function useCommandMenuData(mode: MenuMode, query: string) {
   );
 
   const filteredThemes = useMemo(
-    () => (mode !== 'themes' ? [] : fuzzySearch(query, THEMES, { keys: ['label'], limit: 30 })),
+    () =>
+      mode !== 'themes'
+        ? []
+        : fuzzySearch(query, THEMES, { keys: ['label'], limit: THEMES.length }),
     [mode, query],
   );
 

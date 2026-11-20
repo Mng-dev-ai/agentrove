@@ -129,6 +129,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
         // Nerd Font for PUA icons; monospace only as last-resort fallback.
         fontFamily: '"JetBrainsMono Nerd Font", monospace',
         theme: buildTerminalTheme(modeRef.current),
+        minimumContrastRatio: 4.5,
       });
       const fitAddon = new FitAddon();
       xterm.loadAddon(fitAddon);
