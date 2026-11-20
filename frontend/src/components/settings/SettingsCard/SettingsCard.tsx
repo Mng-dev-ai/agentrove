@@ -1,4 +1,4 @@
-import { Switch } from '@/components/ui/primitives/Switch/Switch';
+import clsx from 'clsx';
 import styles from './SettingsCard.module.scss';
 
 export function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
@@ -10,22 +10,21 @@ export function SectionCard({ title, children }: { title: string; children: Reac
   );
 }
 
-interface ToggleRowProps {
+interface SettingRowProps {
   title: string;
-  desc: string;
-  checked: boolean;
-  onCheckedChange: (checked: boolean) => void;
-  ariaLabel: string;
+  desc?: string;
+  className?: string;
+  children: React.ReactNode;
 }
 
-export function ToggleRow({ title, desc, checked, onCheckedChange, ariaLabel }: ToggleRowProps) {
+export function SettingRow({ title, desc, className, children }: SettingRowProps) {
   return (
-    <div className={styles['toggle-row']}>
-      <div className={styles['toggle-text']}>
-        <h3 className={styles['toggle-title']}>{title}</h3>
-        <p className={styles['toggle-desc']}>{desc}</p>
+    <div className={clsx(styles['setting-row'], className)}>
+      <div className={styles['setting-text']}>
+        <h3 className={styles['setting-title']}>{title}</h3>
+        {desc && <p className={styles['setting-desc']}>{desc}</p>}
       </div>
-      <Switch checked={checked} onCheckedChange={onCheckedChange} aria-label={ariaLabel} />
+      {children}
     </div>
   );
 }

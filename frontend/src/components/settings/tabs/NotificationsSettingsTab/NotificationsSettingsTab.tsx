@@ -1,4 +1,5 @@
-import { SectionCard, ToggleRow } from '@/components/settings/SettingsCard/SettingsCard';
+import { SectionCard, SettingRow } from '@/components/settings/SettingsCard/SettingsCard';
+import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import type { NotifySetting, UserSettings } from '@/types/user.types';
 import styles from './NotificationsSettingsTab.module.scss';
 
@@ -38,26 +39,25 @@ export function NotificationsSettingsTab({
       <h2 className={styles['page-title']}>Notifications</h2>
 
       <SectionCard title="Alerts">
-        <ToggleRow
-          title="Notifications"
-          desc="Notify when an agent needs you or finishes."
-          checked={settings.notifications_enabled}
-          onCheckedChange={onNotificationsEnabledChange}
-          ariaLabel="Notifications"
-        />
+        <SettingRow title="Notifications" desc="Notify when an agent needs you or finishes.">
+          <Switch
+            checked={settings.notifications_enabled}
+            onCheckedChange={onNotificationsEnabledChange}
+            aria-label="Notifications"
+          />
+        </SettingRow>
       </SectionCard>
 
       {settings.notifications_enabled && (
         <SectionCard title="Notify me about">
           {NOTIFY_SETTINGS.map(({ key, title, desc }) => (
-            <ToggleRow
-              key={key}
-              title={title}
-              desc={desc}
-              checked={settings[key]}
-              onCheckedChange={(enabled) => onNotifySettingChange(key, enabled)}
-              ariaLabel={`Notify for ${title.toLowerCase()}`}
-            />
+            <SettingRow key={key} title={title} desc={desc}>
+              <Switch
+                checked={settings[key]}
+                onCheckedChange={(enabled) => onNotifySettingChange(key, enabled)}
+                aria-label={`Notify for ${title.toLowerCase()}`}
+              />
+            </SettingRow>
           ))}
         </SectionCard>
       )}

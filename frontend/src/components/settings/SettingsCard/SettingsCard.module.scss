@@ -17,7 +17,7 @@
   }
 }
 
-.toggle-row {
+.setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -25,17 +25,17 @@
   padding-block: var(--space-3);
 }
 
-.toggle-text {
+.setting-text {
   min-width: 0;
   flex: 1;
 }
 
-.toggle-title {
+.setting-title {
   @include type.type-default(500);
   color: var(--theme-text-primary);
 }
 
-.toggle-desc {
+.setting-desc {
   @include type.type-default;
   margin-top: var(--space-0-5);
   color: var(--theme-text-secondary);

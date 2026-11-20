@@ -1,9 +1,9 @@
-import clsx from 'clsx';
 import { ChevronRight } from 'lucide-react';
 import { useDraftField } from '@/hooks/useDraftField';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Select } from '@/components/ui/primitives/Select/Select';
-import { SectionCard, ToggleRow } from '@/components/settings/SettingsCard/SettingsCard';
+import { Switch } from '@/components/ui/primitives/Switch/Switch';
+import { SectionCard, SettingRow } from '@/components/settings/SettingsCard/SettingsCard';
 import type { ApiFieldKey, GeneralSecretFieldConfig } from '@/types/settings.types';
 import type { UserSettings } from '@/types/user.types';
 import type { Theme } from '@/types/ui.types';
@@ -30,22 +30,26 @@ function ThemeControl() {
   const theme = useUIStore((state) => state.theme);
   const themeLabel = THEMES.find((opt) => opt.value === theme)?.label;
   return (
-    <div className={styles['theme-control']}>
-      <Select
-        value={theme}
-        onChange={(e) => useUIStore.getState().setTheme(e.target.value as Theme)}
-        className={styles['theme-select']}
-        aria-label="Theme"
-      >
-        {THEMES.map((opt) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </Select>
-      <span className={styles['theme-value']}>{themeLabel}</span>
-      <ChevronRight className={styles['theme-chevron']} aria-hidden="true" />
-    </div>
+    <>
+      <div className={styles['theme-control']}>
+        <Select
+          value={theme}
+          onChange={(e) => useUIStore.getState().setTheme(e.target.value as Theme)}
+          className={styles['theme-select']}
+          aria-label="Theme"
+        >
+          {THEMES.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <span className={styles['theme-display']}>
+        {themeLabel}
+        <ChevronRight className={styles['theme-chevron']} aria-hidden="true" />
+      </span>
+    </>
   );
 }
 
@@ -109,43 +113,38 @@ export function GeneralSettingsTab({
       </SectionCard>
 
       <SectionCard title="Preferences">
-        <div className={clsx(styles['pref-row'], styles['theme-row'])}>
-          <h3 className={styles['setting-title']}>Theme</h3>
+        <SettingRow title="Theme" className={styles['theme-row']}>
           <ThemeControl />
-        </div>
-        <ToggleRow
+        </SettingRow>
+        <SettingRow
           title="Auto-steer queued messages"
           desc="Send messages typed while agents are working immediately instead of queuing them until they finish."
-          checked={settings.auto_steer_queued_messages}
-          onCheckedChange={onAutoSteerQueuedMessagesChange}
-          ariaLabel="Auto-steer queued messages"
-        />
-        <div className={styles['pref-row']}>
-          <div className={styles['pref-text']}>
-            <h3 className={styles['setting-title']}>Title Generation Model</h3>
-            <p className={styles['field-desc']}>Model used to generate chat titles.</p>
-          </div>
+        >
+          <Switch
+            checked={settings.auto_steer_queued_messages}
+            onCheckedChange={onAutoSteerQueuedMessagesChange}
+            aria-label="Auto-steer queued messages"
+          />
+        </SettingRow>
+        <SettingRow title="Title Generation Model" desc="Model used to generate chat titles.">
           <ModelSelector
             selectedModelId={settings.title_model_id}
             onModelChange={onTitleModelChange}
             compact={false}
             dropdownAlign="right"
           />
-        </div>
+        </SettingRow>
       </SectionCard>
 
       <SectionCard title="Data Management">
-        <div className={styles['pref-row']}>
-          <div className={styles['pref-text']}>
-            <h3 className={styles['setting-title']}>Delete All Chats</h3>
-            <p className={styles['field-desc']}>
-              Permanently delete all chat history. This action cannot be undone.
-            </p>
-          </div>
+        <SettingRow
+          title="Delete All Chats"
+          desc="Permanently delete all chat history. This action cannot be undone."
+        >
           <Button type="button" onClick={onDeleteAllChats} variant="outline" size="sm">
             Delete All
           </Button>
-        </div>
+        </SettingRow>
       </SectionCard>
     </div>
   );

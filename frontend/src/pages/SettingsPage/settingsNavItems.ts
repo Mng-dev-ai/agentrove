@@ -60,8 +60,6 @@ const MOBILE_GROUP_IDS: { title: string; ids: TabKey[] }[] = [
 export const SETTINGS_GROUPS: { title: string; items: SettingsNavItem[] }[] = MOBILE_GROUP_IDS.map(
   ({ title, ids }) => ({
     title,
-    items: SETTINGS_NAV.filter((item) => ids.includes(item.id)).sort(
-      (a, b) => ids.indexOf(a.id) - ids.indexOf(b.id),
-    ),
+    items: ids.flatMap((id) => SETTINGS_NAV.find((item) => item.id === id) ?? []),
   }),
 );
