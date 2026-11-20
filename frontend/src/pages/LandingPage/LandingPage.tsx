@@ -98,12 +98,19 @@ export function LandingPage() {
   const modelMap = useModelMap({ enabled: isAuthenticated, machineId: targetMachineId });
 
   const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
-  // Same merged local+cloud list as the sidebar (empty → example prompts).
-  const { recentChats, workspaceBadgeById, isLoadingChats } = useSidebarChatLists(
+  // Same merged local+cloud lists as the sidebar (empty → example prompts).
+  const { pinnedChats, recentChats, workspaceBadgeById, isLoadingChats } = useSidebarChatLists(
     workspaces,
     isAuthenticated,
   );
-  const showRecents = !isLoadingChats && recentChats.length > 0;
+  const jumpBackInChats = useMemo(
+    () =>
+      [...pinnedChats, ...recentChats].sort(
+        (a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at),
+      ),
+    [pinnedChats, recentChats],
+  );
+  const showRecents = !isLoadingChats && jumpBackInChats.length > 0;
   const greeting = getTimeGreeting();
   // Handles are lowercase — capitalize for the greeting.
   const username = currentUser?.username ?? '';
@@ -457,7 +464,7 @@ export function LandingPage() {
                 <div className={styles['panel-below']}>
                   {showRecents ? (
                     <RecentChats
-                      chats={recentChats}
+                      chats={jumpBackInChats}
                       workspaceBadgeById={workspaceBadgeById}
                       onChatSelect={handleChatSelect}
                     />
@@ -532,7 +539,7 @@ export function LandingPage() {
       selectedModelId,
       composerSelectors,
       showRecents,
-      recentChats,
+      jumpBackInChats,
       workspaceBadgeById,
       greeting,
       greetingName,
