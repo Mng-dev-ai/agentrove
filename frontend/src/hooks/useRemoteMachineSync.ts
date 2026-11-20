@@ -83,6 +83,11 @@ export function useRemoteMachineSync(machineId: string): void {
         useUIStore.getState().openChatTab(parsed.chat_id);
         invalidateMachineLists(queryClient, machineId);
         void queryClient.invalidateQueries({ queryKey: queryKeys.chat(parsed.chat_id) });
+        if (parsed.parent_chat_id) {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.subThreads(parsed.parent_chat_id),
+          });
+        }
         insertStartedTurnInCache(queryClient, parsed);
         useStreamStore.getState().addStreamMetadataIfAbsent({
           chatId: parsed.chat_id,
