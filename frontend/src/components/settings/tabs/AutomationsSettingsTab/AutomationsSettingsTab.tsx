@@ -152,7 +152,6 @@ export function AutomationsSettingsTab() {
   );
   const { items, load } = useAutomationsAcrossMachines(machineFilter);
   const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
-  const modelMap = useModelMap();
   const queryClient = useQueryClient();
 
   const createMutation = useCreateAutomationMutation();
@@ -165,6 +164,7 @@ export function AutomationsSettingsTab() {
   const [form, setForm] = useState<AutomationForm>(() => createDefaultForm(LOCAL_MACHINE_ID));
   const [formError, setFormError] = useState<string | null>(null);
   const formMachineId = editingItem?.machineId ?? form.machineId;
+  const modelMap = useModelMap({ machineId: formMachineId });
   const { data: formMachineSettings } = useMachineSettingsQuery(
     formMachineId,
     isDialogOpen && formMachineId !== LOCAL_MACHINE_ID,
