@@ -119,12 +119,30 @@ class LocalDockerProvider(SandboxProvider):
             await container.start()
         return container
 
+    async def _ensure_network(self, docker: aiodocker.Docker) -> None:
+        # Desktop has no entrypoint.sh to create the network up front.
+        try:
+            await docker.networks.get(self.config.network)
+            return
+        except aiodocker.exceptions.DockerError as e:
+            if e.status != 404:
+                raise
+        try:
+            await docker.networks.create(
+                {"Name": self.config.network, "CheckDuplicate": True}
+            )
+        except aiodocker.exceptions.DockerError as e:
+            # 409: a concurrent sandbox creation won the race.
+            if e.status != 409:
+                raise
+
     async def _create_container(
         self,
         sandbox_id: str,
         workspace_path: str | None = None,
     ) -> Any:
         docker = await self._get_docker()
+        await self._ensure_network(docker)
 
         host_config: dict[str, Any] = {
             "NetworkMode": self.config.network,

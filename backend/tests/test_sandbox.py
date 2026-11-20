@@ -325,6 +325,18 @@ class FakeDockerContainers:
         return container
 
 
+class FakeDockerNetworks:
+    def __init__(self) -> None:
+        self.names: list[str] = []
+
+    async def get(self, name: str) -> None:
+        if name not in self.names:
+            raise DockerError(404, {"message": "network not found"})
+
+    async def create(self, config: dict[str, Any]) -> None:
+        self.names.append(config["Name"])
+
+
 class FakeDocker:
     def __init__(
         self,
@@ -333,6 +345,7 @@ class FakeDocker:
         stop_error: Exception | None = None,
     ) -> None:
         self.containers = FakeDockerContainers(create_error, stop_error)
+        self.networks = FakeDockerNetworks()
 
 
 def install_fake_docker(monkeypatch: pytest.MonkeyPatch, docker: FakeDocker) -> None:
@@ -365,6 +378,23 @@ async def test_docker_sandbox_mounts_workspace_and_chowns_only_managed_dirs(
     assert managed.execs == [["chown", "-R", "1000:1000", root]]
     assert external.execs == []
     assert unmounted.execs == []
+
+
+async def test_docker_sandbox_creates_network_only_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    docker = FakeDocker()
+    install_fake_docker(monkeypatch, docker)
+    provider = LocalDockerProvider(DockerConfig(network="sandbox-net"))
+
+    await provider.create_sandbox()
+    await provider.create_sandbox()
+
+    assert docker.networks.names == ["sandbox-net"]
+    assert all(
+        c.config["HostConfig"]["NetworkMode"] == "sandbox-net"
+        for c in docker.containers.created
+    )
 
 
 @pytest.mark.parametrize(
