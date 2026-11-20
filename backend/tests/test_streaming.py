@@ -497,9 +497,8 @@ async def test_pinned_memories_reach_only_the_first_prompt_of_a_new_session(
         content="Indent with tabs.",
         pinned=True,
     )
-    db_session.add_all(
-        [pinned, Memory(user_id=user.id, title="Unpinned", content="Not injected.")]
-    )
+    unpinned = Memory(user_id=user.id, title="Unpinned", content="Not injected.")
+    db_session.add_all([pinned, unpinned])
     await db_session.commit()
 
     session = FakeAcpSession(
@@ -524,10 +523,12 @@ async def test_pinned_memories_reach_only_the_first_prompt_of_a_new_session(
 
     first, second = session.prompt_calls
     assert (
-        f"<memory>\n- {pinned.id} [workspace] Tabs: Indent with tabs.\n</memory>\n\n"
-        in first
-    )
-    assert "Unpinned" not in first
+        "<memory>\nPinned memories (full content):\n"
+        f"- {pinned.id} [workspace] Tabs: Indent with tabs.\n"
+        "Other memories (titles only; read one with search_memory):\n"
+        f"- {unpinned.id} [global] Unpinned\n</memory>\n\n"
+    ) in first
+    assert "Not injected." not in first
     assert first.endswith("<user_prompt>First prompt</user_prompt>")
     assert "<memory>" not in second
     assert second.endswith("<user_prompt>Second prompt</user_prompt>")
