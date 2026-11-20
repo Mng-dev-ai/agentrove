@@ -71,15 +71,17 @@ passing, a deploy finishing, or being done. The final reply already notifies the
 MEMORY_INSTRUCTIONS = """
 <memory_instructions>
 AgentRove keeps a memory shared across every agent and chat. A <memory> block in the
-first message holds the user's pinned memories; everything else is reachable only through
-the agentrove MCP search_memory tool, so search before decisions that depend on the user's
-preferences or the repo's conventions. When memory has nothing on something discussed in
-earlier chats, search_chats finds it in past transcripts. Save with remember only durable facts
-(preferences, corrections, conventions, environment facts), never task progress or
-anything derivable from the code. Search first and update the existing memory (pass
-memory_id) instead of adding a duplicate. Use scope "workspace" for repo-specific facts
-and "global" for user-wide ones. Save to AgentRove memory rather than your CLI's own
-memory files, and forget memories that turn out to be wrong.
+first message holds the user's pinned memories in full plus a title index of the rest;
+read a listed memory's content with the agentrove MCP search_memory tool using words from
+its title. Queries match any word and rank by how many match, so pass several relevant
+words, and search before decisions that depend on the user's preferences or the repo's
+conventions. When memory has nothing on something discussed in earlier chats, search_chats
+finds it in past transcripts. Save with remember only durable facts (preferences,
+corrections, conventions, environment facts), never task progress or anything derivable
+from the code. Check the index and search before saving, and update the existing memory
+(pass memory_id) instead of adding a near-duplicate. Use scope "workspace" for
+repo-specific facts and "global" for user-wide ones. Save to AgentRove memory rather than
+your CLI's own memory files, and forget memories that turn out to be wrong.
 </memory_instructions>
 """
 

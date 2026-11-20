@@ -87,7 +87,18 @@ async def test_scope_filtering_search_and_scope_updates(
     ]
     assert len(await list_titles(client, headers)) == 3
     assert await list_titles(client, headers, query="PNPM 100%") == ["Prefers pnpm"]
-    assert await list_titles(client, headers, query="pnpm tabs") == []
+    assert await list_titles(client, headers, query="pnpm tabs") == [
+        "Tabs here",
+        "Prefers pnpm",
+    ]
+    assert await list_titles(client, headers, query="pnpm 100% TABS") == [
+        "Prefers pnpm",
+        "Tabs here",
+    ]
+    assert await list_titles(
+        client, headers, workspace_id=str(workspace.id), query="tabs elsewhere"
+    ) == ["Tabs here"]
+    assert len(await list_titles(client, headers, query="tabs elsewhere")) == 2
     assert await list_titles(client, headers, query="10_") == []
 
     pinned = await client.patch(
@@ -95,6 +106,10 @@ async def test_scope_filtering_search_and_scope_updates(
     )
     assert pinned.status_code == 200
     assert pinned.json()["workspace_id"] == str(workspace.id)
+    assert await list_titles(client, headers, query="pnpm 100% tabs") == [
+        "Tabs here",
+        "Prefers pnpm",
+    ]
 
     made_global = await client.patch(
         f"/api/v1/memories/{scoped['id']}", json={"workspace_id": None}, headers=headers
@@ -194,12 +209,13 @@ async def test_memory_tracks_source_chat_and_owner_can_delete_it(
     assert await list_titles(client, headers) == []
 
 
-async def test_prompt_block_lists_pinned_workspace_then_global_memories(
+async def test_prompt_block_lists_pinned_memories_then_a_title_index(
     client: AsyncClient,
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -207,6 +223,14 @@ async def test_prompt_block_lists_pinned_workspace_then_global_memories(
     other_workspace = await add_workspace(db_session, user.id, tmp_path)
     service = MemoryService()
     assert await service.build_prompt_block(user.id, workspace.id) is None
+
+    unpinned = await create_memory(client, headers, title="Unpinned")
+    assert await service.build_prompt_block(user.id, workspace.id) == (
+        "<memory>\n"
+        "Other memories (titles only; read one with search_memory):\n"
+        f"- {unpinned['id']} [global] Unpinned\n"
+        "</memory>"
+    )
 
     global_memory = await create_memory(
         client, headers, title="Global", content="Use pnpm", pinned=True
@@ -219,20 +243,32 @@ async def test_prompt_block_lists_pinned_workspace_then_global_memories(
         pinned=True,
         workspace_id=str(workspace.id),
     )
-    await create_memory(client, headers, title="Unpinned")
-    await create_memory(
-        client,
-        headers,
-        title="Elsewhere",
-        pinned=True,
-        workspace_id=str(other_workspace.id),
+    scoped_unpinned = await create_memory(
+        client, headers, title="Scoped unpinned", workspace_id=str(workspace.id)
     )
+    for pinned in (True, False):
+        await create_memory(
+            client,
+            headers,
+            title="Elsewhere",
+            pinned=pinned,
+            workspace_id=str(other_workspace.id),
+        )
 
-    assert await service.build_prompt_block(user.id, workspace.id) == (
+    pinned_section = (
         "<memory>\n"
+        "Pinned memories (full content):\n"
         f"- {scoped['id']} [workspace] Scoped: Tabs\n"
         f"- {global_memory['id']} [global] Global: Use pnpm\n"
-        "</memory>"
+        "Other memories (titles only; read one with search_memory):\n"
+        f"- {scoped_unpinned['id']} [workspace] Scoped unpinned\n"
+    )
+    assert await service.build_prompt_block(user.id, workspace.id) == (
+        f"{pinned_section}- {unpinned['id']} [global] Unpinned\n</memory>"
+    )
+    monkeypatch.setattr("app.services.memory.MEMORY_INDEX_LIMIT", 1)
+    assert await service.build_prompt_block(user.id, workspace.id) == (
+        f"{pinned_section}...and 1 more; use search_memory to find them.\n</memory>"
     )
 
 

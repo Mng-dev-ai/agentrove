@@ -305,10 +305,11 @@ async def remember(
 
 @mcp.tool()
 async def search_memory(query: str) -> list[dict[str, Any]]:
-    """Search the shared AgentRove memory (case-insensitive; every word must match).
+    """Search the shared AgentRove memory (case-insensitive; any word may match).
 
-    Covers this chat's workspace plus global memories. Pass an empty query to list
-    them all. Returns id, scope, title and content, pinned first, newest first.
+    Covers this chat's workspace plus global memories. Pass several relevant words, or
+    an empty query to list them all. Returns id, scope, title and content, pinned first,
+    then those matching the most query words, then newest first.
     """
     client, _ = _session()
     workspace_id = await _current_workspace_id()
