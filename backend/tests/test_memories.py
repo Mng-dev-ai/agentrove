@@ -30,7 +30,7 @@ async def create_memory(
 
 
 async def list_titles(
-    client: AsyncClient, headers: dict[str, str], **params: str
+    client: AsyncClient, headers: dict[str, str], **params: str | list[str]
 ) -> list[str]:
     response = await client.get("/api/v1/memories", params=params, headers=headers)
     assert response.status_code == 200
@@ -99,7 +99,7 @@ async def test_scope_filtering_search_and_scope_updates(
         client, headers, workspace_id=str(workspace.id), query="tabs elsewhere"
     ) == ["Tabs here"]
     assert len(await list_titles(client, headers, query="tabs elsewhere")) == 2
-    assert await list_titles(client, headers, query="10_") == []
+    assert await list_titles(client, headers, query="pn_m") == []
 
     pinned = await client.patch(
         f"/api/v1/memories/{scoped['id']}", json={"pinned": True}, headers=headers
@@ -107,8 +107,8 @@ async def test_scope_filtering_search_and_scope_updates(
     assert pinned.status_code == 200
     assert pinned.json()["workspace_id"] == str(workspace.id)
     assert await list_titles(client, headers, query="pnpm 100% tabs") == [
-        "Tabs here",
         "Prefers pnpm",
+        "Tabs here",
     ]
 
     made_global = await client.patch(
@@ -117,6 +117,86 @@ async def test_scope_filtering_search_and_scope_updates(
     assert made_global.status_code == 200
     assert made_global.json()["workspace_id"] is None
     assert made_global.json()["pinned"] is True
+
+
+async def test_search_ranks_rare_whole_words_and_reads_by_id(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    tmp_path: Path,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    other_workspace = await add_workspace(db_session, user.id, tmp_path)
+    pinned = await create_memory(
+        client,
+        headers,
+        title="Pinned note",
+        content="agentrove runs format checks",
+        pinned=True,
+    )
+    vite = await create_memory(
+        client, headers, title="Vite config", content="agentrove vite-config for CI"
+    )
+    elsewhere = await create_memory(
+        client, headers, title="Vite fixture", workspace_id=str(other_workspace.id)
+    )
+    in_workspace = {"workspace_id": str(workspace.id)}
+
+    assert await list_titles(
+        client, headers, **in_workspace, query="agentrove: vite-config"
+    ) == ["Vite config"]
+    assert await list_titles(client, headers, **in_workspace, query="agentrove") == [
+        "Pinned note",
+        "Vite config",
+    ]
+    assert await list_titles(client, headers, **in_workspace, query="for") == [
+        "Vite config"
+    ]
+    assert await list_titles(client, headers, **in_workspace, query="CI") == [
+        "Vite config"
+    ]
+    assert await list_titles(client, headers, **in_workspace, query="ci, format") == [
+        "Pinned note",
+        "Vite config",
+    ]
+    assert await list_titles(client, headers, **in_workspace, query="?!") == [
+        "Pinned note",
+        "Vite config",
+    ]
+    assert await list_titles(
+        client,
+        headers,
+        **in_workspace,
+        ids=[vite["id"], elsewhere["id"], pinned["id"]],
+    ) == ["Pinned note", "Vite config"]
+    assert await list_titles(client, headers, ids=[elsewhere["id"]]) == ["Vite fixture"]
+
+
+async def test_memory_content_is_limited_to_1200_characters(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _user, _workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    memory = await create_memory(client, headers, title="Long", content="x" * 1200)
+    too_long = await client.post(
+        "/api/v1/memories",
+        json={"title": "Too long", "content": "x" * 1201},
+        headers=headers,
+    )
+    patched = await client.patch(
+        f"/api/v1/memories/{memory['id']}",
+        json={"content": "x" * 1201},
+        headers=headers,
+    )
+    assert too_long.status_code == 422
+    assert patched.status_code == 422
 
 
 async def test_foreign_workspace_chat_and_memory_are_not_found(
@@ -227,7 +307,8 @@ async def test_prompt_block_lists_pinned_memories_then_a_title_index(
     unpinned = await create_memory(client, headers, title="Unpinned")
     assert await service.build_prompt_block(user.id, workspace.id) == (
         "<memory>\n"
-        "Other memories (titles only; read one with search_memory):\n"
+        "Other memories (titles only; read one by id with read_memories, "
+        "use search_memory for topics not listed here):\n"
         f"- {unpinned['id']} [global] Unpinned\n"
         "</memory>"
     )
@@ -246,6 +327,7 @@ async def test_prompt_block_lists_pinned_memories_then_a_title_index(
     scoped_unpinned = await create_memory(
         client, headers, title="Scoped unpinned", workspace_id=str(workspace.id)
     )
+    newer_global = await create_memory(client, headers, title="Newer global")
     for pinned in (True, False):
         await create_memory(
             client,
@@ -260,15 +342,17 @@ async def test_prompt_block_lists_pinned_memories_then_a_title_index(
         "Pinned memories (full content):\n"
         f"- {scoped['id']} [workspace] Scoped: Tabs\n"
         f"- {global_memory['id']} [global] Global: Use pnpm\n"
-        "Other memories (titles only; read one with search_memory):\n"
+        "Other memories (titles only; read one by id with read_memories, "
+        "use search_memory for topics not listed here):\n"
         f"- {scoped_unpinned['id']} [workspace] Scoped unpinned\n"
     )
     assert await service.build_prompt_block(user.id, workspace.id) == (
-        f"{pinned_section}- {unpinned['id']} [global] Unpinned\n</memory>"
+        f"{pinned_section}- {newer_global['id']} [global] Newer global\n"
+        f"- {unpinned['id']} [global] Unpinned\n</memory>"
     )
     monkeypatch.setattr("app.services.memory.MEMORY_INDEX_LIMIT", 1)
     assert await service.build_prompt_block(user.id, workspace.id) == (
-        f"{pinned_section}...and 1 more; use search_memory to find them.\n</memory>"
+        f"{pinned_section}...and 2 more; use search_memory to find them.\n</memory>"
     )
 
 

@@ -391,6 +391,15 @@ class AgentroveClient:
         resp = await self.request("GET", "/memories", params=params)
         return resp.json()
 
+    async def read_memories(
+        self, memory_ids: list[str], workspace_id: str | None
+    ) -> list[dict[str, Any]]:
+        params: dict[str, Any] = {"ids": memory_ids}
+        if workspace_id:
+            params["workspace_id"] = workspace_id
+        resp = await self.request("GET", "/memories", params=params)
+        return resp.json()
+
     async def delete_memory(self, memory_id: str) -> None:
         await self.request("DELETE", f"/memories/{memory_id}", expected=(204,))
 

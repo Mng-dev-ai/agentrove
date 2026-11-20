@@ -525,7 +525,8 @@ async def test_pinned_memories_reach_only_the_first_prompt_of_a_new_session(
     assert (
         "<memory>\nPinned memories (full content):\n"
         f"- {pinned.id} [workspace] Tabs: Indent with tabs.\n"
-        "Other memories (titles only; read one with search_memory):\n"
+        "Other memories (titles only; read one by id with read_memories, "
+        "use search_memory for topics not listed here):\n"
         f"- {unpinned.id} [global] Unpinned\n</memory>\n\n"
     ) in first
     assert "Not injected." not in first

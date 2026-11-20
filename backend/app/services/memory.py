@@ -1,3 +1,5 @@
+import math
+import re
 from uuid import UUID
 
 from sqlalchemy import Select, or_, select
@@ -12,35 +14,27 @@ from app.services.db import BaseDbService
 from app.services.exceptions import ErrorCode, ServiceException
 
 MEMORY_INDEX_LIMIT = 100
+MEMORY_TOKEN_PATTERN = re.compile(r"\w+(?:-\w+)*")
 
 
 class MemoryService(BaseDbService[Memory]):
     async def list_memories(
-        self, user: User, workspace_id: UUID | None, query: str | None
+        self,
+        user: User,
+        workspace_id: UUID | None,
+        query: str | None,
+        ids: list[UUID] | None,
     ) -> list[Memory]:
         workspace_id = self.agent_workspace_filter(user, workspace_id)
-        words = {word.lower() for word in (query or "").split()}
+        words = self._tokens(query or "")
         stmt = self._visible_memories(user.id, workspace_id).order_by(
             Memory.pinned.desc(), Memory.updated_at.desc()
         )
-        if words:
-            stmt = stmt.filter(
-                or_(
-                    *(
-                        or_(
-                            Memory.title.icontains(word, autoescape=True),
-                            Memory.content.icontains(word, autoescape=True),
-                        )
-                        for word in words
-                    )
-                )
-            )
+        if ids is not None:
+            stmt = stmt.filter(Memory.id.in_(ids))
         async with self.session_factory() as db:
             memories = list((await db.execute(stmt)).scalars())
-        return sorted(
-            memories,
-            key=lambda m: (not m.pinned, -self._matched_word_count(m, words)),
-        )
+        return self._rank_by_rarity(memories, words) if words else memories
 
     async def create_memory(self, user: User, data: MemoryCreate) -> Memory:
         self._require_agent_writable(user, data.workspace_id)
@@ -94,16 +88,14 @@ class MemoryService(BaseDbService[Memory]):
                 (
                     await db.execute(
                         self._visible_memories(user_id, workspace_id).order_by(
-                            Memory.updated_at.desc()
+                            Memory.workspace_id.is_(None), Memory.updated_at.desc()
                         )
                     )
                 ).scalars()
             )
         if not memories:
             return None
-        pinned = sorted(
-            (m for m in memories if m.pinned), key=lambda m: m.workspace_id is None
-        )
+        pinned = [m for m in memories if m.pinned]
         unpinned = [m for m in memories if not m.pinned]
         sections = []
         if pinned:
@@ -125,14 +117,32 @@ class MemoryService(BaseDbService[Memory]):
                     "use search_memory to find them.\n"
                 )
             sections.append(
-                "Other memories (titles only; read one with search_memory):\n" + index
+                "Other memories (titles only; read one by id with read_memories, "
+                "use search_memory for topics not listed here):\n" + index
             )
         return f"<memory>\n{''.join(sections)}</memory>"
 
     @staticmethod
-    def _matched_word_count(memory: Memory, words: set[str]) -> int:
-        text = f"{memory.title}\n{memory.content}".lower()
-        return sum(word in text for word in words)
+    def _tokens(text: str) -> set[str]:
+        return set(MEMORY_TOKEN_PATTERN.findall(text.lower()))
+
+    @classmethod
+    def _rank_by_rarity(cls, memories: list[Memory], words: set[str]) -> list[Memory]:
+        matched = {
+            m.id: words & cls._tokens(f"{m.title}\n{m.content}") for m in memories
+        }
+        idf = {
+            word: math.log(len(memories) / df)
+            for word in words
+            if (df := sum(word in found for found in matched.values()))
+        }
+        if any(idf.values()):
+            scores = {key: sum(idf[w] for w in found) for key, found in matched.items()}
+        else:
+            scores = {key: float(len(found)) for key, found in matched.items()}
+        return sorted(
+            (m for m in memories if scores[m.id] > 0), key=lambda m: -scores[m.id]
+        )
 
     @staticmethod
     def _scope_label(memory: Memory) -> str:
