@@ -11,6 +11,8 @@
 // The custom palettes — the Theme union minus the plain light/dark/system base modes.
 export type PaletteKey =
   | 'dim'
+  | 'high-contrast'
+  | 'high-contrast-light'
   | 'sepia'
   | 'solarized-light'
   | 'solarized-dark'
@@ -20,10 +22,12 @@ export type PaletteKey =
   | 'monokai'
   | 'tokyo-night'
   | 'night-owl'
+  | 'palenight'
   | 'catppuccin-latte'
   | 'catppuccin-mocha'
   | 'ember'
   | 'gruvbox'
+  | 'gruvbox-light'
   | 'rose-pine'
   | 'rose-pine-dawn'
   | 'everforest'
@@ -77,6 +81,36 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textSecondary: '#b8b8bd',
     textTertiary: '#8a8a90',
     textQuaternary: '#79797e',
+  },
+  'high-contrast': {
+    base: 'dark',
+    surface: '#010409',
+    surfaceSecondary: '#151b23',
+    surfaceTertiary: '#1d232c',
+    surfaceHover: '#262c36',
+    surfaceActive: '#2f3742',
+    border: '#b7bdc8',
+    borderSecondary: '#c9d1d9',
+    borderHover: '#f0f6fc',
+    textPrimary: '#ffffff',
+    textSecondary: '#d1d7e0',
+    textTertiary: '#b7bdc8',
+    textQuaternary: '#a2a9b4',
+  },
+  'high-contrast-light': {
+    base: 'light',
+    surface: '#eff2f5',
+    surfaceSecondary: '#ffffff',
+    surfaceTertiary: '#e6eaef',
+    surfaceHover: '#dae0e7',
+    surfaceActive: '#cbd3dc',
+    border: '#454c54',
+    borderSecondary: '#32383f',
+    borderHover: '#25292e',
+    textPrimary: '#010409',
+    textSecondary: '#30363d',
+    textTertiary: '#454c54',
+    textQuaternary: '#4f5761',
   },
   sepia: {
     base: 'light',
@@ -214,6 +248,21 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textTertiary: '#7490a8',
     textQuaternary: '#5f7e97',
   },
+  palenight: {
+    base: 'dark',
+    surface: '#232635',
+    surfaceSecondary: '#292d3e',
+    surfaceTertiary: '#31364a',
+    surfaceHover: '#393e56',
+    surfaceActive: '#3e435e',
+    border: '#30364c',
+    borderSecondary: '#444a66',
+    borderHover: '#676e95',
+    textPrimary: '#bfc7d5',
+    textSecondary: '#adb3d4',
+    textTertiary: '#8f96bd',
+    textQuaternary: '#7c83a8',
+  },
   'catppuccin-latte': {
     base: 'light',
     surface: '#e6e9ef',
@@ -258,6 +307,21 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textSecondary: '#d5c4a1',
     textTertiary: '#a89984',
     textQuaternary: '#928374',
+  },
+  'gruvbox-light': {
+    base: 'light',
+    surface: '#f2e5bc',
+    surfaceSecondary: '#fbf1c7',
+    surfaceTertiary: '#ebdbb2',
+    surfaceHover: '#e0d0aa',
+    surfaceActive: '#d5c4a1',
+    border: '#e0d0aa',
+    borderSecondary: '#bdae93',
+    borderHover: '#a89984',
+    textPrimary: '#3c3836',
+    textSecondary: '#504945',
+    textTertiary: '#665c54',
+    textQuaternary: '#7c6f64',
   },
   'rose-pine': {
     base: 'dark',
