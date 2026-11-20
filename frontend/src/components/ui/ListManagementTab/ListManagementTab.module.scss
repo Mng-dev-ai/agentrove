@@ -25,6 +25,10 @@
 .title {
   @include type.type-body(500);
   color: var(--theme-text-primary);
+
+  @include responsive.media('mobile') {
+    display: none;
+  }
 }
 
 .description {
