@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from pydantic import Field, ValidationInfo, field_validator, model_validator
 from pydantic_settings import BaseSettings
@@ -159,11 +160,20 @@ class Settings(BaseSettings):
 
     DOCKER_IMAGE: str = "ghcr.io/mng-dev-ai/agentrove-sandbox:latest"
     DOCKER_NETWORK: str = "agentrove-sandbox-net"
-    # How Docker sandboxes reach this API on DOCKER_NETWORK (the compose `api`
-    # alias) for the agentrove MCP endpoint; the public BASE_URL may not hairpin.
-    SANDBOX_API_URL: str = Field(
-        default_factory=lambda: f"http://api:{os.environ.get('PORT') or 8080}"
-    )
+
+    @staticmethod
+    def _default_sandbox_api_url(data: dict[str, Any]) -> str:
+        if data["DESKTOP_MODE"]:
+            # Desktop has no compose `api`; Docker Desktop maps host.docker.internal
+            # to the host loopback uvicorn binds (port derived as in desktop/entry.py).
+            return (
+                f"http://host.docker.internal:{urlparse(data['BASE_URL']).port or 8081}"
+            )
+        return f"http://api:{os.environ.get('PORT') or 8080}"
+
+    # How Docker sandboxes reach this API for the agentrove MCP endpoint; the
+    # public BASE_URL may not hairpin.
+    SANDBOX_API_URL: str = Field(default_factory=_default_sandbox_api_url)
     DOCKER_HOST: str | None = None
     DOCKER_MEM_LIMIT: str = "4g"
     DOCKER_CPU_PERIOD: int = 100000

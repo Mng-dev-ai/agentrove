@@ -21,7 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 import app.main as main_module
 from app.core import deps
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.core.security import authenticate_websocket_user, create_mcp_access_token
 from app.db.session import SessionLocal
 from app.models.db_models.automation import Automation
@@ -2227,6 +2227,23 @@ async def test_docker_sandbox_gets_http_mcp_without_respawning_per_turn() -> Non
         )
         != fingerprint
     )
+
+
+def test_desktop_sandbox_api_url_targets_host_on_base_url_port(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.delenv("SANDBOX_API_URL", raising=False)
+    monkeypatch.delenv("PORT", raising=False)
+
+    desktop = Settings(DESKTOP_MODE=True, BASE_URL="http://127.0.0.1:51234")
+    web = Settings(DESKTOP_MODE=False, BASE_URL="http://127.0.0.1:51234")
+    monkeypatch.setenv("SANDBOX_API_URL", "http://custom:9000")
+    explicit = Settings(DESKTOP_MODE=True, BASE_URL="http://127.0.0.1:51234")
+
+    assert desktop.SANDBOX_API_URL == "http://host.docker.internal:51234"
+    assert web.SANDBOX_API_URL == "http://api:8080"
+    assert explicit.SANDBOX_API_URL == "http://custom:9000"
 
 
 async def mcp_list_tools(
