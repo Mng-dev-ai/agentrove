@@ -14,7 +14,8 @@ from app.services.db import BaseDbService
 from app.services.exceptions import ErrorCode, ServiceException
 
 MEMORY_INDEX_LIMIT = 100
-MEMORY_TOKEN_PATTERN = re.compile(r"\w+(?:-\w+)*")
+MEMORY_TOKEN_PATTERN = re.compile(r"[^\W_]+")
+MEMORY_TITLE_BOOST = 1.5
 
 
 class MemoryService(BaseDbService[Memory]):
@@ -122,26 +123,52 @@ class MemoryService(BaseDbService[Memory]):
             )
         return f"<memory>\n{''.join(sections)}</memory>"
 
+    @classmethod
+    def _tokens(cls, text: str) -> set[str]:
+        return {
+            cls._stem(token) for token in MEMORY_TOKEN_PATTERN.findall(text.lower())
+        }
+
     @staticmethod
-    def _tokens(text: str) -> set[str]:
-        return set(MEMORY_TOKEN_PATTERN.findall(text.lower()))
+    def _stem(token: str) -> str:
+        if len(token) < 4:
+            return token
+        if token.endswith("ies"):
+            return token[:-3] + "y"
+        if token.endswith("es") and token[-3] in "sxz":
+            return token[:-2]
+        if token.endswith("s") and not token.endswith("ss"):
+            return token[:-1]
+        for suffix in ("ing", "ed"):
+            stem = token.removesuffix(suffix)
+            if stem != token and len(stem) >= 3:
+                if stem[-1] == stem[-2] and stem[-1] not in "aeioulsz":
+                    return stem[:-1]
+                return stem
+        return token
 
     @classmethod
     def _rank_by_rarity(cls, memories: list[Memory], words: set[str]) -> list[Memory]:
+        in_title = {m.id: words & cls._tokens(m.title) for m in memories}
         matched = {
-            m.id: words & cls._tokens(f"{m.title}\n{m.content}") for m in memories
+            m.id: in_title[m.id] | (words & cls._tokens(m.content)) for m in memories
         }
         idf = {
             word: math.log(len(memories) / df)
             for word in words
             if (df := sum(word in found for found in matched.values()))
         }
-        if any(idf.values()):
-            scores = {key: sum(idf[w] for w in found) for key, found in matched.items()}
-        else:
-            scores = {key: float(len(found)) for key, found in matched.items()}
+        ubiquitous = not any(idf.values())
+        scores = {
+            key: sum(
+                idf[w] * (MEMORY_TITLE_BOOST if w in in_title[key] else 1.0)
+                for w in found
+            )
+            for key, found in matched.items()
+        }
         return sorted(
-            (m for m in memories if scores[m.id] > 0), key=lambda m: -scores[m.id]
+            (m for m in memories if matched[m.id] and (ubiquitous or scores[m.id] > 0)),
+            key=lambda m: (-scores[m.id], -len(matched[m.id])),
         )
 
     @staticmethod

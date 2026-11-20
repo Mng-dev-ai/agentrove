@@ -13,7 +13,7 @@ from client import DEFAULT_API_URL, AgentroveClient, AgentroveError, ChatBusyErr
 
 mcp = FastMCP("agentrove")
 
-MEMORY_SEARCH_LIMIT = 20
+MEMORY_SEARCH_LIMIT = 10
 
 # Unattended full-execution mode per agent. Backend rejects cross-agent modes;
 # mirrored here because this HTTP client can't import adapters.*_SESSION_MODES.
@@ -316,10 +316,10 @@ async def search_memory(query: str) -> list[dict[str, Any]]:
     """Search the shared AgentRove memory (case-insensitive whole words; any may match).
 
     Covers this chat's workspace plus global memories. Pass several relevant words, or
-    an empty query to list them all. Words found in rarer memories weigh more; a word in
-    every memory doesn't rank on its own. Returns id, scope, title, content, pinned and
+    an empty query to list them all. Hyphenated words, plurals and tenses match; rarer
+    words and title words weigh more, and a word in every memory doesn't rank alone. Returns id, scope, title, content, pinned and
     updated_at (YYYY-MM-DD), best match first, then pinned, then newest (an empty query
-    lists pinned first, then newest); a non-empty query returns the top 20.
+    lists pinned first, then newest); a non-empty query returns the top 10.
     """
     client, _ = _session()
     workspace_id = await _current_workspace_id()

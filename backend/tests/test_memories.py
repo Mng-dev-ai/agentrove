@@ -174,6 +174,31 @@ async def test_search_ranks_rare_whole_words_and_reads_by_id(
     ) == ["Pinned note", "Vite config"]
     assert await list_titles(client, headers, ids=[elsewhere["id"]]) == ["Vite fixture"]
 
+    for title, content in (
+        ("Sub-thread rules", "Children inherit the parent workspace"),
+        ("Effort tiers", "Pick thinking_mode from list_models"),
+        ("Seed data", "Seeded channels for demos"),
+        ("Release notes", "Check the changelog"),
+        ("Playwright setup", "Install chromium"),
+        ("UI review", "Run browser checks with Playwright"),
+    ):
+        await create_memory(
+            client, headers, title=title, content=content, **in_workspace
+        )
+    for query, titles in (
+        ("sub thread", ["Sub-thread rules"]),
+        ("thinking mode", ["Effort tiers"]),
+        ("seeding channel", ["Seed data"]),
+        (
+            "browser check procedure",
+            ["UI review", "Pinned note", "Release notes"],
+        ),
+        ("playwright", ["Playwright setup", "UI review"]),
+    ):
+        assert (
+            await list_titles(client, headers, **in_workspace, query=query) == titles
+        ), query
+
 
 async def test_memory_content_is_limited_to_1200_characters(
     client: AsyncClient,
