@@ -12,15 +12,18 @@ import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import toast from 'react-hot-toast';
 import { GeneralSettingsTab } from '@/components/settings/tabs/GeneralSettingsTab/GeneralSettingsTab';
+import { NotificationsSettingsTab } from '@/components/settings/tabs/NotificationsSettingsTab/NotificationsSettingsTab';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
 import { useLogout } from '@/hooks/useLogout';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { settingsService } from '@/services/settingsService';
 import { getGeneralSecretFields, writeVersionedSettings } from '@/utils/settings';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { SettingsSidebarNav } from './SettingsSidebarNav';
 import { SettingsMobileNav } from './SettingsMobileNav';
+import { SettingsMobileHome } from './SettingsMobileHome';
 import { TAB_LABELS, type TabKey } from './settingsNavItems';
 import styles from './SettingsPage.module.scss';
 const PersonasSettingsTab = lazyNamed(
@@ -74,12 +77,14 @@ export function SettingsPage() {
   const userDisplayName = currentUser?.username || currentUser?.email || '';
   const logoutMutation = useLogout();
   // Deep-link tab from location.state (e.g. the machine picker's Add machine).
-  const [activeTab, setActiveTab] = useState<TabKey>(() => {
+  const [selectedTab, setSelectedTab] = useState<TabKey | null>(() => {
     const requested = (location.state as { tab?: TabKey } | null)?.tab;
-    return requested && requested in TAB_LABELS ? requested : 'general';
+    return requested && requested in TAB_LABELS ? requested : null;
   });
+  const isMobile = useIsMobile();
+  const activeTab = selectedTab ?? 'general';
+  const showMobileHome = isMobile && selectedTab === null;
   const [isDeleteAllDialogOpen, setIsDeleteAllDialogOpen] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   const generalSecretFields = getGeneralSecretFields();
 
@@ -227,16 +232,11 @@ export function SettingsPage() {
 
   const errorMessage = getErrorMessage(fetchError) ?? null;
 
-  const handleTabChange = useCallback((tab: TabKey) => {
-    setActiveTab(tab);
-    setMobileNavOpen(false);
-  }, []);
-
   return (
     <div className={styles.settings}>
       <SettingsSidebarNav
         activeTab={activeTab}
-        onTabChange={handleTabChange}
+        onTabChange={setSelectedTab}
         onBack={() => navigate('/')}
         userDisplayName={userDisplayName}
         onOpenSettings={() => navigate('/settings')}
@@ -244,17 +244,21 @@ export function SettingsPage() {
       />
 
       <div className={styles.main}>
-        <SettingsMobileNav
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          onBack={() => navigate('/')}
-          mobileNavOpen={mobileNavOpen}
-          onToggleNav={() => setMobileNavOpen(!mobileNavOpen)}
-        />
+        {showMobileHome ? (
+          <SettingsMobileNav title="Settings" onBack={() => navigate('/')} />
+        ) : (
+          <SettingsMobileNav
+            title={TAB_LABELS[activeTab]}
+            backLabel="Settings"
+            onBack={() => setSelectedTab(null)}
+          />
+        )}
 
         <div className={styles.content}>
           <div className={styles['content-inner']}>
-            {settingsLoad.loadFailed ? (
+            {showMobileHome ? (
+              <SettingsMobileHome onSelect={setSelectedTab} />
+            ) : settingsLoad.loadFailed ? (
               <LoadErrorState
                 icon={AlertCircle}
                 message="Couldn't load settings"
@@ -290,10 +294,22 @@ export function SettingsPage() {
                             onPersistSecret={handlePersistSecret}
                             onToggleVisibility={toggleFieldVisibility}
                             onDeleteAllChats={handleDeleteAllChats}
-                            onNotificationsEnabledChange={handleNotificationsEnabledChange}
-                            onNotifySettingChange={handleNotifySettingChange}
                             onAutoSteerQueuedMessagesChange={handleAutoSteerQueuedMessagesChange}
                             onTitleModelChange={handleTitleModelChange}
+                          />
+                        </div>
+                      )}
+
+                      {activeTab === 'notifications' && (
+                        <div
+                          role="tabpanel"
+                          id="notifications-panel"
+                          aria-labelledby="notifications-tab"
+                        >
+                          <NotificationsSettingsTab
+                            settings={localSettings}
+                            onNotificationsEnabledChange={handleNotificationsEnabledChange}
+                            onNotifySettingChange={handleNotifySettingChange}
                           />
                         </div>
                       )}

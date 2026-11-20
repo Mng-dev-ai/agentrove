@@ -1,35 +1,17 @@
+import clsx from 'clsx';
+import { ChevronRight } from 'lucide-react';
 import { useDraftField } from '@/hooks/useDraftField';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Select } from '@/components/ui/primitives/Select/Select';
-import { Switch } from '@/components/ui/primitives/Switch/Switch';
+import { SectionCard, ToggleRow } from '@/components/settings/SettingsCard/SettingsCard';
 import type { ApiFieldKey, GeneralSecretFieldConfig } from '@/types/settings.types';
-import type { NotifySetting, UserSettings } from '@/types/user.types';
+import type { UserSettings } from '@/types/user.types';
 import type { Theme } from '@/types/ui.types';
 import { useUIStore } from '@/store/uiStore';
 import { SecretInput } from '@/components/settings/inputs/SecretInput/SecretInput';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { THEMES } from '@/utils/theme';
 import styles from './GeneralSettingsTab.module.scss';
-
-const NOTIFY_SETTINGS: { key: NotifySetting; title: string; desc: string }[] = [
-  {
-    key: 'notify_permission_requests',
-    title: 'Permission requests',
-    desc: 'Tool approvals and plans waiting for your review.',
-  },
-  { key: 'notify_questions', title: 'Questions', desc: 'Agents asking you to choose an answer.' },
-  { key: 'notify_completions', title: 'Chat finished', desc: 'A chat completes or fails.' },
-  {
-    key: 'notify_inbox_messages',
-    title: 'Inbox messages',
-    desc: 'Messages an agent sends to your inbox.',
-  },
-  {
-    key: 'notify_sub_threads',
-    title: 'Sub-threads',
-    desc: 'Include sub-thread chats. When off, only parent chats notify; inbox messages always do.',
-  },
-];
 
 interface GeneralSettingsTabProps {
   fields: GeneralSecretFieldConfig[];
@@ -38,25 +20,15 @@ interface GeneralSettingsTabProps {
   onPersistSecret: (field: ApiFieldKey, value: string) => void;
   onToggleVisibility: (field: ApiFieldKey) => void;
   onDeleteAllChats: () => void;
-  onNotificationsEnabledChange: (enabled: boolean) => void;
-  onNotifySettingChange: (setting: NotifySetting, enabled: boolean) => void;
   onAutoSteerQueuedMessagesChange: (enabled: boolean) => void;
   onTitleModelChange: (modelId: string) => void;
-}
-
-function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section>
-      <h2 className={styles['section-title']}>{title}</h2>
-      <div className={styles['section-card']}>{children}</div>
-    </section>
-  );
 }
 
 // Dropdown rather than a row of buttons — 9 themes is too many to lay out inline.
 // Width is bounded on the wrapper since Select itself is w-full.
 function ThemeControl() {
   const theme = useUIStore((state) => state.theme);
+  const themeLabel = THEMES.find((opt) => opt.value === theme)?.label;
   return (
     <div className={styles['theme-control']}>
       <Select
@@ -71,6 +43,8 @@ function ThemeControl() {
           </option>
         ))}
       </Select>
+      <span className={styles['theme-value']}>{themeLabel}</span>
+      <ChevronRight className={styles['theme-chevron']} aria-hidden="true" />
     </div>
   );
 }
@@ -114,8 +88,6 @@ export function GeneralSettingsTab({
   onPersistSecret,
   onToggleVisibility,
   onDeleteAllChats,
-  onNotificationsEnabledChange,
-  onNotifySettingChange,
   onAutoSteerQueuedMessagesChange,
   onTitleModelChange,
 }: GeneralSettingsTabProps) {
@@ -137,49 +109,17 @@ export function GeneralSettingsTab({
       </SectionCard>
 
       <SectionCard title="Preferences">
-        <div className={styles['pref-row']}>
+        <div className={clsx(styles['pref-row'], styles['theme-row'])}>
           <h3 className={styles['setting-title']}>Theme</h3>
           <ThemeControl />
         </div>
-        <div className={styles['pref-row']}>
-          <div className={styles['pref-text']}>
-            <h3 className={styles['setting-title']}>Notifications</h3>
-            <p className={styles['field-desc']}>Notify when an agent needs you or finishes.</p>
-          </div>
-          <Switch
-            checked={settings.notifications_enabled}
-            onCheckedChange={onNotificationsEnabledChange}
-            aria-label="Notifications"
-          />
-        </div>
-        {settings.notifications_enabled &&
-          NOTIFY_SETTINGS.map(({ key, title, desc }) => (
-            <div key={key} className={`${styles['pref-row']} ${styles['pref-subrow']}`}>
-              <div className={styles['pref-text']}>
-                <h3 className={styles['setting-title']}>{title}</h3>
-                <p className={styles['field-desc']}>{desc}</p>
-              </div>
-              <Switch
-                checked={settings[key]}
-                onCheckedChange={(enabled) => onNotifySettingChange(key, enabled)}
-                aria-label={`Notify for ${title.toLowerCase()}`}
-              />
-            </div>
-          ))}
-        <div className={styles['pref-row']}>
-          <div className={styles['pref-text']}>
-            <h3 className={styles['setting-title']}>Auto-steer queued messages</h3>
-            <p className={styles['field-desc']}>
-              Send messages typed while agents are working immediately instead of queuing them until
-              they finish.
-            </p>
-          </div>
-          <Switch
-            checked={settings.auto_steer_queued_messages}
-            onCheckedChange={onAutoSteerQueuedMessagesChange}
-            aria-label="Auto-steer queued messages"
-          />
-        </div>
+        <ToggleRow
+          title="Auto-steer queued messages"
+          desc="Send messages typed while agents are working immediately instead of queuing them until they finish."
+          checked={settings.auto_steer_queued_messages}
+          onCheckedChange={onAutoSteerQueuedMessagesChange}
+          ariaLabel="Auto-steer queued messages"
+        />
         <div className={styles['pref-row']}>
           <div className={styles['pref-text']}>
             <h3 className={styles['setting-title']}>Title Generation Model</h3>

@@ -1,4 +1,5 @@
 @use '@/styles/globals/typography' as type;
+@use '@/styles/globals/responsive' as responsive;
 
 .instructions {
   display: flex;
@@ -9,6 +10,10 @@
 .title {
   @include type.type-body(500);
   color: var(--theme-text-primary);
+
+  @include responsive.media('mobile') {
+    display: none;
+  }
 }
 
 .description {
