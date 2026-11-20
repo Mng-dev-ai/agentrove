@@ -147,6 +147,7 @@ class AcpSession:
         self.current_model = ""
         self.current_mode = ""
         self.current_fast_mode = False
+        handler.on_mode_update = self._on_mode_update
 
     @property
     def handler(self) -> AcpClientHandler:
@@ -362,6 +363,10 @@ class AcpSession:
             self._conn, self._agent_kind, self.acp_session_id, mode_id
         )
         self.current_mode = mode_id
+
+    def _on_mode_update(self, mode_id: str) -> None:
+        if mode_id != self._wire_mode_id(self._agent_kind, self.current_mode):
+            self.current_mode = mode_id
 
     async def set_fast_mode(self, enabled: bool) -> None:
         await self._set_fast_mode_on_conn(
@@ -613,10 +618,17 @@ class AcpSession:
         session_id: str,
         mode_id: str,
     ) -> None:
+        await conn.set_session_mode(
+            mode_id=AcpSession._wire_mode_id(agent_kind, mode_id),
+            session_id=session_id,
+        )
+
+    @staticmethod
+    def _wire_mode_id(agent_kind: AgentKind, mode_id: str) -> str:
         # Grok's CLI only knows `default` and `plan`; approval is a launch flag.
         if agent_kind == AgentKind.GROK and mode_id != "plan":
-            mode_id = "default"
-        await conn.set_session_mode(mode_id=mode_id, session_id=session_id)
+            return "default"
+        return mode_id
 
     @staticmethod
     async def _set_model_on_conn(

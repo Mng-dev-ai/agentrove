@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import re
+from collections.abc import Callable
 from typing import Any, Literal, cast
 
 from acp.connection import StreamDirection
@@ -17,6 +18,7 @@ from acp.schema import (
     CancelElicitationResponse,
     CreateTerminalResponse,
     CreateElicitationResponse,
+    CurrentModeUpdate,
     DeclineElicitationResponse,
     DeniedOutcome,
     ElicitationFormRequestMode,
@@ -67,6 +69,16 @@ VALID_PERMISSION_MODES: set[str] = {
     "ask",
     "always-approve",
     "yolo",
+}
+
+# claude-agent-acp ExitPlanMode option ids → the mode the agent switches to.
+# Its `auto` options stay unmapped: Claude chats have no Auto mode to show.
+PERMISSION_MODE_BY_OPTION_ID: dict[str, PermissionMode] = {
+    "exit-plan-default": "default",
+    "exit-plan-accept-edits": "acceptEdits",
+    "exit-plan-clear-accept-edits": "acceptEdits",
+    "exit-plan-bypass": "bypassPermissions",
+    "exit-plan-clear-bypass": "bypassPermissions",
 }
 
 # Human option labels → PermissionMode when option_id isn't already a literal.
@@ -127,6 +139,8 @@ class AcpClientHandler:
         self.usage: dict[str, int] | None = None
         # Suppress replayed history events during load_session.
         self.muted: bool = False
+        # Set by the owning AcpSession to track modes the agent switches itself.
+        self.on_mode_update: Callable[[str], None] = lambda mode_id: None
 
     def on_connect(self, conn: Any) -> None:
         pass
@@ -247,6 +261,9 @@ class AcpClientHandler:
         update: Any,
         **kwargs: Any,
     ) -> None:
+        if isinstance(update, CurrentModeUpdate):
+            self.on_mode_update(update.current_mode_id)
+            return
         if self.muted:
             return
         event = self._map_update(update)
@@ -275,7 +292,7 @@ class AcpClientHandler:
             permission_mode: PermissionMode | None = (
                 cast(PermissionMode, option_id)
                 if option_id in VALID_PERMISSION_MODES
-                else None
+                else PERMISSION_MODE_BY_OPTION_ID.get(option_id)
             )
             if permission_mode is None:
                 permission_mode = PERMISSION_MODE_BY_OPTION_NAME.get(

@@ -14,6 +14,7 @@ from acp.schema import (
     AgentMessageChunk,
     AgentPlanUpdate,
     AgentThoughtChunk,
+    AvailableCommandsUpdate,
     ContentToolCallContent,
     CurrentModeUpdate,
     Cost,
@@ -95,8 +96,18 @@ MARKER_TOOL_EMPTY_RESULT = "MARKER_TOOL_EMPTY_RESULT"
 MARKER_TOOL_START_DIFF = "MARKER_TOOL_START_DIFF"
 MARKER_TOOL_UNKNOWN_DICT_ERROR = "MARKER_TOOL_UNKNOWN_DICT_ERROR"
 MARKER_ENTER_PLAN_MODE = "MARKER_ENTER_PLAN_MODE"
+MARKER_EXIT_PLAN_MODE = "MARKER_EXIT_PLAN_MODE"
 MARKER_TOOL_LOCATIONS = "MARKER_TOOL_LOCATIONS"
 MARKER_TOOL_ANTIGRAVITY_MCP = "MARKER_TOOL_ANTIGRAVITY_MCP"
+# claude-agent-acp 0.109.0 ExitPlanMode options and the mode each switches to.
+EXIT_PLAN_OPTIONS = {
+    "exit-plan-clear-bypass": "bypassPermissions",
+    "exit-plan-auto": "auto",
+    "exit-plan-bypass": "bypassPermissions",
+    "exit-plan-accept-edits": "acceptEdits",
+    "exit-plan-default": "default",
+    "reject": None,
+}
 # Title generation echoes the user's prompt, markers included.
 TITLE_PROMPT_PREFIX = "Generate a title for this message:"
 # 1x1 transparent PNG, reused wherever the protocol needs inline image bytes.
@@ -326,6 +337,8 @@ class FakeAgent:
             return await self._run_ask_user_question_turn(session_id)
         if MARKER_ENTER_PLAN_MODE in text:
             return await self._run_enter_plan_mode_turn(session_id)
+        if MARKER_EXIT_PLAN_MODE in text:
+            return await self._run_exit_plan_mode_turn(session_id)
 
         return await self._run_default_turn(session_id, text)
 
@@ -348,6 +361,44 @@ class FakeAgent:
                 tool_call_id="tool-enter-plan",
                 status="completed",
                 field_meta={"claudeCode": {"toolName": "EnterPlanMode"}},
+            ),
+        )
+        await asyncio.sleep(0.05)
+        return PromptResponse(stop_reason="end_turn")
+
+    async def _run_exit_plan_mode_turn(self, session_id: str) -> PromptResponse:
+        # Like claude-agent-acp, the agent switches its own mode on approval.
+        assert self._client is not None
+        tool_call_id = "tool-exit-plan"
+        field_meta = {"claudeCode": {"toolName": "ExitPlanMode"}}
+        await self._emit_tool_started(
+            session_id, tool_call_id, "Ready to code?", field_meta=field_meta
+        )
+        response = await self._client.request_permission(
+            options=[
+                PermissionOption(
+                    kind="allow_always", name=option_id, option_id=option_id
+                )
+                for option_id in EXIT_PLAN_OPTIONS
+            ],
+            session_id=session_id,
+            tool_call=ToolCallUpdate(tool_call_id=tool_call_id, status="pending"),
+        )
+        mode = EXIT_PLAN_OPTIONS.get(getattr(response.outcome, "option_id", ""))
+        if mode:
+            await self._client.session_update(
+                session_id=session_id,
+                update=CurrentModeUpdate(
+                    session_update="current_mode_update", current_mode_id=mode
+                ),
+            )
+        await self._client.session_update(
+            session_id=session_id,
+            update=ToolCallProgress(
+                session_update="tool_call_update",
+                tool_call_id=tool_call_id,
+                status="completed",
+                field_meta=field_meta,
             ),
         )
         await asyncio.sleep(0.05)
@@ -630,8 +681,8 @@ class FakeAgent:
         # "Unhandled ACP update type" fallthrough in client.py.
         await client.session_update(
             session_id=session_id,
-            update=CurrentModeUpdate(
-                session_update="current_mode_update", current_mode_id="agent"
+            update=AvailableCommandsUpdate(
+                session_update="available_commands_update", available_commands=[]
             ),
         )
         await client.session_update(

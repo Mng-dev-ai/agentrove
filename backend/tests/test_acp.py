@@ -58,6 +58,7 @@ from tests.fake_acp_agent import (
     MARKER_CRASH_MID_PROMPT,
     MARKER_ELICITATION,
     MARKER_ENTER_PLAN_MODE,
+    MARKER_EXIT_PLAN_MODE,
     MARKER_IMAGE_CONTENT,
     MARKER_PERMISSION,
     MARKER_RAW_INPUT_INVALID,
@@ -816,6 +817,106 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
     # Title generation runs a concurrent session that also sends set_session_mode.
     set_modes = fake_agent.events_of("set_session_mode")
     assert "plan" in [e["mode_id"] for e in set_modes]
+
+
+async def approve_exit_plan(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    *,
+    chat_id: str,
+    option_id: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    send_response = await send_message(
+        client,
+        headers,
+        chat_id=chat_id,
+        model_id="sonnet",
+        prompt=f"{MARKER_EXIT_PLAN_MODE} plan it",
+        permission_mode="plan",
+    )
+    message_id = send_response.json()["message_id"]
+    permission_event = await wait_for_message_event(
+        client, headers, message_id=message_id, event_type="permission_request"
+    )
+    payload = permission_event["render_payload"]
+    respond = await client.post(
+        f"/api/v1/chat/chats/{chat_id}/permissions/{payload['request_id']}/respond",
+        data={"option_id": option_id},
+        headers=headers,
+    )
+    assert respond.status_code == 200, respond.text
+    message = await wait_for_message(
+        client, headers, chat_id=chat_id, message_id=message_id
+    )
+    assert message["stream_status"] == "completed"
+    return payload, message
+
+
+@pytest.mark.parametrize(
+    "option_id,expect_permission_mode",
+    [("exit-plan-bypass", "bypassPermissions"), ("exit-plan-auto", None)],
+)
+async def test_chat_exit_plan_approval_carries_the_chosen_mode(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    option_id: str,
+    expect_permission_mode: str | None,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+
+    payload, message = await approve_exit_plan(
+        client, headers, chat_id=chat["id"], option_id=option_id
+    )
+
+    assert {
+        opt["option_id"]: opt["permission_mode"] for opt in payload["data"]["options"]
+    } == {
+        "exit-plan-clear-bypass": "bypassPermissions",
+        "exit-plan-auto": None,
+        "exit-plan-bypass": "bypassPermissions",
+        "exit-plan-accept-edits": "acceptEdits",
+        "exit-plan-default": "default",
+        "reject": None,
+    }
+    tool = last_tool(message, "tool-exit-plan")
+    assert tool["status"] == "completed"
+    assert tool.get("permission_mode") == expect_permission_mode
+
+
+async def test_agent_reported_mode_makes_the_next_turn_reapply_the_chat_mode(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    await approve_exit_plan(
+        client, headers, chat_id=chat["id"], option_id="exit-plan-auto"
+    )
+
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="sonnet",
+        prompt="hello",
+        permission_mode="plan",
+    )
+    message = await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+
+    assert message["stream_status"] == "completed"
+    chat_pid = fake_agent.main_turn_prompts()[0]["pid"]
+    assert [
+        e["mode_id"]
+        for e in fake_agent.events_of("set_session_mode")
+        if e["pid"] == chat_pid
+    ] == ["plan", "plan"]
 
 
 @pytest.mark.parametrize(
