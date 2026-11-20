@@ -703,8 +703,10 @@ export function useStreamCallbacks({
         throw new Error('Stream options not available');
       }
 
+      const replayChatId = currentOptions.chatId;
+      scheduleGitRefresh(replayChatId, () => refreshChatGitState(queryClient, replayChatId));
       return streamService.replayStream({
-        chatId: currentOptions.chatId,
+        chatId: replayChatId,
         messageId,
         afterSeq,
         onEnvelope: currentOptions.onEnvelope,
@@ -713,7 +715,7 @@ export function useStreamCallbacks({
         onQueueProcess: currentOptions.onQueueProcess,
       });
     },
-    [],
+    [queryClient],
   );
 
   const stopStream = useCallback(
