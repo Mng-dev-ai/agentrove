@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 class MemoryCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=80, pattern=r"^[^\r\n]+$")
-    content: str = Field(..., min_length=1, max_length=500)
+    content: str = Field(..., min_length=1, max_length=1200)
     pinned: bool = False
     workspace_id: UUID | None = None
     chat_id: UUID | None = None
@@ -14,7 +14,7 @@ class MemoryCreate(BaseModel):
 
 class MemoryUpdate(BaseModel):
     title: str | None = Field(None, min_length=1, max_length=80, pattern=r"^[^\r\n]+$")
-    content: str | None = Field(None, min_length=1, max_length=500)
+    content: str | None = Field(None, min_length=1, max_length=1200)
     pinned: bool | None = None
     workspace_id: UUID | None = None
     chat_id: UUID | None = None

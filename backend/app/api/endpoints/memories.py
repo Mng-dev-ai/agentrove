@@ -18,10 +18,11 @@ router = APIRouter()
 async def list_memories(
     workspace_id: UUID | None = Query(None),
     query: str | None = Query(None, max_length=500),
+    ids: list[UUID] | None = Query(None),
     current_user: User = Depends(get_current_user),
     memory_service: MemoryService = Depends(get_memory_service),
 ) -> list[Memory]:
-    return await memory_service.list_memories(current_user, workspace_id, query)
+    return await memory_service.list_memories(current_user, workspace_id, query, ids)
 
 
 @router.post("", response_model=MemorySchema, status_code=status.HTTP_201_CREATED)

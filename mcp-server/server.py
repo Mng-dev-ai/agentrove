@@ -13,7 +13,7 @@ from client import DEFAULT_API_URL, AgentroveClient, AgentroveError, ChatBusyErr
 
 mcp = FastMCP("agentrove")
 
-MEMORY_SEARCH_LIMIT = 20
+MEMORY_SEARCH_LIMIT = 10
 
 # Unattended full-execution mode per agent. Backend rejects cross-agent modes;
 # mirrored here because this HTTP client can't import adapters.*_SESSION_MODES.
@@ -190,7 +190,8 @@ async def list_models(
 
     Each entry has model_id, name, agent_kind and thinking_modes — the reasoning-effort
     tiers the model accepts for send_message's thinking_mode, ordered lowest to highest
-    (empty when the model has no reasoning dial; unsupported values fall back to medium).
+    (empty when the model has no reasoning dial). An explicit tier the model doesn't
+    support fails the turn, so pick thinking_mode from these.
     Pass a model_id as `model_id` to send_message to use it; otherwise a Claude model is
     used. An instance can expose many models, so filter by agent_kind to narrow the list.
     """
@@ -259,6 +260,8 @@ def _memory_summary(memory: dict[str, Any]) -> dict[str, Any]:
         "scope": "global" if memory["workspace_id"] is None else "workspace",
         "title": memory["title"],
         "content": memory["content"],
+        "pinned": memory["pinned"],
+        "updated_at": memory["updated_at"][:10],
     }
 
 
@@ -273,15 +276,17 @@ async def remember(
     content: str,
     scope: Literal["workspace", "global"] | None = None,
     memory_id: str | None = None,
+    workspace_id: str | None = None,
 ) -> str:
     """Save a durable fact to the AgentRove memory shared by every agent and chat.
 
     Only for preferences, corrections, conventions and environment facts — not task
     progress. Search first and pass memory_id to update an existing memory instead of
-    adding a duplicate. scope "workspace" ties it to this chat's workspace, "global"
-    applies everywhere; new memories default to "workspace", and updates keep the
-    existing scope unless scope is given. Title is 1-80 characters on one line,
-    content 1-500. Returns the memory id.
+    adding a duplicate. scope "workspace" ties it to workspace_id (default: this chat's
+    workspace), "global" applies everywhere; new memories default to "workspace", and
+    updates keep the existing scope unless scope is given. Title is 1-80 characters on
+    one line, content 1-1200; keep one topic per memory. Don't write dates into content;
+    the last-updated date is tracked automatically. Returns the memory id.
     """
     client, chat_id = _session()
     if scope is None and memory_id is None:
@@ -290,10 +295,11 @@ async def remember(
     if chat_id:
         body["chat_id"] = chat_id
     if scope == "workspace":
-        workspace_id = await _current_workspace_id()
+        workspace_id = workspace_id or await _current_workspace_id()
         if workspace_id is None:
             raise AgentroveError(
-                "remember with scope 'workspace' requires an AgentRove chat session"
+                "remember with scope 'workspace' requires workspace_id or an "
+                "AgentRove chat session"
             )
         body["workspace_id"] = workspace_id
     elif scope == "global":
@@ -307,18 +313,32 @@ async def remember(
 
 @mcp.tool()
 async def search_memory(query: str) -> list[dict[str, Any]]:
-    """Search the shared AgentRove memory (case-insensitive; any word may match).
+    """Search the shared AgentRove memory (case-insensitive whole words; any may match).
 
     Covers this chat's workspace plus global memories. Pass several relevant words, or
-    an empty query to list them all. Returns id, scope, title and content, pinned first,
-    then those matching the most query words, then newest first; a non-empty query
-    returns the top 20.
+    an empty query to list them all. Hyphenated words, plurals and tenses match; rarer
+    words and title words weigh more, and a word in every memory doesn't rank alone. Returns id, scope, title, content, pinned and
+    updated_at (YYYY-MM-DD), best match first, then pinned, then newest (an empty query
+    lists pinned first, then newest); a non-empty query returns the top 10.
     """
     client, _ = _session()
     workspace_id = await _current_workspace_id()
     memories = await client.search_memories(query, workspace_id)
     if query.strip():
         memories = memories[:MEMORY_SEARCH_LIMIT]
+    return [_memory_summary(m) for m in memories]
+
+
+@mcp.tool()
+async def read_memories(memory_ids: list[str]) -> list[dict[str, Any]]:
+    """Read memories by id, e.g. ones listed in the memory index of the first message.
+
+    Returns the same fields as search_memory; ids that don't exist or aren't visible
+    from this chat's workspace are left out.
+    """
+    client, _ = _session()
+    workspace_id = await _current_workspace_id()
+    memories = await client.read_memories(memory_ids, workspace_id)
     return [_memory_summary(m) for m in memories]
 
 
@@ -489,9 +509,9 @@ async def send_message(
     the new chat a sub-thread of that parent — it inherits the parent's workspace, and the
     parent must be a top-level chat (sub-threads can't nest).
 
-    Per-turn options: thinking_mode sets reasoning effort (values not supported by the
-    chosen model fall back to medium); worktree=true runs the turn in an isolated git
-    worktree (its own branch); fast_mode=true enables Codex's fast mode (ignored by
+    Per-turn options: thinking_mode sets reasoning effort (a tier the chosen model
+    doesn't support fails the turn; pick one from list_models' thinking_modes);
+    worktree=true runs the turn in an isolated git worktree (its own branch); fast_mode=true enables Codex's fast mode (ignored by
     non-Codex agents); persona selects a custom persona by name (defaults to the
     standard persona).
     base_branch: start the worktree from this branch instead of current HEAD; only used with worktree=true.

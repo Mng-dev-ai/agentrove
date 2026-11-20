@@ -71,11 +71,11 @@ export function MemoryEditDialog({
               value={memory.content}
               onChange={(e) => onMemoryChange('content', e.target.value)}
               placeholder="Use pnpm for installs and scripts in every repo."
-              maxLength={500}
+              maxLength={1200}
               className={styles['content-textarea']}
               rows={10}
             />
-            <p className={styles.hint}>{memory.content.length}/500 characters</p>
+            <p className={styles.hint}>{memory.content.length}/1200 characters</p>
           </div>
 
           <div>

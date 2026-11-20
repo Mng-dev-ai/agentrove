@@ -1,3 +1,5 @@
+import math
+import re
 from uuid import UUID
 
 from sqlalchemy import Select, or_, select
@@ -12,35 +14,28 @@ from app.services.db import BaseDbService
 from app.services.exceptions import ErrorCode, ServiceException
 
 MEMORY_INDEX_LIMIT = 100
+MEMORY_TOKEN_PATTERN = re.compile(r"[^\W_]+")
+MEMORY_TITLE_BOOST = 1.5
 
 
 class MemoryService(BaseDbService[Memory]):
     async def list_memories(
-        self, user: User, workspace_id: UUID | None, query: str | None
+        self,
+        user: User,
+        workspace_id: UUID | None,
+        query: str | None,
+        ids: list[UUID] | None,
     ) -> list[Memory]:
         workspace_id = self.agent_workspace_filter(user, workspace_id)
-        words = {word.lower() for word in (query or "").split()}
+        words = self._tokens(query or "")
         stmt = self._visible_memories(user.id, workspace_id).order_by(
             Memory.pinned.desc(), Memory.updated_at.desc()
         )
-        if words:
-            stmt = stmt.filter(
-                or_(
-                    *(
-                        or_(
-                            Memory.title.icontains(word, autoescape=True),
-                            Memory.content.icontains(word, autoescape=True),
-                        )
-                        for word in words
-                    )
-                )
-            )
+        if ids is not None:
+            stmt = stmt.filter(Memory.id.in_(ids))
         async with self.session_factory() as db:
             memories = list((await db.execute(stmt)).scalars())
-        return sorted(
-            memories,
-            key=lambda m: (not m.pinned, -self._matched_word_count(m, words)),
-        )
+        return self._rank_by_rarity(memories, words) if words else memories
 
     async def create_memory(self, user: User, data: MemoryCreate) -> Memory:
         self._require_agent_writable(user, data.workspace_id)
@@ -94,16 +89,14 @@ class MemoryService(BaseDbService[Memory]):
                 (
                     await db.execute(
                         self._visible_memories(user_id, workspace_id).order_by(
-                            Memory.updated_at.desc()
+                            Memory.workspace_id.is_(None), Memory.updated_at.desc()
                         )
                     )
                 ).scalars()
             )
         if not memories:
             return None
-        pinned = sorted(
-            (m for m in memories if m.pinned), key=lambda m: m.workspace_id is None
-        )
+        pinned = [m for m in memories if m.pinned]
         unpinned = [m for m in memories if not m.pinned]
         sections = []
         if pinned:
@@ -125,14 +118,58 @@ class MemoryService(BaseDbService[Memory]):
                     "use search_memory to find them.\n"
                 )
             sections.append(
-                "Other memories (titles only; read one with search_memory):\n" + index
+                "Other memories (titles only; read one by id with read_memories, "
+                "use search_memory for topics not listed here):\n" + index
             )
         return f"<memory>\n{''.join(sections)}</memory>"
 
+    @classmethod
+    def _tokens(cls, text: str) -> set[str]:
+        return {
+            cls._stem(token) for token in MEMORY_TOKEN_PATTERN.findall(text.lower())
+        }
+
     @staticmethod
-    def _matched_word_count(memory: Memory, words: set[str]) -> int:
-        text = f"{memory.title}\n{memory.content}".lower()
-        return sum(word in text for word in words)
+    def _stem(token: str) -> str:
+        if len(token) < 4:
+            return token
+        if token.endswith("ies"):
+            return token[:-3] + "y"
+        if token.endswith("es") and token[-3] in "sxz":
+            return token[:-2]
+        if token.endswith("s") and not token.endswith("ss"):
+            return token[:-1]
+        for suffix in ("ing", "ed"):
+            stem = token.removesuffix(suffix)
+            if stem != token and len(stem) >= 3:
+                if stem[-1] == stem[-2] and stem[-1] not in "aeioulsz":
+                    return stem[:-1]
+                return stem
+        return token
+
+    @classmethod
+    def _rank_by_rarity(cls, memories: list[Memory], words: set[str]) -> list[Memory]:
+        in_title = {m.id: words & cls._tokens(m.title) for m in memories}
+        matched = {
+            m.id: in_title[m.id] | (words & cls._tokens(m.content)) for m in memories
+        }
+        idf = {
+            word: math.log(len(memories) / df)
+            for word in words
+            if (df := sum(word in found for found in matched.values()))
+        }
+        ubiquitous = not any(idf.values())
+        scores = {
+            key: sum(
+                idf[w] * (MEMORY_TITLE_BOOST if w in in_title[key] else 1.0)
+                for w in found
+            )
+            for key, found in matched.items()
+        }
+        return sorted(
+            (m for m in memories if matched[m.id] and (ubiquitous or scores[m.id] > 0)),
+            key=lambda m: (-scores[m.id], -len(matched[m.id])),
+        )
 
     @staticmethod
     def _scope_label(memory: Memory) -> str:
