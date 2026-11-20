@@ -99,10 +99,8 @@ export function LandingPage() {
 
   const { data: currentUser } = useCurrentUserQuery({ enabled: isAuthenticated });
   // Same merged local+cloud lists as the sidebar (empty → example prompts).
-  const { pinnedChats, recentChats, workspaceBadgeById, isLoadingChats } = useSidebarChatLists(
-    workspaces,
-    isAuthenticated,
-  );
+  const { pinnedChats, recentChats, workspaceBadgeById, isLoadingChats, isLoadingPinned } =
+    useSidebarChatLists(workspaces, isAuthenticated);
   const jumpBackInChats = useMemo(
     () =>
       [...pinnedChats, ...recentChats].sort(
@@ -110,7 +108,7 @@ export function LandingPage() {
       ),
     [pinnedChats, recentChats],
   );
-  const showRecents = !isLoadingChats && jumpBackInChats.length > 0;
+  const showRecents = !isLoadingChats && !isLoadingPinned && jumpBackInChats.length > 0;
   const greeting = getTimeGreeting();
   // Handles are lowercase — capitalize for the greeting.
   const username = currentUser?.username ?? '';
