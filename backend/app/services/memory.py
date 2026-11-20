@@ -11,23 +11,36 @@ from app.models.schemas.memory import MemoryCreate, MemoryUpdate
 from app.services.db import BaseDbService
 from app.services.exceptions import ErrorCode, ServiceException
 
+MEMORY_INDEX_LIMIT = 100
+
 
 class MemoryService(BaseDbService[Memory]):
     async def list_memories(
         self, user: User, workspace_id: UUID | None, query: str | None
     ) -> list[Memory]:
         workspace_id = self.agent_workspace_filter(user, workspace_id)
-        stmt = self._visible_memories(user.id, workspace_id)
-        for token in (query or "").split():
+        words = {word.lower() for word in (query or "").split()}
+        stmt = self._visible_memories(user.id, workspace_id).order_by(
+            Memory.pinned.desc(), Memory.updated_at.desc()
+        )
+        if words:
             stmt = stmt.filter(
                 or_(
-                    Memory.title.icontains(token, autoescape=True),
-                    Memory.content.icontains(token, autoescape=True),
+                    *(
+                        or_(
+                            Memory.title.icontains(word, autoescape=True),
+                            Memory.content.icontains(word, autoescape=True),
+                        )
+                        for word in words
+                    )
                 )
             )
-        stmt = stmt.order_by(Memory.pinned.desc(), Memory.updated_at.desc())
         async with self.session_factory() as db:
-            return list((await db.execute(stmt)).scalars())
+            memories = list((await db.execute(stmt)).scalars())
+        return sorted(
+            memories,
+            key=lambda m: (not m.pinned, -self._matched_word_count(m, words)),
+        )
 
     async def create_memory(self, user: User, data: MemoryCreate) -> Memory:
         self._require_agent_writable(user, data.workspace_id)
@@ -80,22 +93,50 @@ class MemoryService(BaseDbService[Memory]):
             memories = list(
                 (
                     await db.execute(
-                        self._visible_memories(user_id, workspace_id)
-                        .filter(Memory.pinned.is_(True))
-                        .order_by(
-                            Memory.workspace_id.is_(None), Memory.updated_at.desc()
+                        self._visible_memories(user_id, workspace_id).order_by(
+                            Memory.updated_at.desc()
                         )
                     )
                 ).scalars()
             )
         if not memories:
             return None
-        lines = "".join(
-            f"- {m.id} [{'global' if m.workspace_id is None else 'workspace'}] "
-            f"{m.title}: {m.content}\n"
-            for m in memories
+        pinned = sorted(
+            (m for m in memories if m.pinned), key=lambda m: m.workspace_id is None
         )
-        return f"<memory>\n{lines}</memory>"
+        unpinned = [m for m in memories if not m.pinned]
+        sections = []
+        if pinned:
+            sections.append(
+                "Pinned memories (full content):\n"
+                + "".join(
+                    f"- {m.id} [{self._scope_label(m)}] {m.title}: {m.content}\n"
+                    for m in pinned
+                )
+            )
+        if unpinned:
+            index = "".join(
+                f"- {m.id} [{self._scope_label(m)}] {m.title}\n"
+                for m in unpinned[:MEMORY_INDEX_LIMIT]
+            )
+            if len(unpinned) > MEMORY_INDEX_LIMIT:
+                index += (
+                    f"...and {len(unpinned) - MEMORY_INDEX_LIMIT} more; "
+                    "use search_memory to find them.\n"
+                )
+            sections.append(
+                "Other memories (titles only; read one with search_memory):\n" + index
+            )
+        return f"<memory>\n{''.join(sections)}</memory>"
+
+    @staticmethod
+    def _matched_word_count(memory: Memory, words: set[str]) -> int:
+        text = f"{memory.title}\n{memory.content}".lower()
+        return sum(word in text for word in words)
+
+    @staticmethod
+    def _scope_label(memory: Memory) -> str:
+        return "global" if memory.workspace_id is None else "workspace"
 
     @staticmethod
     def _visible_memories(
