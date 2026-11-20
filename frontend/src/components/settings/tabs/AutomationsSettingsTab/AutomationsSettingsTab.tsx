@@ -131,7 +131,6 @@ function AutomationTargetChip({ machineId, channelId }: { machineId: string; cha
 
 export function AutomationsSettingsTab() {
   const { localSettings } = useSettingsContext();
-  const { items: allItems, load } = useAutomationsAcrossMachines();
   const machines = useMachineStore((state) => state.machines);
   const connections = useMachineStore((state) => state.connections);
   const machineNames = useMemo(
@@ -151,15 +150,8 @@ export function AutomationsSettingsTab() {
     machineOptions,
     'No automations match these filters',
   );
-  const items = useMemo(
-    () =>
-      machineFilter && allItems
-        ? allItems.filter((item) => item.machineId === machineFilter)
-        : allItems,
-    [allItems, machineFilter],
-  );
+  const { items, load } = useAutomationsAcrossMachines(machineFilter);
   const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
-  const modelMap = useModelMap();
   const queryClient = useQueryClient();
 
   const createMutation = useCreateAutomationMutation();
@@ -172,6 +164,7 @@ export function AutomationsSettingsTab() {
   const [form, setForm] = useState<AutomationForm>(() => createDefaultForm(LOCAL_MACHINE_ID));
   const [formError, setFormError] = useState<string | null>(null);
   const formMachineId = editingItem?.machineId ?? form.machineId;
+  const modelMap = useModelMap({ machineId: formMachineId });
   const { data: formMachineSettings } = useMachineSettingsQuery(
     formMachineId,
     isDialogOpen && formMachineId !== LOCAL_MACHINE_ID,
@@ -400,6 +393,7 @@ export function AutomationsSettingsTab() {
             isEditing={editingItem !== null}
             form={form}
             personas={formPersonas}
+            personasLoaded={formMachineId === LOCAL_MACHINE_ID || formMachineSettings !== undefined}
             machineOptions={machineOptions}
             error={formError}
             isSaving={

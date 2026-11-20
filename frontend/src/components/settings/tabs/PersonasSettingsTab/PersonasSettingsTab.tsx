@@ -55,10 +55,6 @@ function deletePersona(personas: Persona[], name: string) {
 export function PersonasSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
   const remoteIds = useOnlineRemoteMachineIds();
-  const { byMachine: remotePersonas, load: remoteLoad } = useMachinesSettingsList(
-    remoteIds,
-    'personas',
-  );
   const machines = useMachineStore((state) => state.machines);
   const machineNames = useMemo(
     () => new Map(machines.map((machine) => [machine.id, machine.name])),
@@ -71,6 +67,15 @@ export function PersonasSettingsTab() {
     ],
     [remoteIds, machineNames],
   );
+  const { machineId: machineFilter, filter } = useMachineFilter(
+    machineOptions,
+    'No personas match these filters',
+  );
+  const {
+    byMachine: remotePersonas,
+    isLoading: remoteLoading,
+    load: remoteLoad,
+  } = useMachinesSettingsList(remoteIds, 'personas', machineFilter);
   const personasByMachine = useMemo(
     (): Record<string, Persona[]> => ({
       ...remotePersonas,
@@ -78,21 +83,19 @@ export function PersonasSettingsTab() {
     }),
     [remotePersonas, localSettings.personas],
   );
-  const { machineId: machineFilter, filter } = useMachineFilter(
-    machineOptions,
-    'No personas match these filters',
-  );
   const items = useMemo(
-    (): MachinePersona[] =>
-      machineOptions
-        .filter((machine) => !machineFilter || machine.id === machineFilter)
-        .flatMap((machine) =>
-          (personasByMachine[machine.id] ?? []).map((persona) => ({
-            persona,
-            machineId: machine.id,
-          })),
-        ),
-    [machineOptions, personasByMachine, machineFilter],
+    (): MachinePersona[] | null =>
+      remoteLoading
+        ? null
+        : machineOptions
+            .filter((machine) => !machineFilter || machine.id === machineFilter)
+            .flatMap((machine) =>
+              (personasByMachine[machine.id] ?? []).map((persona) => ({
+                persona,
+                machineId: machine.id,
+              })),
+            ),
+    [remoteLoading, machineOptions, personasByMachine, machineFilter],
   );
 
   const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
@@ -147,7 +150,7 @@ export function PersonasSettingsTab() {
   };
 
   const handleEdit = (index: number) => {
-    const item = items[index];
+    const item = items?.[index];
     if (!item) return;
     setEditingItem(item);
     setForm({ ...item.persona, machineId: item.machineId });
@@ -156,7 +159,7 @@ export function PersonasSettingsTab() {
   };
 
   const handleDelete = async (index: number) => {
-    const item = items[index];
+    const item = items?.[index];
     if (!item) return;
     try {
       await writePersonas(

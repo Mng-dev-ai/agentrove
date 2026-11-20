@@ -41,6 +41,7 @@ interface AutomationEditDialogProps {
   isEditing: boolean;
   form: AutomationForm;
   personas: Persona[];
+  personasLoaded: boolean;
   machineOptions: { id: string; name: string }[];
   error: string | null;
   isSaving: boolean;
@@ -54,6 +55,7 @@ export function AutomationEditDialog({
   isEditing,
   form,
   personas,
+  personasLoaded,
   machineOptions,
   error,
   isSaving,
@@ -61,7 +63,7 @@ export function AutomationEditDialog({
   onSubmit,
   onChange,
 }: AutomationEditDialogProps) {
-  const { data: models = [] } = useModelsQuery();
+  const { data: models = [] } = useModelsQuery({ machineId: form.machineId });
   const isLocal = form.machineId === LOCAL_MACHINE_ID;
   const localWorkspaces = useWorkspacesList();
   const { data: machineWorkspaces = [] } = useMachineWorkspacesQuery(form.machineId, !isLocal);
@@ -127,7 +129,8 @@ export function AutomationEditDialog({
     !!form.workspace_id &&
     (schedule.frequency !== 'custom' || !!schedule.cron.trim()) &&
     (!isChannel || channelPicked) &&
-    !machineOffline;
+    !machineOffline &&
+    personasLoaded;
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} size="sm" className={styles.dialog}>
@@ -236,6 +239,7 @@ export function AutomationEditDialog({
               <div>
                 <Label className={styles.label}>Model</Label>
                 <ModelSelector
+                  machineId={form.machineId}
                   selectedModelId={form.model_id}
                   onModelChange={(modelId) => onChange('model_id', modelId)}
                   dropdownPosition="bottom"

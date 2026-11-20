@@ -61,10 +61,6 @@ function deleteEnvVar(envVars: CustomEnvVar[], key: string) {
 export function EnvVarsSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
   const remoteIds = useOnlineRemoteMachineIds();
-  const { byMachine: remoteEnvVars, load: remoteLoad } = useMachinesSettingsList(
-    remoteIds,
-    'custom_env_vars',
-  );
   const machines = useMachineStore((state) => state.machines);
   const machineNames = useMemo(
     () => new Map(machines.map((machine) => [machine.id, machine.name])),
@@ -77,6 +73,15 @@ export function EnvVarsSettingsTab() {
     ],
     [remoteIds, machineNames],
   );
+  const { machineId: machineFilter, filter } = useMachineFilter(
+    machineOptions,
+    'No environment variables match these filters',
+  );
+  const {
+    byMachine: remoteEnvVars,
+    isLoading: remoteLoading,
+    load: remoteLoad,
+  } = useMachinesSettingsList(remoteIds, 'custom_env_vars', machineFilter);
   const envVarsByMachine = useMemo(
     (): Record<string, CustomEnvVar[]> => ({
       ...remoteEnvVars,
@@ -84,21 +89,19 @@ export function EnvVarsSettingsTab() {
     }),
     [remoteEnvVars, localSettings.custom_env_vars],
   );
-  const { machineId: machineFilter, filter } = useMachineFilter(
-    machineOptions,
-    'No environment variables match these filters',
-  );
   const items = useMemo(
-    (): MachineEnvVar[] =>
-      machineOptions
-        .filter((machine) => !machineFilter || machine.id === machineFilter)
-        .flatMap((machine) =>
-          (envVarsByMachine[machine.id] ?? []).map((envVar) => ({
-            envVar,
-            machineId: machine.id,
-          })),
-        ),
-    [machineOptions, envVarsByMachine, machineFilter],
+    (): MachineEnvVar[] | null =>
+      remoteLoading
+        ? null
+        : machineOptions
+            .filter((machine) => !machineFilter || machine.id === machineFilter)
+            .flatMap((machine) =>
+              (envVarsByMachine[machine.id] ?? []).map((envVar) => ({
+                envVar,
+                machineId: machine.id,
+              })),
+            ),
+    [remoteLoading, machineOptions, envVarsByMachine, machineFilter],
   );
 
   const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
@@ -153,7 +156,7 @@ export function EnvVarsSettingsTab() {
   };
 
   const handleEdit = (index: number) => {
-    const item = items[index];
+    const item = items?.[index];
     if (!item) return;
     setEditingItem(item);
     setForm({ ...item.envVar, machineId: item.machineId });
@@ -162,7 +165,7 @@ export function EnvVarsSettingsTab() {
   };
 
   const handleDelete = async (index: number) => {
-    const item = items[index];
+    const item = items?.[index];
     if (!item) return;
     try {
       await writeEnvVars(
