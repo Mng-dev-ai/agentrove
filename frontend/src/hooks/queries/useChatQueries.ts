@@ -252,30 +252,33 @@ export function patchChatInCache(
   chatId: string,
   patch: (chat: Chat) => Chat,
 ) {
-  const cached = queryClient
-    .getQueryCache()
-    .find<Chat>({ queryKey: queryKeys.chat(chatId), exact: true });
-  if (cached?.state.data) cached.setState({ data: patch(cached.state.data) });
-  queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
-    { queryKey: [queryKeys.chats, 'infinite'] },
-    (oldData) => {
-      if (!oldData) return oldData;
-      return {
-        ...oldData,
-        pages: oldData.pages.map((page) => ({
+  const cache = queryClient.getQueryCache();
+  const cachedChat = cache.find<Chat>({ queryKey: queryKeys.chat(chatId), exact: true });
+  if (cachedChat?.state.data) cachedChat.setState({ data: patch(cachedChat.state.data) });
+  for (const [queryKey, data] of queryClient.getQueriesData<InfiniteData<PaginatedChats>>({
+    queryKey: [queryKeys.chats, 'infinite'],
+  })) {
+    if (!data) continue;
+    cache.find<InfiniteData<PaginatedChats>>({ queryKey, exact: true })?.setState({
+      data: {
+        ...data,
+        pages: data.pages.map((page) => ({
           ...page,
           items: page.items.map((chat) => (chat.id === chatId ? patch(chat) : chat)),
         })),
-      };
-    },
-  );
-  queryClient.setQueryData<PaginatedChats>(queryKeys.chatsRecent, (oldData) => {
-    if (!oldData) return oldData;
-    return {
-      ...oldData,
-      items: oldData.items.map((chat) => (chat.id === chatId ? patch(chat) : chat)),
-    };
-  });
+      },
+    });
+  }
+  const cachedRecent = cache.find<PaginatedChats>({ queryKey: queryKeys.chatsRecent, exact: true });
+  if (cachedRecent?.state.data) {
+    const data = cachedRecent.state.data;
+    cachedRecent.setState({
+      data: {
+        ...data,
+        items: data.items.map((chat) => (chat.id === chatId ? patch(chat) : chat)),
+      },
+    });
+  }
 }
 
 // Optimistic unread clear + server stamp; fire-and-forget (failed stamp resurfaces on refetch).
