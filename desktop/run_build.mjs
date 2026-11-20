@@ -30,9 +30,9 @@ const PYTHON_VERSION = '3.12.12';
 const NODE_VERSION = '22.12.0';
 const RELEASE_TAG = '20260211';
 const RIPGREP_VERSION = '14.1.1';
-const CLAUDE_AGENT_ACP_VERSION = '0.108.1';
-const CLAUDE_CODE_VERSION = '2.1.328';
-const CODEX_ACP_VERSION = '2.7.0';
+const CLAUDE_AGENT_ACP_VERSION = '0.109.0';
+const CLAUDE_CODE_VERSION = '2.1.329';
+const CODEX_ACP_VERSION = '2.8.0';
 const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
 
 const platform = process.platform;
