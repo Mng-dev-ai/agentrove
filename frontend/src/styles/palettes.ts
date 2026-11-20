@@ -17,7 +17,9 @@ export type PaletteKey =
   | 'nord'
   | 'midnight'
   | 'dracula'
+  | 'monokai'
   | 'tokyo-night'
+  | 'night-owl'
   | 'catppuccin-latte'
   | 'catppuccin-mocha'
   | 'ember'
@@ -27,9 +29,13 @@ export type PaletteKey =
   | 'everforest'
   | 'kanagawa'
   | 'one-dark'
+  | 'one-light'
+  | 'ayu-dark'
+  | 'ayu-light'
   | 'cyberpunk'
   | 'vercel'
   | 'github'
+  | 'github-light'
   | 'vscode-plus'
   | 'xcode'
   | 'raycast'
@@ -163,6 +169,21 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textTertiary: '#989fbd',
     textQuaternary: '#7281ad',
   },
+  monokai: {
+    base: 'dark',
+    surface: '#1e1f1c',
+    surfaceSecondary: '#272822',
+    surfaceTertiary: '#34352f',
+    surfaceHover: '#3e3d32',
+    surfaceActive: '#49483e',
+    border: '#414339',
+    borderSecondary: '#4d4e44',
+    borderHover: '#75715e',
+    textPrimary: '#f8f8f2',
+    textSecondary: '#ccccc7',
+    textTertiary: '#a5a49a',
+    textQuaternary: '#90908a',
+  },
   'tokyo-night': {
     base: 'dark',
     surface: '#16161e',
@@ -177,6 +198,21 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textSecondary: '#a9b1d6',
     textTertiary: '#787c99',
     textQuaternary: '#697196',
+  },
+  'night-owl': {
+    base: 'dark',
+    surface: '#01111d',
+    surfaceSecondary: '#011627',
+    surfaceTertiary: '#0b2942',
+    surfaceHover: '#13324d',
+    surfaceActive: '#1d3b53',
+    border: '#122d42',
+    borderSecondary: '#234d70',
+    borderHover: '#5f7e97',
+    textPrimary: '#d6deeb',
+    textSecondary: '#8ba6bd',
+    textTertiary: '#7490a8',
+    textQuaternary: '#5f7e97',
   },
   'catppuccin-latte': {
     base: 'light',
@@ -298,6 +334,51 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textTertiary: '#7f848e',
     textQuaternary: '#757b86',
   },
+  'one-light': {
+    base: 'light',
+    surface: '#eaeaeb',
+    surfaceSecondary: '#fafafa',
+    surfaceTertiary: '#e5e5e6',
+    surfaceHover: '#dbdbdc',
+    surfaceActive: '#d0d0d2',
+    border: '#dbdbdc',
+    borderSecondary: '#cdcdd0',
+    borderHover: '#9d9d9f',
+    textPrimary: '#383a42',
+    textSecondary: '#4f525c',
+    textTertiary: '#696c77',
+    textQuaternary: '#7f828c',
+  },
+  'ayu-dark': {
+    base: 'dark',
+    surface: '#0d1017',
+    surfaceSecondary: '#10141c',
+    surfaceTertiary: '#141821',
+    surfaceHover: '#1e232e',
+    surfaceActive: '#232937',
+    border: '#1b1f29',
+    borderSecondary: '#262c38',
+    borderHover: '#4d5763',
+    textPrimary: '#bfbdb6',
+    textSecondary: '#a1a3a8',
+    textTertiary: '#788092',
+    textQuaternary: '#667381',
+  },
+  'ayu-light': {
+    base: 'light',
+    surface: '#f8f9fa',
+    surfaceSecondary: '#fcfcfc',
+    surfaceTertiary: '#f0f2f4',
+    surfaceHover: '#e8ebee',
+    surfaceActive: '#dfe3e7',
+    border: '#e4e7ea',
+    borderSecondary: '#d5dade',
+    borderHover: '#adaeb1',
+    textPrimary: '#5c6166',
+    textSecondary: '#5e646b',
+    textTertiary: '#6b7585',
+    textQuaternary: '#7d8794',
+  },
   'catppuccin-mocha': {
     base: 'dark',
     surface: '#181825',
@@ -357,6 +438,21 @@ export const PALETTES: Record<PaletteKey, PaletteDef> = {
     textSecondary: '#d1d7e0',
     textTertiary: '#8b949e',
     textQuaternary: '#6e7681',
+  },
+  'github-light': {
+    base: 'light',
+    surface: '#f6f8fa',
+    surfaceSecondary: '#ffffff',
+    surfaceTertiary: '#eff2f5',
+    surfaceHover: '#e6eaef',
+    surfaceActive: '#dce1e7',
+    border: '#d1d9e0',
+    borderSecondary: '#c3ccd5',
+    borderHover: '#818b98',
+    textPrimary: '#1f2328',
+    textSecondary: '#59636e',
+    textTertiary: '#6e7781',
+    textQuaternary: '#818b98',
   },
   'vscode-plus': {
     base: 'dark',
