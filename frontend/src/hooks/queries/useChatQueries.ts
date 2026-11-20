@@ -252,7 +252,10 @@ export function patchChatInCache(
   chatId: string,
   patch: (chat: Chat) => Chat,
 ) {
-  queryClient.setQueryData<Chat>(queryKeys.chat(chatId), (prev) => (prev ? patch(prev) : prev));
+  const cached = queryClient
+    .getQueryCache()
+    .find<Chat>({ queryKey: queryKeys.chat(chatId), exact: true });
+  if (cached?.state.data) cached.setState({ data: patch(cached.state.data) });
   queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
     { queryKey: [queryKeys.chats, 'infinite'] },
     (oldData) => {
