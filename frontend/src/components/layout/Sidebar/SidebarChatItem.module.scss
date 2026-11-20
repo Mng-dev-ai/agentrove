@@ -67,6 +67,20 @@
   }
 }
 
+.caret-btn--resting {
+  @include responsive.media('not-touch') {
+    display: none;
+  }
+}
+
+.resting-status {
+  display: contents;
+
+  @include responsive.media('touch') {
+    display: none;
+  }
+}
+
 .caret-slot {
   position: relative;
   display: flex;
@@ -91,6 +105,10 @@
   width: var(--space-3);
   flex-shrink: 0;
   color: var(--theme-text-quaternary);
+
+  @include responsive.media('touch') {
+    display: none;
+  }
 }
 
 .workspace-badge {

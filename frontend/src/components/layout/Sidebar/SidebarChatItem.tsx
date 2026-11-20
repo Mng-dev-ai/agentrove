@@ -165,35 +165,43 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   // On sub-threaded rows the caret takes the slot on hover/expand — overlay the
   // status dot on it (running shows as an amber dot, since there's no spinner here)
   // so the persistent status never vanishes while sub-threads are open.
-  const showCaret = hasSubThreads && (isHovered || isSubThreadsExpanded);
-  const leadingIcon = showCaret ? (
-    <Button
-      onClick={() => onToggleSubThreads(chat.id)}
-      aria-expanded={isSubThreadsExpanded}
-      aria-label={`${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`}
-      variant="unstyled"
-      className={styles['caret-btn']}
-    >
-      <span className={styles['caret-slot']}>
-        <ChevronRight
-          className={clsx(styles.chevron, isSubThreadsExpanded && styles['chevron--expanded'])}
-        />
-        {status && (
-          <ChatStatusDot
-            tone={status}
-            className={styles['status-corner']}
-            ringClassName={styles['status-ring']}
-          />
-        )}
-      </span>
-    </Button>
-  ) : statusLabel ? (
+  const showCaret = isHovered || isSubThreadsExpanded;
+  const restingStatus = statusLabel ? (
     // Wordless dot/spinner carries status; the word lives in a tooltip
     <FloatingTooltip content={statusLabel} className={styles['status-tooltip']}>
       {statusSlot}
     </FloatingTooltip>
   ) : (
     statusSlot
+  );
+  // The caret stays mounted so a tap never lands on a swapped element; CSS hides it at
+  // rest on hover-capable devices and shows it at rest on touch.
+  const leadingIcon = hasSubThreads ? (
+    <>
+      <Button
+        onClick={() => onToggleSubThreads(chat.id)}
+        aria-expanded={isSubThreadsExpanded}
+        aria-label={`${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`}
+        variant="unstyled"
+        className={clsx(styles['caret-btn'], !showCaret && styles['caret-btn--resting'])}
+      >
+        <span className={styles['caret-slot']}>
+          <ChevronRight
+            className={clsx(styles.chevron, isSubThreadsExpanded && styles['chevron--expanded'])}
+          />
+          {status && (
+            <ChatStatusDot
+              tone={status}
+              className={styles['status-corner']}
+              ringClassName={styles['status-ring']}
+            />
+          )}
+        </span>
+      </Button>
+      {!showCaret && <span className={styles['resting-status']}>{restingStatus}</span>}
+    </>
+  ) : (
+    restingStatus
   );
   return (
     <SidebarRow
@@ -227,10 +235,9 @@ export const SidebarChatItem = memo(function SidebarChatItem({
               onSelect(chat.id);
             }}
             trailing={
-              // Resting sub-thread hint; caret covers this on hover/expand.
+              // Resting sub-thread hint; caret covers this on hover/expand and on touch.
               hasSubThreads &&
-              !isHovered &&
-              !isSubThreadsExpanded && <CornerDownRight className={styles['subthread-hint']} />
+              !showCaret && <CornerDownRight className={styles['subthread-hint']} />
             }
           />
         </FloatingTooltip>
