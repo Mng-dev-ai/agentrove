@@ -258,7 +258,7 @@ export function ChatPage() {
         {isWorkspaceLoaded && (
           <WorkspaceSurface
             renderView={renderView}
-            sessionPanel={!panelsInPanes && currentChat && <ChatSessionPanel chat={currentChat} />}
+            sessionPanel={!panelsInPanes && <ChatSessionPanel chat={currentChat} />}
           >
             {subThreadDialogOpen && <SubThreadDialog />}
           </WorkspaceSurface>

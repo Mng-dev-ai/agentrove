@@ -11,11 +11,12 @@ import type { AgentTileId } from '@/types/ui.types';
 import { SessionPanel } from './SessionPanel';
 import styles from './SessionPanel.module.scss';
 
-export function ChatSessionPanel({ chat }: { chat: Chat }) {
+export function ChatSessionPanel({ chat }: { chat: Chat | undefined }) {
   const workspaces = useWorkspacesList();
-  const machineId = useChatMachineId(chat.id);
+  const machineId = useChatMachineId(chat?.id);
   const isRemote = machineId !== LOCAL_MACHINE_ID;
   const { data: machineWorkspaces } = useMachineWorkspacesQuery(machineId, isRemote);
+  if (!chat) return <div className={styles.panel} />;
   const workspace = (isRemote ? machineWorkspaces : workspaces)?.find(
     (w) => w.id === chat.workspace_id,
   );
@@ -33,17 +34,17 @@ export function PaneSessionPanel({
 }) {
   const open = useSessionPanelOpen(agentTile);
   const inPanes = useSessionPanelsInPanes();
-  const panelChat = open && inPanes ? chat : undefined;
+  const panelShown = open && inPanes;
   return (
-    <div className={clsx(styles.pane, panelChat && styles['pane--panel'])}>
+    <div className={clsx(styles.pane, panelShown && styles['pane--panel'])}>
       {children}
-      {panelChat && (
+      {panelShown && (
         // Panel actions resolve their chat from the active pane, keyboard activation included.
         <div
           className={styles['pane-panel']}
           onClickCapture={() => useUIStore.getState().focusTile(agentTile)}
         >
-          <ChatSessionPanel chat={panelChat} />
+          <ChatSessionPanel chat={chat} />
         </div>
       )}
     </div>

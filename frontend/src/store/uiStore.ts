@@ -342,6 +342,9 @@ export const useUIStore = create<UIStoreState>()(
       toggleSessionPanel: (agentTile = get().activeAgentTile) => {
         if (isDesktop()) {
           const state = get();
+          if (state.splitChatIds.length > 0 && !state.visibleLayout.flat().includes(agentTile)) {
+            return;
+          }
           const chatId = tileChatId(agentTile, state.splitChatIds, undefined);
           if (!chatId) {
             set({ sessionPanelOpen: !state.sessionPanelOpen });

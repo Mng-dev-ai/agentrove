@@ -321,6 +321,19 @@ describe('split chat', () => {
     expect(openPanels()).toEqual([true, true, false]);
   });
 
+  it('leaves session panels unchanged when the pane to toggle is hidden', () => {
+    state().loadWorkspaceForChat('a');
+    state().openChatInSplit('b');
+    state().toggleSessionPanel('agent:split-1');
+    state().openFileInEditor('src/a.ts', 'a');
+    expect(state().visibleLayout).toEqual([['editor']]);
+
+    state().toggleSessionPanel('agent:primary');
+    state().toggleSessionPanel('agent:split-1');
+    expect(state().sessionPanelOpen).toBe(false);
+    expect(state().splitSessionPanelChatIds).toEqual(['b']);
+  });
+
   it('does not open a fifth chat', () => {
     state().openChatInSplit('c2');
     state().openChatInSplit('c3');

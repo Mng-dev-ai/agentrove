@@ -49,10 +49,12 @@
   right: 0;
   bottom: 0;
   display: flex;
-  width: clamp(
-    #{spacing.$session-panel-width},
-    #{spacing.$session-panel-width} - (100% - #{spacing.$session-panel-pane-min-width}) * 99999,
-    100% + 1px
+  width: min(
+    100% + 1px,
+    max(
+      #{spacing.$session-panel-width},
+      #{spacing.$session-panel-width} - (100% - #{spacing.$session-panel-pane-min-width}) * 99999
+    )
   );
 
   .panel {
