@@ -308,7 +308,7 @@ export const useCreateChatMutation = createMutation<Chat, Error, CreateChatReque
 );
 
 export const useForkChatMutation = createMutation<Chat, Error, string>(
-  (chatId) => chatService.forkChat(chatId),
+  (chatId) => chatService.forkChat(chatId, { asSubThread: false }),
   (queryClient, newChat) => applyCreatedChat(queryClient, newChat),
 );
 

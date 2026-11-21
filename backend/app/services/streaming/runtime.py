@@ -1171,7 +1171,7 @@ class ChatStreamRuntime:
         if self.member_turn is not None or not self.prompt or not self._is_new_chat:
             return
         # A fork is titled after its source.
-        if self.chat.fork_agent_kind and self.chat.parent_chat_id is None:
+        if self.chat.fork_agent_kind and not self.chat.is_side_question:
             return
 
         ai_service = AgentService(session_factory=self.session_factory)

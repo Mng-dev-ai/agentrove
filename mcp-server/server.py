@@ -558,9 +558,9 @@ async def send_message(
             chat_title, resolved_workspace, resolved_model, parent_chat_id=parent_chat_id
         )
         chat_id = chat["id"]
-    report_to_parent = bool(chat.get("parent_chat_id")) and chat.get(
-        "forked_from_chat_id"
-    ) != chat.get("parent_chat_id")
+    report_to_parent = bool(chat.get("parent_chat_id")) and not chat.get(
+        "is_side_question"
+    )
     try:
         sent = await client.send_message(
             chat_id,

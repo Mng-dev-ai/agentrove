@@ -2,57 +2,71 @@ import { queryClient } from '@/lib/queryClient';
 import { applyCreatedChat } from '@/hooks/queries/useChatQueries';
 import { chatService } from '@/services/chatService';
 import { ServiceError } from '@/services/base/ServiceError';
-import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
-import { useModelStore } from '@/store/modelStore';
-import { useStreamStore } from '@/store/streamStore';
+import type { PermissionMode } from '@/store/chatSettingsStore';
 import { useUIStore } from '@/store/uiStore';
-import { AGENT_LABELS, type AgentKind, type Chat } from '@/types/chat.types';
+import { startChatTurn } from '@/utils/chatTurn';
+import { AGENT_LABELS, type Chat, type Model } from '@/types/chat.types';
+import type { SlashCommand } from '@/types/ui.types';
 
 const SIDE_QUESTION_COMMAND = /^\s*\/btw(?:\s+([\s\S]*))?$/;
+export const SIDE_QUESTION_SLASH_COMMAND: SlashCommand = {
+  value: '/btw',
+  label: 'Btw',
+  description: 'Ask a side question without interrupting this turn',
+};
 const NO_FINISHED_REPLY = 'Side questions need at least one finished reply in this chat.';
 
 export type SideQuestionIntent =
-  | { kind: 'ask'; chatId: string; question: string }
+  | { kind: 'ask'; chat: Chat; model: Model; question: string }
   | { kind: 'refuse'; message: string }
   | { kind: 'empty' };
 
-interface SideQuestionContext {
-  chatId: string | undefined;
-  inSubThread: boolean;
-  agentKind: AgentKind;
-  supportsFork: boolean;
-}
-
 interface SideQuestionSettings {
-  modelId: string;
   permissionMode: PermissionMode;
   thinkingMode: string;
   personaName: string;
 }
 
-export function isSideQuestion(chat: Chat | undefined): boolean {
-  return !!chat?.parent_chat_id && chat.parent_chat_id === chat.forked_from_chat_id;
+interface SideQuestionInput {
+  prompt: string;
+  attachedFiles: File[] | null;
+}
+
+// The fork copies the agent's own session, so the chat must have run on that agent.
+export function canForkChat(chat: Chat, chatModel: Model | undefined): boolean {
+  return (
+    !chat.channel_id &&
+    !!chatModel?.supports_fork &&
+    chat.session_agent_kind === chatModel.agent_kind
+  );
+}
+
+export function canAskSideQuestion(chat: Chat | undefined, chatModel: Model | undefined): boolean {
+  return !!chat && !chat.parent_chat_id && canForkChat(chat, chatModel);
 }
 
 export function sideQuestionIntent(
   text: string,
-  { chatId, inSubThread, agentKind, supportsFork }: SideQuestionContext,
+  chat: Chat | undefined,
+  chatModel: Model | undefined,
 ): SideQuestionIntent | null {
   const match = SIDE_QUESTION_COMMAND.exec(text);
   if (!match) return null;
   const question = match[1]?.trim() ?? '';
   if (!question) return { kind: 'empty' };
-  if (inSubThread) {
+  if (chat?.parent_chat_id) {
     return { kind: 'refuse', message: "Side questions aren't available inside a sub-thread." };
   }
-  if (!supportsFork) {
+  if (chatModel && !chatModel.supports_fork) {
     return {
       kind: 'refuse',
-      message: `Side questions aren't available for ${AGENT_LABELS[agentKind]} yet.`,
+      message: `Side questions aren't available for ${AGENT_LABELS[chatModel.agent_kind]} yet.`,
     };
   }
-  if (!chatId) return { kind: 'refuse', message: NO_FINISHED_REPLY };
-  return { kind: 'ask', chatId, question };
+  if (!chat || !chatModel || !canAskSideQuestion(chat, chatModel)) {
+    return { kind: 'refuse', message: NO_FINISHED_REPLY };
+  }
+  return { kind: 'ask', chat, model: chatModel, question };
 }
 
 export function sideQuestionErrorMessage(error: unknown): string {
@@ -61,34 +75,23 @@ export function sideQuestionErrorMessage(error: unknown): string {
 }
 
 export async function startSideQuestion(
-  parentChatId: string,
-  question: string,
-  settings: SideQuestionSettings,
+  { chat, model, question }: Extract<SideQuestionIntent, { kind: 'ask' }>,
+  { prompt, attachedFiles }: SideQuestionInput,
+  fallback: SideQuestionSettings,
 ): Promise<void> {
-  const sideChat = await chatService.forkChat(
-    parentChatId,
-    question.replace(/\s+/g, ' ').slice(0, 80),
-  );
-  await applyCreatedChat(queryClient, sideChat);
-  const modelId = sideChat.last_model_id ?? settings.modelId;
-  useModelStore.getState().selectModel(sideChat.id, modelId);
-  const chatSettings = useChatSettingsStore.getState();
-  chatSettings.setPermissionMode(sideChat.id, settings.permissionMode);
-  chatSettings.setThinkingMode(sideChat.id, settings.thinkingMode);
-  chatSettings.setPersona(sideChat.id, settings.personaName);
-  useUIStore.getState().openSideQuestion(sideChat.id);
-
-  const { messageId } = await chatService.startCompletion({
-    prompt: question,
-    chat_id: sideChat.id,
-    model_id: modelId,
-    permission_mode: settings.permissionMode,
-    thinking_mode: settings.thinkingMode,
-    selected_persona_name: settings.personaName,
+  const sideChat = await chatService.forkChat(chat.id, {
+    asSubThread: true,
+    title: question.replace(/\s+/g, ' ').slice(0, 80),
   });
-  useStreamStore.getState().addStreamMetadata({
-    chatId: sideChat.id,
-    messageId,
-    startTime: Date.now(),
+  await applyCreatedChat(queryClient, sideChat);
+  useUIStore.getState().openSideQuestion(sideChat.id);
+  await startChatTurn({
+    prompt,
+    chat_id: sideChat.id,
+    model_id: sideChat.last_model_id ?? model.model_id,
+    attached_files: attachedFiles ?? undefined,
+    permission_mode: sideChat.last_permission_mode ?? fallback.permissionMode,
+    thinking_mode: sideChat.last_thinking_mode ?? fallback.thinkingMode,
+    selected_persona_name: sideChat.last_persona_name ?? fallback.personaName,
   });
 }

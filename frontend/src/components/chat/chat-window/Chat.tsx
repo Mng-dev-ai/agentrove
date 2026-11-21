@@ -31,7 +31,6 @@ import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatSessionContext } from '@/hooks/useChatSessionContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useUIStore } from '@/store/uiStore';
-import { isSideQuestion } from '@/utils/sideQuestion';
 import { SideQuestionBanner } from '@/components/chat/side-question/SideQuestionBanner';
 
 export const Chat = memo(function Chat() {
@@ -41,7 +40,7 @@ export const Chat = memo(function Chat() {
   const machineLabel = useMachineName(machineId);
   const { state, actions } = useChatSessionContext();
   const { data: chat } = useChatQuery(chatId);
-  const sideQuestion = isSideQuestion(chat);
+  const sideQuestion = !!chat?.is_side_question;
   const forkOrigin =
     chat?.forked_from_chat_id && !sideQuestion
       ? {
@@ -413,13 +412,8 @@ export const Chat = memo(function Chat() {
           {forkOrigin && messages.length === 0 && !isInitialLoading && (
             <ForkOriginBadge {...forkOrigin} aboveComposer />
           )}
-          {chatId && chat && !chat.parent_chat_id && (
-            <SideQuestionBanner
-              chatId={chatId}
-              message={inputMessage}
-              isStreaming={isStreaming}
-              selectedModelId={selectedModelId}
-            />
+          {chat && !chat.parent_chat_id && (
+            <SideQuestionBanner chat={chat} message={inputMessage} isStreaming={isStreaming} />
           )}
           <ChatQueueBanner
             messages={pendingMessages}

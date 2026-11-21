@@ -3,7 +3,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
-import { useRecentChatsQuery } from '@/hooks/queries/useChatQueries';
+import { useChatQuery, useRecentChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useInputAttachments } from '@/hooks/useInputAttachments';
 import { useInputEnhance } from '@/hooks/useInputEnhance';
@@ -21,6 +21,7 @@ import {
 import type { InputProps } from './Input';
 import { getAgentKindForModelId, type Chat } from '@/types/chat.types';
 import { AGENTS_WITHOUT_USAGE_UPDATE } from '@/config/constants';
+import { canAskSideQuestion, SIDE_QUESTION_SLASH_COMMAND } from '@/utils/sideQuestion';
 
 // Stable fallback so chat-less composers (landing page) don't churn the selector.
 const NO_SELECTIONS: ComposerSelection[] = [];
@@ -48,7 +49,7 @@ export function InputProvider({
   disabled = false,
   children,
 }: InputProps & { children: ReactNode }) {
-  const { fileStructure, builtinSlashCommands, personas, parentChatId } = useChatContext();
+  const { fileStructure, builtinSlashCommands, personas } = useChatContext();
   // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const chatMachineId = useChatMachineId(chatId);
@@ -57,6 +58,19 @@ export function InputProvider({
   const { data: recentChats } = useRecentChatsQuery(isAuthenticated);
   const selectedModel = modelMap.get(selectedModelId);
   const agentKind = selectedModel?.agent_kind ?? getAgentKindForModelId(selectedModelId);
+  const { data: chat } = useChatQuery(chatId);
+  const chatModel = modelMap.get(chat?.last_model_id ?? '');
+  const sideQuestionAvailable = canAskSideQuestion(chat, chatModel);
+  const slashCommands = useMemo(
+    () =>
+      sideQuestionAvailable
+        ? {
+            ...builtinSlashCommands,
+            [agentKind]: [SIDE_QUESTION_SLASH_COMMAND, ...builtinSlashCommands[agentKind]],
+          }
+        : builtinSlashCommands,
+    [sideQuestionAvailable, builtinSlashCommands, agentKind],
+  );
   // Hide the context-usage indicator for agents whose ACP servers never emit
   // UsageUpdate notifications — without those events the value stays 0 and
   // the bar is misleading.
@@ -132,7 +146,7 @@ export function InputProvider({
     fileStructure,
     mentionChats: recentChats?.items ?? NO_CHATS,
     chatId,
-    builtinSlashCommands,
+    builtinSlashCommands: slashCommands,
     agentKind,
   });
 
@@ -146,7 +160,8 @@ export function InputProvider({
       onStopStream,
       isLoading,
       chatId,
-      inSubThread: !!parentChatId,
+      chat,
+      chatModel,
       selectedModelId,
       selectedModel,
       agentKind,

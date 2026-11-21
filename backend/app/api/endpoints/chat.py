@@ -831,7 +831,7 @@ async def queue_message(
     queue_service: QueueService = Depends(get_queue_service),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> QueueAddResponse:
-    if report_to_parent and (chat.parent_chat_id is None or chat.is_side_question):
+    if report_to_parent and not chat.can_report_to_parent:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="report_to_parent requires a sub-thread that isn't a side question",

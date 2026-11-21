@@ -4237,6 +4237,57 @@ async def test_promote_keeps_the_side_question_worktree_until_its_last_chat(
     removed.assert_awaited_once_with(workspace.sandbox_id, worktree_cwd)
 
 
+async def test_promote_is_refused_while_a_turn_is_starting(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    parent = await create_chat_row(db_session, user, workspace, title="Parent")
+    side = await create_chat_row(db_session, user, workspace, title="Side")
+    side.parent_chat_id = side.forked_from_chat_id = parent.id
+    await db_session.commit()
+    url = f"/api/v1/chat/chats/{side.id}/promote"
+
+    async with ChatStreamRuntime.chat_start_slot(str(side.id)) as reserved:
+        refused = await client.post(url, headers=headers)
+    promoted = await client.post(url, headers=headers)
+
+    assert reserved
+    assert refused.status_code == 409, refused.text
+    assert promoted.status_code == 200, promoted.text
+
+
+async def test_chat_response_marks_only_side_questions(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    parent = await create_chat_row(db_session, user, workspace, title="Parent")
+    side = await create_chat_row(db_session, user, workspace, title="Side")
+    sub_thread = await create_chat_row(db_session, user, workspace, title="Sub")
+    fork = await create_chat_row(db_session, user, workspace, title="Fork")
+    side.parent_chat_id = side.forked_from_chat_id = parent.id
+    sub_thread.parent_chat_id = parent.id
+    fork.forked_from_chat_id = parent.id
+    await db_session.commit()
+
+    flags = []
+    for chat in (side, sub_thread, fork):
+        response = await client.get(f"/api/v1/chat/chats/{chat.id}", headers=headers)
+        assert response.status_code == 200, response.text
+        flags.append(response.json()["is_side_question"])
+
+    assert flags == [True, False, False]
+
+
 async def test_side_question_turn_never_reports_to_its_parent(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],

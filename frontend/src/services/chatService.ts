@@ -240,14 +240,17 @@ async function createChat(data: CreateChatRequest): Promise<Chat> {
   });
 }
 
-async function forkChat(chatId: string, sideQuestionTitle?: string): Promise<Chat> {
+async function forkChat(
+  chatId: string,
+  { asSubThread, title }: { asSubThread: boolean; title?: string },
+): Promise<Chat> {
   validateId(chatId, 'Chat ID');
 
   return serviceCall(async () => {
-    const response = await resolveChatClient(chatId).post<Chat>(
-      `/chat/chats/${chatId}/fork`,
-      sideQuestionTitle ? { as_sub_thread: true, title: sideQuestionTitle } : {},
-    );
+    const response = await resolveChatClient(chatId).post<Chat>(`/chat/chats/${chatId}/fork`, {
+      as_sub_thread: asSubThread,
+      title,
+    });
     const chat = ensureResponse(response, 'Failed to fork chat');
     assignChatRecordsToMachine(chatMachineId(chatId), [chat]);
     return chat;

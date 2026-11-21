@@ -449,7 +449,10 @@ class ChatService(BaseDbService[Chat]):
         return parent
 
     async def promote_chat(self, chat_id: UUID, user: User) -> Chat:
-        async with self.session_factory() as db:
+        async with (
+            ChatStreamRuntime.chat_start_slot(str(chat_id)) as reserved,
+            self.session_factory() as db,
+        ):
             await db.execute(text("BEGIN IMMEDIATE"))
             chat = await self._live_chat(db, chat_id, user)
             if chat.parent_chat_id is None:
@@ -458,7 +461,10 @@ class ChatService(BaseDbService[Chat]):
                     error_code=ErrorCode.VALIDATION_ERROR,
                     status_code=400,
                 )
-            if await self.message_service.get_in_progress_assistant_message(chat.id):
+            if (
+                not reserved
+                or await self.message_service.get_in_progress_assistant_message(chat.id)
+            ):
                 raise ChatException(
                     "This chat can be promoted when its turn finishes",
                     error_code=ErrorCode.VALIDATION_ERROR,
@@ -1233,9 +1239,7 @@ class ChatService(BaseDbService[Chat]):
         chat = await self.get_chat(
             request.chat_id, current_user, include_channel=member_turn is not None
         )
-        if request.report_to_parent and (
-            chat.parent_chat_id is None or chat.is_side_question
-        ):
+        if request.report_to_parent and not chat.can_report_to_parent:
             raise ChatException(
                 "report_to_parent requires a sub-thread that isn't a side question",
                 error_code=ErrorCode.VALIDATION_ERROR,

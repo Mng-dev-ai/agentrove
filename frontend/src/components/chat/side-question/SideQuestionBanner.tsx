@@ -7,27 +7,24 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
-import { getAgentKindForModelId } from '@/types/chat.types';
+import type { Chat } from '@/types/chat.types';
 import { paintedChatIds, paintedLayout } from '@/utils/tileHelpers';
-import { isSideQuestion, sideQuestionIntent } from '@/utils/sideQuestion';
+import { sideQuestionIntent } from '@/utils/sideQuestion';
 import queue from '@/components/chat/chat-window/ChatQueueBanner.module.scss';
 import styles from './SideQuestion.module.scss';
 
 interface SideQuestionBannerProps {
-  chatId: string;
+  chat: Chat;
   message: string;
   isStreaming: boolean;
-  selectedModelId: string;
 }
 
-export function SideQuestionBanner({
-  chatId,
-  message,
-  isStreaming,
-  selectedModelId,
-}: SideQuestionBannerProps) {
+export function SideQuestionBanner({ chat, message, isStreaming }: SideQuestionBannerProps) {
+  const chatId = chat.id;
   const isMobile = useIsMobile();
-  const model = useModelMap({ machineId: useChatMachineId(chatId) }).get(selectedModelId);
+  const chatModel = useModelMap({ machineId: useChatMachineId(chatId) }).get(
+    chat.last_model_id ?? '',
+  );
   const { data: subThreads } = useSubThreadsQuery(chatId);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const focusedTile = useUIStore((s) => s.focusedTile);
@@ -40,15 +37,12 @@ export function SideQuestionBanner({
       splitChatIds,
       chatId,
     );
-    return (subThreads ?? []).filter((thread) => isSideQuestion(thread) && !painted.has(thread.id));
+    return (subThreads ?? []).filter(
+      (thread) => thread.is_side_question && !painted.has(thread.id),
+    );
   }, [subThreads, visibleLayout, focusedTile, isMobile, splitChatIds, chatId]);
 
-  const intent = sideQuestionIntent(message, {
-    chatId,
-    inSubThread: false,
-    agentKind: model?.agent_kind ?? getAgentKindForModelId(selectedModelId),
-    supportsFork: !!model?.supports_fork,
-  });
+  const intent = sideQuestionIntent(message, chat, chatModel);
 
   if (intent?.kind === 'ask') {
     return (

@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, select, update
 
-from app.constants import BUILTIN_SLASH_COMMANDS, SIDE_QUESTION_SLASH_COMMAND
+from app.constants import BUILTIN_SLASH_COMMANDS
 from app.core.config import get_settings
 from app.models.db_models.automation import Automation
 from app.models.db_models.chat import Chat, Message
@@ -27,7 +27,6 @@ from app.models.schemas.workspace import (
     WorkspaceUpdate,
 )
 from app.models.types import AgentKind
-from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.channel import channel_service
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ErrorCode, WorkspaceException
@@ -258,12 +257,7 @@ class WorkspaceService(BaseDbService[Workspace]):
             builtin_slash_commands={
                 kind.value: [
                     BuiltinSlashCommand(**cmd)
-                    for cmd in (
-                        [SIDE_QUESTION_SLASH_COMMAND]
-                        if AGENT_ADAPTERS[kind].supports_fork
-                        else []
-                    )
-                    + BUILTIN_SLASH_COMMANDS.get(kind, [])
+                    for cmd in BUILTIN_SLASH_COMMANDS.get(kind, [])
                 ]
                 for kind in AgentKind
             },

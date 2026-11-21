@@ -4,6 +4,7 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatMachineId } from '@/store/machineOrigin';
 import type { Chat } from '@/types/chat.types';
+import { canForkChat } from '@/utils/sideQuestion';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
 import styles from './ChatDropdown.module.scss';
 
@@ -39,9 +40,7 @@ export const ChatDropdown = memo(function ChatDropdown({
   const isPinned = !!chat.pinned_at;
   const isSubThread = !!chat.parent_chat_id;
   const model = useModelMap({ machineId: useChatMachineId(chat.id) }).get(chat.last_model_id ?? '');
-  // The fork copies the agent's own session, so the chat must have run on that agent.
-  const canFork =
-    !chat.channel_id && !!model?.supports_fork && chat.session_agent_kind === model.agent_kind;
+  const canFork = canForkChat(chat, model);
 
   return (
     <SidebarMenu ref={ref} position={position} onClose={onClose}>

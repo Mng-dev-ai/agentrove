@@ -11,7 +11,6 @@ import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
-import { isSideQuestion } from '@/utils/sideQuestion';
 import { useUIStore } from '@/store/uiStore';
 import { stateClasses } from '@/config/stateClasses';
 import type { Chat } from '@/types/chat.types';
@@ -52,7 +51,7 @@ const SubThreadRow = memo(function SubThreadRow({
   });
   const showSpinner = status === 'running';
   const statusTone: ChatStatusTone | null = showSpinner ? null : status;
-  const sideQuestion = isSideQuestion(thread);
+  const sideQuestion = !!thread.is_side_question;
   const hasLeadingSlot = sideQuestion || agentKind != null || status != null;
   // Keep the active sub-thread visible when navigation lands on an off-screen row
   const rowRef = useRef<HTMLDivElement>(null);

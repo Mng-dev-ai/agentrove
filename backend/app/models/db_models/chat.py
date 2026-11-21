@@ -119,6 +119,10 @@ class Chat(Base):
         )
 
     @property
+    def can_report_to_parent(self) -> bool:
+        return self.parent_chat_id is not None and not self.is_side_question
+
+    @property
     def sandbox_id(self) -> str:
         if self.workspace:
             sid: str = self.workspace.sandbox_id

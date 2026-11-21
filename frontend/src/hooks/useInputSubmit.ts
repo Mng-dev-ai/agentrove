@@ -24,7 +24,7 @@ import {
   startSideQuestion,
 } from '@/utils/sideQuestion';
 import type { Persona } from '@/types/user.types';
-import type { AgentKind, Model } from '@/types/chat.types';
+import type { AgentKind, Chat, Model } from '@/types/chat.types';
 
 interface UseInputSubmitOptions {
   disabled: boolean;
@@ -35,7 +35,8 @@ interface UseInputSubmitOptions {
   onStopStream?: () => void;
   isLoading: boolean;
   chatId?: string;
-  inSubThread: boolean;
+  chat: Chat | undefined;
+  chatModel: Model | undefined;
   selectedModelId: string;
   selectedModel: Model | undefined;
   agentKind: AgentKind;
@@ -62,7 +63,8 @@ export function useInputSubmit({
   onStopStream,
   isLoading,
   chatId,
-  inSubThread,
+  chat,
+  chatModel,
   selectedModelId,
   selectedModel,
   agentKind,
@@ -99,25 +101,32 @@ export function useInputSubmit({
 
     if (disabled) return;
 
-    const sideQuestion = sideQuestionIntent(messageRef.current, {
-      chatId,
-      inSubThread,
-      agentKind,
-      supportsFork: !!selectedModel?.supports_fork,
-    });
+    const sideQuestion = sideQuestionIntent(messageRef.current, chat, chatModel);
     if (sideQuestion) {
       if (sideQuestion.kind === 'refuse') toast.error(sideQuestion.message);
       if (sideQuestion.kind !== 'ask' || sideQuestionPendingRef.current) return;
       const text = messageRef.current;
+      const parentChatId = sideQuestion.chat.id;
+      const sideAgentKind = sideQuestion.model.agent_kind;
       sideQuestionPendingRef.current = true;
-      void startSideQuestion(sideQuestion.chatId, sideQuestion.question, {
-        modelId: selectedModelId,
-        permissionMode: coercePermissionModeForAgent(permissionMode, agentKind),
-        thinkingMode: coerceThinkingModeForAgent(thinkingMode, agentKind, selectedModel),
-        personaName: resolvePersona(persona, personas),
-      })
+      void startSideQuestion(
+        sideQuestion,
+        {
+          prompt: formatComposerSelections(attachedSelections, sideQuestion.question),
+          attachedFiles,
+        },
+        {
+          permissionMode: coercePermissionModeForAgent(permissionMode, sideAgentKind),
+          thinkingMode: coerceThinkingModeForAgent(thinkingMode, sideAgentKind, sideQuestion.model),
+          personaName: resolvePersona(persona, personas),
+        },
+      )
         .then(() => {
           if (messageRef.current === text) setMessage('');
+          onAttach?.([]);
+          if (attachedSelections.length > 0) {
+            useUIStore.getState().clearComposerSelections(parentChatId);
+          }
         })
         .catch((error: unknown) => toast.error(sideQuestionErrorMessage(error)))
         .finally(() => {
@@ -209,7 +218,8 @@ export function useInputSubmit({
     onStopStream,
     onSubmit,
     chatId,
-    inSubThread,
+    chat,
+    chatModel,
     attachedFiles,
     attachedSelections,
     setMessage,
