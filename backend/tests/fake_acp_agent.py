@@ -102,8 +102,6 @@ MARKER_EXIT_PLAN_MODE = "MARKER_EXIT_PLAN_MODE"
 MARKER_TOOL_LOCATIONS = "MARKER_TOOL_LOCATIONS"
 MARKER_TOOL_ANTIGRAVITY_MCP = "MARKER_TOOL_ANTIGRAVITY_MCP"
 MARKER_TOOL_IMAGE_BLOCK = "MARKER_TOOL_IMAGE_BLOCK"
-# `view_image=<path>` emits a Codex view-image call already completed at start;
-# `open_image=<path>` leaves a read open for finish() to complete.
 IMAGE_READ_RE = re.compile(r"\b(view_image|open_image)=([^\s<]+)")
 # claude-agent-acp 0.109.0 ExitPlanMode options and the mode each switches to.
 EXIT_PLAN_OPTIONS = {

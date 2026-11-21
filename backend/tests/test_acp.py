@@ -679,7 +679,6 @@ async def test_image_reads_store_the_file_bytes_for_allowlisted_agents(
     tools = [last_tool(message, f"tool-image-{index}") for index in range(5)]
     assert [tool.get("images") for tool in tools] == expected
     assert {tool["status"] for tool in tools} == {"completed"}
-    # An already-completed tool_call is emitted completed, never as started.
     assert [
         e["type"] for e in tool_events(message) if e["tool"]["id"] == "tool-image-0"
     ] == ["tool_completed"]
