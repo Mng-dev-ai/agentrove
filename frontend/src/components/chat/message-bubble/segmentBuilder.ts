@@ -69,6 +69,7 @@ const toolsEqual = (a: ToolAggregate, b: ToolAggregate): boolean => {
     a.input !== b.input ||
     a.path !== b.path ||
     a.result !== b.result ||
+    a.images !== b.images ||
     a.error !== b.error ||
     a.children.length !== b.children.length
   ) {
@@ -154,6 +155,7 @@ const createToolAggregate = (
   input: (payload.input || null) as Record<string, unknown> | null,
   path: payload.path,
   result: payload.result,
+  images: payload.images,
   error: payload.error,
   children: [],
 });
@@ -305,6 +307,7 @@ const processExistingTool = (
     input: payload.input ? (payload.input as Record<string, unknown>) : existingAggregate.input,
     path: payload.path ?? existingAggregate.path,
     result: payload.result !== undefined ? payload.result : existingAggregate.result,
+    images: payload.images ?? existingAggregate.images,
     error: payload.error || existingAggregate.error,
   };
 

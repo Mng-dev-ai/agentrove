@@ -2,9 +2,8 @@ import { memo } from 'react';
 import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
-import { buildImageAttachment } from '@/utils/imageAttachment';
-import { AttachmentViewer } from '@/components/ui/attachment-viewer/AttachmentViewer';
 import { ToolCard } from '../common/ToolCard/ToolCard';
+import { ToolImages } from '../common/ToolImages/ToolImages';
 import { NumberedContent } from '../common/NumberedContent/NumberedContent';
 import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import toolIcon from './toolIcon.module.scss';
@@ -22,13 +21,13 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
   const image = result?.ImageContent;
 
   if (tool.status === 'completed' && image?.data) {
-    const attachment = buildImageAttachment(
-      `${tool.id}-0`,
-      fileName,
-      image.mime_type ?? 'image/png',
-      image.data,
+    return (
+      <ToolImages
+        toolId={tool.id}
+        fileName={fileName}
+        images={[{ mime_type: image.mime_type ?? 'image/png', data: image.data }]}
+      />
     );
-    return <AttachmentViewer attachments={[attachment]} size="large" />;
   }
 
   return (
