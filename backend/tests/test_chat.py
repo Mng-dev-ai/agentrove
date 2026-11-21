@@ -1,10 +1,12 @@
 import asyncio
 from collections.abc import AsyncIterator, Callable
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
 from fastapi import FastAPI
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
@@ -15,6 +17,7 @@ from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.services import chat as chat_service_module
+from app.services.agent import AgentService
 from app.services.exceptions import AgentException, SandboxException
 from app.services.queue import QueueService
 from app.services.sandbox_providers.base import SandboxProvider
@@ -765,6 +768,59 @@ async def test_delete_chat_cascades_sub_threads_and_keeps_workspace_after_last_c
 
     assert last_delete.status_code == 204
     assert workspace_after_last.status_code == 200
+
+
+async def test_sub_thread_created_while_its_parent_is_deleted_does_not_survive(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(SandboxProvider, "create_provider", FakeProviderFactory())
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    parent = await create_chat_row(db_session, user, workspace, title="Parent")
+    unreferenced_worktrees = AgentService.unreferenced_worktrees
+    creations: list[asyncio.Task[Response]] = []
+
+    async def create_sub_thread_before_the_commit(
+        *args: Any,
+    ) -> set[tuple[UUID, str]]:
+        creations.append(
+            asyncio.create_task(
+                client.post(
+                    "/api/v1/chat/chats",
+                    json={
+                        "title": "Sub-thread",
+                        "model_id": TEST_MODEL_ID,
+                        "workspace_id": str(workspace.id),
+                        "parent_chat_id": str(parent.id),
+                    },
+                    headers=headers,
+                )
+            )
+        )
+        # Long enough for an unserialised create to land; a serialised one
+        # is still waiting for the delete's transaction.
+        await asyncio.wait(creations, timeout=0.5)
+        return await unreferenced_worktrees(*args)
+
+    monkeypatch.setattr(
+        AgentService, "unreferenced_worktrees", create_sub_thread_before_the_commit
+    )
+    deleted = await client.delete(f"/api/v1/chat/chats/{parent.id}", headers=headers)
+    created = await creations[0]
+    survivors = await db_session.scalar(
+        select(func.count(Chat.id)).where(
+            Chat.parent_chat_id == parent.id, Chat.deleted_at.is_(None)
+        )
+    )
+
+    assert deleted.status_code == 204, deleted.text
+    assert created.status_code == 404, created.text
+    assert survivors == 0
 
 
 async def test_delete_all_chats_only_deletes_current_user_chats(

@@ -112,6 +112,13 @@ class Chat(Base):
         return self.last_viewed_at is None or self.updated_at > self.last_viewed_at
 
     @property
+    def is_side_question(self) -> bool:
+        return (
+            self.parent_chat_id is not None
+            and self.parent_chat_id == self.forked_from_chat_id
+        )
+
+    @property
     def sandbox_id(self) -> str:
         if self.workspace:
             sid: str = self.workspace.sandbox_id

@@ -154,8 +154,20 @@ async def fork_chat(
     chat_service: ChatService = Depends(get_chat_service),
 ) -> ChatSchema:
     return await chat_service.fork_chat(
-        chat_id, current_user, as_sub_thread=bool(fork and fork.as_sub_thread)
+        chat_id,
+        current_user,
+        as_sub_thread=bool(fork and fork.as_sub_thread),
+        title=fork.title if fork else None,
     )
+
+
+@router.post("/chats/{chat_id}/promote", response_model=ChatSchema)
+async def promote_chat(
+    chat_id: UUID,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> ChatSchema:
+    return await chat_service.promote_chat(chat_id, current_user)
 
 
 @router.post("/chat", response_model=ChatCompletionResponse)
@@ -819,10 +831,10 @@ async def queue_message(
     queue_service: QueueService = Depends(get_queue_service),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> QueueAddResponse:
-    if report_to_parent and chat.parent_chat_id is None:
+    if report_to_parent and (chat.parent_chat_id is None or chat.is_side_question):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="report_to_parent requires a sub-thread",
+            detail="report_to_parent requires a sub-thread that isn't a side question",
         )
     try:
         queued_message = QueuedMessageBase(
