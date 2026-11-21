@@ -113,6 +113,12 @@ DOCKER_STATUS_RUNNING: Final[str] = "running"
 # Built-in slash commands per agent kind for the frontend. Claude/Codex lists
 # are filtered ACP-exposed subsets (not full CLI/TUI chrome); skills are runtime.
 # Codex omits logout — too easy to hit from chat autocomplete.
+SIDE_QUESTION_SLASH_COMMAND: Final[dict[str, str]] = {
+    "value": "/btw",
+    "label": "Btw",
+    "description": "Ask a side question without interrupting this turn",
+}
+
 BUILTIN_SLASH_COMMANDS: dict[AgentKind, list[dict[str, str]]] = {
     AgentKind.ANTIGRAVITY: [],
     AgentKind.CLAUDE: [
