@@ -1,4 +1,5 @@
 import { Suspense, useLayoutEffect, type ReactNode } from 'react';
+import clsx from 'clsx';
 import { useLocation } from 'react-router-dom';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { useUIStore } from '@/store/uiStore';
@@ -7,7 +8,7 @@ import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
 import { SplitViewContainer } from '@/components/ui/SplitViewContainer/SplitViewContainer';
 import { CommandMenu } from '@/components/ui/command-menu/CommandMenu';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
-import { tileIdToViewType } from '@/utils/tileHelpers';
+import { agentTileFor, paintedLayout, panelHostTile, tileIdToViewType } from '@/utils/tileHelpers';
 import type { Chat } from '@/types/chat.types';
 import type { TileId, ViewType } from '@/types/ui.types';
 import styles from './WorkspaceSurface.module.scss';
@@ -68,6 +69,7 @@ interface WorkspaceTileProps {
   chat: Chat | undefined;
   agent: ReactNode;
   header: ReactNode;
+  sessionPanel?: ReactNode;
 }
 
 export function WorkspaceTile({
@@ -77,33 +79,45 @@ export function WorkspaceTile({
   chat,
   agent,
   header,
+  sessionPanel,
 }: WorkspaceTileProps) {
   const view = tileIdToViewType(tileId);
   const isTerminal = view === 'terminal';
+  const isMobile = useIsMobile();
+  const agentTile = agentTileFor(tileId);
+  const panelOpen = useSessionPanelOpen(agentTile);
+  const isPanelHost = useUIStore(
+    (s) =>
+      panelHostTile(paintedLayout(s.visibleLayout, s.focusedTile, isMobile), agentTile) === tileId,
+  );
+  const panel = isVisible && panelOpen && isPanelHost && sessionPanel;
   return (
     <div className={styles.tile}>
       {header}
       <div
-        className={styles.body}
-        // focusTile keeps shortcuts + tab highlight on the pane in use.
+        className={styles.content}
+        // focusTile keeps shortcuts, tab highlight and panel actions on the pane in use.
         onPointerDownCapture={() => useUIStore.getState().focusTile(tileId)}
       >
-        <div className={isTerminal ? styles.fill : styles.hidden}>
-          <Suspense fallback={viewLoadingFallback}>
-            <TerminalContainer
-              sandboxId={chat?.sandbox_id}
-              storageScope={chatId}
-              // Spawn shell in worktree so terminal matches agent/editor/diff cwd.
-              worktreeCwd={chat?.worktree_cwd ?? undefined}
-              // Background tiles are mounted but zero-size — only fit when visible.
-              isVisible={isTerminal && isVisible}
-              panelKey={`tile-${tileId}`}
-            />
-          </Suspense>
+        <div className={clsx(styles.body, isMobile && panel && styles.hidden)}>
+          <div className={isTerminal ? styles.fill : styles.hidden}>
+            <Suspense fallback={viewLoadingFallback}>
+              <TerminalContainer
+                sandboxId={chat?.sandbox_id}
+                storageScope={chatId}
+                // Spawn shell in worktree so terminal matches agent/editor/diff cwd.
+                worktreeCwd={chat?.worktree_cwd ?? undefined}
+                // Background tiles are mounted but zero-size — only fit when visible.
+                isVisible={isTerminal && isVisible}
+                panelKey={`tile-${tileId}`}
+              />
+            </Suspense>
+          </div>
+          <div className={isTerminal ? styles.hidden : styles.fill}>
+            {renderPane(view, chatId, isVisible, agent)}
+          </div>
         </div>
-        <div className={isTerminal ? styles.hidden : styles.fill}>
-          {renderPane(view, chatId, isVisible, agent)}
-        </div>
+        {panel}
       </div>
     </div>
   );
@@ -111,14 +125,15 @@ export function WorkspaceTile({
 
 interface WorkspaceSurfaceProps {
   renderView: (tileId: TileId, isVisible: boolean) => ReactNode;
-  sessionPanel: ReactNode;
+  // One panel beside the whole workspace; without it each pane's tile carries its own.
+  sessionPanel?: ReactNode;
   children?: ReactNode;
 }
 
 export function WorkspaceSurface({ renderView, sessionPanel, children }: WorkspaceSurfaceProps) {
   const isMobile = useIsMobile();
   const { pathname } = useLocation();
-  const sessionPanelOpen = useSessionPanelOpen();
+  const sessionPanelOpen = useSessionPanelOpen('agent:primary');
   const createCommitDialogOpen = useUIStore((s) => s.createCommitDialogOpen);
   const createPRDialogOpen = useUIStore((s) => s.createPRDialogOpen);
   const createBranchDialogOpen = useUIStore((s) => s.createBranchDialogOpen);
@@ -131,7 +146,7 @@ export function WorkspaceSurface({ renderView, sessionPanel, children }: Workspa
   return (
     <div className={styles.root}>
       <div className={isMobile && panel ? styles.hidden : styles.surface}>
-        <SplitViewContainer renderView={renderView} />
+        <SplitViewContainer renderView={renderView} paneSessionPanels={!sessionPanel} />
       </div>
       {panel}
       <CommandMenu />

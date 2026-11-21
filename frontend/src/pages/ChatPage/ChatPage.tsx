@@ -1,12 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useCallback,
-  useRef,
-  useState,
-  ReactNode,
-} from 'react';
+import { useEffect, useLayoutEffect, useMemo, useCallback, useRef, ReactNode } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
@@ -15,7 +7,7 @@ import { useChatStore } from '@/store/chatStore';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useActiveViews } from '@/hooks/useActiveViews';
 import type { TileId, ViewType } from '@/types/ui.types';
-import { agentTileFor, splitSlotOfTile, tileChatId } from '@/utils/tileHelpers';
+import { splitSlotOfTile, tileChatId } from '@/utils/tileHelpers';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
@@ -27,12 +19,8 @@ import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
-import {
-  PaneSessionPanel,
-  SessionPanelSlot,
-} from '@/components/chat/session-panel/PaneSessionPanel';
-import { SessionPanelSlotContext } from '@/contexts/SessionPanelSlotContext';
 import { InTilePaneHeader } from '@/components/layout/PaneHeader/PaneHeader';
+import { ChatSessionPanel } from '@/components/chat/session-panel/ChatSessionPanel';
 import {
   WorkspaceSurface,
   WorkspaceTile,
@@ -161,7 +149,6 @@ export function ChatPage() {
   }, [activeViews, chatId, isWorkspaceLoaded, currentChat?.sandbox_id, refetchFilesMetadata]);
 
   const workspaces = useWorkspacesList();
-  const [sessionPanelSlot, setSessionPanelSlot] = useState<HTMLDivElement | null>(null);
   // Remote chats resolve personas against their machine's settings list.
   const { data: settings } = useSettingsForChatQuery(chatId);
 
@@ -225,16 +212,12 @@ export function ChatPage() {
           header={
             isVisible && paneChatId && <InTilePaneHeader tileId={tileId} chatId={paneChatId} />
           }
+          sessionPanel={paneChat && <ChatSessionPanel chat={paneChat} />}
           agent={
             tileId === 'agent:primary' ? (
-              <>
-                <ChatComponent />
-                <PaneSessionPanel agentTile="agent:primary" chat={currentChat} />
-              </>
+              <ChatComponent />
             ) : (
-              paneChatId && (
-                <AgentPane key={paneChatId} chatId={paneChatId} agentTile={agentTileFor(tileId)} />
-              )
+              paneChatId && <AgentPane key={paneChatId} chatId={paneChatId} />
             )
           }
         />
@@ -265,14 +248,9 @@ export function ChatPage() {
         messagesQuery={messagesQuery}
       >
         {isWorkspaceLoaded && (
-          <SessionPanelSlotContext.Provider value={sessionPanelSlot}>
-            <WorkspaceSurface
-              renderView={renderView}
-              sessionPanel={<SessionPanelSlot ref={setSessionPanelSlot} />}
-            >
-              {subThreadDialogOpen && <SubThreadDialog />}
-            </WorkspaceSurface>
-          </SessionPanelSlotContext.Provider>
+          <WorkspaceSurface renderView={renderView}>
+            {subThreadDialogOpen && <SubThreadDialog />}
+          </WorkspaceSurface>
         )}
       </ChatSessionOrchestrator>
     </ChatProvider>

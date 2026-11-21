@@ -7,21 +7,18 @@ import { useChatData } from '@/hooks/useChatData';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
-import { PaneSessionPanel } from '@/components/chat/session-panel/PaneSessionPanel';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
-import type { AgentTileId } from '@/types/ui.types';
 import styles from './AgentPane.module.scss';
 
 interface AgentPaneProps {
   chatId: string;
-  agentTile: AgentTileId;
 }
 
 // Own messages query + SSE via ChatSessionOrchestrator; demux by envelope.chatId for split panes.
-export const AgentPane = memo(function AgentPane({ chatId, agentTile }: AgentPaneProps) {
+export const AgentPane = memo(function AgentPane({ chatId }: AgentPaneProps) {
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
   const { fileStructure } = useSandboxFiles(currentChat, chatId);
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
@@ -69,7 +66,6 @@ export const AgentPane = memo(function AgentPane({ chatId, agentTile }: AgentPan
         useRouteInitialPrompt={false}
       >
         <ChatComponent corner={closeButton} />
-        <PaneSessionPanel agentTile={agentTile} chat={currentChat} />
       </ChatSessionOrchestrator>
     </ChatProvider>
   );

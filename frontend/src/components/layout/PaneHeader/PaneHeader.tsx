@@ -10,13 +10,16 @@ import { DROPDOWN_MARGIN } from '@/config/constants';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useSessionPanelHosts, useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import { stripMarkdownTitle } from '@/utils/format';
 import {
   agentTileFor,
   paintedChatIds,
+  panelHostTile,
   tileChatId,
+  tileColumns,
   tileIdToViewType,
   VIEW_ICONS,
   VIEW_LABELS,
@@ -81,6 +84,17 @@ function ChatMenuTrigger({ chatId }: { chatId: string }) {
   );
 }
 
+function PaneViewSwitcher({ tileId, agentTile }: { tileId: TileId; agentTile: AgentTileId }) {
+  const isHost = useUIStore((s) => panelHostTile(s.visibleLayout, agentTile) === tileId);
+  const panelOpen = useSessionPanelOpen(agentTile);
+  if (!isHost) return null;
+  return (
+    <div className={clsx(styles.switcher, panelOpen && styles['switcher--over-panel'])}>
+      <ViewSwitcher agentTile={agentTile} />
+    </div>
+  );
+}
+
 interface AgentPaneHeaderProps {
   agentTile: AgentTileId;
   chatId: string;
@@ -130,10 +144,10 @@ function AgentPaneHeader({ agentTile, chatId, inTile, tabs, inStrip }: AgentPane
       </div>
       {firstSplitChatId && (
         <div className={styles.actions}>
-          <ViewSwitcher agentTile={agentTile} />
           <CloseButton label="Close pane" onClick={closePane} />
         </div>
       )}
+      <PaneViewSwitcher tileId={agentTile} agentTile={agentTile} />
     </div>
   );
 }
@@ -150,8 +164,6 @@ function ViewTileHeader({ tileId, chatId, inTile, tabs, inStrip }: ViewTileHeade
   const title = useChatQuery(chatId).data?.title;
   const view = tileIdToViewType(tileId);
   const agentTile = agentTileFor(tileId);
-  const agentVisible = useUIStore((s) => s.visibleLayout.some((row) => row.includes(agentTile)));
-  const hasSplits = useUIStore((s) => s.splitChatIds.length > 0);
   const Icon = VIEW_ICONS[view];
   const label = VIEW_LABELS[view];
 
@@ -169,12 +181,12 @@ function ViewTileHeader({ tileId, chatId, inTile, tabs, inStrip }: ViewTileHeade
         )}
       </div>
       <div className={styles.actions}>
-        {hasSplits && !agentVisible && <ViewSwitcher agentTile={agentTile} />}
         <CloseButton
           label={`Close ${label}`}
           onClick={() => useUIStore.getState().removeTab(tileId)}
         />
       </div>
+      <PaneViewSwitcher tileId={tileId} agentTile={agentTile} />
     </div>
   );
 }
@@ -221,7 +233,6 @@ interface PaneHeaderBandProps {
 export function PaneHeaderBand({ routedChatId, leading, tabs }: PaneHeaderBandProps) {
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const splitChatIds = useUIStore((s) => s.splitChatIds);
-  const sessionPanelOpen = useUIStore((s) => s.sessionPanelOpen);
   const topRow = visibleLayout[0];
 
   const namedByOtherPanes = paintedChatIds(
@@ -230,24 +241,19 @@ export function PaneHeaderBand({ routedChatId, leading, tabs }: PaneHeaderBandPr
     routedChatId,
   );
   const stripTabs = tabs.filter((chatId) => !namedByOtherPanes.has(chatId));
-  const barSwitcher = splitChatIds.length === 0 && (
-    <div className={styles['bar-actions']}>
-      <ViewSwitcher agentTile="agent:primary" />
-    </div>
-  );
+  const panelHosts = useSessionPanelHosts(visibleLayout);
+  const columns = tileColumns(visibleLayout, panelHosts);
 
   return (
     <div className={styles.band}>
-      <div
-        className={styles.columns}
-        style={{ gridTemplateColumns: `repeat(${topRow.length}, minmax(0, 1fr))` }}
-      >
+      <div className={styles.columns} style={{ gridTemplateColumns: columns.template }}>
         {topRow.map((tileId, index) => {
           const chatId = tileChatId(tileId, splitChatIds, routedChatId);
           return (
             <div
               key={tileId}
               className={clsx(styles.column, index > 0 && styles['column--divided'])}
+              style={{ gridColumn: columns.columnOf.get(tileId) }}
             >
               {index === 0 && leading && <div className={styles.leading}>{leading}</div>}
               {chatId && (
@@ -263,7 +269,6 @@ export function PaneHeaderBand({ routedChatId, leading, tabs }: PaneHeaderBandPr
           );
         })}
       </div>
-      {sessionPanelOpen ? <div className={styles['panel-column']}>{barSwitcher}</div> : barSwitcher}
     </div>
   );
 }

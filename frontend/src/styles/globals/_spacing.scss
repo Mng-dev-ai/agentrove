@@ -81,6 +81,8 @@ $space-steps: (
       --space-#{$name}: #{$step * $space-base};
     }
 
+    --session-panel-width: #{$session-panel-width};
+
     // iOS safe areas — used by edge-touching surfaces (title bar, chat composer)
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);

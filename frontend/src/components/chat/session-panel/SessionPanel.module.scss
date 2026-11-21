@@ -23,16 +23,6 @@
   }
 }
 
-.slot {
-  display: flex;
-  width: spacing.$session-panel-width;
-  flex-shrink: 0;
-
-  @include responsive.media('mobile') {
-    width: 100%;
-  }
-}
-
 .card {
   display: flex;
   flex-direction: column;

@@ -20,11 +20,17 @@
   flex-direction: column;
 }
 
-.body {
-  position: relative;
+.content {
   display: flex;
   min-height: 0;
   width: 100%;
+  flex: 1;
+}
+
+.body {
+  position: relative;
+  display: flex;
+  min-width: 0;
   flex: 1;
 }
 

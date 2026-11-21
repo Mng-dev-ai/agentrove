@@ -2,7 +2,6 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
-@use '@/styles/globals/spacing' as spacing;
 
 .band {
   display: flex;
@@ -35,21 +34,20 @@
   flex-shrink: 0;
 }
 
-.panel-column {
+.switcher {
   display: flex;
-  width: spacing.$session-panel-width;
   flex-shrink: 0;
-  justify-content: flex-end;
-  border-left: 1px solid colors.theme-color('border', 0.5);
-}
-
-.bar-actions {
-  display: flex;
-  height: var(--space-10);
-  flex-shrink: 0;
-  align-self: flex-end;
+  align-self: stretch;
   align-items: center;
-  padding-inline: var(--space-3);
+  justify-content: flex-end;
+
+  // Spans the panel below: the header's end padding moves inside, beside a matching rule.
+  &--over-panel {
+    width: var(--session-panel-width);
+    margin-right: calc(-1 * var(--space-3));
+    border-left: 1px solid colors.theme-color('border', 0.5);
+    padding-inline: var(--space-3);
+  }
 }
 
 .header {

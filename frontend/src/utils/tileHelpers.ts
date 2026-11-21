@@ -110,3 +110,62 @@ export function paintedChatIds(
   }
   return ids;
 }
+
+function gcd(a: number, b: number): number {
+  return b === 0 ? a : gcd(b, a % b);
+}
+
+function lcm(a: number, b: number): number {
+  return (a * b) / gcd(a, b);
+}
+
+// A pane's panel and view switcher sit at the right of its rightmost tile in the agent's row.
+export function panelHostTile(layout: TileId[][], agentTile: AgentTileId): TileId | undefined {
+  const inGroup = (tile: TileId) => agentTileFor(tile) === agentTile;
+  const row = layout.find((r) => r.includes(agentTile)) ?? layout.find((r) => r.some(inGroup));
+  const group = row?.filter(inGroup) ?? [];
+  return group[group.length - 1];
+}
+
+export function sessionPanelHosts(layout: TileId[][], openAgentTiles: AgentTileId[]): Set<TileId> {
+  const hosts = new Set<TileId>();
+  for (const agentTile of openAgentTiles) {
+    const host = panelHostTile(layout, agentTile);
+    if (host) hosts.add(host);
+  }
+  return hosts;
+}
+
+export interface TileColumns {
+  template: string;
+  columnOf: Map<TileId, string>;
+}
+
+// Rows split the width evenly; an open panel adds a fixed track after its host, and every
+// tile ending at that boundary spans it so no row leaves a gap.
+export function tileColumns(layout: TileId[][], panelHosts: Set<TileId>): TileColumns {
+  const cols = layout.reduce((acc, row) => lcm(acc, row.length), 1);
+  const panelAfter = new Set<number>();
+  for (const row of layout) {
+    row.forEach((tile, c) => {
+      if (panelHosts.has(tile)) panelAfter.add((c + 1) * (cols / row.length));
+    });
+  }
+  const tracks: string[] = [];
+  const trackStart: number[] = [];
+  const trackEnd: number[] = [];
+  for (let col = 1; col <= cols; col++) {
+    trackStart[col] = tracks.length + 1;
+    tracks.push('minmax(0, 1fr)');
+    if (panelAfter.has(col)) tracks.push('var(--session-panel-width)');
+    trackEnd[col] = tracks.length + 1;
+  }
+  const columnOf = new Map<TileId, string>();
+  for (const row of layout) {
+    const span = cols / row.length;
+    row.forEach((tile, c) => {
+      columnOf.set(tile, `${trackStart[c * span + 1]} / ${trackEnd[(c + 1) * span]}`);
+    });
+  }
+  return { template: tracks.join(' '), columnOf };
+}
