@@ -53,15 +53,14 @@ from app.services.push import PushService
 from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
+from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES, tool_image
 from app.services.streaming.types import (
-    MAX_TOOL_IMAGE_BYTES,
     PROMPT_SUGGESTIONS_RE,
     ChatStreamRequest,
     StreamEnvelope,
     StreamEvent,
     StreamSnapshotAccumulator,
     ToolImage,
-    tool_image,
 )
 from app.services.subthread_wake import subthread_wake
 from app.services.user import UserService

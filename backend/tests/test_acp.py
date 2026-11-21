@@ -45,7 +45,7 @@ from app.services.sandbox_providers import SandboxProviderType
 from app.services.session_registry import SessionRegistry
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.streaming.types import MAX_TOOL_IMAGE_BYTES
+from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES
 from app.services.subthread_wake import SubThreadWake
 from app.services.user import UserService
 from app.utils.cache import CachePubSub

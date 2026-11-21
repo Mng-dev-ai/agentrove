@@ -45,12 +45,12 @@ from acp.schema import (
 
 from app.models.types import AgentKind, PermissionMode
 from app.models.db_models.enums import ToolStatus
+from app.services.streaming.images import tool_image
 from app.services.streaming.types import (
     StreamEvent,
     StreamEventType,
     ToolImage,
     ToolPayload,
-    tool_image,
 )
 
 logger = logging.getLogger(__name__)
