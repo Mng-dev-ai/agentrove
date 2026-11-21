@@ -24,6 +24,12 @@
   }
 }
 
+.label {
+  @include type.type-overflow;
+  display: block;
+  min-width: 0;
+}
+
 .indicator {
   position: absolute;
   left: 0;
@@ -53,7 +59,6 @@
   @include anim.transition-colors;
   @include controls.focus-ring;
   @include responsive.touch-target;
-  @include type.type-overflow;
   min-width: 0;
   cursor: pointer;
   border: none;

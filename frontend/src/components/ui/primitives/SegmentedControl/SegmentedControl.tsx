@@ -132,7 +132,7 @@ export function SegmentedControl<T extends string = string>({
             onKeyDown={(e) => handleKeyDown(e, index)}
             className={clsx(styles.segment, styles[`segment--${size}`])}
           >
-            <span>{option.label}</span>
+            <span className={styles.label}>{option.label}</span>
           </button>
         );
       })}

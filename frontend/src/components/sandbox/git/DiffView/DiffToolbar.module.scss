@@ -28,6 +28,12 @@
   min-width: 0;
 }
 
+@container diff-view (width < 16rem) {
+  .segmented [role='radio'] {
+    padding-inline: var(--space-1-5);
+  }
+}
+
 .icon-button {
   @include anim.transition-colors;
   @include responsive.touch-target;
