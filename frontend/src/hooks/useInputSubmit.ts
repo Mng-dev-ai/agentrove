@@ -1,4 +1,4 @@
-import { useCallback, type RefObject } from 'react';
+import { useCallback, useRef, type RefObject } from 'react';
 import { useChatSettings } from '@/hooks/useChatSettings';
 import toast from 'react-hot-toast';
 import { queryClient } from '@/lib/queryClient';
@@ -18,8 +18,13 @@ import {
 } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
 import { useTokenDeleteKeyDown } from '@/hooks/useComposerTokens';
+import {
+  sideQuestionErrorMessage,
+  sideQuestionIntent,
+  startSideQuestion,
+} from '@/utils/sideQuestion';
 import type { Persona } from '@/types/user.types';
-import type { AgentKind, Model } from '@/types/chat.types';
+import type { AgentKind, Chat, Model } from '@/types/chat.types';
 
 interface UseInputSubmitOptions {
   disabled: boolean;
@@ -30,6 +35,8 @@ interface UseInputSubmitOptions {
   onStopStream?: () => void;
   isLoading: boolean;
   chatId?: string;
+  chat: Chat | undefined;
+  chatModel: Model | undefined;
   selectedModelId: string;
   selectedModel: Model | undefined;
   agentKind: AgentKind;
@@ -56,6 +63,8 @@ export function useInputSubmit({
   onStopStream,
   isLoading,
   chatId,
+  chat,
+  chatModel,
   selectedModelId,
   selectedModel,
   agentKind,
@@ -71,6 +80,9 @@ export function useInputSubmit({
   handleSlashCommandKeyDown,
 }: UseInputSubmitOptions) {
   const { permissionMode, thinkingMode, persona } = useChatSettings(chatId);
+  const sideQuestionPendingRef = useRef(false);
+  const attachedFilesRef = useRef(attachedFiles);
+  attachedFilesRef.current = attachedFiles;
   const handleSubmit = useCallback(
     (event: React.FormEvent) => {
       event.preventDefault();
@@ -90,6 +102,50 @@ export function useInputSubmit({
     }
 
     if (disabled) return;
+
+    const sideQuestion = sideQuestionIntent(messageRef.current, chat, chatModel);
+    if (sideQuestion) {
+      if (sideQuestion.kind === 'refuse') toast.error(sideQuestion.message);
+      if (sideQuestion.kind !== 'ask' || sideQuestionPendingRef.current) return;
+      const text = messageRef.current;
+      const parentChatId = sideQuestion.chat.id;
+      const sideAgentKind = sideQuestion.model.agent_kind;
+      const sentFiles = attachedFiles ?? [];
+      const sentSelections = attachedSelections;
+      sideQuestionPendingRef.current = true;
+      void startSideQuestion(
+        sideQuestion,
+        {
+          prompt: formatComposerSelections(sentSelections, sideQuestion.question),
+          attachedFiles,
+        },
+        {
+          permissionMode: coercePermissionModeForAgent(permissionMode, sideAgentKind),
+          thinkingMode: coerceThinkingModeForAgent(thinkingMode, sideAgentKind, sideQuestion.model),
+          personaName: resolvePersona(persona, personas),
+        },
+      )
+        .then(() => {
+          if (messageRef.current === text) setMessage('');
+          if (sentFiles.length > 0) {
+            onAttach?.(
+              (attachedFilesRef.current ?? []).filter((file) => !sentFiles.includes(file)),
+            );
+          }
+          const uiStore = useUIStore.getState();
+          const current = uiStore.composerSelectionsByChat[parentChatId] ?? [];
+          for (let index = current.length - 1; index >= 0; index -= 1) {
+            if (sentSelections.includes(current[index])) {
+              uiStore.removeComposerSelection(parentChatId, index);
+            }
+          }
+        })
+        .catch((error: unknown) => toast.error(sideQuestionErrorMessage(error)))
+        .finally(() => {
+          sideQuestionPendingRef.current = false;
+        });
+      return;
+    }
 
     if (isStreaming && hasContent && chatId) {
       // Fire-and-forget queue + clear draft — guard model or the message is lost.
@@ -174,6 +230,8 @@ export function useInputSubmit({
     onStopStream,
     onSubmit,
     chatId,
+    chat,
+    chatModel,
     attachedFiles,
     attachedSelections,
     setMessage,

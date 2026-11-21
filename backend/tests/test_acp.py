@@ -4175,3 +4175,87 @@ async def test_shared_worktree_is_removed_with_its_last_chat(
         await asyncio.sleep(0)
         assert removed.await_count == expected_calls
     removed.assert_awaited_once_with(workspace.sandbox_id, worktree_cwd)
+
+
+async def test_promote_keeps_the_side_question_worktree_until_its_last_chat(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    other_headers, _, _ = await create_authenticated_workspace(
+        db_session, create_user, login, email="other@example.com", username="other"
+    )
+    parent = await create_chat_row(db_session, user, workspace, title="Parent")
+    side = await create_chat_row(db_session, user, workspace, title="Side")
+    worktree_cwd = GitService.chat_worktree_path(str(parent.id))
+    parent.worktree_cwd = side.worktree_cwd = worktree_cwd
+    side.parent_chat_id = side.forked_from_chat_id = parent.id
+    side.forked_from_title = parent.title
+    turn = Message(
+        chat_id=side.id,
+        role=MessageRole.ASSISTANT,
+        content_text="",
+        model_id="sonnet",
+        stream_status=MessageStreamStatus.IN_PROGRESS,
+    )
+    db_session.add(turn)
+    await db_session.commit()
+    removed = AsyncMock()
+    monkeypatch.setattr(GitService, "remove_worktree", removed)
+
+    async def promote(chat: Chat, as_headers: dict[str, str]) -> httpx.Response:
+        return await client.post(
+            f"/api/v1/chat/chats/{chat.id}/promote", headers=as_headers
+        )
+
+    assert (await promote(side, other_headers)).status_code == 404
+    assert (await promote(parent, headers)).status_code == 400
+    assert (await promote(side, headers)).status_code == 409
+    turn.stream_status = MessageStreamStatus.COMPLETED
+    await db_session.commit()
+    promoted = await promote(side, headers)
+
+    assert promoted.status_code == 200, promoted.text
+    body = promoted.json()
+    assert body["parent_chat_id"] is None
+    assert (
+        body["workspace_id"],
+        body["worktree_cwd"],
+        body["forked_from_chat_id"],
+        body["forked_from_title"],
+    ) == (str(workspace.id), worktree_cwd, str(parent.id), "Parent")
+    for chat, expected_calls in ((parent, 0), (side, 1)):
+        response = await client.delete(f"/api/v1/chat/chats/{chat.id}", headers=headers)
+        assert response.status_code == 204, response.text
+        await asyncio.sleep(0)
+        assert removed.await_count == expected_calls
+    removed.assert_awaited_once_with(workspace.sandbox_id, worktree_cwd)
+
+
+async def test_promote_is_refused_while_a_turn_is_starting(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    parent = await create_chat_row(db_session, user, workspace, title="Parent")
+    side = await create_chat_row(db_session, user, workspace, title="Side")
+    side.parent_chat_id = side.forked_from_chat_id = parent.id
+    await db_session.commit()
+    url = f"/api/v1/chat/chats/{side.id}/promote"
+
+    async with ChatStreamRuntime.chat_start_slot(str(side.id)) as reserved:
+        refused = await client.post(url, headers=headers)
+    promoted = await client.post(url, headers=headers)
+
+    assert reserved
+    assert refused.status_code == 409, refused.text
+    assert promoted.status_code == 200, promoted.text

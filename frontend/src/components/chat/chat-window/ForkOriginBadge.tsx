@@ -26,18 +26,19 @@ export function ForkOriginBadge({
       <div className={styles.badge}>
         <CornerDownRight className={styles.icon} />
         <span className={styles.label}>Forked from</span>
-        <span className={styles.title}>{`“${sourceTitle}”`}</span>
-        {source && (
+        {source ? (
           <FloatingTooltip content={`Open ${source.title}`} className={styles.tooltip}>
             <Button
               variant="unstyled"
               type="button"
-              className={styles.action}
+              className={clsx(styles.title, styles['title-link'])}
               onClick={() => navigate(`/chat/${sourceChatId}`)}
             >
-              Show
+              {source.title}
             </Button>
           </FloatingTooltip>
+        ) : (
+          <span className={styles.title}>{sourceTitle}</span>
         )}
       </div>
     </div>

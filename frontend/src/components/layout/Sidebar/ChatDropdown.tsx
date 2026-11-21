@@ -1,9 +1,20 @@
 import { memo, type Ref } from 'react';
-import { Edit2, Folder, GitFork, Trash2, Pin, PinOff, SplitSquareHorizontal } from 'lucide-react';
+import {
+  CornerLeftUp,
+  Edit2,
+  Folder,
+  GitFork,
+  Trash2,
+  Pin,
+  PinOff,
+  SplitSquareHorizontal,
+} from 'lucide-react';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatMachineId } from '@/store/machineOrigin';
+import { useStreamStore } from '@/store/streamStore';
 import type { Chat } from '@/types/chat.types';
+import { canForkChat } from '@/utils/sideQuestion';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
 import styles from './ChatDropdown.module.scss';
 
@@ -16,6 +27,8 @@ interface ChatDropdownProps {
   onTogglePin: (chat: Chat) => void;
   onFork: (chat: Chat) => void;
   forkPending: boolean;
+  onConvertToThread: (chat: Chat) => void;
+  convertPending: boolean;
   onWorkspaceOptions: (chat: Chat) => void;
   onOpenInSplit?: (chatId: string) => void;
   splitDisabled?: boolean;
@@ -31,6 +44,8 @@ export const ChatDropdown = memo(function ChatDropdown({
   onTogglePin,
   onFork,
   forkPending,
+  onConvertToThread,
+  convertPending,
   onWorkspaceOptions,
   onOpenInSplit,
   splitDisabled = false,
@@ -39,9 +54,10 @@ export const ChatDropdown = memo(function ChatDropdown({
   const isPinned = !!chat.pinned_at;
   const isSubThread = !!chat.parent_chat_id;
   const model = useModelMap({ machineId: useChatMachineId(chat.id) }).get(chat.last_model_id ?? '');
-  // The fork copies the agent's own session, so the chat must have run on that agent.
-  const canFork =
-    !chat.channel_id && !!model?.supports_fork && chat.session_agent_kind === model.agent_kind;
+  const canFork = canForkChat(chat, model);
+  const isRunning = useStreamStore((s) =>
+    s.activeStreamMetadata.some((stream) => stream.chatId === chat.id),
+  );
 
   return (
     <SidebarMenu ref={ref} position={position} onClose={onClose}>
@@ -67,6 +83,15 @@ export const ChatDropdown = memo(function ChatDropdown({
       {canFork && (
         <SidebarMenuItem icon={GitFork} onClick={() => onFork(chat)} disabled={forkPending}>
           Fork
+        </SidebarMenuItem>
+      )}
+      {isSubThread && (
+        <SidebarMenuItem
+          icon={CornerLeftUp}
+          onClick={() => onConvertToThread(chat)}
+          disabled={isRunning || convertPending}
+        >
+          Convert to thread
         </SidebarMenuItem>
       )}
       <SidebarMenuItem icon={Folder} onClick={() => onWorkspaceOptions(chat)}>

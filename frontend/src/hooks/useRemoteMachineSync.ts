@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { machineChatService } from '@/services/machineChatService';
-import { patchChatInCache } from '@/hooks/queries/useChatQueries';
+import {
+  invalidateSubThreadListsContaining,
+  patchChatInCache,
+} from '@/hooks/queries/useChatQueries';
 import {
   assignChatRecordsToMachine,
   assignChatsToMachine,
@@ -61,6 +64,8 @@ export function useRemoteMachineSync(machineId: string): void {
           void queryClient.invalidateQueries({
             queryKey: queryKeys.subThreads(chat.parent_chat_id),
           });
+        } else {
+          invalidateSubThreadListsContaining(queryClient, chat.id);
         }
         invalidateMachineLists(queryClient, machineId);
         useUIStore.getState().openChatTab(chat.id);

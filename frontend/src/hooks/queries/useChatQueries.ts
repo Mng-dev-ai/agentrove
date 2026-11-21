@@ -209,6 +209,18 @@ export const useContextUsageQuery = (
 
 // Shared by create-chat mutation + chat_created SSE. Dedup by id — both paths fire
 // for local creates; second-pass invalidations are intentional (don't suppress).
+export function invalidateSubThreadListsContaining(queryClient: QueryClient, chatId: string): void {
+  const lists = queryClient.getQueriesData<Chat[]>({
+    queryKey: ['chat'],
+    predicate: (query) => query.queryKey[2] === 'sub-threads',
+  });
+  for (const [queryKey, subThreads] of lists) {
+    if (subThreads?.some((chat) => chat.id === chatId)) {
+      void queryClient.invalidateQueries({ queryKey, exact: true });
+    }
+  }
+}
+
 export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat): Promise<void> {
   queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
   queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
@@ -222,6 +234,8 @@ export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat):
     ]);
     return;
   }
+
+  invalidateSubThreadListsContaining(queryClient, newChat.id);
 
   queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
     { queryKey: [queryKeys.chats, 'infinite'], predicate: isGlobalChatsQuery },
@@ -305,8 +319,20 @@ export const useCreateChatMutation = createMutation<Chat, Error, CreateChatReque
 );
 
 export const useForkChatMutation = createMutation<Chat, Error, string>(
-  (chatId) => chatService.forkChat(chatId),
+  (chatId) => chatService.forkChat(chatId, { asSubThread: false }),
   (queryClient, newChat) => applyCreatedChat(queryClient, newChat),
+);
+
+export const usePromoteChatMutation = createMutation<Chat, Error, Chat>(
+  (subThread) => chatService.promoteChat(subThread.id),
+  async (queryClient, promotedChat, subThread) => {
+    await applyCreatedChat(queryClient, promotedChat);
+    if (subThread.parent_chat_id) {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.subThreads(subThread.parent_chat_id),
+      });
+    }
+  },
 );
 
 export const useUpdateChatMutation = createMutation<

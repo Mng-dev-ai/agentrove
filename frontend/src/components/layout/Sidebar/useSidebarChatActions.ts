@@ -9,6 +9,7 @@ import {
   useGenerateChatTitleMutation,
   useUpdateChatMutation,
   usePinChatMutation,
+  usePromoteChatMutation,
 } from '@/hooks/queries/useChatQueries';
 import { useToggleSet } from '@/hooks/useToggleSet';
 import { useUIStore } from '@/store/uiStore';
@@ -49,6 +50,7 @@ export function useSidebarChatActions({
   const generateChatTitle = useGenerateChatTitleMutation();
   const pinChat = usePinChatMutation();
   const forkChat = useForkChatMutation();
+  const promoteChat = usePromoteChatMutation();
   const splitChatIds = useUIStore((state) => state.splitChatIds);
 
   // Auto-expand parent when navigating to a sub-thread from outside the sidebar
@@ -250,6 +252,22 @@ export function useSidebarChatActions({
     [forkChat, navigate],
   );
 
+  const handleConvertToThread = useCallback(
+    async (chat: Chat) => {
+      setDropdown(null);
+      try {
+        await mutateWithToast(
+          () => promoteChat.mutateAsync(chat),
+          'Converted to thread',
+          'Failed to convert to thread',
+        );
+      } catch {
+        // toast already shown by mutateWithToast
+      }
+    },
+    [promoteChat],
+  );
+
   return {
     hoveredChatId,
     dropdown,
@@ -281,6 +299,8 @@ export function useSidebarChatActions({
     handleTogglePin,
     handleForkChat,
     forkPending: forkChat.isPending,
+    handleConvertToThread,
+    convertPending: promoteChat.isPending,
   };
 }
 

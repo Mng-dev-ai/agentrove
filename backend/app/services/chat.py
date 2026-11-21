@@ -303,6 +303,7 @@ class ChatService(BaseDbService[Chat]):
         chat_data: ChatCreate,
     ) -> Chat:
         async with self.session_factory() as db:
+            await db.execute(text("BEGIN IMMEDIATE"))
             workspace_id = chat_data.workspace_id
             worktree_cwd: str | None = None
 
@@ -332,7 +333,7 @@ class ChatService(BaseDbService[Chat]):
                     status_code=404,
                 )
 
-            return await self._insert_and_announce(
+            return await self._commit_and_announce(
                 db,
                 Chat(
                     title=chat_data.title,
@@ -345,7 +346,12 @@ class ChatService(BaseDbService[Chat]):
             )
 
     async def fork_chat(
-        self, chat_id: UUID, user: User, *, as_sub_thread: bool = False
+        self,
+        chat_id: UUID,
+        user: User,
+        *,
+        as_sub_thread: bool = False,
+        title: str | None = None,
     ) -> Chat:
         async with self.session_factory() as db:
             # Write lock before reading the source: deleting it, or removing
@@ -376,10 +382,10 @@ class ChatService(BaseDbService[Chat]):
                     error_code=ErrorCode.VALIDATION_ERROR,
                     status_code=409,
                 )
-            chat = await self._insert_and_announce(
+            chat = await self._commit_and_announce(
                 db,
                 Chat(
-                    title=f"Fork: {source.title}"[:255],
+                    title=title or f"Fork: {source.title}"[:255],
                     user_id=user.id,
                     workspace_id=source.workspace_id,
                     parent_chat_id=source.id if as_sub_thread else None,
@@ -442,7 +448,35 @@ class ChatService(BaseDbService[Chat]):
             parent.last_viewed_at = now
         return parent
 
-    async def _insert_and_announce(self, db: AsyncSession, chat: Chat) -> Chat:
+    async def promote_chat(self, chat_id: UUID, user: User) -> Chat:
+        async with (
+            ChatStreamRuntime.chat_start_slot(str(chat_id)) as reserved,
+            self.session_factory() as db,
+        ):
+            await db.execute(text("BEGIN IMMEDIATE"))
+            chat = await self._live_chat(db, chat_id, user)
+            if chat.parent_chat_id is None:
+                raise ChatException(
+                    "Only a sub-thread can be promoted",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                    status_code=400,
+                )
+            if (
+                not reserved
+                or await self.message_service.get_in_progress_assistant_message(chat.id)
+            ):
+                raise ChatException(
+                    "This chat can be promoted when its turn finishes",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                    status_code=409,
+                )
+            now = datetime.now(timezone.utc)
+            chat.parent_chat_id = None
+            chat.updated_at = now
+            chat.last_viewed_at = now
+            return await self._commit_and_announce(db, chat)
+
+    async def _commit_and_announce(self, db: AsyncSession, chat: Chat) -> Chat:
         db.add(chat)
         await db.commit()
         result = await db.execute(
@@ -712,6 +746,7 @@ class ChatService(BaseDbService[Chat]):
 
     async def delete_chat(self, chat_id: UUID, user: User) -> None:
         async with self.session_factory() as db:
+            await db.execute(text("BEGIN IMMEDIATE"))
             result = await db.execute(
                 select(Chat)
                 .options(selectinload(Chat.workspace))
@@ -796,6 +831,7 @@ class ChatService(BaseDbService[Chat]):
 
     async def delete_all_chats(self, user: User) -> int:
         async with self.session_factory() as db:
+            await db.execute(text("BEGIN IMMEDIATE"))
             chat_query = select(Chat.id, Chat.workspace_id, Chat.worktree_cwd).filter(
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),

@@ -108,6 +108,7 @@ class Chat(ChatBase):
 
 class ChatFork(BaseModel):
     as_sub_thread: bool = False
+    title: str | None = Field(None, min_length=1, max_length=255)
 
 
 class ContextUsage(BaseModel):

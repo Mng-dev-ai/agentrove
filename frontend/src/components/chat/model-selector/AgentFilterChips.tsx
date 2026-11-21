@@ -3,18 +3,8 @@ import clsx from 'clsx';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
-import type { AgentKind } from '@/types/chat.types';
+import { AGENT_LABELS, type AgentKind } from '@/types/chat.types';
 import styles from './AgentFilterChips.module.scss';
-
-const AGENT_LABELS: Record<AgentKind, string> = {
-  antigravity: 'Antigravity',
-  claude: 'Claude',
-  codex: 'Codex',
-  copilot: 'Copilot',
-  cursor: 'Cursor',
-  grok: 'Grok',
-  opencode: 'OpenCode',
-};
 
 export interface AgentFilterChipsProps {
   agentKinds: AgentKind[];

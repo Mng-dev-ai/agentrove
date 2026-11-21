@@ -4,7 +4,7 @@ import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { AgentKind } from '@/types/chat.types';
+import type { AgentKind, Chat, Model } from '@/types/chat.types';
 import type { UserSettings } from '@/types/user.types';
 
 const { queueMessage } = vi.hoisted(() => ({ queueMessage: vi.fn() }));
@@ -13,6 +13,10 @@ vi.mock('@/services/chatService', () => ({
   chatService: { getChat: vi.fn().mockResolvedValue({ id: 'chat-1' }) },
 }));
 vi.mock('@/services/queueService', () => ({ queueService: { queueMessage } }));
+vi.mock('@/utils/sideQuestion', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/sideQuestion')>()),
+  startSideQuestion: vi.fn(),
+}));
 
 import { useInputSubmit } from './useInputSubmit';
 import { queryKeys } from '@/hooks/queries/queryKeys';
@@ -20,6 +24,7 @@ import { queryClient as appQueryClient } from '@/lib/queryClient';
 import { useChatSettingsStore } from '@/store/chatSettingsStore';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
 import { useUIStore, type ComposerSelection } from '@/store/uiStore';
+import { startSideQuestion } from '@/utils/sideQuestion';
 
 const testQueryClient = new QueryClient({
   defaultOptions: { queries: { retry: false } },
@@ -29,6 +34,21 @@ const wrapper = ({ children }: { children: ReactNode }) => (
 );
 
 const selection: ComposerSelection = { kind: 'chat', text: 'quoted' };
+const forkableChat = {
+  id: 'chat-1',
+  parent_chat_id: null,
+  channel_id: null,
+  session_agent_kind: 'claude',
+  last_model_id: 'sonnet',
+} as Chat;
+const forkableModel: Model = {
+  model_id: 'sonnet',
+  name: 'Sonnet',
+  agent_kind: 'claude',
+  context_window: null,
+  thinking_modes: [],
+  supports_fork: true,
+};
 
 function makeOptions(overrides: Partial<Parameters<typeof useInputSubmit>[0]> = {}) {
   return {
@@ -40,6 +60,8 @@ function makeOptions(overrides: Partial<Parameters<typeof useInputSubmit>[0]> = 
     onStopStream: vi.fn(),
     isLoading: false,
     chatId: 'chat-1',
+    chat: undefined,
+    chatModel: undefined,
     selectedModelId: 'model-1',
     selectedModel: undefined,
     agentKind: 'claude' as AgentKind,
@@ -156,5 +178,34 @@ describe('useInputSubmit — keyboard handling', () => {
     act(() => result.current.handleKeyDown(e));
     expect(e.preventDefault).not.toHaveBeenCalled();
     expect(requestSubmit).not.toHaveBeenCalled();
+  });
+});
+
+describe('useInputSubmit — /btw side question', () => {
+  it('keeps a file added to the composer while the side question was starting', async () => {
+    let finishStart!: () => void;
+    vi.mocked(startSideQuestion).mockReturnValue(
+      new Promise<void>((resolve) => {
+        finishStart = resolve;
+      }),
+    );
+    const sent = new File(['a'], 'sent.png', { type: 'image/png' });
+    const added = new File(['b'], 'added.png', { type: 'image/png' });
+    const opts = makeOptions({
+      chat: forkableChat,
+      chatModel: forkableModel,
+      attachedFiles: [sent],
+      messageRef: { current: '/btw where is retry?' },
+    });
+    const { result, rerender } = renderHook((props) => useInputSubmit(props), {
+      wrapper,
+      initialProps: opts,
+    });
+    act(() => result.current.submitOrStop());
+    rerender({ ...opts, attachedFiles: [sent, added] });
+    await act(async () => finishStart());
+
+    expect(vi.mocked(startSideQuestion).mock.calls[0][1].attachedFiles).toEqual([sent]);
+    expect(opts.onAttach).toHaveBeenCalledWith([added]);
   });
 });

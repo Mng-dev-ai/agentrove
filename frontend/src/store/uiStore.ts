@@ -609,6 +609,19 @@ export const useUIStore = create<UIStoreState>()(
         });
       },
 
+      openSideQuestion: (chatId, askingChatId) => {
+        const { splitChatIds } = get();
+        if (!splitChatIds.includes(chatId) && splitChatIds.length >= MAX_CHAT_PANES - 1) {
+          const evictable = splitChatIds.filter((id) => id !== askingChatId);
+          get().closeSplitChat(evictable[evictable.length - 1]);
+        }
+        get().openChatInSplit(chatId);
+        if (isDesktop()) return;
+        const state = get();
+        set(rebuildSplitGrid(state, state.splitChatIds));
+        get().focusTile(splitAgentTile(splitSlotAt(state.splitChatIds.indexOf(chatId))));
+      },
+
       rebuildSplitLayout: () => {
         const state = get();
         if (state.splitChatIds.length === 0) return;
@@ -653,7 +666,7 @@ export const useUIStore = create<UIStoreState>()(
         const compactedActive = compactTileAfter(state.activeAgentTile, closedSlot);
         let activeAgentTile = compactedActive ? agentTileFor(compactedActive) : 'agent:primary';
         if (state.focusedTile && !compactedFocus) {
-          focusedTile = lastVisibleTile(visibleLayout);
+          focusedTile = isDesktop() ? lastVisibleTile(visibleLayout) : 'agent:primary';
           activeAgentTile = agentTileFor(focusedTile);
         }
         set({

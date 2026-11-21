@@ -344,6 +344,16 @@ describe('split chat', () => {
     expect(state().activeAgentTile).toBe('agent:split-2');
   });
 
+  it('keeps the asking split pane when a side question needs a slot', () => {
+    state().openChatInSplit('c2');
+    state().openChatInSplit('c3');
+    state().openChatInSplit('c4');
+
+    state().openSideQuestion('side', 'c4');
+
+    expect(state().splitChatIds).toEqual(['c2', 'c4', 'side']);
+  });
+
   it('closes all split chats and clears their pending editor jump', () => {
     state().openChatInSplit('c2');
     state().openFileInEditor('a.ts', 'c2');

@@ -201,6 +201,16 @@ export type AgentKind =
   | 'grok'
   | 'opencode';
 
+export const AGENT_LABELS: Record<AgentKind, string> = {
+  antigravity: 'Antigravity',
+  claude: 'Claude',
+  codex: 'Codex',
+  copilot: 'Copilot',
+  cursor: 'Cursor',
+  grok: 'Grok',
+  opencode: 'OpenCode',
+};
+
 export interface Model {
   model_id: string;
   name: string;

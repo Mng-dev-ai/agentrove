@@ -34,6 +34,8 @@ export function SidebarOverlays({
           onTogglePin={chat.handleTogglePin}
           onFork={chat.handleForkChat}
           forkPending={chat.forkPending}
+          onConvertToThread={chat.handleConvertToThread}
+          convertPending={chat.convertPending}
           onWorkspaceOptions={(target) => {
             const { position } = chat.dropdown!;
             chat.setDropdown(null);
