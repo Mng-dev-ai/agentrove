@@ -1,5 +1,4 @@
 import { useCallback, useEffect, memo, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineName, useMachineStatus } from '@/store/machineStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -40,11 +39,9 @@ export const Chat = memo(function Chat() {
   const machineLabel = useMachineName(machineId);
   const { state, actions } = useChatSessionContext();
   const { data: chat } = useChatQuery(chatId);
-  const initialMessageId = (useLocation().state as { messageId?: string } | null)?.messageId;
   const forkOrigin = chat?.forked_from_chat_id
     ? {
         sourceChatId: chat.forked_from_chat_id,
-        sourceMessageId: chat.forked_from_message_id ?? null,
         sourceTitle: chat.forked_from_title ?? '',
       }
     : null;
@@ -223,7 +220,6 @@ export const Chat = memo(function Chat() {
     scrollToBottom,
   } = useChatScroll({
     chatId,
-    initialMessageId,
     messages,
     lastReplyStreams: lastBotIsStreaming,
     pendingUserMessageId,

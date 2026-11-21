@@ -103,7 +103,6 @@ class Chat(ChatBase):
     last_thinking_mode: str | None = None
     last_persona_name: str | None = None
     forked_from_chat_id: UUID | None = None
-    forked_from_message_id: UUID | None = None
     forked_from_title: str | None = None
 
 

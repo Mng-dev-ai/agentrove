@@ -8,14 +8,12 @@ import styles from './ForkOriginBadge.module.scss';
 
 interface ForkOriginBadgeProps {
   sourceChatId: string;
-  sourceMessageId: string | null;
   sourceTitle: string;
   aboveComposer?: boolean;
 }
 
 export function ForkOriginBadge({
   sourceChatId,
-  sourceMessageId,
   sourceTitle,
   aboveComposer = false,
 }: ForkOriginBadgeProps) {
@@ -35,9 +33,7 @@ export function ForkOriginBadge({
               variant="unstyled"
               type="button"
               className={styles.action}
-              onClick={() =>
-                navigate(`/chat/${sourceChatId}`, { state: { messageId: sourceMessageId } })
-              }
+              onClick={() => navigate(`/chat/${sourceChatId}`)}
             >
               Show
             </Button>

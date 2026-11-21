@@ -103,7 +103,6 @@ export interface Chat {
   last_thinking_mode: string | null;
   last_persona_name: string | null;
   forked_from_chat_id?: string | null;
-  forked_from_message_id?: string | null;
   forked_from_title?: string | null;
 }
 

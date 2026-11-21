@@ -29,7 +29,7 @@ from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.queue import QueuedMessage
-from app.models.types import MessageAttachmentDict, PermissionMode
+from app.models.types import AgentKind, MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.agent import (
@@ -1133,7 +1133,7 @@ class ChatStreamRuntime:
     async def _generate_title(self) -> None:
         if self.member_turn is not None or not self.prompt or not self._is_new_chat:
             return
-        # A fork keeps its source's title.
+        # A fork is titled after its source.
         if self.chat.fork_agent_kind:
             return
 
@@ -1677,9 +1677,10 @@ class ChatStreamRuntime:
             # A fork with no settled turn of its own continues its copy of the
             # source's session; another agent kind can't load that copy.
             fork_service = ForkService(runtime.session_factory)
+            fork_agent_kind = runtime.chat.fork_agent_kind
             resumes_fork = (
                 handoff.resume_session_id is None
-                and runtime.chat.fork_agent_kind == config.agent_kind.value
+                and fork_agent_kind == config.agent_kind.value
             )
             if resumes_fork:
                 config = replace(
@@ -1688,6 +1689,19 @@ class ChatStreamRuntime:
                         UUID(runtime.chat_id), config
                     ),
                 )
+            elif fork_agent_kind and handoff.resume_session_id is None:
+                async with runtime.session_factory() as db:
+                    own_turn = await HandoffService.latest_settled_turn(
+                        db, UUID(runtime.chat_id), AgentKind(fork_agent_kind)
+                    )
+                if own_turn is None:
+                    agent = fork_agent_kind.capitalize()
+                    raise ChatException(
+                        f"This fork continues its source chat's {agent} session, "
+                        "which another agent can't load. Send its first message "
+                        f"with a {agent} model; you can switch models after that.",
+                        error_code=ErrorCode.VALIDATION_ERROR,
+                    )
 
             try:
                 session, _ = await session_registry.get_or_create(

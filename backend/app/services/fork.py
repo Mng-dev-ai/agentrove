@@ -27,15 +27,16 @@ class ForkService:
         self.session_factory = session_factory
 
     def start(self, chat_id: UUID, config: AcpSessionConfig) -> asyncio.Task[str]:
-        task = asyncio.create_task(self._fork(chat_id, config))
-        self._inflight[chat_id] = task
-        task.add_done_callback(partial(self._settle, chat_id))
+        task = self._inflight.get(chat_id)
+        if task is None:
+            task = asyncio.create_task(self._fork(chat_id, config))
+            self._inflight[chat_id] = task
+            task.add_done_callback(partial(self._settle, chat_id))
         return task
 
     async def ensure_session(self, chat_id: UUID, config: AcpSessionConfig) -> str:
-        task = self._inflight.get(chat_id) or self.start(chat_id, config)
         # Shielded: a cancelled turn must not kill the fork another caller awaits.
-        return await asyncio.shield(task)
+        return await asyncio.shield(self.start(chat_id, config))
 
     async def discard_session(self, chat_id: UUID) -> None:
         async with self.session_factory() as db:
@@ -48,7 +49,7 @@ class ForkService:
 
     @classmethod
     def _settle(cls, chat_id: UUID, task: asyncio.Task[str]) -> None:
-        del cls._inflight[chat_id]
+        cls._inflight.pop(chat_id, None)
         # A failure at creation resurfaces on the chat's first turn, which retries.
         if not task.cancelled():
             task.exception()

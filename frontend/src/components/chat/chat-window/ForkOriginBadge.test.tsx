@@ -12,11 +12,7 @@ function renderBadge() {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter>
-        <ForkOriginBadge
-          sourceChatId="source-1"
-          sourceMessageId="message-1"
-          sourceTitle="Retry and backoff"
-        />
+        <ForkOriginBadge sourceChatId="source-1" sourceTitle="Retry and backoff" />
       </MemoryRouter>
     </QueryClientProvider>,
   );

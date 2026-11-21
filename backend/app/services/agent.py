@@ -3,7 +3,7 @@ import logging
 import os
 import secrets
 import sys
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterable
 from dataclasses import replace
 from pathlib import Path
 from urllib.parse import urlparse
@@ -12,6 +12,7 @@ from uuid import UUID
 
 from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.core.security import create_mcp_access_token, create_sandbox_mcp_token
@@ -96,6 +97,26 @@ class AgentService:
         except (SQLAlchemyError, ValueError) as exc:
             logger.error("Failed to persist worktree_cwd for chat %s: %s", chat_id, exc)
 
+    @staticmethod
+    async def unreferenced_worktrees(
+        db: AsyncSession, released: Iterable[tuple[UUID, str | None]]
+    ) -> set[tuple[UUID, str]]:
+        # (workspace id, worktree_cwd) pairs chats have just let go of (deleted
+        # in this transaction, or moved to a worktree of their own). Sub-threads
+        # and forks share their source's worktree, so it is removed only once
+        # no live chat points at it.
+        candidates = {(workspace_id, cwd) for workspace_id, cwd in released if cwd}
+        if not candidates:
+            return set()
+        live = await db.execute(
+            select(Chat.workspace_id, Chat.worktree_cwd).where(
+                Chat.deleted_at.is_(None),
+                Chat.workspace_id.in_({workspace_id for workspace_id, _ in candidates}),
+                Chat.worktree_cwd.in_({cwd for _, cwd in candidates}),
+            )
+        )
+        return candidates - {(workspace_id, cwd) for workspace_id, cwd in live}
+
     async def ensure_worktree_cwd(
         self, chat: Chat, base_branch: str | None = None
     ) -> str:
@@ -129,8 +150,15 @@ class AgentService:
             base_ref=base_branch,
             user_id=str(chat.user_id),
         )
+        inherited_cwd = chat.worktree_cwd
         chat.worktree_cwd = worktree_cwd
         await self._save_worktree_cwd(chat.id, worktree_cwd)
+        async with self.session_factory() as db:
+            unreferenced = await self.unreferenced_worktrees(
+                db, [(chat.workspace_id, inherited_cwd)]
+            )
+        for _, cwd in unreferenced:
+            await git_service.remove_worktree(sandbox_id, cwd)
         return worktree_cwd
 
     async def resolve_cwd(

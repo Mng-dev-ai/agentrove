@@ -10,7 +10,6 @@ depends_on = None
 
 COLUMNS = (
     ("forked_from_chat_id", GUID()),
-    ("forked_from_message_id", GUID()),
     ("forked_from_title", sa.String(255)),
     ("fork_source_session_id", sa.String(128)),
     ("fork_agent_kind", sa.String(32)),

@@ -68,7 +68,6 @@ class Chat(Base):
         UUIDSet(none_as_null=True), nullable=True
     )
     forked_from_chat_id: Mapped[UUID | None] = mapped_column(GUID(), nullable=True)
-    forked_from_message_id: Mapped[UUID | None] = mapped_column(GUID(), nullable=True)
     forked_from_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     # The source's native session at fork time: only ever passed to ACP
     # session/fork, never loaded — the source chat's process owns it.
