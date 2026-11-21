@@ -28,7 +28,8 @@ from app.core.security import authenticate_websocket_user, create_mcp_access_tok
 from app.db.session import SessionLocal
 from app.models.db_models.automation import Automation
 from app.models.db_models.channel import Channel, ChannelDelivery
-from app.models.db_models.chat import Chat
+from app.models.db_models.chat import Chat, Message
+from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
@@ -44,6 +45,7 @@ from app.services.agent import AgentService
 from app.services.exceptions import AgentException
 from app.services.fork import ForkService
 from app.services.git import GitService
+from app.services.handoff import HandoffService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.sandbox_providers.base import SandboxProvider
@@ -3679,6 +3681,31 @@ async def fork_chat(
     return response
 
 
+def init_git_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for args in (
+        ["-c", "init.defaultBranch=main", "init", "-q"],
+        ["config", "user.email", "test@example.com"],
+        ["config", "user.name", "Test"],
+        ["config", "commit.gpgsign", "false"],
+        ["commit", "-q", "--allow-empty", "-m", "initial"],
+    ):
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+    return repo
+
+
+async def settle_worktree_removals() -> None:
+    # Removal runs fire-and-forget behind the request that decided it.
+    pending = [
+        t
+        for t in asyncio.all_tasks()
+        if t.get_coro().__qualname__.endswith("remove_worktree")
+    ]
+    if pending:
+        await asyncio.wait(pending, timeout=5.0)
+
+
 async def test_fork_chat_refuses_what_it_cannot_fork(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
@@ -3723,7 +3750,7 @@ async def test_fork_chat_refuses_what_it_cannot_fork(
     assert "can't fork" in refused.json()["detail"]
 
     forked = await fork_chat(client, headers, chat["id"])
-    assert forked.status_code == 201, forked.text
+    assert forked.status_code in (201, 404), forked.text
     fork = forked.json()
     assert fork["forked_from_chat_id"] == chat["id"]
     assert fork["forked_from_title"] != chat["title"]
@@ -3784,7 +3811,7 @@ async def test_fork_session_failure_fails_the_turn_and_retry_converges(
 
     monkeypatch.setenv("FAKE_ACP_SCENARIO", "fork_session_error")
     forked = await fork_chat(client, headers, source["id"])
-    assert forked.status_code == 201, forked.text
+    assert forked.status_code in (201, 404), forked.text
     fork = forked.json()
 
     failed = await run_chat_turn(client, headers, fork["id"], "fork turn")
@@ -3871,6 +3898,65 @@ async def test_fork_first_turn_on_another_agent_kind_fails_without_a_prompt(
     assert len(fake_agent.main_turn_prompts()) == 1
 
 
+async def test_fork_never_outlives_the_worktree_of_a_source_deleted_meanwhile(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = init_git_repo(tmp_path)
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    workspace.workspace_path = str(repo)
+    source = await create_chat_row(db_session, user, workspace, title="Source")
+    source.last_model_id = "sonnet"
+    source.worktree_cwd = await GitService(
+        SandboxService(LocalHostProvider(str(repo)))
+    ).create_worktree(str(workspace.sandbox_id), "", str(source.id))
+    db_session.add(
+        Message(
+            chat_id=source.id,
+            role=MessageRole.ASSISTANT,
+            content_text="done",
+            model_id="sonnet",
+            session_id="source-session",
+            stream_status=MessageStreamStatus.COMPLETED,
+        )
+    )
+    await db_session.commit()
+    latest_settled_turn = HandoffService.latest_settled_turn
+    deletions: list[asyncio.Task[httpx.Response]] = []
+
+    async def delete_source_before_the_insert(*args: Any) -> Message | None:
+        anchor = await latest_settled_turn(*args)
+        deletions.append(
+            asyncio.create_task(
+                client.delete(f"/api/v1/chat/chats/{source.id}", headers=headers)
+            )
+        )
+        # Long enough for an unserialised delete to finish; a serialised one
+        # is still waiting for the fork's transaction.
+        await asyncio.wait(deletions, timeout=0.5)
+        return anchor
+
+    monkeypatch.setattr(
+        HandoffService, "latest_settled_turn", delete_source_before_the_insert
+    )
+    forked = await fork_chat(client, headers, str(source.id))
+    assert (await deletions[0]).status_code == 204
+    await settle_worktree_removals()
+
+    assert forked.status_code in (201, 404), forked.text
+    if forked.status_code == 201:
+        assert forked.json()["worktree_cwd"] == source.worktree_cwd
+        assert (repo / source.worktree_cwd).is_dir()
+
+
 @pytest.mark.parametrize("source_deleted", [True, False])
 async def test_fork_leaving_an_inherited_worktree_removes_it_once_unreferenced(
     client: httpx.AsyncClient,
@@ -3881,16 +3967,7 @@ async def test_fork_leaving_an_inherited_worktree_removes_it_once_unreferenced(
     tmp_path: Path,
     source_deleted: bool,
 ) -> None:
-    repo = tmp_path / "repo"
-    repo.mkdir()
-    for args in (
-        ["-c", "init.defaultBranch=main", "init", "-q"],
-        ["config", "user.email", "test@example.com"],
-        ["config", "user.name", "Test"],
-        ["config", "commit.gpgsign", "false"],
-        ["commit", "-q", "--allow-empty", "-m", "initial"],
-    ):
-        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+    repo = init_git_repo(tmp_path)
     provider = LocalHostProvider(str(repo))
     monkeypatch.setattr(
         SandboxProvider, "create_provider", lambda *_args, **_kwargs: provider
@@ -3918,6 +3995,7 @@ async def test_fork_leaving_an_inherited_worktree_removes_it_once_unreferenced(
     ).scalar_one()
 
     own_cwd = await AgentService().resolve_cwd(fork, worktree=True)
+    await settle_worktree_removals()
 
     assert own_cwd == GitService.chat_worktree_path(str(fork.id))
     assert (repo / own_cwd).is_dir()

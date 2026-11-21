@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Row, func, or_, select, update, true
+from sqlalchemy import Row, func, or_, select, text, update, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -347,21 +347,24 @@ class ChatService(BaseDbService[Chat]):
     async def fork_chat(
         self, chat_id: UUID, user: User, *, as_sub_thread: bool = False
     ) -> Chat:
-        source = await self.get_chat(chat_id, user)
-        model_id = source.last_model_id
-        model = MODELS.get(model_id or "")
-        if (
-            model_id is None
-            or model is None
-            or not AGENT_ADAPTERS[model.agent_kind].supports_fork
-        ):
-            raise ChatException(
-                "This chat's agent can't fork a conversation",
-                error_code=ErrorCode.VALIDATION_ERROR,
-                status_code=400,
-            )
-
         async with self.session_factory() as db:
+            # Write lock before reading the source: deleting it, or removing
+            # the worktree it shares, checks for live references under the same
+            # lock, so neither can land between this read and the insert.
+            await db.execute(text("BEGIN IMMEDIATE"))
+            source = await self._live_chat(db, chat_id, user)
+            model_id = source.last_model_id
+            model = MODELS.get(model_id or "")
+            if (
+                model_id is None
+                or model is None
+                or not AGENT_ADAPTERS[model.agent_kind].supports_fork
+            ):
+                raise ChatException(
+                    "This chat's agent can't fork a conversation",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                    status_code=400,
+                )
             if as_sub_thread:
                 await self._attach_to_parent(db, user, source.id)
             anchor = await HandoffService.latest_settled_turn(
@@ -617,33 +620,45 @@ class ChatService(BaseDbService[Chat]):
     async def get_chat(
         self, chat_id: UUID, user: User, *, include_channel: bool = False
     ) -> Chat:
-        # Workspace eager-loaded for sandbox_id; messages via /messages. sub_thread_count is caller-side.
         async with self.session_factory() as db:
-            query = (
-                select(Chat)
-                .filter(
-                    Chat.id == chat_id,
-                    Chat.user_id == user.id,
-                    Chat.deleted_at.is_(None),
-                    (Chat.is_visible() if not include_channel else true()),
-                )
-                .options(
-                    selectinload(Chat.workspace),
-                )
+            return await self._live_chat(
+                db, chat_id, user, include_channel=include_channel
             )
-            result = await db.execute(query)
-            chat: Chat | None = result.scalar_one_or_none()
 
-            if not chat:
-                raise ChatException(
-                    "Chat not found or you don't have permission to access it",
-                    error_code=ErrorCode.CHAT_NOT_FOUND,
-                    details={"chat_id": str(chat_id)},
-                    status_code=404,
-                )
-            self.require_agent_workspace(user, chat.workspace_id)
+    async def _live_chat(
+        self,
+        db: AsyncSession,
+        chat_id: UUID,
+        user: User,
+        *,
+        include_channel: bool = False,
+    ) -> Chat:
+        # Workspace eager-loaded for sandbox_id; messages via /messages. sub_thread_count is caller-side.
+        query = (
+            select(Chat)
+            .filter(
+                Chat.id == chat_id,
+                Chat.user_id == user.id,
+                Chat.deleted_at.is_(None),
+                (Chat.is_visible() if not include_channel else true()),
+            )
+            .options(
+                selectinload(Chat.workspace),
+            )
+        )
+        result = await db.execute(query)
+        chat: Chat | None = result.scalar_one_or_none()
 
-            return chat
+        if not chat:
+            raise ChatException(
+                "Chat not found or you don't have permission to access it",
+                error_code=ErrorCode.CHAT_NOT_FOUND,
+                details={"chat_id": str(chat_id)},
+                status_code=404,
+            )
+        self.require_agent_workspace(user, chat.workspace_id)
+
+        return chat
 
     async def mark_chat_viewed(self, chat_id: UUID) -> None:
         # Explicitly keep updated_at in place — the Base onupdate would otherwise

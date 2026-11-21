@@ -158,7 +158,7 @@ class AgentService:
                 db, [(chat.workspace_id, inherited_cwd)]
             )
         for _, cwd in unreferenced:
-            await git_service.remove_worktree(sandbox_id, cwd)
+            asyncio.create_task(git_service.remove_worktree(sandbox_id, cwd))
         return worktree_cwd
 
     async def resolve_cwd(
