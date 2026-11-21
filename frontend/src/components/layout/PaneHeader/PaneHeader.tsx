@@ -86,9 +86,10 @@ interface AgentPaneHeaderProps {
   chatId: string;
   inTile: boolean;
   tabs?: string[];
+  inStrip: boolean;
 }
 
-function AgentPaneHeader({ agentTile, chatId, inTile, tabs }: AgentPaneHeaderProps) {
+function AgentPaneHeader({ agentTile, chatId, inTile, tabs, inStrip }: AgentPaneHeaderProps) {
   const navigate = useNavigate();
   const chat = useChatQuery(chatId).data;
   const focused = useUIStore((s) => s.activeAgentTile === agentTile);
@@ -98,7 +99,6 @@ function AgentPaneHeader({ agentTile, chatId, inTile, tabs }: AgentPaneHeaderPro
     s.activeStreamMetadata.some((meta) => meta.chatId === chatId),
   );
   const status = blocked ? 'blocked' : streaming ? 'streaming' : null;
-  const tabNamesChat = !!tabs?.includes(chatId);
   const menuTrigger = <ChatMenuTrigger chatId={chatId} />;
 
   const closePane = () => {
@@ -113,7 +113,7 @@ function AgentPaneHeader({ agentTile, chatId, inTile, tabs }: AgentPaneHeaderPro
   return (
     <div className={clsx(styles.header, inTile && styles['header--in-tile'])}>
       <div className={styles.naming}>
-        {!tabNamesChat && (
+        {!inStrip && (
           <div className={styles['title-wrap']}>
             {status && <ChatStatusIcon status={status} />}
             <span className={clsx(styles.title, focused && styles['title--focused'])}>
@@ -123,7 +123,7 @@ function AgentPaneHeader({ agentTile, chatId, inTile, tabs }: AgentPaneHeaderPro
           </div>
         )}
         {tabs && (
-          <div className={clsx(styles.strip, !tabNamesChat && styles['strip--after-title'])}>
+          <div className={clsx(styles.strip, !inStrip && styles['strip--after-title'])}>
             <ChatTabs tabs={tabs} menu={{ chatId, trigger: menuTrigger }} />
           </div>
         )}
@@ -141,9 +141,10 @@ interface ViewTileHeaderProps {
   chatId: string;
   inTile: boolean;
   tabs?: string[];
+  inStrip: boolean;
 }
 
-function ViewTileHeader({ tileId, chatId, inTile, tabs }: ViewTileHeaderProps) {
+function ViewTileHeader({ tileId, chatId, inTile, tabs, inStrip }: ViewTileHeaderProps) {
   const title = useChatQuery(chatId).data?.title;
   const view = tileIdToViewType(tileId);
   const agentTile = agentTileFor(tileId);
@@ -156,7 +157,7 @@ function ViewTileHeader({ tileId, chatId, inTile, tabs }: ViewTileHeaderProps) {
       <div className={styles.naming}>
         <Icon className={styles['view-glyph']} />
         <span className={styles['view-label']}>
-          {title ? `${label} · ${stripMarkdownTitle(title)}` : label}
+          {title && !inStrip ? `${label} · ${stripMarkdownTitle(title)}` : label}
         </span>
         {tabs && (
           <div className={clsx(styles.strip, styles['strip--after-title'])}>
@@ -180,9 +181,10 @@ interface PaneHeaderProps {
   chatId: string;
   inTile: boolean;
   tabs?: string[];
+  inStrip?: boolean;
 }
 
-function PaneHeader({ tileId, chatId, inTile, tabs }: PaneHeaderProps) {
+function PaneHeader({ tileId, chatId, inTile, tabs, inStrip = false }: PaneHeaderProps) {
   if (tileIdToViewType(tileId) === 'agent') {
     return (
       <AgentPaneHeader
@@ -190,10 +192,13 @@ function PaneHeader({ tileId, chatId, inTile, tabs }: PaneHeaderProps) {
         chatId={chatId}
         inTile={inTile}
         tabs={tabs}
+        inStrip={inStrip}
       />
     );
   }
-  return <ViewTileHeader tileId={tileId} chatId={chatId} inTile={inTile} tabs={tabs} />;
+  return (
+    <ViewTileHeader tileId={tileId} chatId={chatId} inTile={inTile} tabs={tabs} inStrip={inStrip} />
+  );
 }
 
 export function InTilePaneHeader({ tileId, chatId }: { tileId: TileId; chatId: string }) {
@@ -243,6 +248,7 @@ export function PaneHeaderBand({ routedChatId, leading, tabs }: PaneHeaderBandPr
                   chatId={chatId}
                   inTile={false}
                   tabs={index === 0 && stripTabs.length > 0 ? stripTabs : undefined}
+                  inStrip={stripTabs.includes(chatId)}
                 />
               )}
             </div>
