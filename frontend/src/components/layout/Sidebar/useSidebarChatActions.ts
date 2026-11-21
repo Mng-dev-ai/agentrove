@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import type { Chat } from '@/types/chat.types';
 import {
   useDeleteChatMutation,
+  useForkChatMutation,
   useGenerateChatTitleMutation,
   useUpdateChatMutation,
   usePinChatMutation,
@@ -47,6 +48,7 @@ export function useSidebarChatActions({
   const updateChat = useUpdateChatMutation();
   const generateChatTitle = useGenerateChatTitleMutation();
   const pinChat = usePinChatMutation();
+  const forkChat = useForkChatMutation();
   const splitChatIds = useUIStore((state) => state.splitChatIds);
 
   // Auto-expand parent when navigating to a sub-thread from outside the sidebar
@@ -235,6 +237,19 @@ export function useSidebarChatActions({
     [pinChat],
   );
 
+  const handleForkChat = useCallback(
+    async (chat: Chat) => {
+      setDropdown(null);
+      try {
+        const fork = await forkChat.mutateAsync(chat.id);
+        navigate(`/chat/${fork.id}`);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : 'Failed to fork chat');
+      }
+    },
+    [forkChat, navigate],
+  );
+
   return {
     hoveredChatId,
     dropdown,
@@ -264,6 +279,8 @@ export function useSidebarChatActions({
     handleSaveRename,
     handleGenerateChatTitle,
     handleTogglePin,
+    handleForkChat,
+    forkPending: forkChat.isPending,
   };
 }
 

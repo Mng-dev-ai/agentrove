@@ -21,6 +21,7 @@ from acp.schema import (
     Cost,
     ElicitationFormSessionMode,
     FileEditToolCallContent,
+    ForkSessionResponse,
     ImageContentBlock,
     InitializeResponse,
     ListSessionsResponse,
@@ -272,8 +273,11 @@ class FakeAgent:
         session_id: str,
         mcp_servers: list[Any] | None = None,
         **kwargs: Any,
-    ) -> None:
-        raise NotImplementedError
+    ) -> ForkSessionResponse:
+        log_event({"event": "fork_session", "cwd": cwd, "session_id": session_id})
+        if SCENARIO == "fork_session_error":
+            raise RuntimeError("simulated fork_session failure")
+        return ForkSessionResponse(session_id=f"fake-acp-fork-{uuid4().hex}")
 
     async def resume_session(
         self,

@@ -47,7 +47,7 @@ class HandoffService:
             current = await db.get(Message, assistant_message_id)
             assert current is not None
             anchor = (
-                await self._latest_settled_turn(db, chat_id, agent_kind, current)
+                await self.latest_settled_turn(db, chat_id, agent_kind, current)
                 if resume
                 else None
             )
@@ -78,14 +78,14 @@ class HandoffService:
         )
 
     @classmethod
-    async def _latest_settled_turn(
+    async def latest_settled_turn(
         cls,
         db: AsyncSession,
         chat_id: UUID,
         agent_kind: AgentKind,
-        current: Message,
+        before: Message | None = None,
     ) -> Message | None:
-        result = await db.execute(
+        query = (
             select(Message)
             .where(
                 Message.chat_id == chat_id,
@@ -101,11 +101,13 @@ class HandoffService:
                     ),
                 ),
                 Message.model_id.in_(cls._model_ids(agent_kind)),
-                Message.created_at < current.created_at,
             )
             .order_by(Message.created_at.desc())
             .limit(1)
         )
+        if before is not None:
+            query = query.where(Message.created_at < before.created_at)
+        result = await db.execute(query)
         return cast(Message | None, result.scalar_one_or_none())
 
     @staticmethod

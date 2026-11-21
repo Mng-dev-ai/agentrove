@@ -57,6 +57,7 @@ ACP_PROTOCOL_VERSION = 1
 # tool output (e.g. full file reads, large diffs) without hitting asyncio's
 # default 64 KB stream buffer limit.
 STDIO_BUFFER_LIMIT = 100 * 1024 * 1024
+FORK_SESSION_TIMEOUT_SECONDS = 60.0
 
 IMAGE_MIME_BY_EXT: dict[str, str] = {
     ".png": "image/png",
@@ -103,6 +104,8 @@ class AcpSessionConfig:
     channel_member: bool = False
     permission_mode: str = "default"
     resume_session_id: str | None = None
+    # Another chat's native session to copy with ACP session/fork.
+    fork_session_id: str | None = None
     workspace_path: str | None = None
     system_prompt: str | None = None
     system_prompt_is_full_replace: bool = False
@@ -516,6 +519,19 @@ class AcpSession:
                     handler.prepare_for_prompt()
                 acp_session_id = config.resume_session_id
                 config_options = load_response.config_options if load_response else None
+            elif config.fork_session_id:
+                # No MCP servers: the copy is closed right away and gets them
+                # when its own chat loads it.
+                fork_response = await asyncio.wait_for(
+                    conn.fork_session(
+                        cwd=spawn_config.cwd,
+                        session_id=config.fork_session_id,
+                        mcp_servers=[],
+                    ),
+                    timeout=FORK_SESSION_TIMEOUT_SECONDS,
+                )
+                acp_session_id = fork_response.session_id
+                config_options = fork_response.config_options
             else:
                 response = await conn.new_session(
                     cwd=spawn_config.cwd,

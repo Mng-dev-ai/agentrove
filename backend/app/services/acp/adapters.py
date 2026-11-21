@@ -109,6 +109,10 @@ class AgentAdapter:
     # Value that resets effort when the user picks none; resumed sessions
     # otherwise keep the last tier. None = nothing to send.
     unset_effort_value: str | None = None
+    # ACP session/fork verified live against a settled session whose process is
+    # still running, then loaded from a new process (claude-agent-acp 0.109.0,
+    # codex-acp 2.8.0, OpenCode 2.3.2).
+    supports_fork = False
 
     @staticmethod
     def loads_agentrove_mcp(
@@ -231,6 +235,7 @@ class ClaudeAgentAdapter(AgentAdapter):
     session_modes = frozenset({"default", "acceptEdits", "plan", "bypassPermissions"})
     binary = "claude-agent-acp"
     effort_config_id = "effort"
+    supports_fork = True
 
     def build_launch_config(
         self,
@@ -266,6 +271,7 @@ class ClaudeAgentAdapter(AgentAdapter):
 class CodexAgentAdapter(AgentAdapter):
     binary = "codex-acp"
     effort_config_id = "reasoning_effort"
+    supports_fork = True
     # UI permission mode → codex-acp session mode (each bundles approval + sandbox policy).
     SESSION_MODE_IDS = {
         "auto": "agent",
@@ -446,6 +452,7 @@ class OpencodeAgentAdapter(AgentAdapter):
     fallback_session_mode = "plan"
     effort_config_id = "effort"
     unset_effort_value = "default"
+    supports_fork = True
     # OpenCode 2 allows external directories by default; restore v1's ask
     # (host-mode sessions share the real HOME). Built-in plan writes here.
     BASE_CONFIG: dict[str, Any] = {

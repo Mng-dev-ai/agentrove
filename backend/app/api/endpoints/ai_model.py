@@ -36,6 +36,7 @@ async def list_models(
                 AGENT_ADAPTERS[info.agent_kind].valid_thinking_modes(mid),
                 key=THINKING_MODE_ORDER.index,
             ),
+            supports_fork=AGENT_ADAPTERS[info.agent_kind].supports_fork,
         )
         for mid, info in MODELS.items()
         if kind is None or info.agent_kind == kind

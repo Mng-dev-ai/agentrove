@@ -1,6 +1,8 @@
 import { memo, type Ref } from 'react';
-import { Edit2, Folder, Trash2, Pin, PinOff, SplitSquareHorizontal } from 'lucide-react';
+import { Edit2, Folder, GitFork, Trash2, Pin, PinOff, SplitSquareHorizontal } from 'lucide-react';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
+import { useModelMap } from '@/hooks/queries/useModelQueries';
+import { useChatMachineId } from '@/store/machineOrigin';
 import type { Chat } from '@/types/chat.types';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
 import styles from './ChatDropdown.module.scss';
@@ -12,6 +14,8 @@ interface ChatDropdownProps {
   onRename: (chat: Chat) => void;
   onDelete: (chatId: string) => void;
   onTogglePin: (chat: Chat) => void;
+  onFork: (chat: Chat) => void;
+  forkPending: boolean;
   onWorkspaceOptions: (chat: Chat) => void;
   onOpenInSplit?: (chatId: string) => void;
   splitDisabled?: boolean;
@@ -25,6 +29,8 @@ export const ChatDropdown = memo(function ChatDropdown({
   onRename,
   onDelete,
   onTogglePin,
+  onFork,
+  forkPending,
   onWorkspaceOptions,
   onOpenInSplit,
   splitDisabled = false,
@@ -32,6 +38,10 @@ export const ChatDropdown = memo(function ChatDropdown({
 }: ChatDropdownProps) {
   const isPinned = !!chat.pinned_at;
   const isSubThread = !!chat.parent_chat_id;
+  const model = useModelMap({ machineId: useChatMachineId(chat.id) }).get(chat.last_model_id ?? '');
+  // The fork copies the agent's own session, so the chat must have run on that agent.
+  const canFork =
+    !chat.channel_id && !!model?.supports_fork && chat.session_agent_kind === model.agent_kind;
 
   return (
     <SidebarMenu ref={ref} position={position} onClose={onClose}>
@@ -53,6 +63,11 @@ export const ChatDropdown = memo(function ChatDropdown({
             Open in split
           </SidebarMenuItem>
         </FloatingTooltip>
+      )}
+      {canFork && (
+        <SidebarMenuItem icon={GitFork} onClick={() => onFork(chat)} disabled={forkPending}>
+          Fork
+        </SidebarMenuItem>
       )}
       <SidebarMenuItem icon={Folder} onClick={() => onWorkspaceOptions(chat)}>
         Workspace

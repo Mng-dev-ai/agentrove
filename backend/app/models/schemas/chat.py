@@ -102,6 +102,12 @@ class Chat(ChatBase):
     last_permission_mode: PermissionMode | None = None
     last_thinking_mode: str | None = None
     last_persona_name: str | None = None
+    forked_from_chat_id: UUID | None = None
+    forked_from_title: str | None = None
+
+
+class ChatFork(BaseModel):
+    as_sub_thread: bool = False
 
 
 class ContextUsage(BaseModel):

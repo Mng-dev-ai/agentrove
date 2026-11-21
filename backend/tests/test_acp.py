@@ -2,6 +2,7 @@ import asyncio
 import base64
 import json
 import os
+import subprocess
 import sys
 import time
 from collections.abc import Iterator
@@ -18,6 +19,7 @@ import pytest_asyncio
 from acp.schema import HttpMcpServer
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 import app.main as main_module
@@ -26,8 +28,9 @@ from app.core.config import Settings, get_settings
 from app.core.security import authenticate_websocket_user, create_mcp_access_token
 from app.db.session import SessionLocal
 from app.models.db_models.automation import Automation
-from app.models.db_models.channel import ChannelDelivery
-from app.models.db_models.chat import Chat
+from app.models.db_models.channel import Channel, ChannelDelivery
+from app.models.db_models.chat import Chat, Message
+from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
@@ -41,7 +44,13 @@ from app.services.session_registry import session_registry
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.agent import AgentService
 from app.services.exceptions import AgentException
+from app.services.fork import ForkService
+from app.services.git import GitService
+from app.services.handoff import HandoffService
+from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType
+from app.services.sandbox_providers.base import SandboxProvider
+from app.services.sandbox_providers.host_provider import LocalHostProvider
 from app.services.session_registry import SessionRegistry
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
@@ -3779,3 +3788,390 @@ async def test_manual_automation_run_is_bound_to_the_clicking_device(
     [token] = minted_mcp_tokens(fake_agent)
     claims = jwt.decode(token, options={"verify_signature": False})
     assert claims["did"] == [paired["device_id"]]
+
+
+async def run_chat_turn(
+    client: httpx.AsyncClient,
+    headers: dict[str, str],
+    chat_id: str,
+    prompt: str,
+    *,
+    model_id: str = "sonnet",
+) -> dict[str, Any]:
+    response = await send_message(
+        client, headers, chat_id=chat_id, model_id=model_id, prompt=prompt
+    )
+    assert response.status_code == 200, response.text
+    return await wait_for_message(
+        client, headers, chat_id=chat_id, message_id=response.json()["message_id"]
+    )
+
+
+async def fork_chat(
+    client: httpx.AsyncClient, headers: dict[str, str], chat_id: str, **body: Any
+) -> httpx.Response:
+    response = await client.post(
+        f"/api/v1/chat/chats/{chat_id}/fork", json=body, headers=headers
+    )
+    # The native fork runs behind the response; let it finish before asserting.
+    await asyncio.gather(*ForkService._inflight.values(), return_exceptions=True)
+    return response
+
+
+def init_git_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    for args in (
+        ["-c", "init.defaultBranch=main", "init", "-q"],
+        ["config", "user.email", "test@example.com"],
+        ["config", "user.name", "Test"],
+        ["config", "commit.gpgsign", "false"],
+        ["commit", "-q", "--allow-empty", "-m", "initial"],
+    ):
+        subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
+    return repo
+
+
+async def settle_worktree_removals() -> None:
+    # Removal runs fire-and-forget behind the request that decided it.
+    pending = [
+        t
+        for t in asyncio.all_tasks()
+        if t.get_coro().__qualname__.endswith("remove_worktree")
+    ]
+    if pending:
+        await asyncio.wait(pending, timeout=5.0)
+
+
+async def test_fork_chat_refuses_what_it_cannot_fork(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    create_user: UserFactory,
+    login: LoginClient,
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+
+    unsettled = await fork_chat(client, headers, chat["id"])
+    assert unsettled.status_code == 409, unsettled.text
+
+    await run_chat_turn(client, headers, chat["id"], "first")
+    other_headers, _, _ = await create_authenticated_workspace(
+        db_session, create_user, login, email="other@example.com", username="other"
+    )
+    assert (await fork_chat(client, other_headers, chat["id"])).status_code == 404
+
+    sub_thread = await client.post(
+        "/api/v1/chat/chats",
+        json={
+            "title": "Sub",
+            "model_id": "sonnet",
+            "workspace_id": str(workspace.id),
+            "parent_chat_id": chat["id"],
+        },
+        headers=headers,
+    )
+    nested = await fork_chat(
+        client, headers, sub_thread.json()["id"], as_sub_thread=True
+    )
+    assert nested.status_code == 400, nested.text
+
+    unsupported = await create_chat(
+        client, headers, workspace, model_id="copilot:claude-haiku-4.5"
+    )
+    refused = await fork_chat(client, headers, unsupported["id"])
+    assert refused.status_code == 400, refused.text
+    assert "can't fork" in refused.json()["detail"]
+
+    forked = await fork_chat(client, headers, chat["id"])
+    assert forked.status_code in (201, 404), forked.text
+    fork = forked.json()
+    assert fork["forked_from_chat_id"] == chat["id"]
+    assert fork["forked_from_title"] != chat["title"]
+    assert fork["title"] == f"Fork: {fork['forked_from_title']}"
+    assert (fork["last_model_id"], fork["parent_chat_id"]) == ("sonnet", None)
+    assert not {"fork_source_session_id", "forked_session_id"} & fork.keys()
+
+    channel = Channel(user_id=chat["user_id"], workspace_id=workspace.id, name="team")
+    db_session.add(channel)
+    await db_session.flush()
+    await db_session.execute(
+        update(Chat).where(Chat.id == UUID(chat["id"])).values(channel_id=channel.id)
+    )
+    await db_session.commit()
+    assert (await fork_chat(client, headers, chat["id"])).status_code == 404
+
+
+async def test_fork_first_turn_continues_a_copy_of_the_source_session(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    source = await create_chat(client, headers, workspace, model_id="sonnet")
+    await run_chat_turn(client, headers, source["id"], "source turn")
+    source_session_id = fake_agent.main_turn_prompts()[-1]["session_id"]
+
+    fork = (await fork_chat(client, headers, source["id"])).json()
+    [forked] = fake_agent.events_of("fork_session")
+    assert forked["session_id"] == source_session_id
+
+    deleted = await client.delete(f"/api/v1/chat/chats/{source['id']}", headers=headers)
+    assert deleted.status_code == 204, deleted.text
+
+    message = await run_chat_turn(client, headers, fork["id"], "fork turn")
+    assert message["stream_status"] == "completed"
+    fork_session_id = fake_agent.main_turn_prompts()[-1]["session_id"]
+    assert fork_session_id.startswith("fake-acp-fork-")
+    assert [e["session_id"] for e in fake_agent.events_of("load_session")] == [
+        fork_session_id
+    ]
+    assert len(fake_agent.events_of("fork_session")) == 1
+    detail = await client.get(f"/api/v1/chat/chats/{fork['id']}", headers=headers)
+    assert detail.json()["title"] == fork["title"]
+
+
+async def test_fork_session_failure_fails_the_turn_and_retry_converges(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, workspace = auth_workspace
+    source = await create_chat(client, headers, workspace, model_id="sonnet")
+    await run_chat_turn(client, headers, source["id"], "source turn")
+
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", "fork_session_error")
+    forked = await fork_chat(client, headers, source["id"])
+    assert forked.status_code in (201, 404), forked.text
+    fork = forked.json()
+
+    failed = await run_chat_turn(client, headers, fork["id"], "fork turn")
+    assert failed["stream_status"] == "failed"
+    assert "Couldn't copy the source chat's session" in failed["content_text"]
+    assert len(fake_agent.main_turn_prompts()) == 1
+
+    monkeypatch.setenv("FAKE_ACP_SCENARIO", "normal")
+    retried = await run_chat_turn(client, headers, fork["id"], "fork turn again")
+    assert retried["stream_status"] == "completed"
+    fork_session_id = fake_agent.main_turn_prompts()[-1]["session_id"]
+    assert fork_session_id.startswith("fake-acp-fork-")
+
+    await run_chat_turn(client, headers, fork["id"], "fork turn three")
+    assert fake_agent.main_turn_prompts()[-1]["session_id"] == fork_session_id
+    assert len(fake_agent.events_of("fork_session")) == 3
+
+
+async def test_fork_first_turn_ahead_of_the_creation_copy_forks_once(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, workspace = auth_workspace
+    source = await create_chat(client, headers, workspace, model_id="sonnet")
+    await run_chat_turn(client, headers, source["id"], "source turn")
+    publish = ChatService.publish_user_chat_event
+    message_ids: list[str] = []
+
+    async def send_first_turn_on_announce(
+        user_id: UUID, payload: dict[str, Any]
+    ) -> None:
+        await publish(user_id, payload)
+        if payload["kind"] != "chat_created":
+            return
+        fork_id = payload["chat"]["id"]
+        response = await send_message(
+            client, headers, chat_id=fork_id, model_id="sonnet", prompt="fork turn"
+        )
+        message_ids.append(response.json()["message_id"])
+        async with asyncio.timeout(5):
+            while UUID(fork_id) not in ForkService._inflight:
+                await asyncio.sleep(0.01)
+
+    monkeypatch.setattr(
+        ChatService,
+        "publish_user_chat_event",
+        staticmethod(send_first_turn_on_announce),
+    )
+    fork = (await fork_chat(client, headers, source["id"])).json()
+    [message_id] = message_ids
+    message = await wait_for_message(
+        client, headers, chat_id=fork["id"], message_id=message_id
+    )
+
+    assert message["stream_status"] == "completed"
+    assert len(fake_agent.events_of("fork_session")) == 1
+    stored = await db_session.scalar(
+        select(Chat.forked_session_id).where(Chat.id == UUID(fork["id"]))
+    )
+    assert fake_agent.main_turn_prompts()[-1]["session_id"] == stored
+
+
+async def test_fork_first_turn_on_another_agent_kind_fails_without_a_prompt(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    source = await create_chat(client, headers, workspace, model_id="sonnet")
+    await run_chat_turn(client, headers, source["id"], "source turn")
+    fork = (await fork_chat(client, headers, source["id"])).json()
+
+    failed = await run_chat_turn(
+        client, headers, fork["id"], "fork turn", model_id="copilot:claude-haiku-4.5"
+    )
+
+    assert failed["stream_status"] == "failed"
+    assert "Send its first message with a Claude model" in failed["content_text"]
+    assert len(fake_agent.main_turn_prompts()) == 1
+
+
+async def test_fork_never_outlives_the_worktree_of_a_source_deleted_meanwhile(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    repo = init_git_repo(tmp_path)
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    workspace.workspace_path = str(repo)
+    source = await create_chat_row(db_session, user, workspace, title="Source")
+    source.last_model_id = "sonnet"
+    source.worktree_cwd = await GitService(
+        SandboxService(LocalHostProvider(str(repo)))
+    ).create_worktree(str(workspace.sandbox_id), "", str(source.id))
+    db_session.add(
+        Message(
+            chat_id=source.id,
+            role=MessageRole.ASSISTANT,
+            content_text="done",
+            model_id="sonnet",
+            session_id="source-session",
+            stream_status=MessageStreamStatus.COMPLETED,
+        )
+    )
+    await db_session.commit()
+    latest_settled_turn = HandoffService.latest_settled_turn
+    deletions: list[asyncio.Task[httpx.Response]] = []
+
+    async def delete_source_before_the_insert(*args: Any) -> Message | None:
+        anchor = await latest_settled_turn(*args)
+        deletions.append(
+            asyncio.create_task(
+                client.delete(f"/api/v1/chat/chats/{source.id}", headers=headers)
+            )
+        )
+        # Long enough for an unserialised delete to finish; a serialised one
+        # is still waiting for the fork's transaction.
+        await asyncio.wait(deletions, timeout=0.5)
+        return anchor
+
+    monkeypatch.setattr(
+        HandoffService, "latest_settled_turn", delete_source_before_the_insert
+    )
+    forked = await fork_chat(client, headers, str(source.id))
+    assert (await deletions[0]).status_code == 204
+    await settle_worktree_removals()
+
+    assert forked.status_code in (201, 404), forked.text
+    if forked.status_code == 201:
+        assert forked.json()["worktree_cwd"] == source.worktree_cwd
+        assert (repo / source.worktree_cwd).is_dir()
+
+
+@pytest.mark.parametrize("source_deleted", [True, False])
+async def test_fork_leaving_an_inherited_worktree_removes_it_once_unreferenced(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    source_deleted: bool,
+) -> None:
+    repo = init_git_repo(tmp_path)
+    provider = LocalHostProvider(str(repo))
+    monkeypatch.setattr(
+        SandboxProvider, "create_provider", lambda *_args, **_kwargs: provider
+    )
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    source = await create_chat_row(db_session, user, workspace, title="Source")
+    fork = await create_chat_row(db_session, user, workspace, title="Fork")
+    inherited_cwd = await GitService(SandboxService(provider)).create_worktree(
+        str(workspace.sandbox_id), "", str(source.id)
+    )
+    source.worktree_cwd = fork.worktree_cwd = inherited_cwd
+    fork.forked_from_chat_id = source.id
+    await db_session.commit()
+    if source_deleted:
+        response = await client.delete(
+            f"/api/v1/chat/chats/{source.id}", headers=headers
+        )
+        assert response.status_code == 204, response.text
+    fork = (
+        await db_session.execute(
+            select(Chat).options(selectinload(Chat.workspace)).where(Chat.id == fork.id)
+        )
+    ).scalar_one()
+
+    own_cwd = await AgentService().resolve_cwd(fork, worktree=True)
+    await settle_worktree_removals()
+
+    assert own_cwd == GitService.chat_worktree_path(str(fork.id))
+    assert (repo / own_cwd).is_dir()
+    assert (repo / inherited_cwd).exists() is not source_deleted
+    branches = subprocess.run(
+        ["git", "branch", "--list", "worktree-*"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.split()
+    assert (f"worktree-{str(source.id)[:8]}" in branches) is not source_deleted
+
+
+@pytest.mark.parametrize("first_deleted", ["owner", "borrower"])
+async def test_shared_worktree_is_removed_with_its_last_chat(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+    first_deleted: str,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    owner = await create_chat_row(db_session, user, workspace, title="Owner")
+    borrower = await create_chat_row(db_session, user, workspace, title="Fork")
+    worktree_cwd = GitService.chat_worktree_path(str(owner.id))
+    owner.worktree_cwd = borrower.worktree_cwd = worktree_cwd
+    borrower.forked_from_chat_id = owner.id
+    await db_session.commit()
+    removed = AsyncMock()
+    monkeypatch.setattr(GitService, "remove_worktree", removed)
+    first, last = (owner, borrower) if first_deleted == "owner" else (borrower, owner)
+
+    for chat, expected_calls in ((first, 0), (last, 1)):
+        response = await client.delete(f"/api/v1/chat/chats/{chat.id}", headers=headers)
+        assert response.status_code == 204, response.text
+        await asyncio.sleep(0)
+        assert removed.await_count == expected_calls
+    removed.assert_awaited_once_with(workspace.sandbox_id, worktree_cwd)

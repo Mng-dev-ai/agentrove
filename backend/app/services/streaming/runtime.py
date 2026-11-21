@@ -30,7 +30,7 @@ from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.queue import QueuedMessage
-from app.models.types import MessageAttachmentDict, PermissionMode
+from app.models.types import AgentKind, MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -47,6 +47,7 @@ from app.services.exceptions import (
     SandboxException,
 )
 from app.services.git import GitService
+from app.services.fork import ForkService
 from app.services.handoff import HandoffService
 from app.services.memory import MemoryService
 from app.services.message import MessageService
@@ -1169,6 +1170,9 @@ class ChatStreamRuntime:
     async def _generate_title(self) -> None:
         if self.member_turn is not None or not self.prompt or not self._is_new_chat:
             return
+        # A fork is titled after its source.
+        if self.chat.fork_agent_kind:
+            return
 
         ai_service = AgentService(session_factory=self.session_factory)
         user = User(id=self.chat.user_id)
@@ -1461,6 +1465,7 @@ class ChatStreamRuntime:
                 "parent_chat_id": str(chat.parent_chat_id)
                 if chat.parent_chat_id
                 else None,
+                "fork_agent_kind": chat.fork_agent_kind,
             },
             permission_mode=queued_msg["permission_mode"],
             model_id=queued_msg["model_id"],
@@ -1706,6 +1711,34 @@ class ChatStreamRuntime:
                 fast_mode=request.fast_mode,
                 channel_member=request.member_turn is not None,
             )
+            # A fork with no settled turn of its own continues its copy of the
+            # source's session; another agent kind can't load that copy.
+            fork_service = ForkService(runtime.session_factory)
+            fork_agent_kind = runtime.chat.fork_agent_kind
+            resumes_fork = (
+                handoff.resume_session_id is None
+                and fork_agent_kind == config.agent_kind.value
+            )
+            if resumes_fork:
+                config = replace(
+                    config,
+                    resume_session_id=await fork_service.ensure_session(
+                        UUID(runtime.chat_id), config
+                    ),
+                )
+            elif fork_agent_kind and handoff.resume_session_id is None:
+                async with runtime.session_factory() as db:
+                    own_turn = await HandoffService.latest_settled_turn(
+                        db, UUID(runtime.chat_id), AgentKind(fork_agent_kind)
+                    )
+                if own_turn is None:
+                    agent = fork_agent_kind.capitalize()
+                    raise ChatException(
+                        f"This fork continues its source chat's {agent} session, "
+                        "which another agent can't load. Send its first message "
+                        f"with a {agent} model; you can switch models after that.",
+                        error_code=ErrorCode.VALIDATION_ERROR,
+                    )
 
             try:
                 session, _ = await session_registry.get_or_create(
@@ -1721,6 +1754,15 @@ class ChatStreamRuntime:
                     or config.resume_session_id is None
                 ):
                     raise
+                if resumes_fork:
+                    # Starting fresh would silently drop the source's context;
+                    # forget the lost copy so the next send forks again.
+                    await fork_service.discard_session(UUID(runtime.chat_id))
+                    raise ChatException(
+                        "This fork's copy of the source chat's session is gone. "
+                        "Send your message again to fork it once more.",
+                        error_code=ErrorCode.VALIDATION_ERROR,
+                    ) from exc
                 handoff = await handoff_service.build(
                     chat_id=UUID(runtime.chat_id),
                     model_id=request.model_id,

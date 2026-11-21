@@ -102,6 +102,8 @@ export interface Chat {
   last_permission_mode?: PermissionMode | null;
   last_thinking_mode: string | null;
   last_persona_name: string | null;
+  forked_from_chat_id?: string | null;
+  forked_from_title?: string | null;
 }
 
 // /chat/chats/events SSE — useChatEvents (local) / useRemoteMachineSync (remote machines).
@@ -206,6 +208,7 @@ export interface Model {
   context_window: number | null;
   legacy?: boolean;
   thinking_modes: string[];
+  supports_fork?: boolean;
 }
 
 const CODEX_MODEL_IDS = new Set([

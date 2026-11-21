@@ -1,0 +1,68 @@
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/typography' as type;
+
+.row {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-4) var(--space-4) 0;
+
+  @include responsive.media('sm-up') {
+    padding-inline: var(--space-6);
+  }
+
+  // Above the composer of a fork with no messages yet.
+  &--composer {
+    padding-top: 0;
+    padding-bottom: var(--space-2);
+  }
+}
+
+.badge {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+  align-items: center;
+  gap: var(--space-1-5);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  background-color: var(--theme-surface-tertiary);
+  padding: var(--space-0-5) var(--space-1-5);
+}
+
+.icon {
+  flex-shrink: 0;
+  height: var(--space-3);
+  width: var(--space-3);
+  color: var(--theme-text-tertiary);
+}
+
+.label {
+  @include type.type-meta;
+  flex-shrink: 0;
+  color: var(--theme-text-tertiary);
+}
+
+.title {
+  @include type.type-meta;
+  @include type.type-overflow;
+  min-width: 0;
+  color: var(--theme-text-secondary);
+}
+
+.action {
+  @include type.type-meta(500);
+  @include anim.transition-colors;
+  flex-shrink: 0;
+  color: var(--theme-text-secondary);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+}
+
+.tooltip {
+  display: flex;
+  flex-shrink: 0;
+}

@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Row, func, or_, select, update, true
+from sqlalchemy import Row, func, or_, select, text, update, true
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
 from app.constants import (
@@ -41,10 +42,17 @@ from app.models.schemas.pagination import (
 )
 from app.models.types import ChatCompletionResult, MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME, build_system_prompt_for_chat
-from app.services.acp.adapters import AgentAdapter
+from app.services.acp.adapters import (
+    AGENT_ADAPTERS,
+    NORMAL_SESSION_MODE,
+    AgentAdapter,
+)
+from app.services.agent import AgentService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException, ErrorCode
+from app.services.fork import ForkService
 from app.services.git import GitService
+from app.services.handoff import HandoffService
 from app.services.message import MessageService
 from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
@@ -299,39 +307,13 @@ class ChatService(BaseDbService[Chat]):
             worktree_cwd: str | None = None
 
             if chat_data.parent_chat_id:
-                parent_result = await db.execute(
-                    select(Chat).filter(
-                        Chat.id == chat_data.parent_chat_id,
-                        Chat.user_id == user.id,
-                        Chat.deleted_at.is_(None),
-                        Chat.is_visible(),
-                    )
+                parent = await self._attach_to_parent(
+                    db, user, chat_data.parent_chat_id
                 )
-                parent = parent_result.scalar_one_or_none()
-                if not parent:
-                    raise ChatException(
-                        "Parent chat not found",
-                        error_code=ErrorCode.CHAT_NOT_FOUND,
-                        details={"parent_chat_id": str(chat_data.parent_chat_id)},
-                        status_code=404,
-                    )
-                if parent.parent_chat_id is not None:
-                    raise ChatException(
-                        "Cannot create a sub-thread of a sub-thread",
-                        error_code=ErrorCode.VALIDATION_ERROR,
-                        status_code=400,
-                    )
                 workspace_id = parent.workspace_id
                 # Sub-threads run in the parent's worktree so they see its
                 # uncommitted changes (e.g. /review-branch on the parent's diff).
                 worktree_cwd = parent.worktree_cwd
-                # Ordering-only bump, not new parent content — carry read state
-                # across it so an already-read parent doesn't flip to unread.
-                was_read = not parent.unread
-                now = datetime.now(timezone.utc)
-                parent.updated_at = now
-                if was_read:
-                    parent.last_viewed_at = now
 
             self.require_agent_workspace(user, workspace_id)
             ws_result = await db.execute(
@@ -350,36 +332,134 @@ class ChatService(BaseDbService[Chat]):
                     status_code=404,
                 )
 
-            chat = Chat(
-                title=chat_data.title,
-                last_model_id=chat_data.model_id,
-                user_id=user.id,
-                workspace_id=workspace.id,
-                parent_chat_id=chat_data.parent_chat_id,
-                worktree_cwd=worktree_cwd,
+            return await self._insert_and_announce(
+                db,
+                Chat(
+                    title=chat_data.title,
+                    last_model_id=chat_data.model_id,
+                    user_id=user.id,
+                    workspace_id=workspace.id,
+                    parent_chat_id=chat_data.parent_chat_id,
+                    worktree_cwd=worktree_cwd,
+                ),
             )
 
-            db.add(chat)
-            await db.commit()
-
-            query = (
-                select(Chat)
-                .options(selectinload(Chat.workspace))
-                .filter(Chat.id == chat.id)
+    async def fork_chat(
+        self, chat_id: UUID, user: User, *, as_sub_thread: bool = False
+    ) -> Chat:
+        async with self.session_factory() as db:
+            # Write lock before reading the source: deleting it, or removing
+            # the worktree it shares, checks for live references under the same
+            # lock, so neither can land between this read and the insert.
+            await db.execute(text("BEGIN IMMEDIATE"))
+            source = await self._live_chat(db, chat_id, user)
+            model_id = source.last_model_id
+            model = MODELS.get(model_id or "")
+            if (
+                model_id is None
+                or model is None
+                or not AGENT_ADAPTERS[model.agent_kind].supports_fork
+            ):
+                raise ChatException(
+                    "This chat's agent can't fork a conversation",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                    status_code=400,
+                )
+            if as_sub_thread:
+                await self._attach_to_parent(db, user, source.id)
+            anchor = await HandoffService.latest_settled_turn(
+                db, source.id, model.agent_kind
             )
-            result = await db.execute(query)
-            loaded_chat: Chat = result.scalar_one()
+            if anchor is None:
+                raise ChatException(
+                    "This chat has no finished turn to fork yet",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                    status_code=409,
+                )
+            chat = await self._insert_and_announce(
+                db,
+                Chat(
+                    title=f"Fork: {source.title}"[:255],
+                    user_id=user.id,
+                    workspace_id=source.workspace_id,
+                    parent_chat_id=source.id if as_sub_thread else None,
+                    worktree_cwd=source.worktree_cwd,
+                    last_model_id=model_id,
+                    last_permission_mode=source.last_permission_mode,
+                    last_thinking_mode=source.last_thinking_mode,
+                    last_persona_name=source.last_persona_name,
+                    forked_from_chat_id=source.id,
+                    forked_from_title=source.title,
+                    fork_source_session_id=anchor.session_id,
+                    fork_agent_kind=model.agent_kind.value,
+                ),
+            )
 
+        # Copy the source's session now rather than on the fork's first turn,
+        # so the fork holds what the source knew at the click.
+        config = await AgentService(self.session_factory).build_session_config(
+            user=user,
+            device_ids=user.device_ids,
+            chat=chat,
+            model_id=model_id,
+            permission_mode=source.last_permission_mode
+            or NORMAL_SESSION_MODE[model.agent_kind],
+            session_id=None,
+        )
+        ForkService(self.session_factory).start(chat.id, config)
+        return chat
+
+    @staticmethod
+    async def _attach_to_parent(db: AsyncSession, user: User, parent_id: UUID) -> Chat:
+        parent_result = await db.execute(
+            select(Chat).filter(
+                Chat.id == parent_id,
+                Chat.user_id == user.id,
+                Chat.deleted_at.is_(None),
+                Chat.is_visible(),
+            )
+        )
+        parent: Chat | None = parent_result.scalar_one_or_none()
+        if not parent:
+            raise ChatException(
+                "Parent chat not found",
+                error_code=ErrorCode.CHAT_NOT_FOUND,
+                details={"parent_chat_id": str(parent_id)},
+                status_code=404,
+            )
+        if parent.parent_chat_id is not None:
+            raise ChatException(
+                "Cannot create a sub-thread of a sub-thread",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=400,
+            )
+        # Ordering-only bump, not new parent content — carry read state
+        # across it so an already-read parent doesn't flip to unread.
+        was_read = not parent.unread
+        now = datetime.now(timezone.utc)
+        parent.updated_at = now
+        if was_read:
+            parent.last_viewed_at = now
+        return parent
+
+    async def _insert_and_announce(self, db: AsyncSession, chat: Chat) -> Chat:
+        db.add(chat)
+        await db.commit()
+        result = await db.execute(
+            select(Chat)
+            .options(selectinload(Chat.workspace))
+            .filter(Chat.id == chat.id)
+        )
+        loaded_chat: Chat = result.scalar_one()
         # Announce so open browser sessions can show chats created out-of-band
         # (e.g. via the MCP server) without a refresh.
         await self.publish_user_chat_event(
-            user.id,
+            loaded_chat.user_id,
             {
                 "kind": "chat_created",
                 "chat": ChatSchema.model_validate(loaded_chat).model_dump(mode="json"),
             },
         )
-
         return loaded_chat
 
     @staticmethod
@@ -540,33 +620,45 @@ class ChatService(BaseDbService[Chat]):
     async def get_chat(
         self, chat_id: UUID, user: User, *, include_channel: bool = False
     ) -> Chat:
-        # Workspace eager-loaded for sandbox_id; messages via /messages. sub_thread_count is caller-side.
         async with self.session_factory() as db:
-            query = (
-                select(Chat)
-                .filter(
-                    Chat.id == chat_id,
-                    Chat.user_id == user.id,
-                    Chat.deleted_at.is_(None),
-                    (Chat.is_visible() if not include_channel else true()),
-                )
-                .options(
-                    selectinload(Chat.workspace),
-                )
+            return await self._live_chat(
+                db, chat_id, user, include_channel=include_channel
             )
-            result = await db.execute(query)
-            chat: Chat | None = result.scalar_one_or_none()
 
-            if not chat:
-                raise ChatException(
-                    "Chat not found or you don't have permission to access it",
-                    error_code=ErrorCode.CHAT_NOT_FOUND,
-                    details={"chat_id": str(chat_id)},
-                    status_code=404,
-                )
-            self.require_agent_workspace(user, chat.workspace_id)
+    async def _live_chat(
+        self,
+        db: AsyncSession,
+        chat_id: UUID,
+        user: User,
+        *,
+        include_channel: bool = False,
+    ) -> Chat:
+        # Workspace eager-loaded for sandbox_id; messages via /messages. sub_thread_count is caller-side.
+        query = (
+            select(Chat)
+            .filter(
+                Chat.id == chat_id,
+                Chat.user_id == user.id,
+                Chat.deleted_at.is_(None),
+                (Chat.is_visible() if not include_channel else true()),
+            )
+            .options(
+                selectinload(Chat.workspace),
+            )
+        )
+        result = await db.execute(query)
+        chat: Chat | None = result.scalar_one_or_none()
 
-            return chat
+        if not chat:
+            raise ChatException(
+                "Chat not found or you don't have permission to access it",
+                error_code=ErrorCode.CHAT_NOT_FOUND,
+                details={"chat_id": str(chat_id)},
+                status_code=404,
+            )
+        self.require_agent_workspace(user, chat.workspace_id)
+
+        return chat
 
     async def mark_chat_viewed(self, chat_id: UUID) -> None:
         # Explicitly keep updated_at in place — the Base onupdate would otherwise
@@ -656,14 +748,6 @@ class ChatService(BaseDbService[Chat]):
             sub_threads = sub_thread_result.all()
             sub_thread_ids = [row[0] for row in sub_threads]
 
-            # Only worktrees these chats created themselves — a sub-thread's
-            # inherited worktree_cwd points at the parent's and won't match.
-            owned_worktrees = [
-                cwd
-                for cid, cwd in [(chat.id, chat.worktree_cwd), *sub_threads]
-                if cwd and cwd == GitService.chat_worktree_path(str(cid))
-            ]
-
             if sub_thread_ids:
                 await db.execute(
                     update(Chat)
@@ -686,6 +770,14 @@ class ChatService(BaseDbService[Chat]):
             )
             await db.execute(messages_update)
 
+            await db.flush()
+            worktrees = await AgentService.unreferenced_worktrees(
+                db,
+                [
+                    (chat.workspace_id, cwd)
+                    for cwd in (chat.worktree_cwd, *(row[1] for row in sub_threads))
+                ],
+            )
             await db.commit()
             await QueueService.clear_queues(
                 [str(cid) for cid in (chat_id, *sub_thread_ids)]
@@ -697,7 +789,7 @@ class ChatService(BaseDbService[Chat]):
 
             if sandbox_id:
                 git_service = GitService(sandbox)
-                for worktree_cwd in owned_worktrees:
+                for _, worktree_cwd in worktrees:
                     asyncio.create_task(
                         git_service.remove_worktree(sandbox_id, worktree_cwd)
                     )
@@ -712,23 +804,6 @@ class ChatService(BaseDbService[Chat]):
             result = await db.execute(chat_query)
             chat_rows = result.all()
             chat_ids = [str(row[0]) for row in chat_rows]
-
-            # Owned worktrees per workspace — host sandboxes share the user's
-            # repo, so worktrees would otherwise leak into the project.
-            worktrees_by_workspace: dict[UUID, list[str]] = {}
-            for cid, ws_id, cwd in chat_rows:
-                if cwd and cwd == GitService.chat_worktree_path(str(cid)):
-                    worktrees_by_workspace.setdefault(ws_id, []).append(cwd)
-
-            workspaces: list[Workspace] = []
-            if worktrees_by_workspace:
-                ws_result = await db.execute(
-                    select(Workspace).filter(
-                        Workspace.id.in_(worktrees_by_workspace.keys()),
-                        Workspace.deleted_at.is_(None),
-                    )
-                )
-                workspaces = list(ws_result.scalars().all())
 
             now = datetime.now(timezone.utc)
 
@@ -754,6 +829,24 @@ class ChatService(BaseDbService[Chat]):
                 )
                 .values(deleted_at=now)
             )
+
+            # Host sandboxes share the user's repo, so worktrees would
+            # otherwise leak into the project.
+            worktrees_by_workspace: dict[UUID, list[str]] = {}
+            for ws_id, cwd in await AgentService.unreferenced_worktrees(
+                db, [(row[1], row[2]) for row in chat_rows]
+            ):
+                worktrees_by_workspace.setdefault(ws_id, []).append(cwd)
+
+            workspaces: list[Workspace] = []
+            if worktrees_by_workspace:
+                ws_result = await db.execute(
+                    select(Workspace).filter(
+                        Workspace.id.in_(worktrees_by_workspace.keys()),
+                        Workspace.deleted_at.is_(None),
+                    )
+                )
+                workspaces = list(ws_result.scalars().all())
 
             await db.commit()
             await QueueService.clear_queues(chat_ids)
@@ -1306,6 +1399,7 @@ class ChatService(BaseDbService[Chat]):
                 "parent_chat_id": str(chat.parent_chat_id)
                 if chat.parent_chat_id
                 else None,
+                "fork_agent_kind": chat.fork_agent_kind,
             },
             permission_mode=permission_mode,
             model_id=model_id,
