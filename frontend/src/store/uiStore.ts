@@ -665,7 +665,7 @@ export const useUIStore = create<UIStoreState>()(
         const compactedActive = compactTileAfter(state.activeAgentTile, closedSlot);
         let activeAgentTile = compactedActive ? agentTileFor(compactedActive) : 'agent:primary';
         if (state.focusedTile && !compactedFocus) {
-          focusedTile = lastVisibleTile(visibleLayout);
+          focusedTile = isDesktop() ? lastVisibleTile(visibleLayout) : 'agent:primary';
           activeAgentTile = agentTileFor(focusedTile);
         }
         set({

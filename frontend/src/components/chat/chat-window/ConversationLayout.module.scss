@@ -15,6 +15,17 @@
   position: relative;
   flex: 1;
   overflow: hidden;
+
+  &--cornered .content {
+    padding-top: var(--space-8);
+  }
+}
+
+.corner {
+  @include z.z('raised');
+  position: absolute;
+  top: var(--space-1);
+  right: var(--space-1);
 }
 
 .scroller {
