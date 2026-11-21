@@ -6,6 +6,7 @@ import type { LucideIcon } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import type { ToolComponent } from '@/types/ui.types';
 import type { MessageAttachment } from '@/types/chat.types';
+import { buildImageAttachment } from '@/utils/imageAttachment';
 import { AttachmentViewer } from '@/components/ui/attachment-viewer/AttachmentViewer';
 import { ToolCard } from '../common/ToolCard/ToolCard';
 import { NumberedContent } from '../common/NumberedContent/NumberedContent';
@@ -67,14 +68,16 @@ const isImageBlock = (block: unknown): block is ImageBlock =>
 
 const toImageAttachments = (tool: ToolAggregate, filePath: string): MessageAttachment[] => {
   if (!Array.isArray(tool.result)) return [];
-  return tool.result.filter(isImageBlock).map((block, idx) => ({
-    id: `${tool.id}-${idx}`,
-    file_url: `data:${block.source.media_type};base64,${block.source.data}`,
-    file_type: 'image',
-    filename: filePath.split('/').pop() || 'image',
-    message_id: '',
-    created_at: '',
-  }));
+  return tool.result
+    .filter(isImageBlock)
+    .map((block, idx) =>
+      buildImageAttachment(
+        `${tool.id}-${idx}`,
+        filePath.split('/').pop() || 'image',
+        block.source.media_type,
+        block.source.data,
+      ),
+    );
 };
 
 interface DiffLine {

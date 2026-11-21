@@ -1,4 +1,5 @@
 import type { MessageAttachment } from '@/types/chat.types';
+import { buildImageAttachment } from '@/utils/imageAttachment';
 
 // MCP tool results can carry base64 image content blocks (e.g. browser
 // screenshots) in two shapes: Anthropic-style
@@ -92,15 +93,12 @@ export const extractToolResultImages = (toolId: string, result: unknown): Extrac
 
   const attachments = images.map((image, index): MessageAttachment => {
     const extension = IMAGE_EXTENSIONS[image.mediaType] ?? 'png';
-    return {
-      id: `${toolId}-image-${index}`,
-      message_id: '',
-      file_url: `data:${image.mediaType};base64,${image.data}`,
-      file_type: 'image',
-      filename:
-        images.length > 1 ? `screenshot-${index + 1}.${extension}` : `screenshot.${extension}`,
-      created_at: '',
-    };
+    return buildImageAttachment(
+      `${toolId}-image-${index}`,
+      images.length > 1 ? `screenshot-${index + 1}.${extension}` : `screenshot.${extension}`,
+      image.mediaType,
+      image.data,
+    );
   });
 
   return { attachments, remainder };

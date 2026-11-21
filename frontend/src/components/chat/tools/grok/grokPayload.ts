@@ -44,6 +44,10 @@ export interface GrokReadOutput {
     absolute_path?: string;
     total_lines?: number;
   };
+  ImageContent?: {
+    data?: string;
+    mime_type?: string;
+  };
 }
 
 export interface GrokListDirInput {
