@@ -252,14 +252,14 @@ export function useSidebarChatActions({
     [forkChat, navigate],
   );
 
-  const handleMoveToMainChats = useCallback(
+  const handleConvertToThread = useCallback(
     async (chat: Chat) => {
       setDropdown(null);
       try {
         await mutateWithToast(
           () => promoteChat.mutateAsync(chat),
-          'Moved to main chats',
-          'Failed to move chat',
+          'Converted to thread',
+          'Failed to convert to thread',
         );
       } catch {
         // toast already shown by mutateWithToast
@@ -299,8 +299,8 @@ export function useSidebarChatActions({
     handleTogglePin,
     handleForkChat,
     forkPending: forkChat.isPending,
-    handleMoveToMainChats,
-    movePending: promoteChat.isPending,
+    handleConvertToThread,
+    convertPending: promoteChat.isPending,
   };
 }
 

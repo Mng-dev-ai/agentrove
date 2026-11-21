@@ -1,5 +1,6 @@
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/controls' as controls;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/typography' as type;
 
@@ -51,18 +52,22 @@
   color: var(--theme-text-secondary);
 }
 
-.action {
-  @include type.type-meta(500);
+.title-link {
   @include anim.transition-colors;
-  flex-shrink: 0;
-  color: var(--theme-text-secondary);
+  @include controls.focus-ring(1px);
+  max-width: 100%;
+  border-radius: var(--radius-sm);
+  text-decoration: underline;
+  text-decoration-color: colors.theme-color('text-tertiary', 0.5);
+  text-underline-offset: 2px;
 
   @include responsive.hover {
     color: var(--theme-text-primary);
+    text-decoration-color: currentColor;
   }
 }
 
 .tooltip {
   display: flex;
-  flex-shrink: 0;
+  min-width: 0;
 }

@@ -27,8 +27,8 @@ interface ChatDropdownProps {
   onTogglePin: (chat: Chat) => void;
   onFork: (chat: Chat) => void;
   forkPending: boolean;
-  onMoveToMainChats: (chat: Chat) => void;
-  movePending: boolean;
+  onConvertToThread: (chat: Chat) => void;
+  convertPending: boolean;
   onWorkspaceOptions: (chat: Chat) => void;
   onOpenInSplit?: (chatId: string) => void;
   splitDisabled?: boolean;
@@ -44,8 +44,8 @@ export const ChatDropdown = memo(function ChatDropdown({
   onTogglePin,
   onFork,
   forkPending,
-  onMoveToMainChats,
-  movePending,
+  onConvertToThread,
+  convertPending,
   onWorkspaceOptions,
   onOpenInSplit,
   splitDisabled = false,
@@ -88,10 +88,10 @@ export const ChatDropdown = memo(function ChatDropdown({
       {isSubThread && (
         <SidebarMenuItem
           icon={CornerLeftUp}
-          onClick={() => onMoveToMainChats(chat)}
-          disabled={isRunning || movePending}
+          onClick={() => onConvertToThread(chat)}
+          disabled={isRunning || convertPending}
         >
-          Move to main chats
+          Convert to thread
         </SidebarMenuItem>
       )}
       <SidebarMenuItem icon={Folder} onClick={() => onWorkspaceOptions(chat)}>

@@ -28,16 +28,16 @@ function renderDropdown() {
         onTogglePin={vi.fn()}
         onFork={vi.fn()}
         forkPending={false}
-        onMoveToMainChats={vi.fn()}
-        movePending={false}
+        onConvertToThread={vi.fn()}
+        convertPending={false}
         onWorkspaceOptions={vi.fn()}
       />
     </QueryClientProvider>,
   );
-  return screen.getByRole('menuitem', { name: 'Move to main chats' }) as HTMLButtonElement;
+  return screen.getByRole('menuitem', { name: 'Convert to thread' }) as HTMLButtonElement;
 }
 
-describe('ChatDropdown "Move to main chats"', () => {
+describe('ChatDropdown "Convert to thread"', () => {
   beforeEach(() => useStreamStore.setState({ activeStreamMetadata: [] }));
 
   it('is offered for a sub-thread', () => {
