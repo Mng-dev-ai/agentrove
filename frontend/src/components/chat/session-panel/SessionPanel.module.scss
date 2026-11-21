@@ -5,8 +5,6 @@
 @use '@/styles/globals/spacing' as spacing;
 @use '@/styles/globals/zlayer' as z;
 
-$chat-min-width: 360px;
-
 .panel {
   display: flex;
   width: spacing.$session-panel-width;
@@ -39,8 +37,7 @@ $chat-min-width: 360px;
   flex-shrink: 0;
 }
 
-// Too narrow for the composer beside the panel: the panel covers the chat instead.
-@container agent-pane (width < #{spacing.$session-panel-width + $chat-min-width}) {
+@container agent-pane (width < #{spacing.$session-panel-width + spacing.$pane-chat-min-width}) {
   .pane-panel {
     @include z.z('sticky');
     position: absolute;

@@ -7,6 +7,7 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
 import { useUIStore } from '@/store/uiStore';
 import { stripMarkdownTitle } from '@/utils/format';
 import {
@@ -141,10 +142,19 @@ interface PaneHeaderProps {
 }
 
 function PaneHeader({ tileId, chatId, inTile }: PaneHeaderProps) {
-  if (tileIdToViewType(tileId) === 'agent') {
-    return <AgentPaneHeader agentTile={agentTileFor(tileId)} chatId={chatId} inTile={inTile} />;
-  }
-  return <ViewTileHeader tileId={tileId} chatId={chatId} inTile={inTile} />;
+  const agentTile = agentTileFor(tileId);
+  const isAgent = tileIdToViewType(tileId) === 'agent';
+  const panelOpen = useSessionPanelOpen(agentTile);
+  return (
+    <div className={clsx(styles.row, inTile && styles['row--in-tile'])}>
+      {isAgent ? (
+        <AgentPaneHeader agentTile={agentTile} chatId={chatId} inTile={inTile} />
+      ) : (
+        <ViewTileHeader tileId={tileId} chatId={chatId} inTile={inTile} />
+      )}
+      {isAgent && panelOpen && <div className={styles['panel-column']} />}
+    </div>
+  );
 }
 
 export function InTilePaneHeader({ tileId, chatId }: { tileId: TileId; chatId: string }) {

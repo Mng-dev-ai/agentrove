@@ -2,6 +2,7 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/spacing' as spacing;
 
 .band {
   display: grid;
@@ -12,6 +13,7 @@
 }
 
 .column {
+  container: pane-column / inline-size;
   display: flex;
   min-width: 0;
   align-items: flex-end;
@@ -30,6 +32,33 @@
   flex: 0 1 auto;
 }
 
+.row {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 0;
+  align-self: stretch;
+  align-items: flex-end;
+
+  &--in-tile {
+    container: pane-column / inline-size;
+    width: 100%;
+    flex: none;
+  }
+}
+
+.panel-column {
+  width: spacing.$session-panel-width;
+  flex-shrink: 0;
+  align-self: stretch;
+  border-left: 1px solid colors.theme-color('border', 0.5);
+}
+
+@container pane-column (width < #{spacing.$session-panel-width + spacing.$pane-chat-min-width}) {
+  .panel-column {
+    display: none;
+  }
+}
+
 .header {
   @include type.type-noselect;
   container: pane-header / inline-size;
@@ -43,8 +72,6 @@
   padding-inline: var(--space-3);
 
   &--in-tile {
-    width: 100%;
-    flex: none;
     border-bottom: 1px solid colors.theme-color('border', 0.5);
   }
 }

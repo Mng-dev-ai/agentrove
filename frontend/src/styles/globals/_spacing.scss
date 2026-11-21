@@ -13,6 +13,8 @@ $space-base: 0.275rem;
 $reading-column-width: 50rem;
 
 $session-panel-width: 280px;
+// Narrowest chat column (composer) shown beside a pane's session panel; below it the panel covers the chat.
+$pane-chat-min-width: 350px;
 
 $space-steps: (
   0,
