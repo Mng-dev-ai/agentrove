@@ -84,7 +84,7 @@ export async function startSideQuestion(
     title: question.replace(/\s+/g, ' ').slice(0, 80),
   });
   await applyCreatedChat(queryClient, sideChat);
-  useUIStore.getState().openSideQuestion(sideChat.id);
+  useUIStore.getState().openSideQuestion(sideChat.id, chat.id);
   await startChatTurn({
     prompt,
     chat_id: sideChat.id,

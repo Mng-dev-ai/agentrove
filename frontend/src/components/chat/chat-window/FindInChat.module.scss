@@ -8,7 +8,7 @@
   @include z.z('raised');
   position: absolute;
   top: var(--space-2);
-  right: var(--space-4);
+  right: var(--find-in-chat-right, var(--space-4));
   display: flex;
   align-items: center;
   gap: var(--space-1);

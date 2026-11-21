@@ -609,10 +609,11 @@ export const useUIStore = create<UIStoreState>()(
         });
       },
 
-      openSideQuestion: (chatId) => {
+      openSideQuestion: (chatId, askingChatId) => {
         const { splitChatIds } = get();
         if (!splitChatIds.includes(chatId) && splitChatIds.length >= MAX_CHAT_PANES - 1) {
-          get().closeSplitChat(splitChatIds[splitChatIds.length - 1]);
+          const evictable = splitChatIds.filter((id) => id !== askingChatId);
+          get().closeSplitChat(evictable[evictable.length - 1]);
         }
         get().openChatInSplit(chatId);
         if (isDesktop()) return;

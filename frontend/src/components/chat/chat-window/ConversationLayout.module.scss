@@ -16,6 +16,10 @@
   flex: 1;
   overflow: hidden;
 
+  &--cornered {
+    --find-in-chat-right: var(--space-10);
+  }
+
   &--cornered .content {
     padding-top: var(--space-8);
   }
