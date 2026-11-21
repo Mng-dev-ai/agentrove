@@ -104,7 +104,6 @@ export interface Chat {
   last_persona_name: string | null;
   forked_from_chat_id?: string | null;
   forked_from_title?: string | null;
-  is_side_question?: boolean;
 }
 
 // /chat/chats/events SSE — useChatEvents (local) / useRemoteMachineSync (remote machines).

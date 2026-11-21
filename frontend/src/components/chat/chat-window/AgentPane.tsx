@@ -6,7 +6,6 @@ import { useChatData } from '@/hooks/useChatData';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
-import { SideQuestionPane } from '@/components/chat/side-question/SideQuestionPane';
 
 interface AgentPaneProps {
   chatId: string;
@@ -41,11 +40,7 @@ export const AgentPane = memo(function AgentPane({ chatId }: AgentPaneProps) {
         messagesQuery={messagesQuery}
         useRouteInitialPrompt={false}
       >
-        {currentChat?.is_side_question ? (
-          <SideQuestionPane chat={currentChat} />
-        ) : (
-          <ChatComponent />
-        )}
+        <ChatComponent />
       </ChatSessionOrchestrator>
     </ChatProvider>
   );

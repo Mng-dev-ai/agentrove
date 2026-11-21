@@ -1,8 +1,18 @@
 import { memo, type Ref } from 'react';
-import { Edit2, Folder, GitFork, Trash2, Pin, PinOff, SplitSquareHorizontal } from 'lucide-react';
+import {
+  CornerLeftUp,
+  Edit2,
+  Folder,
+  GitFork,
+  Trash2,
+  Pin,
+  PinOff,
+  SplitSquareHorizontal,
+} from 'lucide-react';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatMachineId } from '@/store/machineOrigin';
+import { useStreamStore } from '@/store/streamStore';
 import type { Chat } from '@/types/chat.types';
 import { canForkChat } from '@/utils/sideQuestion';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
@@ -17,6 +27,8 @@ interface ChatDropdownProps {
   onTogglePin: (chat: Chat) => void;
   onFork: (chat: Chat) => void;
   forkPending: boolean;
+  onMoveToMainChats: (chat: Chat) => void;
+  movePending: boolean;
   onWorkspaceOptions: (chat: Chat) => void;
   onOpenInSplit?: (chatId: string) => void;
   splitDisabled?: boolean;
@@ -32,6 +44,8 @@ export const ChatDropdown = memo(function ChatDropdown({
   onTogglePin,
   onFork,
   forkPending,
+  onMoveToMainChats,
+  movePending,
   onWorkspaceOptions,
   onOpenInSplit,
   splitDisabled = false,
@@ -41,6 +55,9 @@ export const ChatDropdown = memo(function ChatDropdown({
   const isSubThread = !!chat.parent_chat_id;
   const model = useModelMap({ machineId: useChatMachineId(chat.id) }).get(chat.last_model_id ?? '');
   const canFork = canForkChat(chat, model);
+  const isRunning = useStreamStore((s) =>
+    s.activeStreamMetadata.some((stream) => stream.chatId === chat.id),
+  );
 
   return (
     <SidebarMenu ref={ref} position={position} onClose={onClose}>
@@ -66,6 +83,15 @@ export const ChatDropdown = memo(function ChatDropdown({
       {canFork && (
         <SidebarMenuItem icon={GitFork} onClick={() => onFork(chat)} disabled={forkPending}>
           Fork
+        </SidebarMenuItem>
+      )}
+      {isSubThread && (
+        <SidebarMenuItem
+          icon={CornerLeftUp}
+          onClick={() => onMoveToMainChats(chat)}
+          disabled={isRunning || movePending}
+        >
+          Move to main chats
         </SidebarMenuItem>
       )}
       <SidebarMenuItem icon={Folder} onClick={() => onWorkspaceOptions(chat)}>

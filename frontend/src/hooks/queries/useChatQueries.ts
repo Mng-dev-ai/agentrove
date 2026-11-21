@@ -245,9 +245,6 @@ export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat):
   });
 
   queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-  if (newChat.forked_from_chat_id) {
-    queryClient.invalidateQueries({ queryKey: queryKeys.subThreads(newChat.forked_from_chat_id) });
-  }
 }
 
 function patchQueryData<T>(query: Query<T> | undefined, update: (data: T) => T): void {
@@ -312,9 +309,16 @@ export const useForkChatMutation = createMutation<Chat, Error, string>(
   (queryClient, newChat) => applyCreatedChat(queryClient, newChat),
 );
 
-export const usePromoteChatMutation = createMutation<Chat, Error, string>(
-  (chatId) => chatService.promoteChat(chatId),
-  (queryClient, promotedChat) => applyCreatedChat(queryClient, promotedChat),
+export const usePromoteChatMutation = createMutation<Chat, Error, Chat>(
+  (subThread) => chatService.promoteChat(subThread.id),
+  async (queryClient, promotedChat, subThread) => {
+    await applyCreatedChat(queryClient, promotedChat);
+    if (subThread.parent_chat_id) {
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.subThreads(subThread.parent_chat_id),
+      });
+    }
+  },
 );
 
 export const useUpdateChatMutation = createMutation<

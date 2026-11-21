@@ -81,6 +81,8 @@ export function useInputSubmit({
 }: UseInputSubmitOptions) {
   const { permissionMode, thinkingMode, persona } = useChatSettings(chatId);
   const sideQuestionPendingRef = useRef(false);
+  const attachedFilesRef = useRef(attachedFiles);
+  attachedFilesRef.current = attachedFiles;
   const handleSubmit = useCallback(
     (event: React.FormEvent) => {
       event.preventDefault();
@@ -108,11 +110,13 @@ export function useInputSubmit({
       const text = messageRef.current;
       const parentChatId = sideQuestion.chat.id;
       const sideAgentKind = sideQuestion.model.agent_kind;
+      const sentFiles = attachedFiles ?? [];
+      const sentSelections = attachedSelections;
       sideQuestionPendingRef.current = true;
       void startSideQuestion(
         sideQuestion,
         {
-          prompt: formatComposerSelections(attachedSelections, sideQuestion.question),
+          prompt: formatComposerSelections(sentSelections, sideQuestion.question),
           attachedFiles,
         },
         {
@@ -123,9 +127,17 @@ export function useInputSubmit({
       )
         .then(() => {
           if (messageRef.current === text) setMessage('');
-          onAttach?.([]);
-          if (attachedSelections.length > 0) {
-            useUIStore.getState().clearComposerSelections(parentChatId);
+          if (sentFiles.length > 0) {
+            onAttach?.(
+              (attachedFilesRef.current ?? []).filter((file) => !sentFiles.includes(file)),
+            );
+          }
+          const uiStore = useUIStore.getState();
+          const current = uiStore.composerSelectionsByChat[parentChatId] ?? [];
+          for (let index = current.length - 1; index >= 0; index -= 1) {
+            if (sentSelections.includes(current[index])) {
+              uiStore.removeComposerSelection(parentChatId, index);
+            }
           }
         })
         .catch((error: unknown) => toast.error(sideQuestionErrorMessage(error)))

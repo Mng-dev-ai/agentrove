@@ -104,7 +104,6 @@ class Chat(ChatBase):
     last_persona_name: str | None = None
     forked_from_chat_id: UUID | None = None
     forked_from_title: str | None = None
-    is_side_question: bool = False
 
 
 class ChatFork(BaseModel):

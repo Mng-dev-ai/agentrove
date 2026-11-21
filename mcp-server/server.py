@@ -558,9 +558,6 @@ async def send_message(
             chat_title, resolved_workspace, resolved_model, parent_chat_id=parent_chat_id
         )
         chat_id = chat["id"]
-    report_to_parent = bool(chat.get("parent_chat_id")) and not chat.get(
-        "is_side_question"
-    )
     try:
         sent = await client.send_message(
             chat_id,
@@ -572,7 +569,7 @@ async def send_message(
             base_branch=base_branch,
             fast_mode=fast_mode,
             persona=persona,
-            report_to_parent=report_to_parent,
+            report_to_parent=bool(chat.get("parent_chat_id")),
         )
     except ChatBusyError:
         if when_busy is None:
@@ -588,7 +585,7 @@ async def send_message(
             base_branch=base_branch,
             fast_mode=fast_mode,
             persona=persona,
-            report_to_parent=report_to_parent,
+            report_to_parent=bool(chat.get("parent_chat_id")),
         )
         steering = when_busy == "steer" and not queued["send_now_failed"]
         return {

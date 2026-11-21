@@ -31,7 +31,6 @@ import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatSessionContext } from '@/hooks/useChatSessionContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useUIStore } from '@/store/uiStore';
-import { SideQuestionBanner } from '@/components/chat/side-question/SideQuestionBanner';
 
 export const Chat = memo(function Chat() {
   const { chatId } = useChatContext();
@@ -40,14 +39,12 @@ export const Chat = memo(function Chat() {
   const machineLabel = useMachineName(machineId);
   const { state, actions } = useChatSessionContext();
   const { data: chat } = useChatQuery(chatId);
-  const sideQuestion = !!chat?.is_side_question;
-  const forkOrigin =
-    chat?.forked_from_chat_id && !sideQuestion
-      ? {
-          sourceChatId: chat.forked_from_chat_id,
-          sourceTitle: chat.forked_from_title ?? '',
-        }
-      : null;
+  const forkOrigin = chat?.forked_from_chat_id
+    ? {
+        sourceChatId: chat.forked_from_chat_id,
+        sourceTitle: chat.forked_from_title ?? '',
+      }
+    : null;
 
   const {
     messages,
@@ -412,9 +409,6 @@ export const Chat = memo(function Chat() {
           {forkOrigin && messages.length === 0 && !isInitialLoading && (
             <ForkOriginBadge {...forkOrigin} aboveComposer />
           )}
-          {chat && !chat.parent_chat_id && (
-            <SideQuestionBanner chat={chat} message={inputMessage} isStreaming={isStreaming} />
-          )}
           <ChatQueueBanner
             messages={pendingMessages}
             onCancel={handleCancelMessage}
@@ -440,13 +434,7 @@ export const Chat = memo(function Chat() {
           contextUsage={contextUsage}
           chatId={chatId}
           disabled={!machineOnline}
-          placeholder={
-            !machineOnline
-              ? `${machineLabel} is offline — read-only`
-              : sideQuestion
-                ? 'Ask a follow-up…'
-                : undefined
-          }
+          placeholder={machineOnline ? undefined : `${machineLabel} is offline — read-only`}
         />
       }
     >

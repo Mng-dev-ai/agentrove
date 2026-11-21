@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { MessageCircleQuestion, MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 import { useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
@@ -11,7 +11,6 @@ import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
-import { useUIStore } from '@/store/uiStore';
 import { stateClasses } from '@/config/stateClasses';
 import type { Chat } from '@/types/chat.types';
 import styles from './SubThreadList.module.scss';
@@ -51,8 +50,7 @@ const SubThreadRow = memo(function SubThreadRow({
   });
   const showSpinner = status === 'running';
   const statusTone: ChatStatusTone | null = showSpinner ? null : status;
-  const sideQuestion = !!thread.is_side_question;
-  const hasLeadingSlot = sideQuestion || agentKind != null || status != null;
+  const hasLeadingSlot = agentKind != null || status != null;
   // Keep the active sub-thread visible when navigation lands on an off-screen row
   const rowRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -71,23 +69,13 @@ const SubThreadRow = memo(function SubThreadRow({
         <Button
           variant="unstyled"
           type="button"
-          onClick={() => {
-            if (sideQuestion) useUIStore.getState().openSideQuestion(thread.id);
-            onSelect(sideQuestion ? (thread.parent_chat_id ?? thread.id) : thread.id);
-          }}
+          onClick={() => onSelect(thread.id)}
           className={styles['subthread-select']}
         >
           {hasLeadingSlot && (
             <span className={styles['leading-slot']}>
               {showSpinner ? (
                 <AsciiSpinner className={styles['subthread-spinner']} />
-              ) : sideQuestion ? (
-                <MessageCircleQuestion
-                  className={clsx(
-                    styles['provider-icon'],
-                    !isHovered && !isActive && styles['provider-icon--muted'],
-                  )}
-                />
               ) : agentKind ? (
                 <ProviderIcon
                   agentKind={agentKind}
@@ -100,7 +88,7 @@ const SubThreadRow = memo(function SubThreadRow({
               {statusTone && (
                 <ChatStatusDot
                   tone={statusTone}
-                  className={clsx((sideQuestion || agentKind) && styles['status-corner'])}
+                  className={clsx(agentKind && styles['status-corner'])}
                   ringClassName={styles['status-ring']}
                 />
               )}

@@ -1239,9 +1239,9 @@ class ChatService(BaseDbService[Chat]):
         chat = await self.get_chat(
             request.chat_id, current_user, include_channel=member_turn is not None
         )
-        if request.report_to_parent and not chat.can_report_to_parent:
+        if request.report_to_parent and chat.parent_chat_id is None:
             raise ChatException(
-                "report_to_parent requires a sub-thread that isn't a side question",
+                "report_to_parent requires a sub-thread",
                 error_code=ErrorCode.VALIDATION_ERROR,
                 status_code=400,
             )
