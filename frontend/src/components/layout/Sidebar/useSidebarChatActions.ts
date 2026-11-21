@@ -75,7 +75,10 @@ export function useSidebarChatActions({
     };
 
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      setDropdown(null);
+    };
   });
 
   useMountEffect(() => {
