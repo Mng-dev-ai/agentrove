@@ -37,10 +37,8 @@ export function useSidebarChatActions({
   const [hoveredChatId, setHoveredChatId] = useState<string | null>(null);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [chatToRename, setChatToRename] = useState<Chat | null>(null);
-  const [dropdown, setDropdown] = useState<{
-    chat: Chat;
-    position: { top: number; left: number };
-  } | null>(null);
+  const dropdown = useUIStore((state) => state.chatMenu);
+  const setDropdown = useUIStore((state) => state.setChatMenu);
   // Tracks which parent chats have their sub-threads expanded — collapsed by default to keep the sidebar compact
   const [expandedSubThreads, toggleSubThreadExpand, setExpandedSubThreads] = useToggleSet<string>();
 
@@ -75,15 +73,12 @@ export function useSidebarChatActions({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   });
 
-  const dropdownStateRef = useRef(dropdown);
-  dropdownStateRef.current = dropdown;
-
   useMountEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
     const handleScroll = () => {
-      if (dropdownStateRef.current) setDropdown(null);
+      if (useUIStore.getState().chatMenu) setDropdown(null);
     };
 
     scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
@@ -95,9 +90,9 @@ export function useSidebarChatActions({
   const handleToggleSubThreads = useCallback(
     (chatId: string) => {
       toggleSubThreadExpand(chatId);
-      if (dropdownStateRef.current) setDropdown(null);
+      if (useUIStore.getState().chatMenu) setDropdown(null);
     },
-    [toggleSubThreadExpand],
+    [toggleSubThreadExpand, setDropdown],
   );
 
   const handleChatSelect = useCallback(
@@ -137,15 +132,19 @@ export function useSidebarChatActions({
       handleOpenInSplit(chatId);
       setDropdown(null);
     },
-    [handleOpenInSplit],
+    [handleOpenInSplit, setDropdown],
   );
-  const dropdownShowSplit = showSplitAffordance && dropdown?.chat.id !== selectedChatId;
+  const dropdownShowSplit =
+    showSplitAffordance && dropdown?.source === 'sidebar' && dropdown.chat.id !== selectedChatId;
   const dropdownCanSplit = !!dropdown?.chat.id && canOpenChatInSplit(dropdown.chat.id);
 
-  const handleDeleteChat = useCallback((chatId: string) => {
-    setChatToDelete(chatId);
-    setDropdown(null);
-  }, []);
+  const handleDeleteChat = useCallback(
+    (chatId: string) => {
+      setChatToDelete(chatId);
+      setDropdown(null);
+    },
+    [setDropdown],
+  );
 
   const handleChatMouseEnter = useCallback((chatId: string) => {
     setHoveredChatId(chatId);
@@ -187,20 +186,20 @@ export function useSidebarChatActions({
 
     setHoveredChatId(null);
 
-    setDropdown((prev) => {
-      if (prev?.chat.id === chat.id) {
-        return null;
-      }
-
-      const position = calculateDropdownPosition(rect);
-      return { chat, position };
+    useUIStore.getState().toggleChatMenu({
+      chat,
+      position: calculateDropdownPosition(rect),
+      source: 'sidebar',
     });
   }, []);
 
-  const handleRenameClick = useCallback((chat: Chat) => {
-    setChatToRename(chat);
-    setDropdown(null);
-  }, []);
+  const handleRenameClick = useCallback(
+    (chat: Chat) => {
+      setChatToRename(chat);
+      setDropdown(null);
+    },
+    [setDropdown],
+  );
 
   const handleSaveRename = useCallback(
     async (newTitle: string) => {
@@ -236,7 +235,7 @@ export function useSidebarChatActions({
         // toast already shown by mutateWithToast
       }
     },
-    [pinChat],
+    [pinChat, setDropdown],
   );
 
   const handleForkChat = useCallback(
@@ -249,7 +248,7 @@ export function useSidebarChatActions({
         toast.error(error instanceof Error ? error.message : 'Failed to fork chat');
       }
     },
-    [forkChat, navigate],
+    [forkChat, navigate, setDropdown],
   );
 
   const handleConvertToThread = useCallback(
@@ -265,7 +264,7 @@ export function useSidebarChatActions({
         // toast already shown by mutateWithToast
       }
     },
-    [promoteChat],
+    [promoteChat, setDropdown],
   );
 
   return {

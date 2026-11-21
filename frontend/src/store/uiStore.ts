@@ -13,6 +13,7 @@ import type {
 } from '@/types/ui.types';
 import { MAX_CHAT_PANES } from '@/types/ui.types';
 import type { DiffMode } from '@/types/sandbox.types';
+import type { Chat } from '@/types/chat.types';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 import {
   activeSplitSlot,
@@ -72,6 +73,12 @@ export type ComposerSelection = EditorCodeSelection | ChatTextSelection;
 
 export type SidebarSection = 'channels' | 'pinned' | 'recents';
 
+export interface ChatMenu {
+  chat: Chat;
+  position: { top: number; left: number };
+  source: 'sidebar' | 'pane';
+}
+
 type UIStoreState = ThemeState &
   Pick<UIState, 'sidebarOpen' | 'sidebarWidth'> &
   Pick<UIActions, 'setSidebarOpen' | 'setSidebarWidth'> &
@@ -82,6 +89,9 @@ type UIStoreState = ThemeState &
     setSidebarFilters: (filters: SidebarFilters) => void;
     collapsedSidebarSections: SidebarSection[];
     toggleSidebarSection: (section: SidebarSection) => void;
+    chatMenu: ChatMenu | null;
+    setChatMenu: (menu: ChatMenu | null) => void;
+    toggleChatMenu: (menu: ChatMenu) => void;
     commandMenuOpen: boolean;
     setCommandMenuOpen: (open: boolean) => void;
     // Mode-switch commands set this; CommandMenu consumes it on next open.
@@ -301,6 +311,13 @@ export const useUIStore = create<UIStoreState>()(
             : [...state.collapsedSidebarSections, section],
         })),
 
+      chatMenu: null,
+      setChatMenu: (chatMenu) => set({ chatMenu }),
+      toggleChatMenu: (menu) => {
+        const open = get().chatMenu;
+        const same = open?.source === menu.source && open.chat.id === menu.chat.id;
+        set({ chatMenu: same ? null : menu });
+      },
       commandMenuOpen: false,
       setCommandMenuOpen: (open) => set({ commandMenuOpen: open }),
       pendingMenuMode: null,
