@@ -92,7 +92,7 @@ type UIStoreState = ThemeState &
     // Desktop preference (persisted); phones use the transient mobileSessionPanelOpen.
     sessionPanelOpen: boolean;
     mobileSessionPanelOpen: boolean;
-    toggleSessionPanel: () => void;
+    toggleSessionPanel: (agentTile?: AgentTileId) => void;
     closeMobileSessionPanel: () => void;
     createPRDialogOpen: boolean;
     setCreatePRDialogOpen: (open: boolean) => void;
@@ -184,6 +184,11 @@ function filterLayout(layout: TileId[][], keep: (tileId: TileId) => boolean): Ti
 function appendToLastRow(layout: TileId[][], tileId: TileId): TileId[][] {
   if (layout.length === 0) return [[tileId]];
   return layout.map((row, i) => (i === layout.length - 1 ? [...row, tileId] : row));
+}
+
+function insertBeside(layout: TileId[][], anchor: TileId, tileId: TileId): TileId[][] {
+  if (!layout.flat().includes(anchor)) return appendToLastRow(layout, tileId);
+  return layout.map((row) => row.flatMap((tile) => (tile === anchor ? [tile, tileId] : [tile])));
 }
 
 function lastVisibleTile(layout: TileId[][]): TileId {
@@ -304,9 +309,15 @@ export const useUIStore = create<UIStoreState>()(
       setSubThreadDialogOpen: (open) => set({ subThreadDialogOpen: open }),
       sessionPanelOpen: getInitialSidebarState(),
       mobileSessionPanelOpen: false,
-      toggleSessionPanel: () => {
+      toggleSessionPanel: (agentTile = get().activeAgentTile) => {
         if (isDesktop()) {
-          set((state) => ({ sessionPanelOpen: !state.sessionPanelOpen }));
+          const state = get();
+          if (state.sessionPanelOpen && state.activeAgentTile === agentTile) {
+            set({ sessionPanelOpen: false });
+            return;
+          }
+          get().focusTile(agentTile);
+          set({ sessionPanelOpen: true });
           return;
         }
         if (get().mobileSessionPanelOpen) {
@@ -425,7 +436,7 @@ export const useUIStore = create<UIStoreState>()(
         });
       },
 
-      toggleView: (view, toggle) => {
+      toggleView: (view, toggle, agentTile = get().activeAgentTile) => {
         const state = get();
         // Agent is never torn down; toggle closes split or re-focuses primary.
         if (view === 'agent') {
@@ -433,7 +444,7 @@ export const useUIStore = create<UIStoreState>()(
           else get().activateTab('agent:primary');
           return;
         }
-        const slot = activeSplitSlot(state.activeAgentTile, state.splitChatIds);
+        const slot = activeSplitSlot(agentTile, state.splitChatIds);
         const tileId = viewTypeToTileId(view, slot);
         // Mobile: one view; re-tap returns to agent.
         if (!isDesktop()) {
@@ -449,6 +460,24 @@ export const useUIStore = create<UIStoreState>()(
           });
           return;
         }
+        if (state.splitChatIds.length > 0) {
+          const visible = state.visibleLayout.flat().includes(tileId);
+          if (visible && toggle) {
+            get().removeTab(tileId);
+          } else if (visible) {
+            get().focusTile(tileId);
+          } else {
+            set({
+              openTabs: state.openTabs.includes(tileId)
+                ? state.openTabs
+                : [...state.openTabs, tileId],
+              visibleLayout: insertBeside(state.visibleLayout, agentTileFor(tileId), tileId),
+              focusedTile: tileId,
+              activeAgentTile: agentTileFor(tileId),
+            });
+          }
+          return;
+        }
         if (state.openTabs.includes(tileId)) {
           // Toggle by visibility: on-screen closes; background resurfaces.
           if (toggle && state.visibleLayout.flat().includes(tileId)) get().removeTab(tileId);
@@ -459,9 +488,9 @@ export const useUIStore = create<UIStoreState>()(
         }
       },
 
-      addViewToSplit: (view, direction) => {
+      addViewToSplit: (view, direction, agentTile = get().activeAgentTile) => {
         const state = get();
-        const slot = activeSplitSlot(state.activeAgentTile, state.splitChatIds);
+        const slot = activeSplitSlot(agentTile, state.splitChatIds);
         const tileId = viewTypeToTileId(view, slot);
         // Already visible → focus only; else row = beside last, column = new row.
         const visibleLayout = state.visibleLayout.flat().includes(tileId)

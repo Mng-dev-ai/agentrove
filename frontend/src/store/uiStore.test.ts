@@ -160,6 +160,22 @@ describe('toggleView', () => {
     expect(state().visibleLayout).toEqual([['agent:primary']]);
   });
 
+  it("places a split pane's view beside that pane and removes it on the next toggle", () => {
+    state().openChatInSplit('c2');
+    state().openChatInSplit('c3');
+
+    state().toggleView('diff', true, 'agent:split-1');
+    expect(state().visibleLayout).toEqual([
+      ['agent:primary', 'agent:split-1', 'diff:split-1', 'agent:split-2'],
+    ]);
+    expect(state().splitChatIds).toEqual(['c2', 'c3']);
+    expect(state().activeAgentTile).toBe('agent:split-1');
+
+    state().toggleView('diff', true, 'agent:split-1');
+    expect(state().visibleLayout).toEqual([['agent:primary', 'agent:split-1', 'agent:split-2']]);
+    expect(state().splitChatIds).toEqual(['c2', 'c3']);
+  });
+
   it('shows a single view on mobile and returns to the agent on re-tap', () => {
     vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(400);
     state().toggleView('diff', true);
