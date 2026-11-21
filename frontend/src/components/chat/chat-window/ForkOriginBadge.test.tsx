@@ -23,15 +23,16 @@ describe('ForkOriginBadge', () => {
     vi.restoreAllMocks();
   });
 
-  it('offers to open a source chat that still exists', async () => {
-    vi.spyOn(chatService, 'getChat').mockResolvedValue({ title: 'Retry and backoff' } as Chat);
+  it('shows the live title of a source chat that still exists and offers to open it', async () => {
+    vi.spyOn(chatService, 'getChat').mockResolvedValue({ title: 'Retry policy' } as Chat);
     renderBadge();
 
     expect(screen.getByText('“Retry and backoff”')).toBeTruthy();
     expect(await screen.findByRole('button', { name: 'Show' })).toBeTruthy();
+    expect(screen.getByText('“Retry policy”')).toBeTruthy();
   });
 
-  it('keeps the title without the link once the source is deleted', async () => {
+  it('falls back to the stored title without the link once the source is deleted', async () => {
     const getChat = vi.spyOn(chatService, 'getChat').mockRejectedValue(new Error('Not found'));
     renderBadge();
 

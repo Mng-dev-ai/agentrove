@@ -57,10 +57,9 @@ export function useRemoteMachineSync(machineId: string): void {
         assignChatRecordsToMachine(machineId, [chat]);
         if (chatMachineId(chat.id) !== machineId) return;
         queryClient.setQueryData(queryKeys.chat(chat.id), chat);
-        if (chat.parent_chat_id) {
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.subThreads(chat.parent_chat_id),
-          });
+        const listedUnder = chat.parent_chat_id ?? chat.forked_from_chat_id;
+        if (listedUnder) {
+          void queryClient.invalidateQueries({ queryKey: queryKeys.subThreads(listedUnder) });
         }
         invalidateMachineLists(queryClient, machineId);
         useUIStore.getState().openChatTab(chat.id);

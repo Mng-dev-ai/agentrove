@@ -609,6 +609,18 @@ export const useUIStore = create<UIStoreState>()(
         });
       },
 
+      openSideQuestion: (chatId) => {
+        const { splitChatIds } = get();
+        if (!splitChatIds.includes(chatId) && splitChatIds.length >= MAX_CHAT_PANES - 1) {
+          get().closeSplitChat(splitChatIds[splitChatIds.length - 1]);
+        }
+        get().openChatInSplit(chatId);
+        if (isDesktop()) return;
+        const state = get();
+        set(rebuildSplitGrid(state, state.splitChatIds));
+        get().focusTile(splitAgentTile(splitSlotAt(state.splitChatIds.indexOf(chatId))));
+      },
+
       rebuildSplitLayout: () => {
         const state = get();
         if (state.splitChatIds.length === 0) return;

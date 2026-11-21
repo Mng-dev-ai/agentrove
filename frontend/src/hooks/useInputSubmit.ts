@@ -1,4 +1,4 @@
-import { useCallback, type RefObject } from 'react';
+import { useCallback, useRef, type RefObject } from 'react';
 import { useChatSettings } from '@/hooks/useChatSettings';
 import toast from 'react-hot-toast';
 import { queryClient } from '@/lib/queryClient';
@@ -18,6 +18,11 @@ import {
 } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
 import { useTokenDeleteKeyDown } from '@/hooks/useComposerTokens';
+import {
+  sideQuestionErrorMessage,
+  sideQuestionIntent,
+  startSideQuestion,
+} from '@/utils/sideQuestion';
 import type { Persona } from '@/types/user.types';
 import type { AgentKind, Model } from '@/types/chat.types';
 
@@ -30,6 +35,7 @@ interface UseInputSubmitOptions {
   onStopStream?: () => void;
   isLoading: boolean;
   chatId?: string;
+  inSubThread: boolean;
   selectedModelId: string;
   selectedModel: Model | undefined;
   agentKind: AgentKind;
@@ -56,6 +62,7 @@ export function useInputSubmit({
   onStopStream,
   isLoading,
   chatId,
+  inSubThread,
   selectedModelId,
   selectedModel,
   agentKind,
@@ -71,6 +78,7 @@ export function useInputSubmit({
   handleSlashCommandKeyDown,
 }: UseInputSubmitOptions) {
   const { permissionMode, thinkingMode, persona } = useChatSettings(chatId);
+  const sideQuestionPendingRef = useRef(false);
   const handleSubmit = useCallback(
     (event: React.FormEvent) => {
       event.preventDefault();
@@ -90,6 +98,33 @@ export function useInputSubmit({
     }
 
     if (disabled) return;
+
+    const sideQuestion = sideQuestionIntent(messageRef.current, {
+      chatId,
+      inSubThread,
+      agentKind,
+      supportsFork: !!selectedModel?.supports_fork,
+    });
+    if (sideQuestion) {
+      if (sideQuestion.kind === 'refuse') toast.error(sideQuestion.message);
+      if (sideQuestion.kind !== 'ask' || sideQuestionPendingRef.current) return;
+      const text = messageRef.current;
+      sideQuestionPendingRef.current = true;
+      void startSideQuestion(sideQuestion.chatId, sideQuestion.question, {
+        modelId: selectedModelId,
+        permissionMode: coercePermissionModeForAgent(permissionMode, agentKind),
+        thinkingMode: coerceThinkingModeForAgent(thinkingMode, agentKind, selectedModel),
+        personaName: resolvePersona(persona, personas),
+      })
+        .then(() => {
+          if (messageRef.current === text) setMessage('');
+        })
+        .catch((error: unknown) => toast.error(sideQuestionErrorMessage(error)))
+        .finally(() => {
+          sideQuestionPendingRef.current = false;
+        });
+      return;
+    }
 
     if (isStreaming && hasContent && chatId) {
       // Fire-and-forget queue + clear draft — guard model or the message is lost.
@@ -174,6 +209,7 @@ export function useInputSubmit({
     onStopStream,
     onSubmit,
     chatId,
+    inSubThread,
     attachedFiles,
     attachedSelections,
     setMessage,

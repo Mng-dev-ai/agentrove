@@ -40,6 +40,7 @@ function makeOptions(overrides: Partial<Parameters<typeof useInputSubmit>[0]> = 
     onStopStream: vi.fn(),
     isLoading: false,
     chatId: 'chat-1',
+    inSubThread: false,
     selectedModelId: 'model-1',
     selectedModel: undefined,
     agentKind: 'claude' as AgentKind,

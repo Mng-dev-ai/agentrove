@@ -26,7 +26,7 @@ export function ForkOriginBadge({
       <div className={styles.badge}>
         <CornerDownRight className={styles.icon} />
         <span className={styles.label}>Forked from</span>
-        <span className={styles.title}>{`“${sourceTitle}”`}</span>
+        <span className={styles.title}>{`“${source?.title ?? sourceTitle}”`}</span>
         {source && (
           <FloatingTooltip content={`Open ${source.title}`} className={styles.tooltip}>
             <Button
