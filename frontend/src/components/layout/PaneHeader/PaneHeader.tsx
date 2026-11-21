@@ -1,10 +1,11 @@
-import { useRef, type ReactNode } from 'react';
+import type { MouseEvent, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import { ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
+import { DROPDOWN_MARGIN, DROPDOWN_WIDTH } from '@/config/constants';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useUIStore } from '@/store/uiStore';
@@ -55,14 +56,17 @@ function AgentPaneHeader({ agentTile, chatId, inTile }: AgentPaneHeaderProps) {
   const menuOpen = useUIStore(
     (s) => s.chatMenu?.source === 'pane' && s.chatMenu.chat.id === chatId,
   );
-  const titleRef = useRef<HTMLDivElement>(null);
 
-  const toggleMenu = () => {
-    const rect = titleRef.current?.getBoundingClientRect();
-    if (!chat || !rect) return;
+  const toggleMenu = (event: MouseEvent<HTMLButtonElement>) => {
+    if (!chat) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const left = Math.max(
+      DROPDOWN_MARGIN,
+      Math.min(rect.right - DROPDOWN_WIDTH, window.innerWidth - DROPDOWN_WIDTH - DROPDOWN_MARGIN),
+    );
     useUIStore.getState().toggleChatMenu({
       chat,
-      position: { top: rect.bottom, left: rect.left },
+      position: { top: rect.bottom + 4, left },
       source: 'pane',
     });
   };
@@ -78,7 +82,7 @@ function AgentPaneHeader({ agentTile, chatId, inTile }: AgentPaneHeaderProps) {
 
   return (
     <div className={clsx(styles.header, inTile && styles['header--in-tile'])}>
-      <div ref={titleRef} className={styles['title-wrap']}>
+      <div className={styles['title-wrap']}>
         <span className={clsx(styles.title, focused && styles['title--focused'])}>
           {chat ? stripMarkdownTitle(chat.title) : ''}
         </span>
