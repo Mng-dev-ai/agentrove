@@ -26,6 +26,7 @@ export function SidebarOverlays({
     <>
       {chat.dropdown && (
         <ChatDropdown
+          key={`${chat.dropdown.source}:${chat.dropdown.chat.id}`}
           ref={chat.dropdownRef}
           chat={chat.dropdown.chat}
           position={chat.dropdown.position}
