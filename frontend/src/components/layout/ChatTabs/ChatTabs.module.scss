@@ -32,9 +32,3 @@
   color: var(--theme-text-secondary);
   pointer-events: none;
 }
-
-// Tabs keep their width and leave the title a floor, so the title truncates before tabs scroll
-.tabs--after-title {
-  flex-shrink: 0;
-  max-width: calc(100% - var(--space-24));
-}

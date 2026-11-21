@@ -17,6 +17,7 @@ import type { Chat } from '@/types/chat.types';
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 import {
   activeSplitSlot,
+  agentTileFor,
   isSplitTile,
   splitSlotOfTile,
   tileIdToViewType,
@@ -156,11 +157,6 @@ function splitSlotAt(index: number): SplitSlot {
   if (index === 0) return 1;
   if (index === 1) return 2;
   return 3;
-}
-
-function agentTileFor(tileId: TileId): AgentTileId {
-  const slot = splitSlotOfTile(tileId);
-  return slot ? splitAgentTile(slot) : 'agent:primary';
 }
 
 function agentGridFor(paneCount: number): TileId[][] {

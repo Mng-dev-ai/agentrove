@@ -73,6 +73,8 @@
   display: flex;
   height: 100%;
   width: auto;
+  min-width: 0;
+  flex: 0 1 auto;
   align-items: center;
   gap: var(--space-1);
   background-color: var(--theme-surface);
@@ -85,6 +87,7 @@
   // full sidebar width, sidebar fill, right border merging into the sidebar's edge.
   &--docked {
     width: var(--sidebar-width);
+    flex-shrink: 0;
     background-color: var(--theme-surface-secondary);
     border-right: 1px solid colors.theme-color('border', 0.5);
 
@@ -101,6 +104,7 @@
 .toggle-wrap {
   margin-left: var(--space-3);
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   // Same box and spacing as the view switcher on the right
   gap: var(--space-0-5);
@@ -140,7 +144,6 @@
 .band {
   display: flex;
   height: 100%;
-  min-width: 0;
   flex: 1;
   align-items: center;
   justify-content: space-between;

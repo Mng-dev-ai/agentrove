@@ -52,6 +52,7 @@ function ChannelWorkspace({
         isVisible={isVisible}
         chatId={workspaceChatId}
         chat={workspaceChat}
+        header={null}
         agent={<ChannelView key={channel.id} channel={channel} />}
       />
     ),

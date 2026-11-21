@@ -1,4 +1,12 @@
-import { useEffect, useLayoutEffect, useMemo, useCallback, useRef, ReactNode } from 'react';
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useCallback,
+  useRef,
+  useState,
+  ReactNode,
+} from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
@@ -7,7 +15,7 @@ import { useChatStore } from '@/store/chatStore';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useActiveViews } from '@/hooks/useActiveViews';
 import type { TileId, ViewType } from '@/types/ui.types';
-import { splitSlotOfTile } from '@/utils/tileHelpers';
+import { agentTileFor, splitSlotOfTile } from '@/utils/tileHelpers';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
@@ -17,12 +25,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useChatQuery, markChatViewed } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
-import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
-import { useChatMachineId } from '@/store/machineOrigin';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
-import { SessionPanel } from '@/components/chat/session-panel/SessionPanel';
+import {
+  PaneSessionPanel,
+  SessionPanelSlot,
+} from '@/components/chat/session-panel/PaneSessionPanel';
+import { SessionPanelSlotContext } from '@/contexts/SessionPanelSlotContext';
+import { InTilePaneHeader } from '@/components/layout/PaneHeader/PaneHeader';
 import {
   WorkspaceSurface,
   WorkspaceTile,
@@ -149,13 +159,7 @@ export function ChatPage() {
   }, [activeViews, chatId, isWorkspaceLoaded, currentChat?.sandbox_id, refetchFilesMetadata]);
 
   const workspaces = useWorkspacesList();
-  // Remote chats' workspaces live on their machine, not in the local list.
-  const chatMachine = useChatMachineId(chatId);
-  const isRemote = chatMachine !== LOCAL_MACHINE_ID;
-  const { data: machineWorkspaces } = useMachineWorkspacesQuery(chatMachine, isRemote);
-  const currentWorkspace = (isRemote ? machineWorkspaces : workspaces)?.find(
-    (w) => w.id === currentChat?.workspace_id,
-  );
+  const [sessionPanelSlot, setSessionPanelSlot] = useState<HTMLDivElement | null>(null);
   // Remote chats resolve personas against their machine's settings list.
   const { data: settings } = useSettingsForChatQuery(chatId);
 
@@ -216,11 +220,19 @@ export function ChatPage() {
           isVisible={isVisible}
           chatId={paneChatId}
           chat={paneChat}
+          header={
+            isVisible && paneChatId && <InTilePaneHeader tileId={tileId} chatId={paneChatId} />
+          }
           agent={
             tileId === 'agent:primary' ? (
-              <ChatComponent />
+              <>
+                <ChatComponent />
+                <PaneSessionPanel agentTile="agent:primary" chat={currentChat} />
+              </>
             ) : (
-              paneChatId && <AgentPane key={paneChatId} chatId={paneChatId} />
+              paneChatId && (
+                <AgentPane key={paneChatId} chatId={paneChatId} agentTile={agentTileFor(tileId)} />
+              )
             )
           }
         />
@@ -251,14 +263,14 @@ export function ChatPage() {
         messagesQuery={messagesQuery}
       >
         {isWorkspaceLoaded && (
-          <WorkspaceSurface
-            renderView={renderView}
-            sessionPanel={
-              currentChat && <SessionPanel chat={currentChat} workspace={currentWorkspace} />
-            }
-          >
-            {subThreadDialogOpen && <SubThreadDialog />}
-          </WorkspaceSurface>
+          <SessionPanelSlotContext.Provider value={sessionPanelSlot}>
+            <WorkspaceSurface
+              renderView={renderView}
+              sessionPanel={<SessionPanelSlot ref={setSessionPanelSlot} />}
+            >
+              {subThreadDialogOpen && <SubThreadDialog />}
+            </WorkspaceSurface>
+          </SessionPanelSlotContext.Provider>
         )}
       </ChatSessionOrchestrator>
     </ChatProvider>

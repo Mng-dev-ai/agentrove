@@ -25,6 +25,11 @@ export function splitSlotOfTile(tileId: TileId): SplitSlot | null {
   return null;
 }
 
+export function agentTileFor(tileId: TileId): AgentTileId {
+  const slot = splitSlotOfTile(tileId);
+  return slot ? `agent:split-${slot}` : 'agent:primary';
+}
+
 export function isSplitTile(tileId: TileId): tileId is SplitTileId {
   return splitSlotOfTile(tileId) !== null;
 }

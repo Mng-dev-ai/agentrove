@@ -9,6 +9,8 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
 import { ChatTabs } from '@/components/layout/ChatTabs/ChatTabs';
 import { ChannelHeader } from '@/components/channels/ChannelHeader';
+import { PaneHeaderBand } from '@/components/layout/PaneHeader/PaneHeader';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import clsx from 'clsx';
 import { IS_MAC_PLATFORM, isDesktopApp } from '@/utils/platform';
 import styles from './TitleBar.module.scss';
@@ -120,6 +122,7 @@ export function TitleBar() {
   const showSidebar = hasWorkspaceViews || isInboxPage;
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
+  const isMobile = useIsMobile();
 
   const hasContent = IS_MACOS_DESKTOP || (isAuthenticated && showSidebar);
   if (!hasContent) return null;
@@ -137,6 +140,64 @@ export function TitleBar() {
     await (await getTauriWindow()).toggleMaximize();
   };
 
+  const docked = isAuthenticated && showSidebar && sidebarOpen;
+  const routedChatId = isChatPage?.params.chatId;
+  const showPaneHeaders = isAuthenticated && !!routedChatId && !isMobile;
+
+  const left = (
+    // When docked, merges into the sidebar header (border-r, no hairline).
+    <div className={clsx(styles.left, docked && styles['left--docked'])}>
+      {IS_MACOS_DESKTOP && <TrafficLights />}
+
+      {isAuthenticated && showSidebar && (
+        <div className={styles['toggle-wrap']}>
+          <ToggleButton
+            isOpen={sidebarOpen}
+            onClick={() => useUIStore.getState().setSidebarOpen(!sidebarOpen)}
+            position="left"
+            ariaLabel="Toggle sidebar"
+          />
+          {/* Search/new chat only when sidebar is closed (it already has both). */}
+          {!sidebarOpen && (
+            <>
+              <FloatingTooltip content="Search">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={styles['icon-button']}
+                  onClick={() => useUIStore.getState().setCommandMenuOpen(true)}
+                  aria-label="Search"
+                >
+                  <Search className={styles['icon-button-glyph']} />
+                </Button>
+              </FloatingTooltip>
+              <FloatingTooltip content="New chat">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className={styles['icon-button']}
+                  onClick={() => navigate('/')}
+                  aria-label="New chat"
+                >
+                  <Plus className={styles['icon-button-glyph']} />
+                </Button>
+              </FloatingTooltip>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Auth gate: macOS desktop still renders the bar logged out; without this,
+          persisted chatTabs would hit protected queries and 401-self-close. */}
+      {isAuthenticated && (isChatPage || isLandingPage) && <ChatTabs />}
+
+      {/* Spacer after traffic lights when sidebar controls are absent. */}
+      {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className={styles.spacer} />}
+    </div>
+  );
+
   return (
     <div
       // The row owns the height (2.5rem bar + top inset); each section pads its
@@ -146,69 +207,23 @@ export function TitleBar() {
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
-      {/* When docked, merges into the sidebar header (border-r, no hairline). */}
-      <div
-        className={clsx(
-          styles.left,
-          isAuthenticated && showSidebar && sidebarOpen && styles['left--docked'],
-        )}
-      >
-        {IS_MACOS_DESKTOP && <TrafficLights />}
-
-        {isAuthenticated && showSidebar && (
-          <div className={styles['toggle-wrap']}>
-            <ToggleButton
-              isOpen={sidebarOpen}
-              onClick={() => useUIStore.getState().setSidebarOpen(!sidebarOpen)}
-              position="left"
-              ariaLabel="Toggle sidebar"
-            />
-            {/* Search/new chat only when sidebar is closed (it already has both). */}
-            {!sidebarOpen && (
-              <>
-                <FloatingTooltip content="Search">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={styles['icon-button']}
-                    onClick={() => useUIStore.getState().setCommandMenuOpen(true)}
-                    aria-label="Search"
-                  >
-                    <Search className={styles['icon-button-glyph']} />
-                  </Button>
-                </FloatingTooltip>
-                <FloatingTooltip content="New chat">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={styles['icon-button']}
-                    onClick={() => navigate('/')}
-                    aria-label="New chat"
-                  >
-                    <Plus className={styles['icon-button-glyph']} />
-                  </Button>
-                </FloatingTooltip>
-              </>
-            )}
+      {showPaneHeaders ? (
+        <>
+          {docked && left}
+          <PaneHeaderBand routedChatId={routedChatId} leading={!docked && left} />
+        </>
+      ) : (
+        <>
+          {left}
+          <div className={styles.band}>
+            <div className={styles['tabs-area']}>
+              {isAuthenticated && isChannelPage && <ChannelHeader />}
+            </div>
+            {/* No per-view tabs — switcher opens/closes views (landing needs it too). */}
+            {hasWorkspaceViews && <ViewSwitcher />}
           </div>
-        )}
-
-        {/* Spacer after traffic lights when sidebar controls are absent. */}
-        {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className={styles.spacer} />}
-      </div>
-
-      <div className={styles.band}>
-        <div className={styles['tabs-area']}>
-          {/* Auth gate: macOS desktop still renders the bar logged out; without this,
-              persisted chatTabs would hit protected queries and 401-self-close. */}
-          {isAuthenticated && (isChatPage || isLandingPage) && <ChatTabs />}
-          {isAuthenticated && isChannelPage && <ChannelHeader />}
-        </div>
-        {/* No per-view tabs — switcher opens/closes views (landing needs it too). */}
-        {hasWorkspaceViews && <ViewSwitcher />}
-      </div>
+        </>
+      )}
     </div>
   );
 }

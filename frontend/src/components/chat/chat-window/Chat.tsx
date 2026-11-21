@@ -1,4 +1,4 @@
-import { useCallback, useEffect, memo, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, memo, useMemo, useState } from 'react';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineName, useMachineStatus } from '@/store/machineStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -32,7 +32,7 @@ import { useChatSessionContext } from '@/hooks/useChatSessionContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useUIStore } from '@/store/uiStore';
 
-export const Chat = memo(function Chat({ corner }: { corner?: ReactNode }) {
+export const Chat = memo(function Chat() {
   const { chatId } = useChatContext();
   const machineId = useChatMachineId(chatId);
   const machineOnline = useMachineStatus(machineId) === 'online';
@@ -402,7 +402,6 @@ export const Chat = memo(function Chat({ corner }: { corner?: ReactNode }) {
 
   return (
     <ConversationLayout
-      corner={corner}
       showScrollButton={showScrollButton}
       onScrollToBottom={scrollToBottom}
       composerBanner={

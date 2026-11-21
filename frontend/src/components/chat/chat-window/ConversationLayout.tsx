@@ -8,7 +8,6 @@ interface ConversationLayoutProps {
   children: ReactNode;
   composer: ReactNode;
   composerBanner?: ReactNode;
-  corner?: ReactNode;
   showScrollButton: boolean;
   onScrollToBottom: () => void;
 }
@@ -17,16 +16,12 @@ export function ConversationLayout({
   children,
   composer,
   composerBanner,
-  corner,
   showScrollButton,
   onScrollToBottom,
 }: ConversationLayoutProps) {
   return (
     <div className={styles.conversation}>
-      <div className={clsx(styles.viewport, corner && styles['viewport--cornered'])}>
-        {corner && <div className={styles.corner}>{corner}</div>}
-        {children}
-      </div>
+      <div className={styles.viewport}>{children}</div>
       <div className={clsx(styles.composer, showScrollButton && styles['composer--scrolled'])}>
         {showScrollButton && <ScrollButton onClick={onScrollToBottom} />}
         <div className={styles['composer-surface']}>

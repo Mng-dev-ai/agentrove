@@ -14,10 +14,18 @@
 }
 
 .tile {
-  position: relative;
   display: flex;
   height: 100%;
   width: 100%;
+  flex-direction: column;
+}
+
+.body {
+  position: relative;
+  display: flex;
+  min-height: 0;
+  width: 100%;
+  flex: 1;
 }
 
 .fill {
