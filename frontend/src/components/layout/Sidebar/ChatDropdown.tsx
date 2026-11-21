@@ -15,6 +15,7 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useStreamStore } from '@/store/streamStore';
+import type { MenuPosition } from '@/store/uiStore';
 import type { Chat } from '@/types/chat.types';
 import { canForkChat } from '@/utils/sideQuestion';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
@@ -23,7 +24,7 @@ import styles from './ChatDropdown.module.scss';
 interface ChatDropdownProps {
   ref?: Ref<HTMLDivElement>;
   chat: Chat;
-  position: { top: number; left: number };
+  position: MenuPosition;
   onRename: (chat: Chat) => void;
   onDelete: (chatId: string) => void;
   onTogglePin: (chat: Chat) => void;

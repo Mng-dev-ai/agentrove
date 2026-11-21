@@ -5,7 +5,7 @@ import { ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
-import { DROPDOWN_MARGIN, DROPDOWN_WIDTH } from '@/config/constants';
+import { DROPDOWN_MARGIN } from '@/config/constants';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useUIStore } from '@/store/uiStore';
@@ -60,13 +60,12 @@ function AgentPaneHeader({ agentTile, chatId, inTile }: AgentPaneHeaderProps) {
   const toggleMenu = (event: MouseEvent<HTMLButtonElement>) => {
     if (!chat) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    const left = Math.max(
-      DROPDOWN_MARGIN,
-      Math.min(rect.right - DROPDOWN_WIDTH, window.innerWidth - DROPDOWN_WIDTH - DROPDOWN_MARGIN),
-    );
     useUIStore.getState().toggleChatMenu({
       chat,
-      position: { top: rect.bottom + 4, left },
+      position: {
+        top: rect.bottom + 4,
+        right: Math.max(DROPDOWN_MARGIN, window.innerWidth - rect.right),
+      },
       source: 'pane',
     });
   };

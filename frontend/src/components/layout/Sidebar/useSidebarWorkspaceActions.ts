@@ -14,7 +14,7 @@ import {
 } from '@/hooks/queries/useMachineQueries';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
-import { useUIStore } from '@/store/uiStore';
+import { useUIStore, type MenuPosition } from '@/store/uiStore';
 import { useChatOrigins } from '@/store/machineOrigin';
 import { mutateWithToast } from './sidebarHelpers';
 
@@ -50,7 +50,7 @@ export function useSidebarWorkspaceActions({
   const [workspaceDropdown, setWorkspaceDropdown] = useState<{
     workspaceId: string;
     machineId: string | null;
-    position: { top: number; left: number };
+    position: MenuPosition;
   } | null>(null);
 
   const workspaceDropdownRef = useRef<HTMLDivElement>(null);
@@ -101,7 +101,7 @@ export function useSidebarWorkspaceActions({
   );
 
   const openWorkspaceMenu = useCallback(
-    (workspaceId: string, position: { top: number; left: number }) => {
+    (workspaceId: string, position: MenuPosition) => {
       const routedMachineId = chats
         .filter((chat) => chat.workspace_id === workspaceId)
         .map((chat) => chatOrigins.get(chat.id))
