@@ -36,9 +36,20 @@
 }
 
 .panel-column {
+  display: flex;
   width: spacing.$session-panel-width;
   flex-shrink: 0;
+  justify-content: flex-end;
   border-left: 1px solid colors.theme-color('border', 0.5);
+}
+
+.bar-actions {
+  display: flex;
+  height: var(--space-10);
+  flex-shrink: 0;
+  align-self: flex-end;
+  align-items: center;
+  padding-inline: var(--space-3);
 }
 
 .header {

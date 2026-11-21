@@ -128,10 +128,12 @@ function AgentPaneHeader({ agentTile, chatId, inTile, tabs, inStrip }: AgentPane
           </div>
         )}
       </div>
-      <div className={styles.actions}>
-        <ViewSwitcher agentTile={agentTile} />
-        {firstSplitChatId && <CloseButton label="Close pane" onClick={closePane} />}
-      </div>
+      {firstSplitChatId && (
+        <div className={styles.actions}>
+          <ViewSwitcher agentTile={agentTile} />
+          <CloseButton label="Close pane" onClick={closePane} />
+        </div>
+      )}
     </div>
   );
 }
@@ -149,6 +151,7 @@ function ViewTileHeader({ tileId, chatId, inTile, tabs, inStrip }: ViewTileHeade
   const view = tileIdToViewType(tileId);
   const agentTile = agentTileFor(tileId);
   const agentVisible = useUIStore((s) => s.visibleLayout.some((row) => row.includes(agentTile)));
+  const hasSplits = useUIStore((s) => s.splitChatIds.length > 0);
   const Icon = VIEW_ICONS[view];
   const label = VIEW_LABELS[view];
 
@@ -166,7 +169,7 @@ function ViewTileHeader({ tileId, chatId, inTile, tabs, inStrip }: ViewTileHeade
         )}
       </div>
       <div className={styles.actions}>
-        {!agentVisible && <ViewSwitcher agentTile={agentTile} />}
+        {hasSplits && !agentVisible && <ViewSwitcher agentTile={agentTile} />}
         <CloseButton
           label={`Close ${label}`}
           onClick={() => useUIStore.getState().removeTab(tileId)}
@@ -227,6 +230,11 @@ export function PaneHeaderBand({ routedChatId, leading, tabs }: PaneHeaderBandPr
     routedChatId,
   );
   const stripTabs = tabs.filter((chatId) => !namedByOtherPanes.has(chatId));
+  const barSwitcher = splitChatIds.length === 0 && (
+    <div className={styles['bar-actions']}>
+      <ViewSwitcher agentTile="agent:primary" />
+    </div>
+  );
 
   return (
     <div className={styles.band}>
@@ -255,7 +263,7 @@ export function PaneHeaderBand({ routedChatId, leading, tabs }: PaneHeaderBandPr
           );
         })}
       </div>
-      {sessionPanelOpen && <div className={styles['panel-column']} />}
+      {sessionPanelOpen ? <div className={styles['panel-column']}>{barSwitcher}</div> : barSwitcher}
     </div>
   );
 }
