@@ -9,6 +9,10 @@
   width: 100%;
   min-width: 0;
   flex-direction: column;
+
+  > :last-child {
+    min-height: 0;
+  }
 }
 
 .header {
