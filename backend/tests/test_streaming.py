@@ -2169,6 +2169,49 @@ async def test_history_omits_tool_results_only_when_requested(
     assert denied.status_code == 404
 
 
+async def test_history_omits_tool_images_without_a_result(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    tool = {"id": "t1", "name": "read", "title": "View Image", "status": "completed"}
+    images = [{"mime_type": "image/png", "data": "iVBORw0KGgo="}]
+    render = {
+        "events": [{"type": "tool_completed", "tool": {**tool, "images": images}}]
+    }
+    message = Message(
+        chat_id=chat.id,
+        content_text="",
+        content_render=render,
+        role=MessageRole.ASSISTANT,
+        model_id=TEST_MODEL_ID,
+        stream_status=MessageStreamStatus.COMPLETED,
+    )
+    db_session.add(message)
+    await db_session.commit()
+
+    response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/messages",
+        params={"omit_tool_results": "true"},
+        headers=headers,
+    )
+    item = next(i for i in response.json()["items"] if i["id"] == str(message.id))
+    assert item["tool_results_omitted"] is True
+    assert item["content_render"]["events"] == [
+        {"type": "tool_completed", "tool": tool}
+    ]
+
+    render_response = await client.get(
+        f"/api/v1/chat/messages/{message.id}/render", headers=headers
+    )
+    assert render_response.json() == render
+
+
 async def test_failed_turn_start_discards_both_messages(
     client: AsyncClient,
     db_session: AsyncSession,

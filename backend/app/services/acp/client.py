@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 import logging
 import re
@@ -24,6 +26,7 @@ from acp.schema import (
     ElicitationFormRequestMode,
     ElicitationFormSessionMode,
     ElicitationMode,
+    ImageContentBlock,
     KillTerminalResponse,
     PermissionOption,
     ReadTextFileResponse,
@@ -42,7 +45,13 @@ from acp.schema import (
 
 from app.models.types import AgentKind, PermissionMode
 from app.models.db_models.enums import ToolStatus
-from app.services.streaming.types import StreamEvent, StreamEventType, ToolPayload
+from app.services.streaming.types import (
+    StreamEvent,
+    StreamEventType,
+    ToolImage,
+    ToolPayload,
+    tool_image,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -635,6 +644,11 @@ class AcpClientHandler:
         diffs = self._extract_content_diffs(tc)
         if diffs:
             payload["result"] = {"diffs": diffs}
+        if tc.status == "completed":
+            self._active_tools.pop(tc.tool_call_id, None)
+            self._opencode_tool_names.pop(tc.tool_call_id, None)
+            payload["status"] = ToolStatus.COMPLETED.value
+            return StreamEvent(type="tool_completed", tool=payload)
         self._active_tools[tc.tool_call_id] = payload
         return StreamEvent(type="tool_started", tool=payload)
 
@@ -717,6 +731,10 @@ class AcpClientHandler:
             # don't wipe them when the terminal update carries no result.
             if result is not None or "result" not in existing:
                 existing["result"] = result
+            if self.agent_kind == AgentKind.OPENCODE and (
+                images := self._extract_content_images(tc)
+            ):
+                existing["images"] = images
             selected_mode = self._resolved_permissions.pop(tc.tool_call_id, None)
             if selected_mode is not None:
                 existing["permission_mode"] = selected_mode
@@ -886,6 +904,21 @@ class AcpClientHandler:
             if inner and getattr(inner, "type", None) == "text":
                 texts.append(inner.text)
         return texts
+
+    @staticmethod
+    def _extract_content_images(tc: ToolCallProgress) -> list[ToolImage]:
+        images: list[ToolImage] = []
+        for block in tc.content or []:
+            inner = getattr(block, "content", None)
+            if not isinstance(inner, ImageContentBlock):
+                continue
+            try:
+                data = base64.b64decode(inner.data, validate=True)
+            except binascii.Error:
+                continue
+            if image := tool_image(data):
+                images.append(image)
+        return images
 
     @staticmethod
     def _extract_content_diffs(

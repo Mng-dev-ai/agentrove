@@ -24,6 +24,7 @@ from app.utils.attachment_urls import AttachmentURL
 from app.utils.cursor import Cursor, InvalidCursorError
 
 logger = logging.getLogger(__name__)
+OMITTED_TOOL_KEYS = ("result", "images")
 
 
 class MessageService(BaseDbService[Message]):
@@ -420,7 +421,11 @@ class MessageService(BaseDbService[Message]):
         # trace, so they're fetched per message on demand. Live turns keep them:
         # their snapshot seeds the stream buffer on reconnect.
         events = item.content_render.get("events", [])
-        if not any("result" in (event.get("tool") or {}) for event in events):
+        if not any(
+            key in (event.get("tool") or {})
+            for event in events
+            for key in OMITTED_TOOL_KEYS
+        ):
             return item
         folded: dict[str, dict[str, Any]] = {}
         compacted = []
@@ -432,7 +437,7 @@ class MessageService(BaseDbService[Message]):
             seen = folded.setdefault(tool.get("id"), {})
             slim = {}
             for key, value in tool.items():
-                if key == "result":
+                if key in OMITTED_TOOL_KEYS:
                     continue
                 # The client fold keeps the prior input/title when a later
                 # event omits them, so repeats of the folded value are dropped.

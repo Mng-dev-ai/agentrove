@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 from uuid import uuid4
 from typing import Any
@@ -28,6 +29,7 @@ from acp.schema import (
     PermissionOption,
     PlanEntry,
     PromptResponse,
+    ResourceContentBlock,
     SessionConfigOptionSelect,
     SessionConfigSelectOption,
     SessionInfoUpdate,
@@ -99,6 +101,10 @@ MARKER_ENTER_PLAN_MODE = "MARKER_ENTER_PLAN_MODE"
 MARKER_EXIT_PLAN_MODE = "MARKER_EXIT_PLAN_MODE"
 MARKER_TOOL_LOCATIONS = "MARKER_TOOL_LOCATIONS"
 MARKER_TOOL_ANTIGRAVITY_MCP = "MARKER_TOOL_ANTIGRAVITY_MCP"
+MARKER_TOOL_IMAGE_BLOCK = "MARKER_TOOL_IMAGE_BLOCK"
+# `view_image=<path>` emits a Codex view-image call already completed at start;
+# `open_image=<path>` leaves a read open for finish() to complete.
+IMAGE_READ_RE = re.compile(r"\b(view_image|open_image)=([^\s<]+)")
 # claude-agent-acp 0.109.0 ExitPlanMode options and the mode each switches to.
 EXIT_PLAN_OPTIONS = {
     "exit-plan-clear-bypass": "bypassPermissions",
@@ -747,6 +753,8 @@ class FakeAgent:
         if MARKER_UNTRACKED_TOOL_UPDATES in text:
             await self._emit_untracked_tool_updates(session_id)
 
+        await self._emit_image_reads(session_id, text)
+
         if MARKER_TOOL_ANTIGRAVITY_MCP in text:
             await self._emit_tool_started(
                 session_id,
@@ -823,6 +831,59 @@ class FakeAgent:
 
         await asyncio.sleep(0.05)
         return PromptResponse(stop_reason="end_turn")
+
+    async def _emit_image_reads(self, session_id: str, text: str) -> None:
+        assert self._client is not None
+        for index, (kind, path) in enumerate(IMAGE_READ_RE.findall(text)):
+            await self._client.session_update(
+                session_id=session_id,
+                update=ToolCallStart(
+                    session_update="tool_call",
+                    tool_call_id=f"tool-image-{index}",
+                    title=f"View Image {path}",
+                    kind="read",
+                    status="completed" if kind == "view_image" else None,
+                    raw_input={"path": path},
+                    locations=[ToolCallLocation(path=path)],
+                    content=[
+                        ContentToolCallContent(
+                            type="content",
+                            content=ResourceContentBlock(
+                                type="resource_link", name=path, uri=f"file://{path}"
+                            ),
+                        )
+                    ],
+                ),
+            )
+        if MARKER_TOOL_IMAGE_BLOCK in text:
+            await self._emit_tool_started(
+                session_id,
+                "tool-image-block",
+                "red_cat.png",
+                kind="read",
+                raw_input={"filePath": "red_cat.png"},
+            )
+            await self._client.session_update(
+                session_id=session_id,
+                update=ToolCallProgress(
+                    session_update="tool_call_update",
+                    tool_call_id="tool-image-block",
+                    status="completed",
+                    raw_output={"metadata": {"truncated": False}},
+                    content=[
+                        ContentToolCallContent(
+                            type="content",
+                            content=text_block("Image read successfully"),
+                        ),
+                        ContentToolCallContent(
+                            type="content",
+                            content=ImageContentBlock(
+                                type="image", data=TINY_PNG_BASE64, mimeType="image/png"
+                            ),
+                        ),
+                    ],
+                ),
+            )
 
     async def _emit_untracked_tool_updates(self, session_id: str) -> None:
         # Updates for tool ids that never had a tool_call start.

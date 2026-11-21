@@ -151,6 +151,18 @@ class LocalHostProvider(SandboxProvider):
         content, is_binary = self.encode_file_content(path, content_bytes)
         return FileContent(path=path, content=content, type="file", is_binary=is_binary)
 
+    async def read_file_bytes(
+        self, sandbox_id: str, path: str, max_bytes: int
+    ) -> bytes:
+        # Host agents run as the API's process user, so this reads with the
+        # agent's own access; an absolute path is fine here but never via a route.
+        return await asyncio.to_thread(self._read_file_head, path, max_bytes)
+
+    @staticmethod
+    def _read_file_head(path: str, max_bytes: int) -> bytes:
+        with open(path, "rb") as f:
+            return f.read(max_bytes)
+
     # os.walk skip list (non-git) — mirrors common .gitignore entries.
     WALK_SKIP_DIRS = frozenset(
         {

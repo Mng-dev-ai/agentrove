@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import os
 import sys
@@ -44,6 +45,7 @@ from app.services.sandbox_providers import SandboxProviderType
 from app.services.session_registry import SessionRegistry
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.streaming.types import MAX_TOOL_IMAGE_BYTES
 from app.services.subthread_wake import SubThreadWake
 from app.services.user import UserService
 from app.utils.cache import CachePubSub
@@ -67,6 +69,7 @@ from tests.fake_acp_agent import (
     MARKER_TOOL_DIFF,
     MARKER_TOOL_ANTIGRAVITY_MCP,
     MARKER_TOOL_EMPTY_RESULT,
+    MARKER_TOOL_IMAGE_BLOCK,
     MARKER_TOOL_LEFT_OPEN,
     MARKER_TOOL_LOCATIONS,
     MARKER_TOOL_START_DIFF,
@@ -75,6 +78,7 @@ from tests.fake_acp_agent import (
     MARKER_TOOL_TEXT_RESULT,
     MARKER_TOOL_UNKNOWN_DICT_ERROR,
     MARKER_UNTRACKED_TOOL_UPDATES,
+    TINY_PNG_BASE64,
     TITLE_PROMPT_PREFIX,
 )
 from tests.helpers import (
@@ -623,6 +627,94 @@ async def test_antigravity_mcp_tool_call_is_unwrapped(
         "mcp__agentrove__list_chats",
         {"limit": 5},
     )
+
+
+@pytest.mark.parametrize(
+    "model_id,permission_mode", [("gpt-5.4", "auto"), ("sonnet", "default")]
+)
+async def test_image_reads_store_the_file_bytes_for_allowlisted_agents(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    tmp_path: Path,
+    model_id: str,
+    permission_mode: str,
+) -> None:
+    headers, workspace = auth_workspace
+    png = base64.b64decode(TINY_PNG_BASE64)
+    (tmp_path / "cat.png").write_bytes(png)
+    (tmp_path / "huge.png").write_bytes(png.ljust(MAX_TOOL_IMAGE_BYTES + 1, b"\0"))
+    (tmp_path / "notes.png").write_text("not an image")
+    (Path(workspace.workspace_path) / "shot.png").write_bytes(png)
+    chat = await create_chat(client, headers, workspace, model_id=model_id)
+
+    send_response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id=model_id,
+        permission_mode=permission_mode,
+        prompt=" ".join(
+            [
+                f"view_image={tmp_path / 'cat.png'}",
+                f"view_image={tmp_path / 'huge.png'}",
+                f"view_image={tmp_path / 'notes.png'}",
+                f"view_image={tmp_path / 'missing.png'}",
+                "open_image=shot.png",
+            ]
+        ),
+    )
+    message = await wait_for_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        message_id=send_response.json()["message_id"],
+    )
+
+    image = {"mime_type": "image/png", "data": TINY_PNG_BASE64}
+    expected = (
+        [[image], None, None, None, [image]] if model_id == "gpt-5.4" else [None] * 5
+    )
+    tools = [last_tool(message, f"tool-image-{index}") for index in range(5)]
+    assert [tool.get("images") for tool in tools] == expected
+    assert {tool["status"] for tool in tools} == {"completed"}
+    # An already-completed tool_call is emitted completed, never as started.
+    assert [
+        e["type"] for e in tool_events(message) if e["tool"]["id"] == "tool-image-0"
+    ] == ["tool_completed"]
+
+
+async def test_opencode_image_content_block_lands_in_images(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    model_id = "opencode:opencode/gpt-5-nano"
+    chat = await create_chat(client, headers, workspace, model_id=model_id)
+
+    send_response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id=model_id,
+        prompt=f"{MARKER_TOOL_IMAGE_BLOCK} go",
+    )
+    message = await wait_for_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        message_id=send_response.json()["message_id"],
+    )
+
+    tool = last_tool(message, "tool-image-block")
+    assert tool["images"] == [{"mime_type": "image/png", "data": TINY_PNG_BASE64}]
+    assert tool["result"] == {
+        "output": "Image read successfully",
+        "metadata": {"truncated": False},
+    }
 
 
 async def test_chat_untracked_tool_updates_render_only_with_identity(
