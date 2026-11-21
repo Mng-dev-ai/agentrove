@@ -44,6 +44,13 @@ export function tileChatId(
   return slot ? splitChatIds[slot - 1] : routeChatId;
 }
 
+// Split tiles key by their chat so a slot renumber keeps the pane mounted.
+export function tileRenderKey(tileId: TileId, splitChatIds: string[]): string {
+  const slot = splitSlotOfTile(tileId);
+  const chatId = slot && splitChatIds[slot - 1];
+  return chatId ? `${tileIdToViewType(tileId)}:${chatId}` : tileId;
+}
+
 export function isSplitTile(tileId: TileId): tileId is SplitTileId {
   return splitSlotOfTile(tileId) !== null;
 }
