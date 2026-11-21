@@ -21,8 +21,8 @@
 .column {
   display: flex;
   min-width: 0;
+  align-items: flex-end;
   overflow: hidden;
-  padding-top: var(--safe-area-top);
 
   &--divided {
     border-left: 1px solid colors.theme-color('border', 0.5);
@@ -31,6 +31,7 @@
 
 .leading {
   display: flex;
+  align-self: stretch;
   min-width: 0;
   max-width: 50%;
   flex: 0 1 auto;

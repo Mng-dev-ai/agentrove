@@ -19,6 +19,7 @@ import {
   activeSplitSlot,
   agentTileFor,
   isSplitTile,
+  splitAgentTile,
   splitSlotOfTile,
   tileIdToViewType,
   viewTypeToTileId,
@@ -148,10 +149,6 @@ const getInitialSidebarState = (): boolean => {
 
 const isDesktop = (): boolean =>
   typeof window !== 'undefined' && window.innerWidth >= MOBILE_BREAKPOINT;
-
-function splitAgentTile(slot: SplitSlot): AgentTileId {
-  return `agent:split-${slot}`;
-}
 
 function splitSlotAt(index: number): SplitSlot {
   if (index === 0) return 1;
@@ -541,7 +538,10 @@ export const useUIStore = create<UIStoreState>()(
           ...clearJumpsForTile(state, tileId),
         };
         if (state.focusedTile === tileId) {
-          const next = lastVisibleTile(visibleLayout);
+          const owner = agentTileFor(tileId);
+          const next = visibleLayout.flat().includes(owner)
+            ? owner
+            : lastVisibleTile(visibleLayout);
           patch.focusedTile = next;
           patch.activeAgentTile = agentTileFor(next);
         }

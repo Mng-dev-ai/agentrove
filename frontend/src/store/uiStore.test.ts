@@ -176,6 +176,17 @@ describe('toggleView', () => {
     expect(state().splitChatIds).toEqual(['c2', 'c3']);
   });
 
+  it('keeps focus on the owning pane when its focused view is toggled off', () => {
+    state().openChatInSplit('c2');
+    state().toggleView('diff', true, 'agent:primary');
+    expect(state().focusedTile).toBe('diff');
+
+    state().toggleView('diff', true, 'agent:primary');
+    expect(state().visibleLayout).toEqual([['agent:primary', 'agent:split-1']]);
+    expect(state().focusedTile).toBe('agent:primary');
+    expect(state().activeAgentTile).toBe('agent:primary');
+  });
+
   it('shows a single view on mobile and returns to the agent on re-tap', () => {
     vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(400);
     state().toggleView('diff', true);

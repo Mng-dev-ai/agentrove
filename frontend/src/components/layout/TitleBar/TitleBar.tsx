@@ -143,6 +143,7 @@ export function TitleBar() {
   const docked = isAuthenticated && showSidebar && sidebarOpen;
   const routedChatId = isChatPage?.params.chatId;
   const showPaneHeaders = isAuthenticated && !!routedChatId && !isMobile;
+  const showTabs = isAuthenticated && (isChatPage || isLandingPage);
 
   const left = (
     // When docked, merges into the sidebar header (border-r, no hairline).
@@ -191,7 +192,7 @@ export function TitleBar() {
 
       {/* Auth gate: macOS desktop still renders the bar logged out; without this,
           persisted chatTabs would hit protected queries and 401-self-close. */}
-      {isAuthenticated && (isChatPage || isLandingPage) && <ChatTabs />}
+      {showTabs && <ChatTabs />}
 
       {/* Spacer after traffic lights when sidebar controls are absent. */}
       {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className={styles.spacer} />}
@@ -203,7 +204,7 @@ export function TitleBar() {
       // The row owns the height (2.5rem bar + top inset); each section pads its
       // content below the inset (pt) so the section's background bleeds under the
       // iOS status bar. env() is 0 on desktop/web, so the bar stays a plain h-10.
-      className={styles['title-bar']}
+      className={clsx(styles['title-bar'], showTabs && styles['title-bar--tabs'])}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
@@ -216,7 +217,7 @@ export function TitleBar() {
         <>
           {left}
           <div className={styles.band}>
-            <div className={styles['tabs-area']}>
+            <div className={styles['title-area']}>
               {isAuthenticated && isChannelPage && <ChannelHeader />}
             </div>
             {/* No per-view tabs — switcher opens/closes views (landing needs it too). */}

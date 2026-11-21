@@ -1,0 +1,23 @@
+@use '@/styles/globals/responsive' as responsive;
+
+.close-button {
+  @include responsive.touch-target;
+  height: var(--space-7);
+  width: var(--space-7);
+
+  @include responsive.hover {
+    .close-icon {
+      color: var(--theme-text-primary);
+    }
+  }
+}
+
+.close-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-tertiary);
+
+  :global([data-theme='dark']) & {
+    color: var(--theme-text-quaternary);
+  }
+}

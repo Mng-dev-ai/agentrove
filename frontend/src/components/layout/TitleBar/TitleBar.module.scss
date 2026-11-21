@@ -67,14 +67,22 @@
   // 2.5rem bar + the iOS top inset (0 on desktop/web)
   height: calc(var(--space-10) + var(--safe-area-top));
   flex-shrink: 0;
+
+  &--tabs {
+    .left {
+      min-width: 0;
+    }
+
+    .band {
+      min-width: auto;
+    }
+  }
 }
 
 .left {
   display: flex;
   height: 100%;
   width: auto;
-  min-width: 0;
-  flex: 0 1 auto;
   align-items: center;
   gap: var(--space-1);
   background-color: var(--theme-surface);
@@ -144,6 +152,7 @@
 .band {
   display: flex;
   height: 100%;
+  min-width: 0;
   flex: 1;
   align-items: center;
   justify-content: space-between;
@@ -153,7 +162,7 @@
   padding-top: var(--safe-area-top);
 }
 
-.tabs-area {
+.title-area {
   display: flex;
   height: 100%;
   min-width: 0;

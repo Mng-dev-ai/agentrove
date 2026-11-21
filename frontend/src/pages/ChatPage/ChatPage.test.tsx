@@ -5,7 +5,6 @@ import { act, render } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate, type NavigateFunction } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useUIStore } from '@/store/uiStore';
-import type { TileId } from '@/types/ui.types';
 import { ChatPage } from './ChatPage';
 
 vi.mock('@/components/layout/Sidebar/Sidebar', () => ({ Sidebar: () => null }));
@@ -46,20 +45,8 @@ vi.mock('@/components/chat/chat-window/ChatSessionOrchestrator', () => ({
 vi.mock('@/components/chat/chat-window/Chat', () => ({ Chat: () => null }));
 vi.mock('@/components/chat/session-panel/SessionPanel', () => ({ SessionPanel: () => null }));
 vi.mock('@/components/layout/WorkspaceSurface/WorkspaceSurface', () => ({
-  WorkspaceSurface: ({
-    renderView,
-  }: {
-    renderView: (tileId: TileId, isVisible: boolean) => ReactNode;
-  }) => (
-    <>
-      {(['agent:primary', 'agent:split-1'] as const).map((tileId) => (
-        <div key={tileId} data-testid={tileId}>
-          {renderView(tileId, true)}
-        </div>
-      ))}
-    </>
-  ),
-  WorkspaceTile: ({ agent }: { agent: ReactNode }) => agent,
+  WorkspaceSurface: () => null,
+  WorkspaceTile: () => null,
 }));
 
 let navigate: NavigateFunction = () => {};

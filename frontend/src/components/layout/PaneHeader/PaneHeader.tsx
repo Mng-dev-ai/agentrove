@@ -11,7 +11,7 @@ import { useUIStore } from '@/store/uiStore';
 import { stripMarkdownTitle } from '@/utils/format';
 import {
   agentTileFor,
-  splitSlotOfTile,
+  tileChatId,
   tileIdToViewType,
   VIEW_ICONS,
   VIEW_LABELS,
@@ -82,8 +82,8 @@ function AgentPaneHeader({ agentTile, chatId, inTile }: AgentPaneHeaderProps) {
           type="button"
           variant="unstyled"
           className={styles.chevron}
-          onMouseDown={(e) => e.stopPropagation()}
           onClick={toggleMenu}
+          data-chat-menu-trigger
           aria-label="Chat menu"
           aria-haspopup="menu"
           aria-expanded={menuOpen}
@@ -167,8 +167,7 @@ export function PaneHeaderBand({ routedChatId, leading }: PaneHeaderBandProps) {
         style={{ gridTemplateColumns: `repeat(${topRow.length}, minmax(0, 1fr))` }}
       >
         {topRow.map((tileId, index) => {
-          const slot = splitSlotOfTile(tileId);
-          const chatId = slot ? splitChatIds[slot - 1] : routedChatId;
+          const chatId = tileChatId(tileId, splitChatIds, routedChatId);
           return (
             <div
               key={tileId}

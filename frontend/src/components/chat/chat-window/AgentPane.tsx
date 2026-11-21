@@ -1,4 +1,5 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
+import { X } from 'lucide-react';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { ChatProvider } from '@/contexts/ChatContext';
@@ -7,7 +8,12 @@ import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 import { PaneSessionPanel } from '@/components/chat/session-panel/PaneSessionPanel';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import { useUIStore } from '@/store/uiStore';
+import { Button } from '@/components/ui/primitives/Button/Button';
+import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import type { AgentTileId } from '@/types/ui.types';
+import styles from './AgentPane.module.scss';
 
 interface AgentPaneProps {
   chatId: string;
@@ -24,6 +30,25 @@ export const AgentPane = memo(function AgentPane({ chatId, agentTile }: AgentPan
   );
   // Personas come from the instance that owns the chat (local or cloud VPS).
   const { data: settings } = useSettingsForChatQuery(chatId);
+  const isMobile = useIsMobile();
+  const closeButton = useMemo(
+    () =>
+      isMobile && (
+        <FloatingTooltip content="Close split">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className={styles['close-button']}
+            onClick={() => useUIStore.getState().closeSplitChat(chatId)}
+            aria-label="Close split"
+          >
+            <X className={styles['close-icon']} />
+          </Button>
+        </FloatingTooltip>
+      ),
+    [chatId, isMobile],
+  );
 
   return (
     <ChatProvider
@@ -43,7 +68,7 @@ export const AgentPane = memo(function AgentPane({ chatId, agentTile }: AgentPan
         messagesQuery={messagesQuery}
         useRouteInitialPrompt={false}
       >
-        <ChatComponent />
+        <ChatComponent corner={closeButton} />
         <PaneSessionPanel agentTile={agentTile} chat={currentChat} />
       </ChatSessionOrchestrator>
     </ChatProvider>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
@@ -70,10 +70,6 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
       }}
     />
   );
-}
-
-export function AppBarTitle({ children }: { children: ReactNode }) {
-  return <span className={styles['app-bar-title']}>{children}</span>;
 }
 
 // Working-set tabs (sidebar is the archive); re-clicking the current chat surfaces the agent pane.

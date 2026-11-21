@@ -64,7 +64,12 @@ export function useSidebarChatActions({
 
   useMountEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Element;
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target) &&
+        !target.closest('[data-chat-menu-trigger]')
+      ) {
         setDropdown(null);
       }
     };
@@ -78,7 +83,7 @@ export function useSidebarChatActions({
     if (!scrollContainer) return;
 
     const handleScroll = () => {
-      if (useUIStore.getState().chatMenu) setDropdown(null);
+      if (useUIStore.getState().chatMenu?.source === 'sidebar') setDropdown(null);
     };
 
     scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
@@ -90,7 +95,7 @@ export function useSidebarChatActions({
   const handleToggleSubThreads = useCallback(
     (chatId: string) => {
       toggleSubThreadExpand(chatId);
-      if (useUIStore.getState().chatMenu) setDropdown(null);
+      if (useUIStore.getState().chatMenu?.source === 'sidebar') setDropdown(null);
     },
     [toggleSubThreadExpand, setDropdown],
   );

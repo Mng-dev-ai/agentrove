@@ -15,7 +15,7 @@ import { useChatStore } from '@/store/chatStore';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useActiveViews } from '@/hooks/useActiveViews';
 import type { TileId, ViewType } from '@/types/ui.types';
-import { agentTileFor, splitSlotOfTile } from '@/utils/tileHelpers';
+import { agentTileFor, splitSlotOfTile, tileChatId } from '@/utils/tileHelpers';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
@@ -210,7 +210,7 @@ export function ChatPage() {
   const renderView = useCallback(
     (tileId: TileId, isVisible: boolean): ReactNode => {
       const slot = splitSlotOfTile(tileId);
-      const paneChatId = slot ? splitChatIds[slot - 1] : chatId;
+      const paneChatId = tileChatId(tileId, splitChatIds, chatId);
       const paneChat = slot
         ? [splitQuery1.data, splitQuery2.data, splitQuery3.data][slot - 1]
         : currentChat;

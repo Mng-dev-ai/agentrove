@@ -1,0 +1,12 @@
+@use '@/styles/globals/typography' as type;
+
+// Inert so the bar still drags
+.title {
+  @include type.type-default;
+  @include type.type-overflow;
+  align-self: center;
+  min-width: 0;
+  padding-inline: var(--space-2);
+  color: var(--theme-text-secondary);
+  pointer-events: none;
+}
