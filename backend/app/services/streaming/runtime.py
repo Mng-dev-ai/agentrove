@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import posixpath
 import time
 from contextlib import asynccontextmanager, suppress
 from copy import deepcopy
@@ -31,6 +32,7 @@ from app.models.db_models.user import User, UserSettings
 from app.models.schemas.queue import QueuedMessage
 from app.models.types import MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import build_system_prompt_for_chat
+from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.agent import (
     AgentService,
@@ -52,12 +54,15 @@ from app.services.push import PushService
 from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
+from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES, tool_image
 from app.services.streaming.types import (
     PROMPT_SUGGESTIONS_RE,
     ChatStreamRequest,
     StreamEnvelope,
     StreamEvent,
     StreamSnapshotAccumulator,
+    ToolImage,
+    ToolPayload,
 )
 from app.services.subthread_wake import subthread_wake
 from app.services.user import UserService
@@ -88,6 +93,7 @@ SNAPSHOT_EVENT_KINDS = frozenset(
 
 SNAPSHOT_CHECKPOINT_INTERVAL_SECONDS = 2.0
 EVENT_REPLAY_PAGE_SIZE = 500
+IMAGE_READ_TIMEOUT_SECONDS = 3.0
 
 
 class ChatStreamRuntime:
@@ -162,6 +168,7 @@ class ChatStreamRuntime:
         self._last_emitted_tokens: int = 0
         self._last_emitted_context_window: int = 0
         self._stream: AsyncIterator[StreamEvent] | None = None
+        self._image_read_tool_ids: set[str] = set()
 
     async def run(
         self,
@@ -281,6 +288,11 @@ class ChatStreamRuntime:
                 task.add_done_callback(self._bg_tasks.discard)
                 task.add_done_callback(self._on_session_update_done)
 
+        if kind in ("tool_started", "tool_completed") and (
+            image := await self._read_tool_image(payload["tool"])
+        ):
+            payload["tool"] = {**payload["tool"], "images": [image]}
+
         if kind == "usage":
             usage_data = payload.get("data")
             stream_result.usage = usage_data if isinstance(usage_data, dict) else None
@@ -288,6 +300,31 @@ class ChatStreamRuntime:
         else:
             await self.emit_event(kind, payload)
             await self._flush_snapshot()
+
+    async def _read_tool_image(self, tool: ToolPayload) -> ToolImage | None:
+        path = AcpClientHandler.image_read_path(MODELS[self.model_id].agent_kind, tool)
+        if path is None or tool["id"] in self._image_read_tool_ids:
+            return None
+        self._image_read_tool_ids.add(tool["id"])
+        provider = SandboxProvider.create_provider(
+            self.chat.sandbox_provider, workspace_path=self.chat.workspace_path
+        )
+        try:
+            data = await asyncio.wait_for(
+                provider.read_file_bytes(
+                    self.chat.sandbox_id,
+                    posixpath.join(
+                        provider.resolve_workspace_path(self.chat.worktree_cwd), path
+                    ),
+                    MAX_TOOL_IMAGE_BYTES + 1,
+                ),
+                IMAGE_READ_TIMEOUT_SECONDS,
+            )
+        except (OSError, ValueError, SandboxException, TimeoutError):
+            return None
+        finally:
+            await provider.cleanup()
+        return tool_image(data)
 
     def _steering_session(self) -> AcpSession | None:
         session = self._acp_session

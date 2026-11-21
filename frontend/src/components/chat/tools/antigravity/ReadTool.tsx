@@ -3,6 +3,7 @@ import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename, humanizeToolTitle } from '@/utils/format';
 import { ToolCard } from '../common/ToolCard/ToolCard';
+import { ToolImages } from '../common/ToolImages/ToolImages';
 import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import type { AntigravityReadInput } from './antigravityPayload';
 import styles from './ReadTool.module.scss';
@@ -14,6 +15,10 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
   const label = filePath ? extractFilename(filePath) : humanizeToolTitle(tool.title) || 'file';
   // The server batches or omits read completions even though reads finish immediately.
   const displayStatus = tool.status === 'started' ? 'completed' : tool.status;
+
+  if (tool.status !== 'failed' && tool.images?.length) {
+    return <ToolImages toolId={tool.id} fileName={label} images={tool.images} />;
+  }
 
   return (
     <ToolCard

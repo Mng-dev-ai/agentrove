@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 import logging
 import re
@@ -24,6 +26,7 @@ from acp.schema import (
     ElicitationFormRequestMode,
     ElicitationFormSessionMode,
     ElicitationMode,
+    ImageContentBlock,
     KillTerminalResponse,
     PermissionOption,
     ReadTextFileResponse,
@@ -42,7 +45,12 @@ from acp.schema import (
 
 from app.models.types import AgentKind, PermissionMode
 from app.models.db_models.enums import ToolStatus
-from app.services.streaming.types import StreamEvent, StreamEventType, ToolPayload
+from app.services.streaming.images import tool_image
+from app.services.streaming.types import (
+    StreamEvent,
+    ToolImage,
+    ToolPayload,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +60,13 @@ _SENTINEL = object()
 # claude-agent-acp fixed heartbeat forwarding in 0.63.0; retain the ID filter
 # as defense-in-depth for other or older adapters.
 _HEARTBEAT_TOOL_ID_RE = re.compile(r"-heartbeat-\d+$")
+
+IMAGE_READ_PATH_KEYS = {
+    AgentKind.CODEX: "path",
+    AgentKind.COPILOT: "path",
+    AgentKind.ANTIGRAVITY: "file_path",
+}
+IMAGE_READ_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
 # Valid ACP option_ids that match our PermissionMode literals directly.
 VALID_PERMISSION_MODES: set[str] = {
@@ -119,6 +134,7 @@ class AcpClientHandler:
         self.agent_kind = agent_kind
         self.event_queue: asyncio.Queue[StreamEvent | object] = asyncio.Queue()
         self._active_tools: dict[str, ToolPayload] = {}
+        self._completed_on_start: set[str] = set()
         # OpenCode sends its tool name only in a top-level `name` field the SDK
         # schema drops, so observe_stream captures it from the raw JSON-RPC.
         self._opencode_tool_names: dict[str, str] = {}
@@ -189,25 +205,24 @@ class AcpClientHandler:
 
     def finish(self, *, prompt_completed: bool) -> None:
         if self._active_tools:
-            if prompt_completed:
-                terminal_status: Literal["completed", "failed"] = (
-                    ToolStatus.COMPLETED.value
+            for tool_id, payload in self._active_tools.items():
+                completed = prompt_completed or tool_id in self._completed_on_start
+                payload["status"] = (
+                    ToolStatus.COMPLETED.value if completed else ToolStatus.FAILED.value
                 )
-                terminal_event_type: StreamEventType = "tool_completed"
-            else:
-                terminal_status = ToolStatus.FAILED.value
-                terminal_event_type = "tool_failed"
-            for payload in self._active_tools.values():
-                payload["status"] = terminal_status
-                if not prompt_completed and "error" not in payload:
+                if not completed and "error" not in payload:
                     # Codex occasionally ends the turn without a terminal tool
                     # progress update. Mark the tool as interrupted so the UI
                     # does not leave it stuck in a perpetual loading state.
                     payload["error"] = "Tool ended before a terminal ACP update arrived"
                 self.event_queue.put_nowait(
-                    StreamEvent(type=terminal_event_type, tool=payload)
+                    StreamEvent(
+                        type="tool_completed" if completed else "tool_failed",
+                        tool=payload,
+                    )
                 )
             self._active_tools.clear()
+            self._completed_on_start.clear()
         self._resolved_permissions.clear()
         self._permission_option_modes.clear()
         # Unanswered client prompts must not outlive the turn.
@@ -636,6 +651,10 @@ class AcpClientHandler:
         if diffs:
             payload["result"] = {"diffs": diffs}
         self._active_tools[tc.tool_call_id] = payload
+        if tc.status == "completed":
+            self._completed_on_start.add(tc.tool_call_id)
+        else:
+            self._completed_on_start.discard(tc.tool_call_id)
         return StreamEvent(type="tool_started", tool=payload)
 
     @staticmethod
@@ -709,6 +728,7 @@ class AcpClientHandler:
 
         if status in ("completed", "failed"):
             self._active_tools.pop(tc.tool_call_id, None)
+            self._completed_on_start.discard(tc.tool_call_id)
             self._opencode_tool_names.pop(tc.tool_call_id, None)
         if status == "completed":
             existing["status"] = ToolStatus.COMPLETED.value
@@ -717,6 +737,10 @@ class AcpClientHandler:
             # don't wipe them when the terminal update carries no result.
             if result is not None or "result" not in existing:
                 existing["result"] = result
+            if self.agent_kind == AgentKind.OPENCODE and (
+                images := self._extract_content_images(tc)
+            ):
+                existing["images"] = images
             selected_mode = self._resolved_permissions.pop(tc.tool_call_id, None)
             if selected_mode is not None:
                 existing["permission_mode"] = selected_mode
@@ -886,6 +910,33 @@ class AcpClientHandler:
             if inner and getattr(inner, "type", None) == "text":
                 texts.append(inner.text)
         return texts
+
+    @staticmethod
+    def image_read_path(agent_kind: AgentKind, tool: ToolPayload) -> str | None:
+        key = IMAGE_READ_PATH_KEYS.get(agent_kind)
+        if key is None or tool.get("name") != "read":
+            return None
+        path = (tool.get("input") or {}).get(key)
+        if not isinstance(path, str) or not path.lower().endswith(
+            IMAGE_READ_EXTENSIONS
+        ):
+            return None
+        return path
+
+    @staticmethod
+    def _extract_content_images(tc: ToolCallProgress) -> list[ToolImage]:
+        images: list[ToolImage] = []
+        for block in tc.content or []:
+            inner = getattr(block, "content", None)
+            if not isinstance(inner, ImageContentBlock):
+                continue
+            try:
+                data = base64.b64decode(inner.data, validate=True)
+            except binascii.Error:
+                continue
+            if image := tool_image(data):
+                images.append(image)
+        return images
 
     @staticmethod
     def _extract_content_diffs(

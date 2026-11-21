@@ -85,6 +85,11 @@ class ChatStreamRequest:
         return None if self.member_turn else str(self.chat_data["user_id"])
 
 
+class ToolImage(TypedDict):
+    mime_type: str
+    data: str
+
+
 class ToolPayload(TypedDict, total=False):
     id: str
     name: str
@@ -94,6 +99,7 @@ class ToolPayload(TypedDict, total=False):
     input: dict[str, Any] | None
     path: str
     result: Any
+    images: list[ToolImage]
     error: str
     permission_mode: PermissionMode
 

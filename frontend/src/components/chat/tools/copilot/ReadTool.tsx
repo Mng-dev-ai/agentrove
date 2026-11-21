@@ -3,6 +3,7 @@ import { FileSearch, FolderSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
 import { ToolCard } from '../common/ToolCard/ToolCard';
+import { ToolImages } from '../common/ToolImages/ToolImages';
 import { NumberedContent } from '../common/NumberedContent/NumberedContent';
 import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import toolIcon from './toolIcon.module.scss';
@@ -24,6 +25,10 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
   const pattern = input?.pattern ?? '';
   const content = result?.content ?? '';
   const fileLabel = path ? extractFilename(path) : 'file';
+
+  if (tool.status !== 'failed' && tool.images?.length) {
+    return <ToolImages toolId={tool.id} fileName={fileLabel} images={tool.images} />;
+  }
 
   const icon = isGlob ? (
     <FolderSearch className={toolIcon.icon} />

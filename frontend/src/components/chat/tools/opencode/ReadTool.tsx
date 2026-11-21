@@ -3,6 +3,7 @@ import { FileSearch } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import { extractFilename } from '@/utils/format';
 import { ToolCard } from '../common/ToolCard/ToolCard';
+import { ToolImages } from '../common/ToolImages/ToolImages';
 import { NumberedContent } from '../common/NumberedContent/NumberedContent';
 import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import toolIcon from './toolIcon.module.scss';
@@ -20,6 +21,10 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
   const filePath = input?.path ?? input?.filePath ?? '';
   const fileName = filePath ? extractFilename(filePath) : tool.title?.trim() || 'file';
   const content = (result?.output ?? '').replace(READ_HEADER, '');
+
+  if (tool.status !== 'failed' && tool.images?.length) {
+    return <ToolImages toolId={tool.id} fileName={fileName} images={tool.images} />;
+  }
 
   return (
     <ToolCard

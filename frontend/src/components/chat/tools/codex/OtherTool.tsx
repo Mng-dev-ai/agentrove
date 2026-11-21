@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Image, Users } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import type { MessageAttachment } from '@/types/chat.types';
+import { buildImageAttachment } from '@/utils/imageAttachment';
 import { AttachmentViewer } from '@/components/ui/attachment-viewer/AttachmentViewer';
 import { ToolCard } from '../common/ToolCard/ToolCard';
 import { MCPTool } from '../claude/MCPTool';
@@ -29,16 +30,7 @@ const ImageGenerationTool = memo(function ImageGenerationTool({ tool }: { tool: 
   const output = (tool.result ?? {}) as ImageGenerationOutput;
   const imageData = typeof output.result === 'string' ? output.result.trim() : '';
   const attachments: MessageAttachment[] = imageData
-    ? [
-        {
-          id: tool.id,
-          file_url: `data:image/png;base64,${imageData}`,
-          file_type: 'image',
-          filename: 'generated-image.png',
-          message_id: '',
-          created_at: '',
-        },
-      ]
+    ? [buildImageAttachment(tool.id, 'generated-image.png', 'image/png', imageData)]
     : [];
 
   return (
