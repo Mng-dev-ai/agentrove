@@ -324,6 +324,7 @@ class FakeAgent:
         # Markers replayed in a provider-handoff transcript must not re-trigger.
         text = text.rpartition("</previous_conversation>")[2]
         if MARKER_CRASH_MID_PROMPT in text:
+            await self._emit_image_reads(session_id, text)
             await self._emit_tool_started(session_id, "tool-crash", "Doing risky work")
             raise RuntimeError("simulated mid-prompt agent failure")
         if MARKER_AGENT_EXIT_MID_PROMPT in text:

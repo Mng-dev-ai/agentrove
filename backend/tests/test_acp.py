@@ -693,6 +693,43 @@ async def test_image_reads_store_the_file_bytes_for_allowlisted_agents(
     assert message["stream_status"] == "completed"
 
 
+async def test_failed_turn_keeps_an_image_read_that_arrived_completed(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    tmp_path: Path,
+) -> None:
+    headers, workspace = auth_workspace
+    (tmp_path / "cat.png").write_bytes(base64.b64decode(TINY_PNG_BASE64))
+    chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
+
+    send_response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="gpt-5.4",
+        permission_mode="auto",
+        prompt=f"view_image={tmp_path / 'cat.png'} {MARKER_CRASH_MID_PROMPT}",
+    )
+    message = await wait_for_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        message_id=send_response.json()["message_id"],
+    )
+
+    image_events = [
+        e for e in tool_events(message) if e["tool"]["id"] == "tool-image-0"
+    ]
+    assert [e["type"] for e in image_events] == ["tool_started", "tool_completed"]
+    assert image_events[0]["tool"]["images"]
+    assert "error" not in image_events[1]["tool"]
+    crash = last_tool(message, "tool-crash")
+    assert crash["status"] == "failed"
+    assert crash["error"] == "Tool ended before a terminal ACP update arrived"
+
+
 async def test_opencode_image_content_block_lands_in_images(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],

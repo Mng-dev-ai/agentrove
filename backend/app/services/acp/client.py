@@ -48,7 +48,6 @@ from app.models.db_models.enums import ToolStatus
 from app.services.streaming.images import tool_image
 from app.services.streaming.types import (
     StreamEvent,
-    StreamEventType,
     ToolImage,
     ToolPayload,
 )
@@ -135,6 +134,7 @@ class AcpClientHandler:
         self.agent_kind = agent_kind
         self.event_queue: asyncio.Queue[StreamEvent | object] = asyncio.Queue()
         self._active_tools: dict[str, ToolPayload] = {}
+        self._completed_on_start: set[str] = set()
         # OpenCode sends its tool name only in a top-level `name` field the SDK
         # schema drops, so observe_stream captures it from the raw JSON-RPC.
         self._opencode_tool_names: dict[str, str] = {}
@@ -205,25 +205,24 @@ class AcpClientHandler:
 
     def finish(self, *, prompt_completed: bool) -> None:
         if self._active_tools:
-            if prompt_completed:
-                terminal_status: Literal["completed", "failed"] = (
-                    ToolStatus.COMPLETED.value
+            for tool_id, payload in self._active_tools.items():
+                completed = prompt_completed or tool_id in self._completed_on_start
+                payload["status"] = (
+                    ToolStatus.COMPLETED.value if completed else ToolStatus.FAILED.value
                 )
-                terminal_event_type: StreamEventType = "tool_completed"
-            else:
-                terminal_status = ToolStatus.FAILED.value
-                terminal_event_type = "tool_failed"
-            for payload in self._active_tools.values():
-                payload["status"] = terminal_status
-                if not prompt_completed and "error" not in payload:
+                if not completed and "error" not in payload:
                     # Codex occasionally ends the turn without a terminal tool
                     # progress update. Mark the tool as interrupted so the UI
                     # does not leave it stuck in a perpetual loading state.
                     payload["error"] = "Tool ended before a terminal ACP update arrived"
                 self.event_queue.put_nowait(
-                    StreamEvent(type=terminal_event_type, tool=payload)
+                    StreamEvent(
+                        type="tool_completed" if completed else "tool_failed",
+                        tool=payload,
+                    )
                 )
             self._active_tools.clear()
+            self._completed_on_start.clear()
         self._resolved_permissions.clear()
         self._permission_option_modes.clear()
         # Unanswered client prompts must not outlive the turn.
@@ -652,6 +651,10 @@ class AcpClientHandler:
         if diffs:
             payload["result"] = {"diffs": diffs}
         self._active_tools[tc.tool_call_id] = payload
+        if tc.status == "completed":
+            self._completed_on_start.add(tc.tool_call_id)
+        else:
+            self._completed_on_start.discard(tc.tool_call_id)
         return StreamEvent(type="tool_started", tool=payload)
 
     @staticmethod
@@ -725,6 +728,7 @@ class AcpClientHandler:
 
         if status in ("completed", "failed"):
             self._active_tools.pop(tc.tool_call_id, None)
+            self._completed_on_start.discard(tc.tool_call_id)
             self._opencode_tool_names.pop(tc.tool_call_id, None)
         if status == "completed":
             existing["status"] = ToolStatus.COMPLETED.value
