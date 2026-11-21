@@ -6,6 +6,7 @@
 .segmented-control {
   position: relative;
   display: inline-flex;
+  max-width: 100%;
   border: 1px solid var(--theme-border);
   background-color: var(--theme-surface-tertiary);
 
@@ -52,6 +53,8 @@
   @include anim.transition-colors;
   @include controls.focus-ring;
   @include responsive.touch-target;
+  @include type.type-overflow;
+  min-width: 0;
   cursor: pointer;
   border: none;
   background: none;
