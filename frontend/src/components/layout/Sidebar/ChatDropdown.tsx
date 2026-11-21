@@ -1,6 +1,8 @@
 import { memo, type Ref } from 'react';
+import toast from 'react-hot-toast';
 import {
   CornerLeftUp,
+  Copy,
   Edit2,
   Folder,
   GitFork,
@@ -59,6 +61,16 @@ export const ChatDropdown = memo(function ChatDropdown({
     s.activeStreamMetadata.some((stream) => stream.chatId === chat.id),
   );
 
+  const handleCopyId = async () => {
+    onClose?.();
+    try {
+      await navigator.clipboard.writeText(chat.id);
+      toast.success('Chat ID copied');
+    } catch {
+      toast.error('Failed to copy chat ID');
+    }
+  };
+
   return (
     <SidebarMenu ref={ref} position={position} onClose={onClose}>
       {!isSubThread && (
@@ -99,6 +111,9 @@ export const ChatDropdown = memo(function ChatDropdown({
       </SidebarMenuItem>
       <SidebarMenuItem icon={Edit2} onClick={() => onRename(chat)}>
         Rename
+      </SidebarMenuItem>
+      <SidebarMenuItem icon={Copy} onClick={handleCopyId}>
+        Copy chat ID
       </SidebarMenuItem>
       <SidebarMenuItem icon={Trash2} onClick={() => onDelete(chat.id)} danger>
         Delete

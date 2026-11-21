@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ChatDropdown } from './ChatDropdown';
@@ -49,5 +49,16 @@ describe('ChatDropdown "Convert to thread"', () => {
       activeStreamMetadata: [{ chatId: 'sub-1', messageId: 'm-1', startTime: 0 }],
     });
     expect(renderDropdown().disabled).toBe(true);
+  });
+});
+
+describe('ChatDropdown "Copy chat ID"', () => {
+  it('writes the chat id to the clipboard', () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    renderDropdown();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copy chat ID' }));
+    expect(writeText).toHaveBeenCalledWith('sub-1');
+    vi.unstubAllGlobals();
   });
 });
