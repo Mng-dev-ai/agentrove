@@ -264,6 +264,27 @@ describe('split chat', () => {
     ]);
   });
 
+  it('promotes the first split into the primary pane, keeping the other panes, views and focus', () => {
+    state().loadWorkspaceForChat('a');
+    state().openChatInSplit('b');
+    state().openChatInSplit('c');
+    state().toggleView('diff', true, 'agent:primary');
+    state().toggleView('diff', true, 'agent:split-1');
+    state().toggleView('diff', true, 'agent:split-2');
+    state().focusTile('agent:split-2');
+
+    state().promoteFirstSplit();
+
+    expect(state().currentWorkspaceChatId).toBe('b');
+    expect(state().splitChatIds).toEqual(['c']);
+    expect(state().visibleLayout).toEqual([
+      ['agent:primary', 'diff', 'agent:split-1', 'diff:split-1'],
+    ]);
+    expect(state().focusedTile).toBe('agent:split-1');
+    expect(state().activeAgentTile).toBe('agent:split-1');
+    expect(state().layoutsByChat.a.visibleLayout).toEqual([['agent:primary', 'diff']]);
+  });
+
   it('does not open a fifth chat', () => {
     state().openChatInSplit('c2');
     state().openChatInSplit('c3');

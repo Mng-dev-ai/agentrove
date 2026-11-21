@@ -134,6 +134,7 @@ export interface SplitViewActions {
   openChatInSplit: (chatId: string) => void;
   rebuildSplitLayout: () => void;
   closeSplitChat: (chatId?: string) => void;
+  promoteFirstSplit: () => void;
   openSideQuestion: (chatId: string, askingChatId: string) => void;
   activateTab: (tileId: TileId) => void;
   // Sets focusedTile + activeAgentTile so tab and pane clicks stay consistent.

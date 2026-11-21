@@ -76,6 +76,7 @@ export function ChatPage() {
   const prevChatIdForResetRef = useRef(chatId);
   useLayoutEffect(() => {
     const ui = useUIStore.getState();
+    const workspaceAlreadyLive = ui.currentWorkspaceChatId === chatId;
     if (chatId) ui.loadWorkspaceForChat(chatId);
     if (prevChatIdForResetRef.current !== chatId) {
       prevChatIdForResetRef.current = chatId;
@@ -91,8 +92,9 @@ export function ChatPage() {
         createPRDialogOpen: false,
         createBranchDialogOpen: false,
         // Don't inherit prior chat's focus onto a same-id split tile.
-        focusedTile: null,
-        activeAgentTile: 'agent:primary',
+        ...(workspaceAlreadyLive
+          ? {}
+          : { focusedTile: null, activeAgentTile: 'agent:primary' as const }),
       });
       if (pendingDiffMode) {
         ui.rebuildSplitLayout();

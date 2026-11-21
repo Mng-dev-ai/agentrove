@@ -68,8 +68,12 @@ function AgentPaneHeader({ agentTile, chatId, inTile }: AgentPaneHeaderProps) {
   };
 
   const closePane = () => {
-    if (agentTile === 'agent:primary') navigate(`/chat/${firstSplitChatId}`);
-    else useUIStore.getState().closeSplitChat(chatId);
+    if (agentTile === 'agent:primary') {
+      useUIStore.getState().promoteFirstSplit();
+      navigate(`/chat/${firstSplitChatId}`);
+    } else {
+      useUIStore.getState().closeSplitChat(chatId);
+    }
   };
 
   return (

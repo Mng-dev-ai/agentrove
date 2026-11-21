@@ -87,13 +87,23 @@ describe('ChatPage split panes', () => {
       useUIStore.getState().openChatInSplit('split-a');
       useUIStore.getState().openChatInSplit('split-b');
       useUIStore.getState().openChatInSplit('split-c');
+      useUIStore.getState().toggleView('diff', true, 'agent:split-2');
+      useUIStore.getState().focusTile('agent:split-3');
     });
 
-    act(() => navigate('/chat/split-a'));
+    act(() => {
+      useUIStore.getState().promoteFirstSplit();
+      navigate('/chat/split-a');
+    });
 
     const ui = useUIStore.getState();
     expect(ui.currentWorkspaceChatId).toBe('split-a');
     expect(ui.splitChatIds).toEqual(['split-b', 'split-c']);
-    expect(ui.visibleLayout).toEqual([['agent:primary', 'agent:split-1', 'agent:split-2']]);
+    expect(ui.visibleLayout).toEqual([
+      ['agent:primary'],
+      ['agent:split-1', 'diff:split-1', 'agent:split-2'],
+    ]);
+    expect(ui.focusedTile).toBe('agent:split-2');
+    expect(ui.activeAgentTile).toBe('agent:split-2');
   });
 });

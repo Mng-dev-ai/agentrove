@@ -41,6 +41,12 @@
   }
 }
 
+@container pane-header (width < 13.5rem) {
+  .view-button--collapsible {
+    display: none;
+  }
+}
+
 .icon {
   height: var(--space-3-5);
   width: var(--space-3-5);

@@ -234,6 +234,13 @@ function compactTileAfter(tileId: TileId, closedSlot: SplitSlot): TileId | null 
   return `${tileIdToViewType(tileId)}:split-${(slot - 1) as SplitSlot}`;
 }
 
+function promotedTile(tileId: TileId): TileId | null {
+  const slot = splitSlotOfTile(tileId);
+  if (!slot) return null;
+  if (slot === 1) return viewTypeToTileId(tileIdToViewType(tileId), null);
+  return compactTileAfter(tileId, 1);
+}
+
 function compactLayout(layout: TileId[][], closedSlot: SplitSlot): TileId[][] {
   return layout
     .map((row) =>
@@ -668,6 +675,31 @@ export const useUIStore = create<UIStoreState>()(
         const state = get();
         if (state.splitChatIds.length === 0) return;
         set(rebuildSplitGrid(state, state.splitChatIds));
+      },
+
+      promoteFirstSplit: () => {
+        const state = get();
+        const closedChatId = state.currentWorkspaceChatId;
+        const [promotedChatId, ...splitChatIds] = state.splitChatIds;
+        if (!closedChatId || !promotedChatId) return;
+        const openTabs = state.openTabs.map(promotedTile).filter((tile) => tile !== null);
+        let visibleLayout = state.visibleLayout
+          .map((row) => row.map(promotedTile).filter((tile) => tile !== null))
+          .filter((row) => row.length > 0);
+        if (visibleLayout.length === 0) visibleLayout = agentGridFor(1 + splitChatIds.length);
+        set({
+          layoutsByChat: {
+            ...state.layoutsByChat,
+            [closedChatId]: ownTabs(state.openTabs, state.visibleLayout),
+          },
+          currentWorkspaceChatId: promotedChatId,
+          splitChatIds,
+          openTabs,
+          visibleLayout,
+          focusedTile: state.focusedTile ? promotedTile(state.focusedTile) : null,
+          activeAgentTile: agentTileFor(promotedTile(state.activeAgentTile) ?? 'agent:primary'),
+          ...clearJumpsForChat(state, closedChatId),
+        });
       },
 
       closeSplitChat: (chatId) => {

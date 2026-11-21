@@ -45,6 +45,7 @@
 
 .header {
   @include type.type-noselect;
+  container: pane-header / inline-size;
   display: flex;
   height: var(--space-10);
   min-width: 0;

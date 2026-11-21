@@ -56,7 +56,11 @@ export function ViewSwitcher({ agentTile }: { agentTile?: AgentTileId }) {
         const Icon = VIEW_ICONS[view];
         const isActive = !panelCoversWorkspace && visibleSet.has(viewTypeToTileId(view, slot));
         return (
-          <FloatingTooltip key={view} content={viewTooltip(view)}>
+          <FloatingTooltip
+            key={view}
+            content={viewTooltip(view)}
+            className={view === 'diff' ? undefined : styles['view-button--collapsible']}
+          >
             <Button
               variant="unstyled"
               // Left-click toggles full; shift/right-click splits beside the active pane.
