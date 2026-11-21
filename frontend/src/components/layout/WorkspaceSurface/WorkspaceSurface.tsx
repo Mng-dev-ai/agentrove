@@ -97,7 +97,7 @@ export function WorkspaceTile({
               worktreeCwd={chat?.worktree_cwd ?? undefined}
               // Background tiles are mounted but zero-size — only fit when visible.
               isVisible={isTerminal && isVisible}
-              panelKey={`tile-${tileId}`}
+              panelKey={`${view}-${chatId}`}
             />
           </Suspense>
         </div>
