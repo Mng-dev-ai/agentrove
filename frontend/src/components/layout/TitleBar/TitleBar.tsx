@@ -97,7 +97,8 @@ export function DesktopDragRegion() {
     await (await getTauriWindow()).startDragging();
   };
 
-  const handleDoubleClick = async () => {
+  const handleDoubleClick = async (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return;
     await (await getTauriWindow()).toggleMaximize();
   };
 
@@ -137,8 +138,9 @@ export function TitleBar() {
     await (await getTauriWindow()).startDragging();
   };
 
-  const handleDoubleClick = async () => {
+  const handleDoubleClick = async (e: React.MouseEvent) => {
     if (!IS_MACOS_DESKTOP) return;
+    if ((e.target as HTMLElement).closest('button')) return;
     await (await getTauriWindow()).toggleMaximize();
   };
 
