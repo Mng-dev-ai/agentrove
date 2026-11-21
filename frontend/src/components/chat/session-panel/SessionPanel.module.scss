@@ -2,10 +2,11 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/spacing' as spacing;
 
 .panel {
   display: flex;
-  width: 280px;
+  width: spacing.$session-panel-width;
   flex-shrink: 0;
   flex-direction: column;
   gap: var(--space-4);
@@ -19,6 +20,16 @@
     width: 100%;
     border-left: none;
     padding-bottom: max(var(--space-3), env(safe-area-inset-bottom));
+  }
+}
+
+.slot {
+  display: flex;
+  width: spacing.$session-panel-width;
+  flex-shrink: 0;
+
+  @include responsive.media('mobile') {
+    width: 100%;
   }
 }
 

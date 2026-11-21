@@ -67,32 +67,43 @@ interface WorkspaceTileProps {
   chatId: string | undefined;
   chat: Chat | undefined;
   agent: ReactNode;
+  header: ReactNode;
 }
 
-export function WorkspaceTile({ tileId, isVisible, chatId, chat, agent }: WorkspaceTileProps) {
+export function WorkspaceTile({
+  tileId,
+  isVisible,
+  chatId,
+  chat,
+  agent,
+  header,
+}: WorkspaceTileProps) {
   const view = tileIdToViewType(tileId);
   const isTerminal = view === 'terminal';
   return (
-    <div
-      className={styles.tile}
-      // focusTile keeps shortcuts + tab highlight on the pane in use.
-      onPointerDownCapture={() => useUIStore.getState().focusTile(tileId)}
-    >
-      <div className={isTerminal ? styles.fill : styles.hidden}>
-        <Suspense fallback={viewLoadingFallback}>
-          <TerminalContainer
-            sandboxId={chat?.sandbox_id}
-            storageScope={chatId}
-            // Spawn shell in worktree so terminal matches agent/editor/diff cwd.
-            worktreeCwd={chat?.worktree_cwd ?? undefined}
-            // Background tiles are mounted but zero-size — only fit when visible.
-            isVisible={isTerminal && isVisible}
-            panelKey={`tile-${tileId}`}
-          />
-        </Suspense>
-      </div>
-      <div className={isTerminal ? styles.hidden : styles.fill}>
-        {renderPane(view, chatId, isVisible, agent)}
+    <div className={styles.tile}>
+      {header}
+      <div
+        className={styles.body}
+        // focusTile keeps shortcuts + tab highlight on the pane in use.
+        onPointerDownCapture={() => useUIStore.getState().focusTile(tileId)}
+      >
+        <div className={isTerminal ? styles.fill : styles.hidden}>
+          <Suspense fallback={viewLoadingFallback}>
+            <TerminalContainer
+              sandboxId={chat?.sandbox_id}
+              storageScope={chatId}
+              // Spawn shell in worktree so terminal matches agent/editor/diff cwd.
+              worktreeCwd={chat?.worktree_cwd ?? undefined}
+              // Background tiles are mounted but zero-size — only fit when visible.
+              isVisible={isTerminal && isVisible}
+              panelKey={`tile-${tileId}`}
+            />
+          </Suspense>
+        </div>
+        <div className={isTerminal ? styles.hidden : styles.fill}>
+          {renderPane(view, chatId, isVisible, agent)}
+        </div>
       </div>
     </div>
   );

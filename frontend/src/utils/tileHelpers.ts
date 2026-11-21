@@ -25,6 +25,25 @@ export function splitSlotOfTile(tileId: TileId): SplitSlot | null {
   return null;
 }
 
+export function splitAgentTile(slot: SplitSlot): AgentTileId {
+  return `agent:split-${slot}`;
+}
+
+export function agentTileFor(tileId: TileId): AgentTileId {
+  const slot = splitSlotOfTile(tileId);
+  return slot ? splitAgentTile(slot) : 'agent:primary';
+}
+
+// Split tiles bind their slot's chat; every other tile binds the route chat.
+export function tileChatId(
+  tileId: TileId,
+  splitChatIds: string[],
+  routeChatId: string | undefined,
+): string | undefined {
+  const slot = splitSlotOfTile(tileId);
+  return slot ? splitChatIds[slot - 1] : routeChatId;
+}
+
 export function isSplitTile(tileId: TileId): tileId is SplitTileId {
   return splitSlotOfTile(tileId) !== null;
 }
@@ -72,7 +91,6 @@ export function paintedLayout(
   return tile ? [[tile]] : [];
 }
 
-// Split tiles bind their slot's chat; every other tile binds the route chat.
 export function paintedChatIds(
   tiles: TileId[],
   splitChatIds: string[],
@@ -80,8 +98,7 @@ export function paintedChatIds(
 ): Set<string> {
   const ids = new Set<string>();
   for (const tile of tiles) {
-    const slot = splitSlotOfTile(tile);
-    const chatId = slot ? splitChatIds[slot - 1] : routeChatId;
+    const chatId = tileChatId(tile, splitChatIds, routeChatId);
     if (chatId) ids.add(chatId);
   }
   return ids;

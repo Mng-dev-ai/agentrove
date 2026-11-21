@@ -247,7 +247,8 @@ export function Sidebar({
     selectedChatId,
     splitChatIds,
     hoveredChatId: chatActions.hoveredChatId,
-    dropdownChatId: chatActions.dropdown?.chat.id ?? null,
+    dropdownChatId:
+      chatActions.dropdown?.source === 'sidebar' ? chatActions.dropdown.chat.id : null,
     streamingChatIdSet,
     blockedChatIdSet,
     completedChatIdSet: completedChatIds,

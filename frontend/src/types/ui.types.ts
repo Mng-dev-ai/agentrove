@@ -120,9 +120,8 @@ export interface SplitViewState {
 }
 
 export interface SplitViewActions {
-  // Full-screen toggle for a view on the active agent pane.
-  toggleView: (view: ViewType, toggle: boolean) => void;
-  addViewToSplit: (view: ViewType, direction: SplitDirection) => void;
+  toggleView: (view: ViewType, toggle: boolean, agentTile?: AgentTileId) => void;
+  addViewToSplit: (view: ViewType, direction: SplitDirection, agentTile?: AgentTileId) => void;
   removeTab: (tileId: TileId) => void;
   // Single agent view; tears down split chats (landing page).
   resetWorkspace: () => void;
@@ -135,6 +134,7 @@ export interface SplitViewActions {
   openChatInSplit: (chatId: string) => void;
   rebuildSplitLayout: () => void;
   closeSplitChat: (chatId?: string) => void;
+  promoteFirstSplit: () => void;
   openSideQuestion: (chatId: string, askingChatId: string) => void;
   activateTab: (tileId: TileId) => void;
   // Sets focusedTile + activeAgentTile so tab and pane clicks stay consistent.

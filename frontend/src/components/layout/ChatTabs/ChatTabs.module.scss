@@ -21,20 +21,3 @@
   width: var(--space-3);
   flex-shrink: 0;
 }
-
-// Names the open chat or channel; inert so the bar still drags
-.app-bar-title {
-  @include type.type-default;
-  @include type.type-overflow;
-  align-self: center;
-  min-width: 0;
-  padding-inline: var(--space-2);
-  color: var(--theme-text-secondary);
-  pointer-events: none;
-}
-
-// Tabs keep their width and leave the title a floor, so the title truncates before tabs scroll
-.tabs--after-title {
-  flex-shrink: 0;
-  max-width: calc(100% - var(--space-24));
-}

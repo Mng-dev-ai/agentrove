@@ -66,12 +66,6 @@ import { chatStatusTone } from '@/utils/message';
 import { openExternalUrl } from '@/utils/openExternal';
 import styles from './SessionPanel.module.scss';
 
-// Dialogs and view toggles act on the focused pane; the panel describes the
-// routed chat, so point them at the primary pane first.
-function focusPrimaryAgent() {
-  useUIStore.getState().focusTile('agent:primary');
-}
-
 function Card({
   title,
   action,
@@ -598,7 +592,6 @@ function SubThreadsCard({
             className={styles['header-button']}
             aria-label="New sub-thread"
             onClick={() => {
-              focusPrimaryAgent();
               useUIStore.getState().setSubThreadDialogOpen(true);
             }}
           >
@@ -641,7 +634,6 @@ function SubThreadsCard({
 }
 
 function openDiff(chatId: string, mode: DiffMode) {
-  focusPrimaryAgent();
   useUIStore.setState({ pendingDiffMode: { chatId, mode } });
   useUIStore.getState().toggleView('diff', false);
 }
@@ -720,7 +712,6 @@ function ChangesCard({
               type="button"
               className={styles['pr-button']}
               onClick={() => {
-                focusPrimaryAgent();
                 useUIStore.getState().setCreateCommitDialogOpen(true);
               }}
             >
@@ -752,7 +743,6 @@ function ChangesCard({
                 type="button"
                 className={styles['pr-button']}
                 onClick={() => {
-                  focusPrimaryAgent();
                   useUIStore.getState().setCreatePRDialogOpen(true);
                 }}
               >
