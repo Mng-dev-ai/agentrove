@@ -1,11 +1,4 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from 'react';
+import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 
 interface UseInputStateParams {
   chatId: string | undefined;
@@ -26,26 +19,35 @@ function unsentMessage(chatId: string | undefined): string {
 }
 
 export function useInputState({ chatId }: UseInputStateParams): UseInputStateResult {
-  const [inputMessage, setInputMessage] = useState(() => unsentMessage(chatId));
+  const [inputMessage, setInputMessageState] = useState(() => unsentMessage(chatId));
   const [inputFiles, setInputFiles] = useState<File[]>([]);
+  const inputMessageRef = useRef(inputMessage);
   const prevChatIdRef = useRef(chatId);
 
   if (prevChatIdRef.current !== chatId) {
     prevChatIdRef.current = chatId;
-    setInputMessage(unsentMessage(chatId));
+    inputMessageRef.current = unsentMessage(chatId);
+    setInputMessageState(inputMessageRef.current);
     setInputFiles([]);
   }
 
-  useEffect(() => {
-    if (!chatId) return;
-    if (inputMessage) unsentMessages.set(chatId, inputMessage);
-    else unsentMessages.delete(chatId);
-  }, [chatId, inputMessage]);
+  const setInputMessage = useCallback(
+    (value: SetStateAction<string>) => {
+      const next = typeof value === 'function' ? value(inputMessageRef.current) : value;
+      inputMessageRef.current = next;
+      if (chatId) {
+        if (next) unsentMessages.set(chatId, next);
+        else unsentMessages.delete(chatId);
+      }
+      setInputMessageState(next);
+    },
+    [chatId],
+  );
 
   const clearInput = useCallback(() => {
     setInputMessage('');
     setInputFiles([]);
-  }, []);
+  }, [setInputMessage]);
 
   return {
     inputMessage,

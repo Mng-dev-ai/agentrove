@@ -28,4 +28,16 @@ describe('useInputState', () => {
       '',
     );
   });
+
+  it('forgets the text when a clear lands after the composer unmounted', () => {
+    const first = renderHook(() => useInputState({ chatId: 'chat-d' }));
+    act(() => first.result.current.setInputMessage('/btw question'));
+    const { setInputMessage } = first.result.current;
+    first.unmount();
+    act(() => setInputMessage(''));
+
+    expect(renderHook(() => useInputState({ chatId: 'chat-d' })).result.current.inputMessage).toBe(
+      '',
+    );
+  });
 });
