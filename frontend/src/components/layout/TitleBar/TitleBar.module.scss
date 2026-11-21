@@ -95,7 +95,6 @@
   // full sidebar width, sidebar fill, right border merging into the sidebar's edge.
   &--docked {
     width: var(--sidebar-width);
-    flex-shrink: 0;
     background-color: var(--theme-surface-secondary);
     border-right: 1px solid colors.theme-color('border', 0.5);
 

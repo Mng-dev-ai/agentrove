@@ -5,11 +5,9 @@ import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import type { ChatStatusTone } from '@/utils/message';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { useUIStore } from '@/store/uiStore';
-import { useStreamStore } from '@/store/streamStore';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
-import { useIsMobile } from '@/hooks/useIsMobile';
 import { stripMarkdownTitle } from '@/utils/format';
 import { paintedChatIds } from '@/utils/tileHelpers';
 import { TitleBarTab, TitleBarTabs } from '@/components/layout/TitleBarTab/TitleBarTab';
@@ -73,33 +71,18 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
 }
 
 // Working-set tabs (sidebar is the archive); re-clicking the current chat surfaces the agent pane.
-export function ChatTabs() {
+export function ChatTabs({ tabs }: { tabs: string[] }) {
   const navigate = useNavigate();
-  const isMobile = useIsMobile();
   // TitleBar sits outside /chat/:chatId, so read the route from the location.
   const routedChatId = useMatch('/chat/:chatId')?.params.chatId;
-  const chatTabs = useUIStore((s) => s.chatTabs);
   const splitChatIds = useUIStore((s) => s.splitChatIds);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
-  const activeStreamMetadata = useStreamStore((s) => s.activeStreamMetadata);
-  // Pending plan/permission requests or agent question forms — blocked on the user.
   const blockedChatIdSet = useBlockedChatIds();
 
   // From layout (not splitChatIds): a split chat under a full-screen primary is off-screen.
   const visibleChatIds = useMemo(
     () => paintedChatIds(visibleLayout.flat(), splitChatIds, routedChatId),
     [visibleLayout, routedChatId, splitChatIds],
-  );
-
-  const streamingChatIdSet = useMemo(
-    () => new Set(activeStreamMetadata.map((meta) => meta.chatId)),
-    [activeStreamMetadata],
-  );
-
-  const visibleTabs = useMemo(
-    () =>
-      chatTabs.filter((chatId) => streamingChatIdSet.has(chatId) || blockedChatIdSet.has(chatId)),
-    [chatTabs, streamingChatIdSet, blockedChatIdSet],
   );
 
   const handleSelect = useCallback(
@@ -121,7 +104,6 @@ export function ChatTabs() {
       const ui = useUIStore.getState();
       // Closed tab leaves the working set — tear down its split too.
       if (ui.splitChatIds.includes(chatId)) ui.closeSplitChat(chatId);
-      const tabs = visibleTabs;
       const index = tabs.indexOf(chatId);
       ui.closeChatTab(chatId);
       if (chatId !== routedChatId) return;
@@ -129,14 +111,12 @@ export function ChatTabs() {
       const next = remaining[Math.min(index, remaining.length - 1)];
       navigate(next ? `/chat/${next}` : '/');
     },
-    [navigate, routedChatId, visibleTabs],
+    [navigate, routedChatId, tabs],
   );
-
-  if (isMobile || visibleTabs.length === 0) return null;
 
   return (
     <TitleBarTabs>
-      {visibleTabs.map((chatId) => {
+      {tabs.map((chatId) => {
         const status: ChatTabStatus = blockedChatIdSet.has(chatId) ? 'blocked' : 'streaming';
         return (
           <ChatTab

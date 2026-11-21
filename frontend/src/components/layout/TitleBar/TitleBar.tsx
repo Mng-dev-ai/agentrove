@@ -8,6 +8,7 @@ import { ToggleButton } from '@/components/ui/ToggleButton/ToggleButton';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
 import { ChatTabs } from '@/components/layout/ChatTabs/ChatTabs';
+import { useWorkingSetTabs } from '@/hooks/useWorkingSetTabs';
 import { ChannelHeader } from '@/components/channels/ChannelHeader';
 import { PaneHeaderBand } from '@/components/layout/PaneHeader/PaneHeader';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -123,6 +124,7 @@ export function TitleBar() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
   const isMobile = useIsMobile();
+  const workingSetTabs = useWorkingSetTabs();
 
   const hasContent = IS_MACOS_DESKTOP || (isAuthenticated && showSidebar);
   if (!hasContent) return null;
@@ -143,7 +145,12 @@ export function TitleBar() {
   const docked = isAuthenticated && showSidebar && sidebarOpen;
   const routedChatId = isChatPage?.params.chatId;
   const showPaneHeaders = isAuthenticated && !!routedChatId && !isMobile;
-  const showTabs = isAuthenticated && (isChatPage || isLandingPage);
+  const showTabs =
+    isAuthenticated &&
+    (isChatPage || isLandingPage) &&
+    !docked &&
+    !isMobile &&
+    workingSetTabs.length > 0;
 
   const left = (
     // When docked, merges into the sidebar header (border-r, no hairline).
@@ -192,7 +199,7 @@ export function TitleBar() {
 
       {/* Auth gate: macOS desktop still renders the bar logged out; without this,
           persisted chatTabs would hit protected queries and 401-self-close. */}
-      {showTabs && <ChatTabs />}
+      {showTabs && <ChatTabs tabs={workingSetTabs} />}
 
       {/* Spacer after traffic lights when sidebar controls are absent. */}
       {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className={styles.spacer} />}
