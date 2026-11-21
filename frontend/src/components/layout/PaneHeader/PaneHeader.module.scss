@@ -32,9 +32,7 @@
 .leading {
   display: flex;
   align-self: stretch;
-  min-width: 0;
-  max-width: 50%;
-  flex: 0 1 auto;
+  flex-shrink: 0;
 }
 
 .panel-column {
@@ -62,10 +60,31 @@
   }
 }
 
+.naming {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
+}
+
 .title-wrap {
   display: flex;
   min-width: 0;
   align-items: center;
+}
+
+.strip {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+
+  // Leaves the title a floor, so the title truncates before the tabs scroll
+  &--after-title {
+    flex-shrink: 0;
+    max-width: calc(100% - var(--space-24));
+  }
 }
 
 .title {
