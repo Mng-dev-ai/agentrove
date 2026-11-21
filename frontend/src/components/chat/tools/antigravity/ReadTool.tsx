@@ -16,7 +16,7 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
   // The server batches or omits read completions even though reads finish immediately.
   const displayStatus = tool.status === 'started' ? 'completed' : tool.status;
 
-  if (tool.status === 'completed' && tool.images?.length) {
+  if (tool.status !== 'failed' && tool.images?.length) {
     return <ToolImages toolId={tool.id} fileName={label} images={tool.images} />;
   }
 

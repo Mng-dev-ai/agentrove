@@ -26,7 +26,7 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
   const content = result?.content ?? '';
   const fileLabel = path ? extractFilename(path) : 'file';
 
-  if (tool.status === 'completed' && tool.images?.length) {
+  if (tool.status !== 'failed' && tool.images?.length) {
     return <ToolImages toolId={tool.id} fileName={fileLabel} images={tool.images} />;
   }
 

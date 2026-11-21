@@ -22,7 +22,7 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
   const fileName = filePath ? extractFilename(filePath) : tool.title?.trim() || 'file';
   const content = (result?.output ?? '').replace(READ_HEADER, '');
 
-  if (tool.status === 'completed' && tool.images?.length) {
+  if (tool.status !== 'failed' && tool.images?.length) {
     return <ToolImages toolId={tool.id} fileName={fileName} images={tool.images} />;
   }
 

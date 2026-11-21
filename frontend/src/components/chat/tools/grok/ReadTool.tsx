@@ -20,7 +20,7 @@ export const ReadTool = memo(function ReadTool({ tool }: { tool: ToolAggregate }
   const content = result?.FileContent?.raw_output ?? '';
   const image = result?.ImageContent;
 
-  if (tool.status === 'completed' && image?.data) {
+  if (tool.status !== 'failed' && image?.data) {
     return (
       <ToolImages
         toolId={tool.id}

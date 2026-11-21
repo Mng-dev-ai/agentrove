@@ -5,10 +5,8 @@ import { FileSearch, FileEdit as FileEditIcon, FilePlus } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ToolAggregate } from '@/types/tools.types';
 import type { ToolComponent } from '@/types/ui.types';
-import type { MessageAttachment } from '@/types/chat.types';
-import { buildImageAttachment } from '@/utils/imageAttachment';
-import { AttachmentViewer } from '@/components/ui/attachment-viewer/AttachmentViewer';
 import { ToolCard } from '../common/ToolCard/ToolCard';
+import { ToolImages } from '../common/ToolImages/ToolImages';
 import { NumberedContent } from '../common/NumberedContent/NumberedContent';
 import { OpenInEditorButton } from '../common/OpenInEditorButton/OpenInEditorButton';
 import toolIcon from './toolIcon.module.scss';
@@ -65,20 +63,6 @@ interface ImageBlock {
 
 const isImageBlock = (block: unknown): block is ImageBlock =>
   typeof block === 'object' && block !== null && (block as ImageBlock).type === 'image';
-
-const toImageAttachments = (tool: ToolAggregate, filePath: string): MessageAttachment[] => {
-  if (!Array.isArray(tool.result)) return [];
-  return tool.result
-    .filter(isImageBlock)
-    .map((block, idx) =>
-      buildImageAttachment(
-        `${tool.id}-${idx}`,
-        filePath.split('/').pop() || 'image',
-        block.source.media_type,
-        block.source.data,
-      ),
-    );
-};
 
 interface DiffLine {
   type: 'added' | 'removed' | 'context';
@@ -151,9 +135,19 @@ const FileOperationTool = memo(function FileOperationTool({
   const Icon = config.icon;
   const filePath = (tool.input?.file_path as string | undefined) ?? '';
 
-  if (variant === 'read' && tool.status === 'completed') {
-    const images = toImageAttachments(tool, filePath);
-    if (images.length > 0) return <AttachmentViewer attachments={images} size="large" />;
+  if (variant === 'read' && tool.status === 'completed' && Array.isArray(tool.result)) {
+    const images = tool.result
+      .filter(isImageBlock)
+      .map((block) => ({ mime_type: block.source.media_type, data: block.source.data }));
+    if (images.length > 0) {
+      return (
+        <ToolImages
+          toolId={tool.id}
+          fileName={filePath.split('/').pop() || 'image'}
+          images={images}
+        />
+      );
+    }
   }
 
   const renderContent = () => {
