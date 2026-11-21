@@ -62,6 +62,13 @@ _SENTINEL = object()
 # as defense-in-depth for other or older adapters.
 _HEARTBEAT_TOOL_ID_RE = re.compile(r"-heartbeat-\d+$")
 
+IMAGE_READ_PATH_KEYS = {
+    AgentKind.CODEX: "path",
+    AgentKind.COPILOT: "path",
+    AgentKind.ANTIGRAVITY: "file_path",
+}
+IMAGE_READ_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
+
 # Valid ACP option_ids that match our PermissionMode literals directly.
 VALID_PERMISSION_MODES: set[str] = {
     "auto_edit",
@@ -644,11 +651,6 @@ class AcpClientHandler:
         diffs = self._extract_content_diffs(tc)
         if diffs:
             payload["result"] = {"diffs": diffs}
-        if tc.status == "completed":
-            self._active_tools.pop(tc.tool_call_id, None)
-            self._opencode_tool_names.pop(tc.tool_call_id, None)
-            payload["status"] = ToolStatus.COMPLETED.value
-            return StreamEvent(type="tool_completed", tool=payload)
         self._active_tools[tc.tool_call_id] = payload
         return StreamEvent(type="tool_started", tool=payload)
 
@@ -904,6 +906,18 @@ class AcpClientHandler:
             if inner and getattr(inner, "type", None) == "text":
                 texts.append(inner.text)
         return texts
+
+    @staticmethod
+    def image_read_path(agent_kind: AgentKind, tool: ToolPayload) -> str | None:
+        key = IMAGE_READ_PATH_KEYS.get(agent_kind)
+        if key is None or tool.get("name") != "read":
+            return None
+        path = (tool.get("input") or {}).get(key)
+        if not isinstance(path, str) or not path.lower().endswith(
+            IMAGE_READ_EXTENSIONS
+        ):
+            return None
+        return path
 
     @staticmethod
     def _extract_content_images(tc: ToolCallProgress) -> list[ToolImage]:

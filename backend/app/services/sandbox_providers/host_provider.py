@@ -6,6 +6,7 @@ import os
 import pty
 import shlex
 import signal
+import stat
 import subprocess
 import tempfile
 import termios
@@ -160,7 +161,9 @@ class LocalHostProvider(SandboxProvider):
 
     @staticmethod
     def _read_file_head(path: str, max_bytes: int) -> bytes:
-        with open(path, "rb") as f:
+        with open(os.open(path, os.O_RDONLY | os.O_NONBLOCK), "rb") as f:
+            if not stat.S_ISREG(os.fstat(f.fileno()).st_mode):
+                return b""
             return f.read(max_bytes)
 
     # os.walk skip list (non-git) — mirrors common .gitignore entries.

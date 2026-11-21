@@ -853,6 +853,15 @@ class FakeAgent:
                     ],
                 ),
             )
+            if kind == "open_image":
+                await self._client.session_update(
+                    session_id=session_id,
+                    update=ToolCallProgress(
+                        session_update="tool_call_update",
+                        tool_call_id=f"tool-image-{index}",
+                        status="completed",
+                    ),
+                )
         if MARKER_TOOL_IMAGE_BLOCK in text:
             await self._emit_tool_started(
                 session_id,

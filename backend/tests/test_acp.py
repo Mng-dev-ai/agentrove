@@ -646,6 +646,7 @@ async def test_image_reads_store_the_file_bytes_for_allowlisted_agents(
     (tmp_path / "cat.png").write_bytes(png)
     (tmp_path / "huge.png").write_bytes(png.ljust(MAX_TOOL_IMAGE_BYTES + 1, b"\0"))
     (tmp_path / "notes.png").write_text("not an image")
+    os.mkfifo(tmp_path / "fifo.png")
     (Path(workspace.workspace_path) / "shot.png").write_bytes(png)
     chat = await create_chat(client, headers, workspace, model_id=model_id)
 
@@ -661,6 +662,8 @@ async def test_image_reads_store_the_file_bytes_for_allowlisted_agents(
                 f"view_image={tmp_path / 'huge.png'}",
                 f"view_image={tmp_path / 'notes.png'}",
                 f"view_image={tmp_path / 'missing.png'}",
+                f"view_image={tmp_path / 'fifo.png'}",
+                f"view_image={tmp_path / 'nul\0.png'}",
                 "open_image=shot.png",
             ]
         ),
@@ -674,14 +677,20 @@ async def test_image_reads_store_the_file_bytes_for_allowlisted_agents(
 
     image = {"mime_type": "image/png", "data": TINY_PNG_BASE64}
     expected = (
-        [[image], None, None, None, [image]] if model_id == "gpt-5.4" else [None] * 5
+        [[image], None, None, None, None, None, [image]]
+        if model_id == "gpt-5.4"
+        else [None] * 7
     )
-    tools = [last_tool(message, f"tool-image-{index}") for index in range(5)]
-    assert [tool.get("images") for tool in tools] == expected
-    assert {tool["status"] for tool in tools} == {"completed"}
-    assert [
-        e["type"] for e in tool_events(message) if e["tool"]["id"] == "tool-image-0"
-    ] == ["tool_completed"]
+    events = [
+        [e for e in tool_events(message) if e["tool"]["id"] == f"tool-image-{index}"]
+        for index in range(7)
+    ]
+    assert [[e["type"] for e in tool] for tool in events] == [
+        ["tool_started", "tool_completed"]
+    ] * 7
+    assert [started["tool"].get("images") for started, _ in events] == expected
+    assert [completed["tool"].get("images") for _, completed in events] == [None] * 7
+    assert message["stream_status"] == "completed"
 
 
 async def test_opencode_image_content_block_lands_in_images(
