@@ -1,12 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useCallback,
-  useRef,
-  useState,
-  ReactNode,
-} from 'react';
+import { useEffect, useLayoutEffect, useMemo, useCallback, useRef, ReactNode } from 'react';
 import { useParams, Navigate, useNavigate } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
@@ -28,10 +20,9 @@ import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/u
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
 import {
+  ChatSessionPanel,
   PaneSessionPanel,
-  SessionPanelSlot,
 } from '@/components/chat/session-panel/PaneSessionPanel';
-import { SessionPanelSlotContext } from '@/contexts/SessionPanelSlotContext';
 import { InTilePaneHeader } from '@/components/layout/PaneHeader/PaneHeader';
 import {
   WorkspaceSurface,
@@ -161,7 +152,6 @@ export function ChatPage() {
   }, [activeViews, chatId, isWorkspaceLoaded, currentChat?.sandbox_id, refetchFilesMetadata]);
 
   const workspaces = useWorkspacesList();
-  const [sessionPanelSlot, setSessionPanelSlot] = useState<HTMLDivElement | null>(null);
   // Remote chats resolve personas against their machine's settings list.
   const { data: settings } = useSettingsForChatQuery(chatId);
 
@@ -227,10 +217,9 @@ export function ChatPage() {
           }
           agent={
             tileId === 'agent:primary' ? (
-              <>
+              <PaneSessionPanel agentTile="agent:primary" chat={currentChat}>
                 <ChatComponent />
-                <PaneSessionPanel agentTile="agent:primary" chat={currentChat} />
-              </>
+              </PaneSessionPanel>
             ) : (
               paneChatId && (
                 <AgentPane key={paneChatId} chatId={paneChatId} agentTile={agentTileFor(tileId)} />
@@ -265,14 +254,12 @@ export function ChatPage() {
         messagesQuery={messagesQuery}
       >
         {isWorkspaceLoaded && (
-          <SessionPanelSlotContext.Provider value={sessionPanelSlot}>
-            <WorkspaceSurface
-              renderView={renderView}
-              sessionPanel={<SessionPanelSlot ref={setSessionPanelSlot} />}
-            >
-              {subThreadDialogOpen && <SubThreadDialog />}
-            </WorkspaceSurface>
-          </SessionPanelSlotContext.Provider>
+          <WorkspaceSurface
+            renderView={renderView}
+            sessionPanel={isMobile && currentChat && <ChatSessionPanel chat={currentChat} />}
+          >
+            {subThreadDialogOpen && <SubThreadDialog />}
+          </WorkspaceSurface>
         )}
       </ChatSessionOrchestrator>
     </ChatProvider>

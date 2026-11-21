@@ -101,8 +101,10 @@ type UIStoreState = ThemeState &
     setPendingMenuMode: (mode: MenuMode | null) => void;
     subThreadDialogOpen: boolean;
     setSubThreadDialogOpen: (open: boolean) => void;
-    // Desktop preference (persisted); phones use the transient mobileSessionPanelOpen.
+    // Desktop preference for the primary pane (persisted); phones use the transient mobileSessionPanelOpen.
     sessionPanelOpen: boolean;
+    // Split chats whose pane shows its session panel; keyed by chat so slot renumbers keep it.
+    splitSessionPanelChatIds: string[];
     mobileSessionPanelOpen: boolean;
     toggleSessionPanel: (agentTile?: AgentTileId) => void;
     closeMobileSessionPanel: () => void;
@@ -325,16 +327,22 @@ export const useUIStore = create<UIStoreState>()(
       subThreadDialogOpen: false,
       setSubThreadDialogOpen: (open) => set({ subThreadDialogOpen: open }),
       sessionPanelOpen: getInitialSidebarState(),
+      splitSessionPanelChatIds: [],
       mobileSessionPanelOpen: false,
       toggleSessionPanel: (agentTile = get().activeAgentTile) => {
         if (isDesktop()) {
           const state = get();
-          if (state.sessionPanelOpen && state.activeAgentTile === agentTile) {
-            set({ sessionPanelOpen: false });
+          const slot = activeSplitSlot(agentTile, state.splitChatIds);
+          if (!slot) {
+            set({ sessionPanelOpen: !state.sessionPanelOpen });
             return;
           }
-          get().focusTile(agentTile);
-          set({ sessionPanelOpen: true });
+          const chatId = state.splitChatIds[slot - 1];
+          set({
+            splitSessionPanelChatIds: state.splitSessionPanelChatIds.includes(chatId)
+              ? state.splitSessionPanelChatIds.filter((id) => id !== chatId)
+              : [...state.splitSessionPanelChatIds, chatId],
+          });
           return;
         }
         if (get().mobileSessionPanelOpen) {
@@ -643,18 +651,22 @@ export const useUIStore = create<UIStoreState>()(
         // Join working set so the chat stays in the tab strip after split closes.
         get().openChatTab(chatId);
         const splitChatIds = [...state.splitChatIds, chatId];
-        const resetFocus: Pick<UIStoreState, 'activeAgentTile' | 'focusedTile'> = {
+        const resetPane: Pick<
+          UIStoreState,
+          'activeAgentTile' | 'focusedTile' | 'splitSessionPanelChatIds'
+        > = {
           activeAgentTile: 'agent:primary',
           focusedTile: null,
+          splitSessionPanelChatIds: state.splitSessionPanelChatIds.filter((id) => id !== chatId),
         };
         if (!isDesktop()) {
-          set({ splitChatIds, ...resetFocus });
+          set({ splitChatIds, ...resetPane });
           return;
         }
         set({
           splitChatIds,
           ...rebuildSplitGrid(state, splitChatIds),
-          ...resetFocus,
+          ...resetPane,
         });
       },
 
@@ -702,6 +714,7 @@ export const useUIStore = create<UIStoreState>()(
           },
           currentWorkspaceChatId: promotedChatId,
           splitChatIds,
+          sessionPanelOpen: state.splitSessionPanelChatIds.includes(promotedChatId),
           openTabs,
           visibleLayout,
           focusedTile: state.focusedTile ? promotedTile(state.focusedTile) : null,

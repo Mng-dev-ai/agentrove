@@ -162,28 +162,21 @@ interface PaneHeaderBandProps {
 export function PaneHeaderBand({ routedChatId, leading }: PaneHeaderBandProps) {
   const topRow = useUIStore((s) => s.visibleLayout[0]);
   const splitChatIds = useUIStore((s) => s.splitChatIds);
-  const sessionPanelOpen = useUIStore((s) => s.sessionPanelOpen);
 
   return (
-    <div className={styles.band}>
-      <div
-        className={styles.columns}
-        style={{ gridTemplateColumns: `repeat(${topRow.length}, minmax(0, 1fr))` }}
-      >
-        {topRow.map((tileId, index) => {
-          const chatId = tileChatId(tileId, splitChatIds, routedChatId);
-          return (
-            <div
-              key={tileId}
-              className={clsx(styles.column, index > 0 && styles['column--divided'])}
-            >
-              {index === 0 && leading && <div className={styles.leading}>{leading}</div>}
-              {chatId && <PaneHeader tileId={tileId} chatId={chatId} inTile={false} />}
-            </div>
-          );
-        })}
-      </div>
-      {sessionPanelOpen && <div className={styles['panel-column']} />}
+    <div
+      className={styles.band}
+      style={{ gridTemplateColumns: `repeat(${topRow.length}, minmax(0, 1fr))` }}
+    >
+      {topRow.map((tileId, index) => {
+        const chatId = tileChatId(tileId, splitChatIds, routedChatId);
+        return (
+          <div key={tileId} className={clsx(styles.column, index > 0 && styles['column--divided'])}>
+            {index === 0 && leading && <div className={styles.leading}>{leading}</div>}
+            {chatId && <PaneHeader tileId={tileId} chatId={chatId} inTile={false} />}
+          </div>
+        );
+      })}
     </div>
   );
 }

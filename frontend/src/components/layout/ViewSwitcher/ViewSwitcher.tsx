@@ -41,7 +41,7 @@ export function ViewSwitcher({ agentTile }: { agentTile?: AgentTileId }) {
   const visibleLayout = useUIStore((s) => s.visibleLayout);
   const isLandingPage = useMatch('/');
   const isMobile = useIsMobile();
-  const sessionPanelOpen = useSessionPanelOpen();
+  const sessionPanelOpen = useSessionPanelOpen(paneTile);
   // Phones show one view at a time; an open session panel covers the workspace.
   const panelCoversWorkspace = isMobile && sessionPanelOpen;
 
@@ -94,7 +94,7 @@ export function ViewSwitcher({ agentTile }: { agentTile?: AgentTileId }) {
             onClick={() => useUIStore.getState().toggleSessionPanel(paneTile)}
             className={styles['view-button']}
             aria-label="Toggle session panel"
-            aria-pressed={sessionPanelOpen && activeAgentTile === paneTile}
+            aria-pressed={sessionPanelOpen}
           >
             <PanelRight className={styles.icon} />
           </Button>

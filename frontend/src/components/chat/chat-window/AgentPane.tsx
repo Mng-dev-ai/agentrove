@@ -68,8 +68,9 @@ export const AgentPane = memo(function AgentPane({ chatId, agentTile }: AgentPan
         messagesQuery={messagesQuery}
         useRouteInitialPrompt={false}
       >
-        <ChatComponent corner={closeButton} />
-        <PaneSessionPanel agentTile={agentTile} chat={currentChat} />
+        <PaneSessionPanel agentTile={agentTile} chat={currentChat}>
+          <ChatComponent corner={closeButton} />
+        </PaneSessionPanel>
       </ChatSessionOrchestrator>
     </ChatProvider>
   );

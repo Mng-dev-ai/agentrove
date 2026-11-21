@@ -8,7 +8,17 @@ import {
   DEFAULT_SIDEBAR_WIDTH,
   migrateUIState,
 } from './uiStore';
+import { renderHook } from '@testing-library/react';
 import { THEME_CYCLE } from '@/utils/theme';
+import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
+import type { AgentTileId } from '@/types/ui.types';
+
+const AGENT_TILES: AgentTileId[] = [
+  'agent:primary',
+  'agent:split-1',
+  'agent:split-2',
+  'agent:split-3',
+];
 
 const state = () => useUIStore.getState();
 
@@ -29,6 +39,8 @@ beforeEach(() => {
     pendingFileOpen: null,
     fileOpenNonce: 0,
     composerSelectionsByChat: {},
+    sessionPanelOpen: false,
+    splitSessionPanelChatIds: [],
   });
 });
 
@@ -283,6 +295,31 @@ describe('split chat', () => {
     expect(state().focusedTile).toBe('agent:split-1');
     expect(state().activeAgentTile).toBe('agent:split-1');
     expect(state().layoutsByChat.a.visibleLayout).toEqual([['agent:primary', 'diff']]);
+  });
+
+  it("keeps each pane's session panel with its chat across slot renumbering and promotion", () => {
+    const openPanels = () =>
+      AGENT_TILES.slice(0, 1 + state().splitChatIds.length).map(
+        (tile) => renderHook(() => useSessionPanelOpen(tile)).result.current,
+      );
+    state().loadWorkspaceForChat('a');
+    state().openChatInSplit('b');
+    state().openChatInSplit('c');
+    state().openChatInSplit('d');
+    state().toggleSessionPanel('agent:split-2');
+    state().toggleSessionPanel('agent:split-3');
+    expect(openPanels()).toEqual([false, false, true, true]);
+
+    state().closeSplitChat('b');
+    expect(state().splitChatIds).toEqual(['c', 'd']);
+    expect(openPanels()).toEqual([false, true, true]);
+
+    state().promoteFirstSplit();
+    expect(state().currentWorkspaceChatId).toBe('c');
+    expect(openPanels()).toEqual([true, true]);
+
+    state().openChatInSplit('b');
+    expect(openPanels()).toEqual([true, true, false]);
   });
 
   it('does not open a fifth chat', () => {

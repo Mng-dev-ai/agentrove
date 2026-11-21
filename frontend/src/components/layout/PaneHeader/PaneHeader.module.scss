@@ -2,20 +2,13 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
-@use '@/styles/globals/spacing' as spacing;
 
 .band {
-  display: flex;
+  display: grid;
   height: 100%;
   min-width: 0;
   flex: 1;
   background-color: var(--theme-surface);
-}
-
-.columns {
-  display: grid;
-  min-width: 0;
-  flex: 1;
 }
 
 .column {
@@ -35,12 +28,6 @@
   min-width: 0;
   max-width: 50%;
   flex: 0 1 auto;
-}
-
-.panel-column {
-  width: spacing.$session-panel-width;
-  flex-shrink: 0;
-  border-left: 1px solid colors.theme-color('border', 0.5);
 }
 
 .header {

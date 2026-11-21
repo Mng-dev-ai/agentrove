@@ -118,7 +118,7 @@ interface WorkspaceSurfaceProps {
 export function WorkspaceSurface({ renderView, sessionPanel, children }: WorkspaceSurfaceProps) {
   const isMobile = useIsMobile();
   const { pathname } = useLocation();
-  const sessionPanelOpen = useSessionPanelOpen();
+  const sessionPanelOpen = useSessionPanelOpen('agent:primary');
   const createCommitDialogOpen = useUIStore((s) => s.createCommitDialogOpen);
   const createPRDialogOpen = useUIStore((s) => s.createPRDialogOpen);
   const createBranchDialogOpen = useUIStore((s) => s.createBranchDialogOpen);
