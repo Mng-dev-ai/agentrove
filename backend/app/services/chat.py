@@ -2,13 +2,14 @@ import asyncio
 import json
 import logging
 import math
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Iterable, Sequence
 from contextlib import AsyncExitStack
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy import Row, func, or_, select, update, true
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
 from app.constants import (
@@ -41,10 +42,17 @@ from app.models.schemas.pagination import (
 )
 from app.models.types import ChatCompletionResult, MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME, build_system_prompt_for_chat
-from app.services.acp.adapters import AgentAdapter
+from app.services.acp.adapters import (
+    AGENT_ADAPTERS,
+    NORMAL_SESSION_MODE,
+    AgentAdapter,
+)
+from app.services.agent import AgentService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException, ErrorCode
+from app.services.fork import ForkService
 from app.services.git import GitService
+from app.services.handoff import HandoffService
 from app.services.message import MessageService
 from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
@@ -382,6 +390,93 @@ class ChatService(BaseDbService[Chat]):
 
         return loaded_chat
 
+    async def fork_chat(
+        self, chat_id: UUID, user: User, *, as_sub_thread: bool = False
+    ) -> Chat:
+        source = await self.get_chat(chat_id, user)
+        if as_sub_thread and source.parent_chat_id is not None:
+            raise ChatException(
+                "Cannot create a sub-thread of a sub-thread",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=400,
+            )
+        model_id = source.last_model_id
+        model = MODELS.get(model_id or "")
+        if (
+            model_id is None
+            or model is None
+            or not AGENT_ADAPTERS[model.agent_kind].supports_fork
+        ):
+            raise ChatException(
+                "This chat's agent can't fork a conversation",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=400,
+            )
+
+        async with self.session_factory() as db:
+            anchor = await HandoffService.latest_settled_turn(
+                db, source.id, model.agent_kind
+            )
+            if anchor is None:
+                raise ChatException(
+                    "This chat has no finished turn to fork yet",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                    status_code=409,
+                )
+            latest_message_id = (
+                await db.execute(
+                    select(Message.id)
+                    .where(Message.chat_id == source.id, Message.deleted_at.is_(None))
+                    .order_by(Message.created_at.desc())
+                    .limit(1)
+                )
+            ).scalar_one()
+            chat = Chat(
+                title=source.title,
+                user_id=user.id,
+                workspace_id=source.workspace_id,
+                parent_chat_id=source.id if as_sub_thread else None,
+                worktree_cwd=source.worktree_cwd,
+                last_model_id=model_id,
+                last_permission_mode=source.last_permission_mode,
+                last_thinking_mode=source.last_thinking_mode,
+                last_persona_name=source.last_persona_name,
+                forked_from_chat_id=source.id,
+                forked_from_message_id=latest_message_id,
+                forked_from_title=source.title,
+                fork_source_session_id=anchor.session_id,
+                fork_agent_kind=model.agent_kind.value,
+            )
+            db.add(chat)
+            await db.commit()
+            result = await db.execute(
+                select(Chat)
+                .options(selectinload(Chat.workspace))
+                .filter(Chat.id == chat.id)
+            )
+            loaded_chat: Chat = result.scalar_one()
+
+        await self.publish_user_chat_event(
+            user.id,
+            {
+                "kind": "chat_created",
+                "chat": ChatSchema.model_validate(loaded_chat).model_dump(mode="json"),
+            },
+        )
+        # Copy the source's session now rather than on the fork's first turn,
+        # so the fork holds what the source knew at the click.
+        config = await AgentService(self.session_factory).build_session_config(
+            user=user,
+            device_ids=user.device_ids,
+            chat=loaded_chat,
+            model_id=model_id,
+            permission_mode=source.last_permission_mode
+            or NORMAL_SESSION_MODE[model.agent_kind],
+            session_id=None,
+        )
+        ForkService(self.session_factory).start(loaded_chat.id, config)
+        return loaded_chat
+
     @staticmethod
     async def publish_user_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
         # Best-effort broadcast on the user's live channel — a missed event only
@@ -656,14 +751,6 @@ class ChatService(BaseDbService[Chat]):
             sub_threads = sub_thread_result.all()
             sub_thread_ids = [row[0] for row in sub_threads]
 
-            # Only worktrees these chats created themselves — a sub-thread's
-            # inherited worktree_cwd points at the parent's and won't match.
-            owned_worktrees = [
-                cwd
-                for cid, cwd in [(chat.id, chat.worktree_cwd), *sub_threads]
-                if cwd and cwd == GitService.chat_worktree_path(str(cid))
-            ]
-
             if sub_thread_ids:
                 await db.execute(
                     update(Chat)
@@ -686,6 +773,14 @@ class ChatService(BaseDbService[Chat]):
             )
             await db.execute(messages_update)
 
+            await db.flush()
+            worktrees = await self._unreferenced_worktrees(
+                db,
+                [
+                    (chat.workspace_id, cwd)
+                    for cwd in (chat.worktree_cwd, *(row[1] for row in sub_threads))
+                ],
+            )
             await db.commit()
             await QueueService.clear_queues(
                 [str(cid) for cid in (chat_id, *sub_thread_ids)]
@@ -697,10 +792,29 @@ class ChatService(BaseDbService[Chat]):
 
             if sandbox_id:
                 git_service = GitService(sandbox)
-                for worktree_cwd in owned_worktrees:
+                for _, worktree_cwd in worktrees:
                     asyncio.create_task(
                         git_service.remove_worktree(sandbox_id, worktree_cwd)
                     )
+
+    @staticmethod
+    async def _unreferenced_worktrees(
+        db: AsyncSession, deleted: Iterable[tuple[UUID, str | None]]
+    ) -> set[tuple[UUID, str]]:
+        # (workspace id, worktree_cwd) of chats already marked deleted in this
+        # transaction. Sub-threads and forks share their source's worktree, so
+        # it is removed only once no live chat points at it.
+        candidates = {(workspace_id, cwd) for workspace_id, cwd in deleted if cwd}
+        if not candidates:
+            return set()
+        live = await db.execute(
+            select(Chat.workspace_id, Chat.worktree_cwd).where(
+                Chat.deleted_at.is_(None),
+                Chat.workspace_id.in_({workspace_id for workspace_id, _ in candidates}),
+                Chat.worktree_cwd.in_({cwd for _, cwd in candidates}),
+            )
+        )
+        return candidates - {(workspace_id, cwd) for workspace_id, cwd in live}
 
     async def delete_all_chats(self, user: User) -> int:
         async with self.session_factory() as db:
@@ -712,23 +826,6 @@ class ChatService(BaseDbService[Chat]):
             result = await db.execute(chat_query)
             chat_rows = result.all()
             chat_ids = [str(row[0]) for row in chat_rows]
-
-            # Owned worktrees per workspace — host sandboxes share the user's
-            # repo, so worktrees would otherwise leak into the project.
-            worktrees_by_workspace: dict[UUID, list[str]] = {}
-            for cid, ws_id, cwd in chat_rows:
-                if cwd and cwd == GitService.chat_worktree_path(str(cid)):
-                    worktrees_by_workspace.setdefault(ws_id, []).append(cwd)
-
-            workspaces: list[Workspace] = []
-            if worktrees_by_workspace:
-                ws_result = await db.execute(
-                    select(Workspace).filter(
-                        Workspace.id.in_(worktrees_by_workspace.keys()),
-                        Workspace.deleted_at.is_(None),
-                    )
-                )
-                workspaces = list(ws_result.scalars().all())
 
             now = datetime.now(timezone.utc)
 
@@ -754,6 +851,24 @@ class ChatService(BaseDbService[Chat]):
                 )
                 .values(deleted_at=now)
             )
+
+            # Host sandboxes share the user's repo, so worktrees would
+            # otherwise leak into the project.
+            worktrees_by_workspace: dict[UUID, list[str]] = {}
+            for ws_id, cwd in await self._unreferenced_worktrees(
+                db, [(row[1], row[2]) for row in chat_rows]
+            ):
+                worktrees_by_workspace.setdefault(ws_id, []).append(cwd)
+
+            workspaces: list[Workspace] = []
+            if worktrees_by_workspace:
+                ws_result = await db.execute(
+                    select(Workspace).filter(
+                        Workspace.id.in_(worktrees_by_workspace.keys()),
+                        Workspace.deleted_at.is_(None),
+                    )
+                )
+                workspaces = list(ws_result.scalars().all())
 
             await db.commit()
             await QueueService.clear_queues(chat_ids)
@@ -1306,6 +1421,7 @@ class ChatService(BaseDbService[Chat]):
                 "parent_chat_id": str(chat.parent_chat_id)
                 if chat.parent_chat_id
                 else None,
+                "fork_agent_kind": chat.fork_agent_kind,
             },
             permission_mode=permission_mode,
             model_id=model_id,

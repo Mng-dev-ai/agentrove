@@ -67,6 +67,17 @@ class Chat(Base):
     owed_report_device_ids: Mapped[frozenset[UUID] | None] = mapped_column(
         UUIDSet(none_as_null=True), nullable=True
     )
+    forked_from_chat_id: Mapped[UUID | None] = mapped_column(GUID(), nullable=True)
+    forked_from_message_id: Mapped[UUID | None] = mapped_column(GUID(), nullable=True)
+    forked_from_title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # The source's native session at fork time: only ever passed to ACP
+    # session/fork, never loaded — the source chat's process owns it.
+    fork_source_session_id: Mapped[str | None] = mapped_column(
+        String(128), nullable=True
+    )
+    fork_agent_kind: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # This chat's own copy of that session; null until session/fork succeeded.
+    forked_session_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     user = relationship("User", back_populates="chats")
     workspace = relationship("Workspace", back_populates="chats")
@@ -149,6 +160,7 @@ class Chat(Base):
         chat.worktree_cwd = data.get("worktree_cwd")
         parent_chat_id = data.get("parent_chat_id")
         chat.parent_chat_id = UUID(parent_chat_id) if parent_chat_id else None
+        chat.fork_agent_kind = data.get("fork_agent_kind")
         return chat
 
 

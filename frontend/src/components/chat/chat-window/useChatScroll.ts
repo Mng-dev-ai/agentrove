@@ -102,6 +102,8 @@ function reservedTurnHeight(scroller: HTMLElement, content: Element) {
 
 interface UseChatScrollParams {
   chatId: string | undefined;
+  // Opens with this message at the bottom of the viewport instead of the latest one.
+  initialMessageId: string | undefined;
   messages: readonly { id: string }[];
   lastReplyStreams: boolean;
   pendingUserMessageId: string | null;
@@ -114,6 +116,7 @@ interface UseChatScrollParams {
 // Stick-to-bottom, top-pagination, and send-anchor for the message scroller.
 export function useChatScroll({
   chatId,
+  initialMessageId,
   messages,
   lastReplyStreams,
   pendingUserMessageId,
@@ -228,13 +231,20 @@ export function useChatScroll({
 
     // rAF so layout has committed before measuring scrollHeight.
     const raf = requestAnimationFrame(() => {
-      writeScrollTop(container, container.scrollHeight, lastScrollTopRef);
+      const target = initialMessageId ? messageRow(container, initialMessageId) : null;
+      const top = target
+        ? target.getBoundingClientRect().bottom -
+          container.getBoundingClientRect().top +
+          container.scrollTop -
+          container.clientHeight
+        : container.scrollHeight;
+      writeScrollTop(container, top, lastScrollTopRef);
       hasInitializedToBottomRef.current = true;
     });
     // Cancel so a chat switch or unmount can't let the stale frame scroll the
     // old container and mark the new chat as already initialized.
     return () => cancelAnimationFrame(raf);
-  }, [messages]);
+  }, [messages, initialMessageId]);
 
   const committedMessagesRef = useRef(messages);
   const committedReplyStreamsRef = useRef(lastReplyStreams);

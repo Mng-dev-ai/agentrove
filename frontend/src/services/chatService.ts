@@ -240,6 +240,17 @@ async function createChat(data: CreateChatRequest): Promise<Chat> {
   });
 }
 
+async function forkChat(chatId: string): Promise<Chat> {
+  validateId(chatId, 'Chat ID');
+
+  return serviceCall(async () => {
+    const response = await resolveChatClient(chatId).post<Chat>(`/chat/chats/${chatId}/fork`, {});
+    const chat = ensureResponse(response, 'Failed to fork chat');
+    assignChatRecordsToMachine(chatMachineId(chatId), [chat]);
+    return chat;
+  });
+}
+
 async function updateChat(chatId: string, updateData: { title?: string }): Promise<Chat> {
   validateId(chatId, 'Chat ID');
 
@@ -423,6 +434,7 @@ export const chatService = {
   searchChats,
   getChat,
   createChat,
+  forkChat,
   updateChat,
   deleteChat,
   deleteAllChats,

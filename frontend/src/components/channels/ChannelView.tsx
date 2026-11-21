@@ -466,6 +466,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
 
   const { scrollerRef, showScrollButton, containerRefCallback, scrollToBottom } = useChatScroll({
     chatId: channel.id,
+    initialMessageId: undefined,
     messages: visibleMessages,
     lastReplyStreams: false,
     pendingUserMessageId: null,

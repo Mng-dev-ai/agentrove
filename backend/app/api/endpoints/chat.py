@@ -49,6 +49,7 @@ from app.models.schemas.chat import (
     Chat as ChatSchema,
     ChatCompletionResponse,
     ChatCreate,
+    ChatFork,
     ChatSearchResponse,
     ChatStatusResponse,
     ChatUpdate,
@@ -139,6 +140,22 @@ async def create_chat(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Service temporarily unavailable",
         ) from e
+
+
+@router.post(
+    "/chats/{chat_id}/fork",
+    response_model=ChatSchema,
+    status_code=status.HTTP_201_CREATED,
+)
+async def fork_chat(
+    chat_id: UUID,
+    fork: ChatFork | None = None,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> ChatSchema:
+    return await chat_service.fork_chat(
+        chat_id, current_user, as_sub_thread=bool(fork and fork.as_sub_thread)
+    )
 
 
 @router.post("/chat", response_model=ChatCompletionResponse)

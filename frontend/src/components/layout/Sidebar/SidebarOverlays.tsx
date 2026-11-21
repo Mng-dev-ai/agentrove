@@ -32,6 +32,8 @@ export function SidebarOverlays({
           onRename={chat.handleRenameClick}
           onDelete={chat.handleDeleteChat}
           onTogglePin={chat.handleTogglePin}
+          onFork={chat.handleForkChat}
+          forkPending={chat.forkPending}
           onWorkspaceOptions={(target) => {
             const { position } = chat.dropdown!;
             chat.setDropdown(null);

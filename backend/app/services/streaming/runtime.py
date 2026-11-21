@@ -45,6 +45,7 @@ from app.services.exceptions import (
     SandboxException,
 )
 from app.services.git import GitService
+from app.services.fork import ForkService
 from app.services.handoff import HandoffService
 from app.services.memory import MemoryService
 from app.services.message import MessageService
@@ -1132,6 +1133,9 @@ class ChatStreamRuntime:
     async def _generate_title(self) -> None:
         if self.member_turn is not None or not self.prompt or not self._is_new_chat:
             return
+        # A fork keeps its source's title.
+        if self.chat.fork_agent_kind:
+            return
 
         ai_service = AgentService(session_factory=self.session_factory)
         user = User(id=self.chat.user_id)
@@ -1424,6 +1428,7 @@ class ChatStreamRuntime:
                 "parent_chat_id": str(chat.parent_chat_id)
                 if chat.parent_chat_id
                 else None,
+                "fork_agent_kind": chat.fork_agent_kind,
             },
             permission_mode=queued_msg["permission_mode"],
             model_id=queued_msg["model_id"],
@@ -1669,6 +1674,20 @@ class ChatStreamRuntime:
                 fast_mode=request.fast_mode,
                 channel_member=request.member_turn is not None,
             )
+            # A fork with no settled turn of its own continues its copy of the
+            # source's session; another agent kind can't load that copy.
+            fork_service = ForkService(runtime.session_factory)
+            resumes_fork = (
+                handoff.resume_session_id is None
+                and runtime.chat.fork_agent_kind == config.agent_kind.value
+            )
+            if resumes_fork:
+                config = replace(
+                    config,
+                    resume_session_id=await fork_service.ensure_session(
+                        UUID(runtime.chat_id), config
+                    ),
+                )
 
             try:
                 session, _ = await session_registry.get_or_create(
@@ -1684,6 +1703,15 @@ class ChatStreamRuntime:
                     or config.resume_session_id is None
                 ):
                     raise
+                if resumes_fork:
+                    # Starting fresh would silently drop the source's context;
+                    # forget the lost copy so the next send forks again.
+                    await fork_service.discard_session(UUID(runtime.chat_id))
+                    raise ChatException(
+                        "This fork's copy of the source chat's session is gone. "
+                        "Send your message again to fork it once more.",
+                        error_code=ErrorCode.VALIDATION_ERROR,
+                    ) from exc
                 handoff = await handoff_service.build(
                     chat_id=UUID(runtime.chat_id),
                     model_id=request.model_id,

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, memo, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineName, useMachineStatus } from '@/store/machineStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -19,6 +20,7 @@ import {
 } from './ConversationLayout';
 import { MessageTrail } from './MessageTrail';
 import { FindInChat } from './FindInChat';
+import { ForkOriginBadge } from './ForkOriginBadge';
 import { ChatSelectionActions } from './ChatSelectionActions';
 import { StatusTypewriter } from './StatusTypewriter';
 import { useChatScroll } from './useChatScroll';
@@ -26,6 +28,7 @@ import { TextRevealContext, type TextReveal } from './TextRevealContext';
 import { useStreamStore } from '@/store/streamStore';
 import { useMessageQueueStore, EMPTY_QUEUE, sendQueuedMessageNow } from '@/store/messageQueueStore';
 import { useChatContext } from '@/hooks/useChatContext';
+import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChatSessionContext } from '@/hooks/useChatSessionContext';
 import { useChatInputMessageContext } from '@/hooks/useChatInputMessageContext';
 import { useUIStore } from '@/store/uiStore';
@@ -36,6 +39,15 @@ export const Chat = memo(function Chat() {
   const machineOnline = useMachineStatus(machineId) === 'online';
   const machineLabel = useMachineName(machineId);
   const { state, actions } = useChatSessionContext();
+  const { data: chat } = useChatQuery(chatId);
+  const initialMessageId = (useLocation().state as { messageId?: string } | null)?.messageId;
+  const forkOrigin = chat?.forked_from_chat_id
+    ? {
+        sourceChatId: chat.forked_from_chat_id,
+        sourceMessageId: chat.forked_from_message_id ?? null,
+        sourceTitle: chat.forked_from_title ?? '',
+      }
+    : null;
 
   const {
     messages,
@@ -211,6 +223,7 @@ export const Chat = memo(function Chat() {
     scrollToBottom,
   } = useChatScroll({
     chatId,
+    initialMessageId,
     messages,
     lastReplyStreams: lastBotIsStreaming,
     pendingUserMessageId,
@@ -396,12 +409,17 @@ export const Chat = memo(function Chat() {
       showScrollButton={showScrollButton}
       onScrollToBottom={scrollToBottom}
       composerBanner={
-        <ChatQueueBanner
-          messages={pendingMessages}
-          onCancel={handleCancelMessage}
-          onEdit={handleEditMessage}
-          onSendNow={handleSendNow}
-        />
+        <>
+          {forkOrigin && messages.length === 0 && !isInitialLoading && (
+            <ForkOriginBadge {...forkOrigin} aboveComposer />
+          )}
+          <ChatQueueBanner
+            messages={pendingMessages}
+            onCancel={handleCancelMessage}
+            onEdit={handleEditMessage}
+            onSendNow={handleSendNow}
+          />
+        </>
       }
       composer={
         <Input
@@ -443,6 +461,12 @@ export const Chat = memo(function Chat() {
                   ref={isLastTurn ? turnRef : undefined}
                   style={isLastTurn && turnMinHeight > 0 ? { minHeight: turnMinHeight } : undefined}
                 >
+                  {/* Inside the turn so the send anchor keeps it in view with the message. */}
+                  {forkOrigin && turnIndex === 0 && !hasNextPage && (
+                    <ConversationColumn>
+                      <ForkOriginBadge {...forkOrigin} />
+                    </ConversationColumn>
+                  )}
                   {turn.map((msg, index) => (
                     <div key={msg.id} data-message-id={msg.id}>
                       {renderMessage(msg, index === 0 && turn.length > 1)}

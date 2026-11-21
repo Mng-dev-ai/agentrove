@@ -816,9 +816,9 @@ class GitService:
 
     @staticmethod
     def chat_worktree_path(chat_id: str) -> str:
-        # Worktrees are keyed by the owning chat's short id, so comparing a
-        # chat's worktree_cwd against this doubles as the ownership test on
-        # deletion — a sub-thread's inherited cwd won't match its own id.
+        # Worktrees are keyed by the creating chat's short id, so comparing a
+        # chat's worktree_cwd against this tells its own worktree from one it
+        # shares with the chat it was started from.
         return posixpath.join(".worktrees", chat_id[:8])
 
     async def create_worktree(
