@@ -7,7 +7,7 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
+import { useSessionPanelOpen, useSessionPanelsInPanes } from '@/hooks/useSessionPanelOpen';
 import { useUIStore } from '@/store/uiStore';
 import { stripMarkdownTitle } from '@/utils/format';
 import {
@@ -145,6 +145,7 @@ function PaneHeader({ tileId, chatId, inTile }: PaneHeaderProps) {
   const agentTile = agentTileFor(tileId);
   const isAgent = tileIdToViewType(tileId) === 'agent';
   const panelOpen = useSessionPanelOpen(agentTile);
+  const panelsInPanes = useSessionPanelsInPanes();
   return (
     <div className={clsx(styles.row, inTile && styles['row--in-tile'])}>
       {isAgent ? (
@@ -152,7 +153,7 @@ function PaneHeader({ tileId, chatId, inTile }: PaneHeaderProps) {
       ) : (
         <ViewTileHeader tileId={tileId} chatId={chatId} inTile={inTile} />
       )}
-      {isAgent && panelOpen && <div className={styles['panel-column']} />}
+      {isAgent && panelOpen && panelsInPanes && <div className={styles['panel-column']} />}
     </div>
   );
 }
@@ -172,21 +173,28 @@ interface PaneHeaderBandProps {
 export function PaneHeaderBand({ routedChatId, leading }: PaneHeaderBandProps) {
   const topRow = useUIStore((s) => s.visibleLayout[0]);
   const splitChatIds = useUIStore((s) => s.splitChatIds);
+  const sessionPanelOpen = useUIStore((s) => s.sessionPanelOpen);
 
   return (
-    <div
-      className={styles.band}
-      style={{ gridTemplateColumns: `repeat(${topRow.length}, minmax(0, 1fr))` }}
-    >
-      {topRow.map((tileId, index) => {
-        const chatId = tileChatId(tileId, splitChatIds, routedChatId);
-        return (
-          <div key={tileId} className={clsx(styles.column, index > 0 && styles['column--divided'])}>
-            {index === 0 && leading && <div className={styles.leading}>{leading}</div>}
-            {chatId && <PaneHeader tileId={tileId} chatId={chatId} inTile={false} />}
-          </div>
-        );
-      })}
+    <div className={styles.band}>
+      <div
+        className={styles.columns}
+        style={{ gridTemplateColumns: `repeat(${topRow.length}, minmax(0, 1fr))` }}
+      >
+        {topRow.map((tileId, index) => {
+          const chatId = tileChatId(tileId, splitChatIds, routedChatId);
+          return (
+            <div
+              key={tileId}
+              className={clsx(styles.column, index > 0 && styles['column--divided'])}
+            >
+              {index === 0 && leading && <div className={styles.leading}>{leading}</div>}
+              {chatId && <PaneHeader tileId={tileId} chatId={chatId} inTile={false} />}
+            </div>
+          );
+        })}
+      </div>
+      {sessionPanelOpen && splitChatIds.length === 0 && <div className={styles['panel-column']} />}
     </div>
   );
 }

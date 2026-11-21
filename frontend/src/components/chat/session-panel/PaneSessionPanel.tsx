@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
+import clsx from 'clsx';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
-import { useIsMobile } from '@/hooks/useIsMobile';
-import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
+import { useSessionPanelOpen, useSessionPanelsInPanes } from '@/hooks/useSessionPanelOpen';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useUIStore } from '@/store/uiStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
@@ -22,7 +22,6 @@ export function ChatSessionPanel({ chat }: { chat: Chat }) {
   return <SessionPanel chat={chat} workspace={workspace} />;
 }
 
-// Phones show the routed chat's panel over the whole workspace instead (WorkspaceSurface).
 export function PaneSessionPanel({
   agentTile,
   chat,
@@ -32,18 +31,19 @@ export function PaneSessionPanel({
   chat: Chat | undefined;
   children: ReactNode;
 }) {
-  const isMobile = useIsMobile();
   const open = useSessionPanelOpen(agentTile);
+  const inPanes = useSessionPanelsInPanes();
+  const panelChat = open && inPanes ? chat : undefined;
   return (
-    <div className={styles.pane}>
+    <div className={clsx(styles.pane, panelChat && styles['pane--panel'])}>
       {children}
-      {open && !isMobile && chat && (
+      {panelChat && (
         // Panel actions resolve their chat from the active pane, keyboard activation included.
         <div
           className={styles['pane-panel']}
           onClickCapture={() => useUIStore.getState().focusTile(agentTile)}
         >
-          <ChatSessionPanel chat={chat} />
+          <ChatSessionPanel chat={panelChat} />
         </div>
       )}
     </div>

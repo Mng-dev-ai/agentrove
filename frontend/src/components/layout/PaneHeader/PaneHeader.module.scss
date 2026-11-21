@@ -5,11 +5,17 @@
 @use '@/styles/globals/spacing' as spacing;
 
 .band {
-  display: grid;
+  display: flex;
   height: 100%;
   min-width: 0;
   flex: 1;
   background-color: var(--theme-surface);
+}
+
+.columns {
+  display: grid;
+  min-width: 0;
+  flex: 1;
 }
 
 .column {
@@ -53,7 +59,7 @@
   border-left: 1px solid colors.theme-color('border', 0.5);
 }
 
-@container pane-column (width < #{spacing.$session-panel-width + spacing.$pane-chat-min-width}) {
+@container pane-column (width < #{spacing.$session-panel-pane-min-width}) {
   .panel-column {
     display: none;
   }

@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/command-menu/commandRegistry';
 import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
+import { useSessionPanelOpen, useSessionPanelsInPanes } from '@/hooks/useSessionPanelOpen';
 import { activeSplitSlot, VIEW_ICONS, VIEW_LABELS, viewTypeToTileId } from '@/utils/tileHelpers';
 import type { AgentTileId, ViewType } from '@/types/ui.types';
 import styles from './ViewSwitcher.module.scss';
@@ -42,6 +42,7 @@ export function ViewSwitcher({ agentTile }: { agentTile?: AgentTileId }) {
   const isLandingPage = useMatch('/');
   const isMobile = useIsMobile();
   const sessionPanelOpen = useSessionPanelOpen(paneTile);
+  const panelsInPanes = useSessionPanelsInPanes();
   // Phones show one view at a time; an open session panel covers the workspace.
   const panelCoversWorkspace = isMobile && sessionPanelOpen;
 
@@ -87,7 +88,8 @@ export function ViewSwitcher({ agentTile }: { agentTile?: AgentTileId }) {
           </FloatingTooltip>
         );
       })}
-      {!isLandingPage && (
+      {/* A pane's panel lives in its agent tile, so there is nothing to toggle while that tile is hidden. */}
+      {!isLandingPage && (!panelsInPanes || visibleSet.has(paneTile)) && (
         <FloatingTooltip content={SESSION_PANEL_TOOLTIP}>
           <Button
             variant="unstyled"

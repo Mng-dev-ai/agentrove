@@ -7,10 +7,9 @@ import {
   MAX_SIDEBAR_WIDTH,
   DEFAULT_SIDEBAR_WIDTH,
   migrateUIState,
+  isSessionPanelOpen,
 } from './uiStore';
-import { renderHook } from '@testing-library/react';
 import { THEME_CYCLE } from '@/utils/theme';
-import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
 import type { AgentTileId } from '@/types/ui.types';
 
 const AGENT_TILES: AgentTileId[] = [
@@ -299,8 +298,8 @@ describe('split chat', () => {
 
   it("keeps each pane's session panel with its chat across slot renumbering and promotion", () => {
     const openPanels = () =>
-      AGENT_TILES.slice(0, 1 + state().splitChatIds.length).map(
-        (tile) => renderHook(() => useSessionPanelOpen(tile)).result.current,
+      AGENT_TILES.slice(0, 1 + state().splitChatIds.length).map((tile) =>
+        isSessionPanelOpen(state(), tile),
       );
     state().loadWorkspaceForChat('a');
     state().openChatInSplit('b');

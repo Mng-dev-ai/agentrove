@@ -21,6 +21,7 @@ import {
   isSplitTile,
   splitAgentTile,
   splitSlotOfTile,
+  tileChatId,
   tileIdToViewType,
   viewTypeToTileId,
 } from '@/utils/tileHelpers';
@@ -285,6 +286,15 @@ export function migrateUIState(persisted: unknown, version: number): unknown {
   };
 }
 
+// Desktop open state of an agent pane's session panel; the primary pane holds the persisted preference.
+export function isSessionPanelOpen(
+  state: Pick<UIStoreState, 'splitChatIds' | 'splitSessionPanelChatIds' | 'sessionPanelOpen'>,
+  agentTile: AgentTileId,
+): boolean {
+  const chatId = tileChatId(agentTile, state.splitChatIds, undefined);
+  return chatId ? state.splitSessionPanelChatIds.includes(chatId) : state.sessionPanelOpen;
+}
+
 export const useUIStore = create<UIStoreState>()(
   persist(
     (set, get) => ({
@@ -332,12 +342,11 @@ export const useUIStore = create<UIStoreState>()(
       toggleSessionPanel: (agentTile = get().activeAgentTile) => {
         if (isDesktop()) {
           const state = get();
-          const slot = activeSplitSlot(agentTile, state.splitChatIds);
-          if (!slot) {
+          const chatId = tileChatId(agentTile, state.splitChatIds, undefined);
+          if (!chatId) {
             set({ sessionPanelOpen: !state.sessionPanelOpen });
             return;
           }
-          const chatId = state.splitChatIds[slot - 1];
           set({
             splitSessionPanelChatIds: state.splitSessionPanelChatIds.includes(chatId)
               ? state.splitSessionPanelChatIds.filter((id) => id !== chatId)

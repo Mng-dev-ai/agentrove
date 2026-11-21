@@ -25,28 +25,38 @@
 }
 
 .pane {
-  container: agent-pane / inline-size;
   position: relative;
   display: flex;
   height: 100%;
   width: 100%;
 }
 
-.pane-panel {
-  display: flex;
-  flex-shrink: 0;
+// No container query here: WebKit would clamp the message scroller (see MessageTrail.module.scss).
+// Percentages resolve against the pane width, so each clamp flips at the pane threshold.
+.pane--panel {
+  padding-right: clamp(
+    0px,
+    #{spacing.$session-panel-width} + (100% - #{spacing.$session-panel-pane-min-width}) * 99999,
+    #{spacing.$session-panel-width}
+  );
 }
 
-@container agent-pane (width < #{spacing.$session-panel-width + spacing.$pane-chat-min-width}) {
-  .pane-panel {
-    @include z.z('sticky');
-    position: absolute;
-    inset: 0;
-  }
+// Covering the pane, the panel starts 1px early so its hairline lands on the pane separator.
+.pane-panel {
+  @include z.z('sticky');
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  width: clamp(
+    #{spacing.$session-panel-width},
+    #{spacing.$session-panel-width} - (100% - #{spacing.$session-panel-pane-min-width}) * 99999,
+    100% + 1px
+  );
 
-  .pane-panel .panel {
+  .panel {
     width: 100%;
-    border-left: none;
   }
 }
 

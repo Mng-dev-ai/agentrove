@@ -13,6 +13,7 @@ import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessi
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
 import { useChatData } from '@/hooks/useChatData';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useSessionPanelsInPanes } from '@/hooks/useSessionPanelOpen';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatQuery, markChatViewed } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
@@ -39,6 +40,7 @@ export function ChatPage() {
   const activeViews = useActiveViews();
   const splitChatIds = useUIStore((s) => s.splitChatIds);
   const isMobile = useIsMobile();
+  const panelsInPanes = useSessionPanelsInPanes();
   const isWorkspaceLoaded = useUIStore((s) => s.currentWorkspaceChatId === chatId);
 
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
@@ -256,7 +258,7 @@ export function ChatPage() {
         {isWorkspaceLoaded && (
           <WorkspaceSurface
             renderView={renderView}
-            sessionPanel={isMobile && currentChat && <ChatSessionPanel chat={currentChat} />}
+            sessionPanel={!panelsInPanes && currentChat && <ChatSessionPanel chat={currentChat} />}
           >
             {subThreadDialogOpen && <SubThreadDialog />}
           </WorkspaceSurface>
