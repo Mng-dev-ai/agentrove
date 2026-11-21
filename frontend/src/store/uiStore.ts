@@ -75,9 +75,11 @@ export type ComposerSelection = EditorCodeSelection | ChatTextSelection;
 
 export type SidebarSection = 'channels' | 'pinned' | 'recents';
 
+export type MenuPosition = { top: number } & ({ left: number } | { right: number });
+
 export interface ChatMenu {
   chat: Chat;
-  position: { top: number; left: number };
+  position: MenuPosition;
   source: 'sidebar' | 'pane';
 }
 

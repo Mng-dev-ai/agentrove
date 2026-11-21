@@ -1,11 +1,12 @@
 import { useEffect, type KeyboardEvent, type ReactNode, type Ref } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import type { MenuPosition } from '@/store/uiStore';
 import styles from './SidebarMenu.module.scss';
 
 interface SidebarMenuProps {
   ref?: Ref<HTMLDivElement>;
-  position: { top: number; left: number };
+  position: MenuPosition;
   onClose?: () => void;
   children: ReactNode;
 }
@@ -32,7 +33,7 @@ export function SidebarMenu({ ref, position, onClose, children }: SidebarMenuPro
       className={styles.menu}
       style={{
         top: `${position.top}px`,
-        left: `${position.left}px`,
+        ...('left' in position ? { left: `${position.left}px` } : { right: `${position.right}px` }),
       }}
     >
       {children}

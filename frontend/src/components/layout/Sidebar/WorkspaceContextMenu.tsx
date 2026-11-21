@@ -1,10 +1,11 @@
 import { type Ref } from 'react';
 import { Edit2, Plus, Trash2 } from 'lucide-react';
+import type { MenuPosition } from '@/store/uiStore';
 import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
 
 interface WorkspaceContextMenuProps {
   ref?: Ref<HTMLDivElement>;
-  position: { top: number; left: number };
+  position: MenuPosition;
   onNewThread: () => void;
   onRename: () => void;
   onDelete: () => void;
