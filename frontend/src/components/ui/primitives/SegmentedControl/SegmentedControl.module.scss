@@ -6,6 +6,7 @@
 .segmented-control {
   position: relative;
   display: inline-flex;
+  max-width: 100%;
   border: 1px solid var(--theme-border);
   background-color: var(--theme-surface-tertiary);
 
@@ -21,6 +22,12 @@
   &--md {
     border-radius: var(--radius-lg);
   }
+}
+
+.label {
+  @include type.type-overflow;
+  display: block;
+  min-width: 0;
 }
 
 .indicator {
@@ -52,6 +59,7 @@
   @include anim.transition-colors;
   @include controls.focus-ring;
   @include responsive.touch-target;
+  min-width: 0;
   cursor: pointer;
   border: none;
   background: none;

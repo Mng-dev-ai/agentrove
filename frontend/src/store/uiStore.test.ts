@@ -392,6 +392,21 @@ describe('split chat', () => {
     expect(state().activeAgentTile).toBe('agent:split-2');
   });
 
+  it("keeps the restored chat's own visible tiles when rebuilding the split grid", () => {
+    state().openChatInSplit('c2');
+    state().openChatInSplit('c3');
+    useUIStore.setState({
+      openTabs: ['agent:primary', 'diff'],
+      visibleLayout: [['agent:primary', 'diff']],
+    });
+
+    state().rebuildSplitLayout();
+
+    expect(state().visibleLayout).toEqual([
+      ['agent:primary', 'diff', 'agent:split-1', 'agent:split-2'],
+    ]);
+  });
+
   it('keeps the asking split pane when a side question needs a slot', () => {
     state().openChatInSplit('c2');
     state().openChatInSplit('c3');

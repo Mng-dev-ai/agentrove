@@ -198,6 +198,12 @@
   }
 }
 
+@container diff-view (width < 16rem) {
+  .viewed-label {
+    display: none;
+  }
+}
+
 .viewed-icon {
   height: var(--space-3);
   width: var(--space-3);

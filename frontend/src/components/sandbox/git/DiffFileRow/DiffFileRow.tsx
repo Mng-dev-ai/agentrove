@@ -306,7 +306,7 @@ export const DiffFileRow = memo(function DiffFileRow({
           ) : (
             <Square className={styles['viewed-icon']} />
           )}
-          Viewed
+          <span className={styles['viewed-label']}>Viewed</span>
         </Button>
       </div>
       {isExpanded && (

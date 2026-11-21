@@ -674,7 +674,15 @@ export const useUIStore = create<UIStoreState>()(
       rebuildSplitLayout: () => {
         const state = get();
         if (state.splitChatIds.length === 0) return;
-        set(rebuildSplitGrid(state, state.splitChatIds));
+        const grid = rebuildSplitGrid(state, state.splitChatIds);
+        // A restored workspace is stored without split tiles; keep its own tiles beside their neighbours.
+        const ownTiles = state.visibleLayout.flat().filter((tile) => !isSplitTile(tile));
+        let visibleLayout = grid.visibleLayout;
+        ownTiles.forEach((tile, i) => {
+          if (visibleLayout.flat().includes(tile)) return;
+          visibleLayout = insertBeside(visibleLayout, ownTiles[i - 1] ?? 'agent:primary', tile);
+        });
+        set({ ...grid, visibleLayout });
       },
 
       promoteFirstSplit: () => {

@@ -1,5 +1,6 @@
 import { useMemo, ReactNode } from 'react';
 import clsx from 'clsx';
+import { tileRenderKey } from '@/utils/tileHelpers';
 import type { TileId } from '@/types/ui.types';
 import styles from './WorkspaceSplit.module.scss';
 
@@ -7,6 +8,7 @@ interface WorkspaceSplitProps {
   // Every open tab is mounted so background panes keep state.
   openTabs: TileId[];
   visibleLayout: TileId[][];
+  splitChatIds: string[];
   // isVisible false for mounted-but-hidden tabs (skip terminal fit/focus, etc.).
   renderView: (tileId: TileId, isVisible: boolean) => ReactNode;
 }
@@ -29,7 +31,12 @@ function lcm(a: number, b: number): number {
 
 // Stable CSS-grid positions (no remount when visibility/row changes). Column count
 // is LCM of row lengths so tiles stay equal-width within each row.
-export function WorkspaceSplit({ openTabs, visibleLayout, renderView }: WorkspaceSplitProps) {
+export function WorkspaceSplit({
+  openTabs,
+  visibleLayout,
+  splitChatIds,
+  renderView,
+}: WorkspaceSplitProps) {
   const { placements, rows, cols } = useMemo(() => {
     const rowCount = visibleLayout.length;
     const colCount = visibleLayout.reduce((acc, row) => lcm(acc, row.length), 1);
@@ -61,14 +68,14 @@ export function WorkspaceSplit({ openTabs, visibleLayout, renderView }: Workspac
         const p = placements.get(tileId);
         if (!p) {
           return (
-            <div key={tileId} className={styles['tile-hidden']}>
+            <div key={tileRenderKey(tileId, splitChatIds)} className={styles['tile-hidden']}>
               {renderView(tileId, false)}
             </div>
           );
         }
         return (
           <div
-            key={tileId}
+            key={tileRenderKey(tileId, splitChatIds)}
             style={{
               gridRow: p.gridRow,
               gridColumn: `${p.columnStart} / span ${p.columnSpan}`,

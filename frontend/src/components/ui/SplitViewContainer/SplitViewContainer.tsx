@@ -15,6 +15,7 @@ export const SplitViewContainer = memo(function SplitViewContainer({
   const openTabs = useUIStore((state) => state.openTabs);
   const visibleLayout = useUIStore((state) => state.visibleLayout);
   const focusedTile = useUIStore((state) => state.focusedTile);
+  const splitChatIds = useUIStore((state) => state.splitChatIds);
   const isMobile = useIsMobile();
 
   // Render-only collapse — the store layout stays intact.
@@ -23,5 +24,12 @@ export const SplitViewContainer = memo(function SplitViewContainer({
     [isMobile, visibleLayout, focusedTile],
   );
 
-  return <WorkspaceSplit openTabs={openTabs} visibleLayout={layout} renderView={renderView} />;
+  return (
+    <WorkspaceSplit
+      openTabs={openTabs}
+      visibleLayout={layout}
+      splitChatIds={splitChatIds}
+      renderView={renderView}
+    />
+  );
 });
