@@ -1170,8 +1170,8 @@ class ChatStreamRuntime:
     async def _generate_title(self) -> None:
         if self.member_turn is not None or not self.prompt or not self._is_new_chat:
             return
-        # A fork is titled after its source.
-        if self.chat.fork_agent_kind:
+        # A plain fork is titled after its source; a side-question sub-thread is not.
+        if self.chat.fork_agent_kind and self.chat.parent_chat_id is None:
             return
 
         ai_service = AgentService(session_factory=self.session_factory)

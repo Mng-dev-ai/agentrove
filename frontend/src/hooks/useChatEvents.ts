@@ -1,7 +1,11 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
-import { applyCreatedChat, patchChatInCache } from '@/hooks/queries/useChatQueries';
+import {
+  applyCreatedChat,
+  invalidateSubThreadListsContaining,
+  patchChatInCache,
+} from '@/hooks/queries/useChatQueries';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { queryKeys } from '@/hooks/queries/queryKeys';
@@ -47,6 +51,7 @@ export function useChatEvents(options?: { enabled?: boolean }) {
           ...chat,
           title: parsed.title,
         }));
+        invalidateSubThreadListsContaining(queryClient, parsed.chat_id);
         return;
       }
 
