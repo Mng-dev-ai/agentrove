@@ -44,14 +44,21 @@ export function newMemberDraft(): MemberDraft {
   };
 }
 
-export function memberDraftFrom(member: ChannelMember): MemberDraft {
+export function memberDraftFrom(member: {
+  id?: string;
+  model_id: string;
+  display_name: string | null;
+  persona: string | null;
+  thinking_mode: string | null;
+  permission_mode: PermissionMode | null;
+}): MemberDraft {
   return {
-    key: member.id,
+    key: member.id ?? crypto.randomUUID(),
     customName: member.display_name,
     modelId: member.model_id,
     persona: member.persona ?? DEFAULT_PERSONA,
     thinkingMode: member.thinking_mode ?? DEFAULT_THINKING_MODE,
-    permissionMode: member.permission_mode,
+    permissionMode: member.permission_mode ?? DEFAULT_PERMISSION_MODE,
   };
 }
 

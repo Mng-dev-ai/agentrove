@@ -71,28 +71,20 @@ class BaseQueueService(Generic[ItemT]):
         async with self._lock(queue_id):
             key = self._queue_key(queue_id)
             queue = await self._read_queue(key)
-            return await self._append(key, queue, message, attachments)
 
-    async def _append(
-        self,
-        key: str,
-        queue: list[dict[str, Any]],
-        message: BaseModel,
-        attachments: list[dict[str, Any]] | None,
-    ) -> QueueAddResponse:
-        message_id = uuid4()
-        queued_at = datetime.now(timezone.utc)
-        queue.append(
-            {
-                **message.model_dump(mode="json"),
-                "id": str(message_id),
-                "queued_at": queued_at.isoformat(),
-                "attachments": attachments,
-            }
-        )
-        await self._write_queue(key, queue)
+            message_id = uuid4()
+            queued_at = datetime.now(timezone.utc)
+            queue.append(
+                {
+                    **message.model_dump(mode="json"),
+                    "id": str(message_id),
+                    "queued_at": queued_at.isoformat(),
+                    "attachments": attachments,
+                }
+            )
+            await self._write_queue(key, queue)
 
-        return QueueAddResponse(id=message_id, queued_at=queued_at)
+            return QueueAddResponse(id=message_id, queued_at=queued_at)
 
     async def get_queue(self, queue_id: str) -> list[ItemT]:
         key = self._queue_key(queue_id)

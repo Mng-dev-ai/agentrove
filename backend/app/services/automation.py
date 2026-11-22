@@ -92,15 +92,10 @@ class AutomationService(BaseDbService[Automation]):
             )
 
     @staticmethod
-    def _retired_model(automation: Automation) -> str | None:
-        model_ids = (
-            [automation.model_id]
-            if automation.channel_members is None
-            else [member["model_id"] for member in automation.channel_members]
-        )
-        return next(
-            (model_id for model_id in model_ids if model_id not in MODELS), None
-        )
+    def _run_model_ids(automation: Automation) -> list[str]:
+        if automation.channel_members is None:
+            return [automation.model_id]
+        return [member["model_id"] for member in automation.channel_members]
 
     @staticmethod
     async def _validate_workspace(
@@ -179,10 +174,15 @@ class AutomationService(BaseDbService[Automation]):
         data: AutomationUpdate,
     ) -> Automation:
         changes = data.model_dump(exclude_unset=True)
-        if "model_id" in changes:
-            self._validate_model(changes["model_id"])
         async with self.session_factory() as db:
             automation = await self._get_owned(db, automation_id, user)
+            # A new-channel run never uses model_id, so a stale one must not block
+            # its edits; it is checked again when switching back to a chat target.
+            chat_target = (
+                changes.get("channel_members", automation.channel_members) is None
+            )
+            if chat_target and changes.keys() & {"model_id", "channel_members"}:
+                self._validate_model(changes.get("model_id", automation.model_id))
             if "workspace_id" in changes:
                 self.require_agent_workspace(user, changes["workspace_id"])
                 await self._validate_workspace(db, changes["workspace_id"], user.id)
@@ -290,7 +290,9 @@ class AutomationService(BaseDbService[Automation]):
             await db.commit()
 
         for automation in to_fire:
-            retired = self._retired_model(automation)
+            retired = next(
+                (m for m in self._run_model_ids(automation) if m not in MODELS), None
+            )
             if retired is not None:
                 await self._disable_unrunnable(automation, f"model {retired} retired")
                 continue
@@ -337,9 +339,8 @@ class AutomationService(BaseDbService[Automation]):
     ) -> AutomationRunResponse:
         # Re-check the saved models before creating the chat or channel — a model
         # retired after creation would otherwise leave an orphan every slot.
-        retired = self._retired_model(automation)
-        if retired is not None:
-            self._validate_model(retired)
+        for model_id in self._run_model_ids(automation):
+            self._validate_model(model_id)
         await AgentService(session_factory=self.session_factory).ensure_devices_active(
             user.id, device_ids
         )

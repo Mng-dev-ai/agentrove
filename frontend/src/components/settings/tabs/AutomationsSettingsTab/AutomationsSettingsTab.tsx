@@ -26,7 +26,7 @@ import {
   DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
 import { useModelMap, useModelsQuery } from '@/hooks/queries/useModelQueries';
-import { memberRequest, newMemberDraft, type MemberDraft } from '@/components/channels/memberDraft';
+import { memberDraftFrom, memberRequest, newMemberDraft } from '@/components/channels/memberDraft';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import {
   buildCronExpression,
@@ -37,7 +37,6 @@ import {
 import { lazyNamed } from '@/utils/lazyNamed';
 import type {
   Automation,
-  AutomationChannelMember,
   AutomationCreateRequest,
   AutomationForm,
   AutomationUpdateRequest,
@@ -73,17 +72,6 @@ function createDefaultForm(machineId: string): AutomationForm {
     worktree: DEFAULT_WORKTREE,
     persona_name: DEFAULT_PERSONA,
     machineId,
-  };
-}
-
-function memberDraftFrom(member: AutomationChannelMember): MemberDraft {
-  return {
-    key: crypto.randomUUID(),
-    customName: member.display_name,
-    modelId: member.model_id,
-    persona: member.persona ?? DEFAULT_PERSONA,
-    thinkingMode: member.thinking_mode ?? DEFAULT_THINKING_MODE,
-    permissionMode: member.permission_mode ?? DEFAULT_PERMISSION_MODE,
   };
 }
 

@@ -542,6 +542,34 @@ async def test_unknown_member_model_is_rejected_on_create_and_update(
     assert updated.status_code == 422
 
 
+async def test_stale_model_id_only_blocks_edits_that_target_a_chat(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    created = await create_automation(
+        client, headers, workspace.id, channel_members=NEW_CHANNEL_MEMBERS
+    )
+    automation = await db_session.get_one(Automation, UUID(created["id"]))
+    automation.model_id = "antigravity:gemini-3.1-pro"
+    await db_session.commit()
+    path = f"/api/v1/automations/{created['id']}"
+
+    edited = await client.patch(
+        path,
+        json={"name": "Renamed", "model_id": "antigravity:gemini-3.1-pro"},
+        headers=headers,
+    )
+    assert edited.status_code == 200, edited.text
+    to_chat = await client.patch(path, json={"channel_members": None}, headers=headers)
+    assert to_chat.status_code == 400
+    assert to_chat.json()["detail"] == "Unknown model"
+
+
 async def test_existing_channel_target_from_released_clients_is_rejected(
     client: AsyncClient,
     db_session: AsyncSession,
