@@ -51,7 +51,8 @@ import { PENDING_NEW_CHAT_KEY, type TileId } from '@/types/ui.types';
 import { tileIdToViewType } from '@/utils/tileHelpers';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
-import { RecentChats } from './RecentChats';
+import { useMachinesChannels } from '@/hooks/queries/useChannelQueries';
+import { RecentChats, type JumpBackInEntry } from './RecentChats';
 import iconDark from '/assets/images/icon-dark.svg';
 import iconLight from '/assets/images/icon-white.svg';
 import styles from './LandingPage.module.scss';
@@ -68,6 +69,10 @@ const TerminalContainer = lazyNamed(
   () => import('@/components/sandbox/terminal/Container/Container'),
   'Container',
 );
+
+function updatedAtOf(entry: JumpBackInEntry): string {
+  return entry.kind === 'chat' ? entry.chat.updated_at : entry.channel.updated_at;
+}
 
 function getTimeGreeting(): string {
   const hour = new Date().getHours();
@@ -101,14 +106,21 @@ export function LandingPage() {
   // Same merged local+cloud lists as the sidebar (empty → example prompts).
   const { pinnedChats, recentChats, workspaceBadgeById, isLoadingChats, isLoadingPinned } =
     useSidebarChatLists(workspaces, isAuthenticated);
-  const jumpBackInChats = useMemo(
+  const { machineChannels, isLoading: isLoadingChannels } = useMachinesChannels(isAuthenticated);
+  const jumpBackInEntries = useMemo(
     () =>
-      [...pinnedChats, ...recentChats].sort(
-        (a, b) => Date.parse(b.updated_at) - Date.parse(a.updated_at),
-      ),
-    [pinnedChats, recentChats],
+      [
+        ...[...pinnedChats, ...recentChats].map(
+          (chat): JumpBackInEntry => ({ kind: 'chat', chat }),
+        ),
+        ...machineChannels.map(
+          ({ channel, machineId }): JumpBackInEntry => ({ kind: 'channel', channel, machineId }),
+        ),
+      ].sort((a, b) => Date.parse(updatedAtOf(b)) - Date.parse(updatedAtOf(a))),
+    [pinnedChats, recentChats, machineChannels],
   );
-  const showRecents = !isLoadingChats && !isLoadingPinned && jumpBackInChats.length > 0;
+  const showRecents =
+    !isLoadingChats && !isLoadingPinned && !isLoadingChannels && jumpBackInEntries.length > 0;
   const greeting = getTimeGreeting();
   // Handles are lowercase — capitalize for the greeting.
   const username = currentUser?.username ?? '';
@@ -377,6 +389,13 @@ export function LandingPage() {
     [navigate],
   );
 
+  const handleChannelSelect = useCallback(
+    (channelId: string) => {
+      navigate(`/channels/${channelId}`);
+    },
+    [navigate],
+  );
+
   const composerSelectors = useMemo(
     () => (
       <div className={styles['selector-row']}>
@@ -462,9 +481,10 @@ export function LandingPage() {
                 <div className={styles['panel-below']}>
                   {showRecents ? (
                     <RecentChats
-                      chats={jumpBackInChats}
+                      entries={jumpBackInEntries}
                       workspaceBadgeById={workspaceBadgeById}
                       onChatSelect={handleChatSelect}
+                      onChannelSelect={handleChannelSelect}
                     />
                   ) : (
                     <div className={styles['example-prompts']}>
@@ -537,7 +557,8 @@ export function LandingPage() {
       selectedModelId,
       composerSelectors,
       showRecents,
-      jumpBackInChats,
+      jumpBackInEntries,
+      handleChannelSelect,
       workspaceBadgeById,
       greeting,
       greetingName,
