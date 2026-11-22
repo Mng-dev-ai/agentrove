@@ -486,13 +486,6 @@ export const useUIStore = create<UIStoreState>()(
         });
       },
 
-      focusChatPane: (chatId) => {
-        const state = get();
-        const index = state.splitChatIds.indexOf(chatId);
-        if (index >= 0) get().focusTile(splitAgentTile(splitSlotAt(index)));
-        else if (chatId === state.currentWorkspaceChatId) get().focusTile('agent:primary');
-      },
-
       toggleView: (view, toggle, agentTile = get().activeAgentTile) => {
         const state = get();
         // Agent is never torn down; toggle closes split or re-focuses primary.

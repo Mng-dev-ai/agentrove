@@ -1,18 +1,17 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { PanelHeader } from '@/components/layout/PaneHeader/PaneHeader';
-import { SessionPanelSlotContext } from '@/contexts/SessionPanelSlotContext';
+import { SessionPanelSlotContext, type Slots } from '@/contexts/SessionPanelSlotContext';
 import { createContextHook } from '@/hooks/createContextHook';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { useChatMachineId } from '@/store/machineOrigin';
+import { useUIStore } from '@/store/uiStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Chat } from '@/types/chat.types';
 import type { AgentTileId } from '@/types/ui.types';
 import { SessionPanel } from './SessionPanel';
 import styles from './SessionPanel.module.scss';
-
-type Slots = Partial<Record<AgentTileId, HTMLElement>>;
 
 const useSessionPanelSlots = createContextHook(
   SessionPanelSlotContext,
@@ -71,5 +70,14 @@ export function PaneSessionPanel({
 }) {
   const slot = useSessionPanelSlots().slots[agentTile];
   if (!slot || !chat) return null;
-  return createPortal(<ChatSessionPanel chat={chat} />, slot);
+  return createPortal(
+    // Focus here makes this the active pane, which panel actions act on; the slot is no React ancestor.
+    <div
+      className={styles['slot-body']}
+      onFocusCapture={() => useUIStore.getState().focusTile(agentTile)}
+    >
+      <ChatSessionPanel chat={chat} />
+    </div>,
+    slot,
+  );
 }

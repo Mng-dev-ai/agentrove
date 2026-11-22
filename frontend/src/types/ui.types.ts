@@ -139,8 +139,6 @@ export interface SplitViewActions {
   activateTab: (tileId: TileId) => void;
   // Sets focusedTile + activeAgentTile so tab and pane clicks stay consistent.
   focusTile: (tileId: TileId) => void;
-  // Session panel actions call this first: dialogs and views act on the active pane's chat.
-  focusChatPane: (chatId: string) => void;
   // Drop deleted chat's workspace/editor/terminal state so localStorage doesn't grow forever.
   cleanupChat: (chatId: string) => void;
   cleanupAllChats: () => void;

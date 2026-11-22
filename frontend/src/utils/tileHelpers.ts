@@ -127,7 +127,7 @@ export function panelHostTile(layout: TileId[][], agentTile: AgentTileId): TileI
   return group[group.length - 1];
 }
 
-export interface PanelPlacement {
+interface PanelPlacement {
   agentTile: AgentTileId;
   firstRow: number;
   gridRow: string;

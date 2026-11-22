@@ -1,17 +1,15 @@
 import { memo, useMemo, ReactNode } from 'react';
 import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { useOpenSessionPanelTiles } from '@/hooks/useSessionPanelOpen';
+import { NO_AGENT_TILES, useOpenSessionPanelTiles } from '@/hooks/useSessionPanelOpen';
 import { WorkspaceSplit } from '@/components/ui/WorkspaceSplit/WorkspaceSplit';
 import { paintedLayout } from '@/utils/tileHelpers';
-import type { AgentTileId, TileId } from '@/types/ui.types';
+import type { TileId } from '@/types/ui.types';
 
 interface SplitViewContainerProps {
   renderView: (tileId: TileId, isVisible: boolean) => ReactNode;
   paneSessionPanels: boolean;
 }
-
-const NO_PANEL_TILES: AgentTileId[] = [];
 
 export const SplitViewContainer = memo(function SplitViewContainer({
   renderView,
@@ -35,7 +33,7 @@ export const SplitViewContainer = memo(function SplitViewContainer({
       openTabs={openTabs}
       visibleLayout={layout}
       splitChatIds={splitChatIds}
-      openPanelTiles={paneSessionPanels ? openPanelTiles : NO_PANEL_TILES}
+      openPanelTiles={paneSessionPanels ? openPanelTiles : NO_AGENT_TILES}
       renderView={renderView}
     />
   );

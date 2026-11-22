@@ -3,7 +3,7 @@ import { openSessionPanelTiles, sessionPanelOpenFor, useUIStore } from '@/store/
 import { useIsMobile } from '@/hooks/useIsMobile';
 import type { AgentTileId } from '@/types/ui.types';
 
-const NO_AGENT_TILES: AgentTileId[] = [];
+export const NO_AGENT_TILES: AgentTileId[] = [];
 
 export function useSessionPanelOpen(agentTile: AgentTileId): boolean {
   const isMobile = useIsMobile();
