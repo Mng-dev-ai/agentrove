@@ -33,6 +33,7 @@ from acp.schema import (
     ReleaseTerminalResponse,
     RequestPermissionResponse,
     SessionInfoUpdate,
+    SessionNotification,
     TerminalOutputResponse,
     ToolCallProgress,
     ToolCallStart,
@@ -162,17 +163,20 @@ class AcpClientHandler:
         pass
 
     def observe_stream(self, event: AcpStreamEvent) -> None:
-        # Must stay synchronous: the SDK runs sync observers before dispatching
-        # the message, but only schedules async ones.
-        if (
-            self.agent_kind != AgentKind.OPENCODE
-            or event.direction is not StreamDirection.INCOMING
-        ):
+        # Must stay sync: the SDK runs sync observers inline, ahead of later responses.
+        if event.direction is not StreamDirection.INCOMING:
             return
         params = event.message.get("params")
         if not isinstance(params, dict):
             return
         method = event.message.get("method")
+        if self.agent_kind == AgentKind.OPENCODE:
+            self._capture_opencode_tool_name(method, params)
+        if method == "session/update":
+            notification = SessionNotification.model_validate(params)
+            self.apply_session_update(notification.session_id, notification.update)
+
+    def _capture_opencode_tool_name(self, method: Any, params: dict[str, Any]) -> None:
         if method == "session/update":
             tool_call = params.get("update")
         elif method == "session/request_permission":
@@ -276,6 +280,10 @@ class AcpClientHandler:
         update: Any,
         **kwargs: Any,
     ) -> None:
+        # Applied in observe_stream; the SDK reports method-not-found without this.
+        pass
+
+    def apply_session_update(self, session_id: str, update: Any) -> None:
         if isinstance(update, CurrentModeUpdate):
             self.on_mode_update(update.current_mode_id)
             return
@@ -772,7 +780,7 @@ class AcpClientHandler:
 
     def _map_session_info(self, info: SessionInfoUpdate) -> StreamEvent | None:
         # session_id comes from the outer SessionNotification and is injected
-        # by session_update(). Always emit so the caller can attach the session_id.
+        # by apply_session_update(). Always emit so the caller can attach the session_id.
         return StreamEvent(type="system", data={})
 
     def _map_plan(self, plan: AgentPlanUpdate) -> StreamEvent | None:
