@@ -1,8 +1,9 @@
 import uuid
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, Index, String, Text
+from sqlalchemy import JSON, Boolean, ForeignKey, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base_class import Base
@@ -28,7 +29,10 @@ class Automation(Base):
     workspace_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False
     )
-    channel_id: Mapped[UUID | None] = mapped_column(GUID(), nullable=True)
+    # Members of the channel each run creates; NULL starts a chat instead.
+    channel_members: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     model_id: Mapped[str] = mapped_column(String(255), nullable=False)

@@ -272,15 +272,7 @@ class ChannelService(BaseDbService[Channel]):
 
     async def create(self, user: User, data: ChannelCreate) -> Channel:
         self.require_agent_workspace(user, data.workspace_id)
-        used_names = set(BROADCAST_MENTIONS)
-        settings = [
-            (
-                item,
-                self.permission_mode(item.model_id, item.permission_mode),
-                self.member_name(item.model_id, item.display_name, used_names),
-            )
-            for item in data.members
-        ]
+        settings = self.member_settings(data.members)
         async with self.session_factory() as db:
             workspace = await db.scalar(
                 select(Workspace).where(
@@ -324,6 +316,20 @@ class ChannelService(BaseDbService[Channel]):
             await self.delete(channel)
             raise
         return channel
+
+    @classmethod
+    def member_settings(
+        cls, members: list[ChannelMemberCreate]
+    ) -> list[tuple[ChannelMemberCreate, PermissionMode, str]]:
+        used_names = set(BROADCAST_MENTIONS)
+        return [
+            (
+                item,
+                cls.permission_mode(item.model_id, item.permission_mode),
+                cls.member_name(item.model_id, item.display_name, used_names),
+            )
+            for item in members
+        ]
 
     @staticmethod
     def permission_mode(model_id: str, mode: PermissionMode | None) -> PermissionMode:

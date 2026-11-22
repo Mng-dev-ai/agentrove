@@ -23,7 +23,8 @@ import {
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
-import { useMachineChannelsQuery } from '@/hooks/queries/useChannelQueries';
+import { MemberChips } from '@/components/channels/CreateChannelDialog';
+import { resolveMemberNames } from '@/components/channels/memberDraft';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { machineName } from '@/store/machineStore';
 import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
@@ -70,14 +71,8 @@ export function AutomationEditDialog({
 
   const workspaces = isLocal ? localWorkspaces : machineWorkspaces;
   const machineOffline = !machineOptions.some((machine) => machine.id === form.machineId);
-  const { data: machineChannels = [], isSuccess: channelsLoaded } = useMachineChannelsQuery(
-    form.machineId,
-    !machineOffline,
-  );
-  const channels = machineChannels.filter((channel) => channel.workspace_id === form.workspace_id);
   const isChannel = form.target === 'channel';
-  const channelPicked = channels.some((channel) => channel.id === form.channel_id);
-  const channelMissing = isChannel && channelsLoaded && !channelPicked;
+  const memberNames = resolveMemberNames(form.members, models);
   const machines = machineOffline
     ? [...machineOptions, { id: form.machineId, name: `${machineName(form.machineId)} (offline)` }]
     : machineOptions;
@@ -99,12 +94,6 @@ export function AutomationEditDialog({
     }
   }, [workspaces, form.workspace_id, onChange]);
 
-  useEffect(() => {
-    if (!isChannel || channelPicked || channels.length === 0) return;
-    if (isEditing && form.channel_id) return;
-    onChange('channel_id', channels[0].id);
-  }, [isChannel, channelPicked, channels, isEditing, form.channel_id, onChange]);
-
   const selectedModel = models.find((m) => m.model_id === form.model_id);
   const agentKind = selectedModel?.agent_kind ?? 'claude';
 
@@ -115,6 +104,17 @@ export function AutomationEditDialog({
     form.thinking_mode,
     agentKind,
     selectedModel,
+  );
+
+  const worktreeSelect = (
+    <Select
+      value={form.worktree ? 'on' : 'off'}
+      onChange={(e) => onChange('worktree', e.target.value === 'on')}
+      className={styles.select}
+    >
+      <option value="off">No worktree</option>
+      <option value="on">Worktree</option>
+    </Select>
   );
 
   const { schedule } = form;
@@ -128,7 +128,7 @@ export function AutomationEditDialog({
     !!form.model_id &&
     !!form.workspace_id &&
     (schedule.frequency !== 'custom' || !!schedule.cron.trim()) &&
-    (!isChannel || channelPicked) &&
+    (!isChannel || memberNames.every((memberName) => !memberName.error)) &&
     !machineOffline &&
     personasLoaded;
 
@@ -196,45 +196,41 @@ export function AutomationEditDialog({
             )}
           </div>
 
-          {(channels.length > 0 || isChannel) && (
-            <div>
-              <Label className={styles.label}>Target</Label>
-              <div className={styles.row}>
-                <div className={styles['select-w36']}>
-                  <Select
-                    value={form.target}
-                    onChange={(e) => onChange('target', e.target.value as AutomationTarget)}
-                    className={styles.select}
-                    aria-label="Target"
-                  >
-                    <option value="chat">New chat</option>
-                    <option value="channel">Channel</option>
-                  </Select>
-                </div>
-                {isChannel && (
-                  <Select
-                    value={form.channel_id}
-                    onChange={(e) => onChange('channel_id', e.target.value)}
-                    className={styles.select}
-                    aria-label="Channel"
-                  >
-                    {channelMissing && (
-                      <option value={form.channel_id} disabled>
-                        Target channel missing
-                      </option>
-                    )}
-                    {channels.map((channel) => (
-                      <option key={channel.id} value={channel.id}>
-                        #{channel.name}
-                      </option>
-                    ))}
-                  </Select>
-                )}
-              </div>
+          <div>
+            <Label className={styles.label}>Target</Label>
+            <div className={styles['select-w36']}>
+              <Select
+                value={form.target}
+                onChange={(e) => onChange('target', e.target.value as AutomationTarget)}
+                className={styles.select}
+                aria-label="Target"
+              >
+                <option value="chat">New chat</option>
+                <option value="channel">New channel</option>
+              </Select>
             </div>
-          )}
+          </div>
 
-          {!isChannel && (
+          {isChannel ? (
+            <>
+              <div>
+                <Label className={styles.label}>Members</Label>
+                <MemberChips
+                  machineId={form.machineId}
+                  members={form.members}
+                  memberNames={memberNames}
+                  models={models}
+                  personas={personas}
+                  onChange={(members) => onChange('members', members)}
+                />
+              </div>
+
+              <div>
+                <Label className={styles.label}>Worktree</Label>
+                <div className={styles['select-w36']}>{worktreeSelect}</div>
+              </div>
+            </>
+          ) : (
             <>
               <div>
                 <Label className={styles.label}>Model</Label>
@@ -299,14 +295,7 @@ export function AutomationEditDialog({
                 </div>
                 <div>
                   <Label className={styles.label}>Worktree</Label>
-                  <Select
-                    value={form.worktree ? 'on' : 'off'}
-                    onChange={(e) => onChange('worktree', e.target.value === 'on')}
-                    className={styles.select}
-                  >
-                    <option value="off">No worktree</option>
-                    <option value="on">Worktree</option>
-                  </Select>
+                  {worktreeSelect}
                 </div>
               </div>
             </>
@@ -416,7 +405,7 @@ export function AutomationEditDialog({
             />
             <p className={styles.hint}>
               {isChannel
-                ? 'Each run posts this prompt to the channel as you, prefixed with the automation name.'
+                ? 'Each run creates a new channel with these members and posts this prompt to it as you.'
                 : 'Each run starts a new chat in the selected workspace with this prompt.'}
             </p>
           </div>
