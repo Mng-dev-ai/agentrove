@@ -146,7 +146,7 @@ class FakeAcpSession:
                 elif isinstance(step, BaseException):
                     raise step
                 elif isinstance(step, ToolCallStart):
-                    await self.handler.session_update(self.acp_session_id, step)
+                    self.handler.apply_session_update(self.acp_session_id, step)
                 else:
                     self.handler.event_queue.put_nowait(step)
             prompt_completed = True
