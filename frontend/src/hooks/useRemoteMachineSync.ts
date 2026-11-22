@@ -78,6 +78,7 @@ export function useRemoteMachineSync(machineId: string): void {
           ...chat,
           title: parsed.title,
         }));
+        invalidateSubThreadListsContaining(queryClient, parsed.chat_id);
         void queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(machineId) });
         return;
       }
