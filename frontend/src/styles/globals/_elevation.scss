@@ -1,6 +1,7 @@
 // Radius + shadow tokens.
 // Radius: sm = small controls, md = buttons/inputs, lg = standard containers/cards,
-// xl = prominent cards/dropdowns, 2xl = overlays.
+// xl = prominent cards/dropdowns, 2xl = overlays, 3xl = grouped cards in a phone sheet,
+// 4xl = the floating phone sheet itself.
 // Shadows: sm = interactive elements, medium = dropdowns/panels, strong = modals.
 
 @mixin elevation-tokens {
@@ -10,6 +11,8 @@
     --radius-lg: 0.5rem;
     --radius-xl: 0.75rem;
     --radius-2xl: 1rem;
+    --radius-3xl: 1.5rem;
+    --radius-4xl: 2.25rem;
     --radius-full: 9999px;
 
     --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);

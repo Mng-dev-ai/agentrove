@@ -261,7 +261,7 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
         ariaLabel="Chat settings"
       >
         <div className={styles.header}>
-          {activeRow && (
+          {activeRow ? (
             <Button
               type="button"
               variant="unstyled"
@@ -271,17 +271,18 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
             >
               <ChevronLeft />
             </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="unstyled"
+              aria-label="Close"
+              onClick={() => setOpen(false)}
+              className={styles['header-button']}
+            >
+              <X />
+            </Button>
           )}
           <h3 className={styles.title}>{activeRow ? activeRow.name : 'Chat settings'}</h3>
-          <Button
-            type="button"
-            variant="unstyled"
-            aria-label="Close"
-            onClick={() => setOpen(false)}
-            className={styles['header-button']}
-          >
-            <X />
-          </Button>
         </div>
         <div
           ref={bodyRef}

@@ -1,3 +1,4 @@
+@use '@/styles/globals/controls' as controls;
 @use '@/styles/globals/typography' as type;
 
 .mode-label {
@@ -5,6 +6,11 @@
   color: var(--theme-text-secondary);
 
   &--selected {
+    color: var(--theme-text-primary);
+  }
+
+  @include controls.inline-options {
+    @include type.type-large;
     color: var(--theme-text-primary);
   }
 }

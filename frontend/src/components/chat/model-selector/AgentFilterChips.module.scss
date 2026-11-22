@@ -1,4 +1,5 @@
 @use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/controls' as controls;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
@@ -9,6 +10,14 @@
   gap: var(--space-1);
   border-bottom: 1px solid colors.theme-color('border', 0.5);
   padding: var(--space-1-5) var(--space-2);
+
+  @include controls.inline-options {
+    gap: var(--space-2);
+    overflow-x: auto;
+    border-bottom: none;
+    padding: 0;
+    scrollbar-width: none;
+  }
 }
 
 .chip {
@@ -22,9 +31,21 @@
   padding: var(--space-0-5) var(--space-2);
   color: var(--theme-text-secondary);
 
+  @include controls.inline-options {
+    @include type.type-large(500);
+    height: var(--space-10);
+    min-width: var(--space-10);
+    flex-shrink: 0;
+    padding-inline: var(--space-4);
+  }
+
   // Icon chips: square padding so the pill hugs the icon
   &--icon {
     padding: var(--space-1);
+
+    @include controls.inline-options {
+      padding: 0;
+    }
   }
 
   @include responsive.hover {
@@ -48,4 +69,9 @@
 .chip-icon {
   height: var(--space-3);
   width: var(--space-3);
+
+  @include controls.inline-options {
+    height: var(--space-5);
+    width: var(--space-5);
+  }
 }

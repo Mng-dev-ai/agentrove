@@ -427,9 +427,10 @@ const Dropdown = memo(function Dropdown<T>(props: DropdownProps<T>) {
   const { onInlineSelect, onSelect, ariaLabel } = props;
   if (!onInlineSelect) return <DropdownPopover {...props} />;
   return (
-    <div role="listbox" aria-label={ariaLabel} className={styles.inline}>
+    <div role="listbox" aria-label={ariaLabel} data-inline-options className={styles.inline}>
       <DropdownOptions
         {...props}
+        selectionStyle="check"
         onPick={(item) => {
           onSelect(item);
           onInlineSelect();
