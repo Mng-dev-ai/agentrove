@@ -4,64 +4,6 @@
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
-.row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-1-5);
-  padding-inline-start: var(--space-1);
-
-  // Spreads the chips so their 40px touch targets don't overlap
-  @include responsive.media('touch') {
-    gap: var(--space-3);
-  }
-}
-
-.chip {
-  @include type.type-meta(500);
-  @include anim.transition-colors;
-  @include responsive.touch-target;
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--space-1);
-  border-radius: var(--radius-full);
-  padding: var(--space-0-5) var(--space-2);
-  white-space: nowrap;
-
-  &--warning {
-    background-color: colors.status-color('warning', 500, 0.14);
-    color: var(--theme-warning-text);
-  }
-
-  &--accent {
-    background-color: colors.status-color('info', 500, 0.14);
-    color: var(--theme-info-text);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-}
-
-.chip-icon {
-  height: var(--space-3);
-  width: var(--space-3);
-  flex-shrink: 0;
-}
-
-.chip-label {
-  max-width: var(--space-24);
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  .row[data-compact] & {
-    display: none;
-  }
-}
-
 .trigger {
   @include type.type-meta(500);
   @include anim.transition-colors;

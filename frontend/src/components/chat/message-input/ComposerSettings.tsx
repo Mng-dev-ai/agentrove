@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
-import clsx from 'clsx';
 import { Brain, ChevronLeft, ChevronRight, Shield, UserCircle, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
@@ -10,14 +9,10 @@ import { ThinkingModeSelector } from '@/components/chat/thinking-mode-selector/T
 import { getThinkingModeOption } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import { FastModeSelector } from '@/components/chat/fast-mode-selector/FastModeSelector';
 import { PermissionModeSelector } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
-import {
-  getPermissionModeOption,
-  isDefaultPermissionMode,
-} from '@/components/chat/permission-mode-selector/permissionModes';
+import { getPermissionModeOption } from '@/components/chat/permission-mode-selector/permissionModes';
 import { useFastModeOption } from '@/components/chat/fast-mode-selector/fastModes';
 import { PersonaSelector } from '@/components/chat/persona-selector/PersonaSelector';
 import {
-  DEFAULT_PERSONA_OPTION,
   getPersonaOption,
   getPersonaOptions,
 } from '@/components/chat/persona-selector/personaOptions';
@@ -27,12 +22,8 @@ import { useChatSettings } from '@/hooks/useChatSettings';
 import { preventBlur, type ComposerSettingsInfo } from './useComposerSettings';
 import styles from './ComposerSettings.module.scss';
 
-// The main label keeps at least this many of its own em before the chips give up their labels
-const MIN_READABLE_LABEL_EM = 8;
-
 type SettingKey = 'model' | 'thinking' | 'fast' | 'permission' | 'persona';
 type SheetView = 'list' | SettingKey;
-type ChipTone = 'warning' | 'accent';
 
 interface SettingRow {
   key: SettingKey;
@@ -40,14 +31,6 @@ interface SettingRow {
   name: string;
   value: string;
   options: ReactNode;
-}
-
-interface Chip {
-  key: SettingKey;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-  label: string;
-  ariaLabel: string;
-  tone: ChipTone;
 }
 
 export function MobileComposerSettings({ settings }: { settings: ComposerSettingsInfo }) {
@@ -62,8 +45,6 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
   const [view, setView] = useState<SheetView>('list');
   // The sheet's selectors can't be disabled, so loading closes the sheet as the triggers lock
   if (state.isLoading && open) setOpen(false);
-  const rowRef = useRef<HTMLDivElement>(null);
-  const labelRef = useRef<HTMLSpanElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
   const bodyHeight = useRef(0);
 
@@ -74,10 +55,6 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
   const modelName = selectedModel?.name ?? 'Model';
   const triggerLabel = thinking ? `${modelName} · ${thinking.label}` : modelName;
   const showBack = () => setView('list');
-  const openSheet = (next: SheetView) => {
-    setView(next);
-    setOpen(true);
-  };
 
   const rows: SettingRow[] = [
     {
@@ -145,57 +122,6 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
     });
   }
 
-  const chips: Chip[] = [];
-  if (!isDefaultPermissionMode(permission.value, agent)) {
-    chips.push({
-      key: 'permission',
-      icon: Shield,
-      label: permission.label,
-      ariaLabel: `Permission mode: ${permission.label}`,
-      tone: 'warning',
-    });
-  }
-  if (showPersona && personaOption !== DEFAULT_PERSONA_OPTION) {
-    chips.push({
-      key: 'persona',
-      icon: UserCircle,
-      label: personaOption.label,
-      ariaLabel: `Persona: ${personaOption.label}`,
-      tone: 'accent',
-    });
-  }
-  if (showFastMode && fastOption.value) {
-    chips.push({
-      key: 'fast',
-      icon: Zap,
-      label: fastOption.label,
-      ariaLabel: `Fast mode: ${fastOption.label}`,
-      tone: 'warning',
-    });
-  }
-
-  const chipLabels = chips.map((chip) => chip.label).join('\n');
-
-  // Chips drop their labels only when keeping them would squeeze the main label below a
-  // readable width: try the labelled layout, measure, and collapse within the same frame.
-  useLayoutEffect(() => {
-    const row = rowRef.current;
-    const label = labelRef.current;
-    const form = row?.closest('form');
-    if (!row || !label || !form) return;
-    const measure = () => {
-      row.removeAttribute('data-compact');
-      const readable = parseFloat(getComputedStyle(label).fontSize) * MIN_READABLE_LABEL_EM;
-      if (label.clientWidth < Math.min(label.scrollWidth, readable)) {
-        row.setAttribute('data-compact', '');
-      }
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(form);
-    return () => observer.disconnect();
-  }, [chipLabels, triggerLabel, state.hasMessage]);
-
   // Eases the body from the previous view's height to the new one via its CSS height
   // transition (none under reduced motion). The target waits until the new view has painted
   // once at the old height, so its first (slow) layout doesn't eat the transition's start.
@@ -222,37 +148,23 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
 
   return (
     <>
-      <div ref={rowRef} className={styles.row} onMouseDown={preventBlur}>
-        {chips.map((chip) => (
-          <Button
-            key={chip.key}
-            type="button"
-            variant="unstyled"
-            disabled={state.isLoading}
-            aria-label={chip.ariaLabel}
-            onClick={() => openSheet(chip.key)}
-            className={clsx(styles.chip, styles[`chip--${chip.tone}`])}
-          >
-            <chip.icon className={styles['chip-icon']} />
-            <span className={styles['chip-label']}>{chip.label}</span>
-          </Button>
-        ))}
-        <Button
-          type="button"
-          variant="unstyled"
-          disabled={state.isLoading}
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          aria-label={`Chat settings: ${triggerLabel}`}
-          onClick={() => openSheet('list')}
-          className={styles.trigger}
-        >
-          <ModelIcon className={styles['trigger-icon']} />
-          <span ref={labelRef} className={styles['trigger-label']}>
-            {triggerLabel}
-          </span>
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="unstyled"
+        disabled={state.isLoading}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`Chat settings: ${triggerLabel}`}
+        onMouseDown={preventBlur}
+        onClick={() => {
+          setView('list');
+          setOpen(true);
+        }}
+        className={styles.trigger}
+      >
+        <ModelIcon className={styles['trigger-icon']} />
+        <span className={styles['trigger-label']}>{triggerLabel}</span>
+      </Button>
 
       <BaseModal
         isOpen={open}

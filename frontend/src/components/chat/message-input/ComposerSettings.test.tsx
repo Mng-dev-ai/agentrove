@@ -42,7 +42,7 @@ describe('phone composer settings sheet', () => {
     vi.unstubAllGlobals();
   });
 
-  it('applies a permission mode chosen in the sheet and shows it as a chip', async () => {
+  it('applies a permission mode chosen in the sheet and shows it on the Permissions row', async () => {
     render(
       <QueryClientProvider client={new QueryClient()}>
         <ChatProvider chatId="chat-1">
@@ -66,8 +66,5 @@ describe('phone composer settings sheet', () => {
 
     expect(useChatSettingsStore.getState().permissionModeByChat['chat-1']).toBe('plan');
     expect(sheet.getByRole('button', { name: /Permissions\s*Plan/ })).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'Permission mode: Plan' }).className).toMatch(
-      /chip--warning/,
-    );
   });
 });
