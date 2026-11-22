@@ -24,11 +24,6 @@ function activeTab(strip: HTMLElement): Element | null {
   return strip.querySelector(`:scope > .${stateClasses.ACTIVE}`);
 }
 
-function revealActiveTab(strip: HTMLElement) {
-  const tab = activeTab(strip);
-  if (tab) strip.scrollLeft += offsetFromView(strip, tab);
-}
-
 function markHiddenEdges(strip: HTMLElement) {
   const hiddenEnd = strip.scrollWidth - strip.clientWidth - strip.scrollLeft;
   strip.toggleAttribute('data-hidden-start', strip.scrollLeft > 1);
@@ -43,14 +38,19 @@ export function TitleBarTabs({ children }: { children: ReactNode }) {
   const followRef = useRef(true);
   const revealedScrollRef = useRef<number | null>(null);
 
+  const revealActiveTab = (strip: HTMLElement) => {
+    const tab = activeTab(strip);
+    if (tab) strip.scrollLeft += offsetFromView(strip, tab);
+    followRef.current = true;
+    revealedScrollRef.current = strip.scrollLeft;
+  };
+
   useLayoutEffect(() => {
     const strip = ref.current;
     if (!strip) return;
     const observer = new ResizeObserver((entries) => {
       if (followRef.current || entries.some((entry) => entry.target === strip)) {
         revealActiveTab(strip);
-        followRef.current = true;
-        revealedScrollRef.current = strip.scrollLeft;
       }
       markHiddenEdges(strip);
     });
@@ -67,8 +67,6 @@ export function TitleBarTabs({ children }: { children: ReactNode }) {
     if (tab !== shownActiveRef.current) {
       shownActiveRef.current = tab;
       revealActiveTab(strip);
-      followRef.current = true;
-      revealedScrollRef.current = strip.scrollLeft;
     }
     markHiddenEdges(strip);
   });

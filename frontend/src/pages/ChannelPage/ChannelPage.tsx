@@ -71,9 +71,9 @@ function ChannelWorkspace({
         <WorkspaceSurface
           renderView={renderView}
           sessionPanel={
-            workspaceChat && (
+            workspaceChat ? (
               <SessionPanel chat={workspaceChat} workspace={workspace} channel={channel} />
-            )
+            ) : null
           }
         />
       )}

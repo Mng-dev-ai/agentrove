@@ -4,17 +4,14 @@
 @use '@/styles/globals/responsive' as responsive;
 
 .band {
-  display: flex;
+  display: grid;
+  // One row: panel cells come after later columns, so sparse auto-placement would wrap them.
+  grid-template-rows: 100%;
+  grid-auto-flow: column dense;
   height: 100%;
   min-width: 0;
   flex: 1;
   background-color: var(--theme-surface);
-}
-
-.columns {
-  display: grid;
-  min-width: 0;
-  flex: 1;
 }
 
 .column {
@@ -34,22 +31,6 @@
   flex-shrink: 0;
 }
 
-.switcher {
-  display: flex;
-  flex-shrink: 0;
-  align-self: stretch;
-  align-items: center;
-  justify-content: flex-end;
-
-  // Spans the panel below: the header's end padding moves inside, beside a matching rule.
-  &--over-panel {
-    width: var(--session-panel-width);
-    margin-right: calc(-1 * var(--space-3));
-    border-left: 1px solid colors.theme-color('border', 0.5);
-    padding-inline: var(--space-3);
-  }
-}
-
 .header {
   @include type.type-noselect;
   container: pane-header / inline-size;
@@ -66,6 +47,11 @@
     width: 100%;
     flex: none;
     border-bottom: 1px solid colors.theme-color('border', 0.5);
+  }
+
+  // In the grid, a header over a panel has no tile beside it to draw the divider.
+  &--over-panel {
+    border-left: 1px solid colors.theme-color('border', 0.5);
   }
 }
 

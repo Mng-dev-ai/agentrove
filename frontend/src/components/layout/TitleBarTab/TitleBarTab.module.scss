@@ -46,9 +46,16 @@
   padding-right: var(--space-1);
   color: var(--theme-text-tertiary);
 
-  // Carries the pane's chat menu and stands in for its title
+  // Carries the pane's chat menu and stands in for its title. Neighbours peek past it, but not
+  // below a --space-20 title floor (the other 18.5 steps are its icon, chevron, close and gaps).
   &--with-menu {
-    max-width: min(var(--space-72), calc(100% - 2 * var(--space-6)));
+    max-width: min(
+      var(--space-72),
+      max(
+        calc(100% - 2 * var(--space-6)),
+        min(100%, calc(var(--space-20) + var(--space-18) + var(--space-0-5)))
+      )
+    );
   }
 
   // Reveal the close button while hovering anywhere on the tab

@@ -7,7 +7,7 @@ import { useChatStore } from '@/store/chatStore';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useActiveViews } from '@/hooks/useActiveViews';
 import type { TileId, ViewType } from '@/types/ui.types';
-import { splitSlotOfTile, tileChatId } from '@/utils/tileHelpers';
+import { agentTileFor, splitSlotOfTile, tileChatId } from '@/utils/tileHelpers';
 import { Chat as ChatComponent } from '@/components/chat/chat-window/Chat';
 import { ChatSessionOrchestrator } from '@/components/chat/chat-window/ChatSessionOrchestrator';
 import { AgentPane } from '@/components/chat/chat-window/AgentPane';
@@ -20,7 +20,7 @@ import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/u
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { InTilePaneHeader } from '@/components/layout/PaneHeader/PaneHeader';
-import { ChatSessionPanel } from '@/components/chat/session-panel/ChatSessionPanel';
+import { PaneSessionPanel } from '@/components/chat/session-panel/PaneSessionPanel';
 import {
   WorkspaceSurface,
   WorkspaceTile,
@@ -212,12 +212,16 @@ export function ChatPage() {
           header={
             isVisible && paneChatId && <InTilePaneHeader tileId={tileId} chatId={paneChatId} />
           }
-          sessionPanel={paneChat && <ChatSessionPanel chat={paneChat} />}
           agent={
             tileId === 'agent:primary' ? (
-              <ChatComponent />
+              <>
+                <ChatComponent />
+                <PaneSessionPanel agentTile="agent:primary" chat={currentChat} />
+              </>
             ) : (
-              paneChatId && <AgentPane key={paneChatId} chatId={paneChatId} />
+              paneChatId && (
+                <AgentPane key={paneChatId} chatId={paneChatId} agentTile={agentTileFor(tileId)} />
+              )
             )
           }
         />

@@ -23,6 +23,18 @@
   }
 }
 
+.slot {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+}
+
+.slot-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
 .card {
   display: flex;
   flex-direction: column;

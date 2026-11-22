@@ -592,6 +592,7 @@ function SubThreadsCard({
             className={styles['header-button']}
             aria-label="New sub-thread"
             onClick={() => {
+              useUIStore.getState().focusChatPane(chatId);
               useUIStore.getState().setSubThreadDialogOpen(true);
             }}
           >
@@ -634,6 +635,7 @@ function SubThreadsCard({
 }
 
 function openDiff(chatId: string, mode: DiffMode) {
+  useUIStore.getState().focusChatPane(chatId);
   useUIStore.setState({ pendingDiffMode: { chatId, mode } });
   useUIStore.getState().toggleView('diff', false);
 }
@@ -712,6 +714,7 @@ function ChangesCard({
               type="button"
               className={styles['pr-button']}
               onClick={() => {
+                useUIStore.getState().focusChatPane(chatId);
                 useUIStore.getState().setCreateCommitDialogOpen(true);
               }}
             >
@@ -743,6 +746,7 @@ function ChangesCard({
                 type="button"
                 className={styles['pr-button']}
                 onClick={() => {
+                  useUIStore.getState().focusChatPane(chatId);
                   useUIStore.getState().setCreatePRDialogOpen(true);
                 }}
               >
