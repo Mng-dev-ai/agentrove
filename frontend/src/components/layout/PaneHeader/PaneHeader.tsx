@@ -124,15 +124,14 @@ export function PanelHeader({ agentTile, inTile }: { agentTile: AgentTileId; inT
   );
 }
 
-interface AgentPaneHeaderProps {
+interface PaneNamingProps {
   agentTile: AgentTileId;
   chatId: string;
-  inTile: boolean;
   tabs?: string[];
   inStrip: boolean;
 }
 
-function AgentPaneHeader({ agentTile, chatId, inTile, tabs, inStrip }: AgentPaneHeaderProps) {
+function PaneNaming({ agentTile, chatId, tabs, inStrip }: PaneNamingProps) {
   const chat = useChatQuery(chatId).data;
   const focused = useUIStore((s) => s.activeAgentTile === agentTile);
   const blocked = useBlockedChatIds().has(chatId);
@@ -143,22 +142,38 @@ function AgentPaneHeader({ agentTile, chatId, inTile, tabs, inStrip }: AgentPane
   const menuTrigger = chat && <ChatMenuTrigger chatId={chatId} />;
 
   return (
+    <>
+      {!inStrip && chat && (
+        <div className={styles['title-wrap']}>
+          {status && <ChatStatusIcon status={status} />}
+          <span className={clsx(styles.title, focused && styles['title--focused'])}>
+            {stripMarkdownTitle(chat.title)}
+          </span>
+          {menuTrigger}
+        </div>
+      )}
+      {tabs && (
+        <div className={clsx(styles.strip, !inStrip && styles['strip--after-title'])}>
+          <ChatTabs tabs={tabs} menu={{ chatId, trigger: menuTrigger }} />
+        </div>
+      )}
+    </>
+  );
+}
+
+interface AgentPaneHeaderProps {
+  agentTile: AgentTileId;
+  chatId: string;
+  inTile: boolean;
+  tabs?: string[];
+  inStrip: boolean;
+}
+
+function AgentPaneHeader({ agentTile, chatId, inTile, tabs, inStrip }: AgentPaneHeaderProps) {
+  return (
     <div className={clsx(styles.header, inTile && styles['header--in-tile'])}>
       <div className={styles.naming}>
-        {!inStrip && chat && (
-          <div className={styles['title-wrap']}>
-            {status && <ChatStatusIcon status={status} />}
-            <span className={clsx(styles.title, focused && styles['title--focused'])}>
-              {stripMarkdownTitle(chat.title)}
-            </span>
-            {menuTrigger}
-          </div>
-        )}
-        {tabs && (
-          <div className={clsx(styles.strip, !inStrip && styles['strip--after-title'])}>
-            <ChatTabs tabs={tabs} menu={{ chatId, trigger: menuTrigger }} />
-          </div>
-        )}
+        <PaneNaming agentTile={agentTile} chatId={chatId} tabs={tabs} inStrip={inStrip} />
       </div>
       <HostEnd tileId={agentTile} agentTile={agentTile} />
     </div>
@@ -177,20 +192,27 @@ function ViewTileHeader({ tileId, chatId, inTile, tabs, inStrip }: ViewTileHeade
   const title = useChatQuery(chatId).data?.title;
   const view = tileIdToViewType(tileId);
   const agentTile = agentTileFor(tileId);
+  const standsInForPane = useUIStore((s) => !s.visibleLayout.flat().includes(agentTile));
   const Icon = VIEW_ICONS[view];
   const label = VIEW_LABELS[view];
 
   return (
     <div className={clsx(styles.header, inTile && styles['header--in-tile'])}>
       <div className={styles.naming}>
-        <Icon className={styles['view-glyph']} />
-        <span className={styles['view-label']}>
-          {title && !inStrip ? `${label} · ${stripMarkdownTitle(title)}` : label}
-        </span>
-        {tabs && (
-          <div className={clsx(styles.strip, styles['strip--after-title'])}>
-            <ChatTabs tabs={tabs} />
-          </div>
+        {standsInForPane ? (
+          <PaneNaming agentTile={agentTile} chatId={chatId} tabs={tabs} inStrip={inStrip} />
+        ) : (
+          <>
+            <Icon className={styles['view-glyph']} />
+            <span className={styles['view-label']}>
+              {title && !inStrip ? `${label} · ${stripMarkdownTitle(title)}` : label}
+            </span>
+            {tabs && (
+              <div className={clsx(styles.strip, styles['strip--after-title'])}>
+                <ChatTabs tabs={tabs} />
+              </div>
+            )}
+          </>
         )}
       </div>
       <div className={styles.actions}>
