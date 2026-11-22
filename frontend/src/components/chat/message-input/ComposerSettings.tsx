@@ -122,6 +122,18 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
     });
   }
 
+  // Keeps the starting height current when a filter or a running transition resizes the body
+  // between view switches
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    if (!open || !body) return;
+    const observer = new ResizeObserver(() => {
+      bodyHeight.current = body.offsetHeight;
+    });
+    observer.observe(body);
+    return () => observer.disconnect();
+  }, [open]);
+
   // Eases the body from the previous view's height to the new one via its CSS height
   // transition (none under reduced motion). The target waits until the new view has painted
   // once at the old height, so its first (slow) layout doesn't eat the transition's start.

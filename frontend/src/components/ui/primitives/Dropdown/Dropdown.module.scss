@@ -486,12 +486,6 @@
     border: none;
   }
 
-  .group-header {
-    margin: 0;
-    border: none;
-    padding: var(--space-3) var(--space-4) var(--space-1-5);
-  }
-
   .item-row {
     min-height: var(--space-12);
     gap: var(--space-3);
@@ -509,8 +503,7 @@
     }
 
     &:last-child,
-    &:has(+ .divider),
-    &:has(+ .group-header) {
+    &:has(+ .divider) {
       border-bottom-left-radius: var(--radius-3xl);
       border-bottom-right-radius: var(--radius-3xl);
     }
@@ -525,8 +518,7 @@
     }
   }
 
-  .divider + .item-row,
-  .group-header + .item-row {
+  .divider + .item-row {
     border-top-left-radius: var(--radius-3xl);
     border-top-right-radius: var(--radius-3xl);
   }
