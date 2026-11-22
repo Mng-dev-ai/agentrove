@@ -27,6 +27,16 @@
   display: flex;
   width: 100%;
   flex-direction: column;
+  border-left: 1px solid colors.theme-color('border', 0.5);
+
+  @include responsive.media('mobile') {
+    border-left: none;
+  }
+
+  .panel {
+    width: 100%;
+    border-left: none;
+  }
 }
 
 .slot-body {

@@ -43,15 +43,14 @@
   background-color: var(--theme-surface);
   padding-inline: var(--space-3);
 
+  &--panel {
+    container: none;
+  }
+
   &--in-tile {
     width: 100%;
     flex: none;
     border-bottom: 1px solid colors.theme-color('border', 0.5);
-  }
-
-  // In the grid, a header over a panel has no tile beside it to draw the divider.
-  &--over-panel {
-    border-left: 1px solid colors.theme-color('border', 0.5);
   }
 }
 
