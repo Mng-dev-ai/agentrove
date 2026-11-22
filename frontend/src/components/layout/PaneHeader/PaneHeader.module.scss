@@ -52,11 +52,6 @@
     flex: none;
     border-bottom: 1px solid colors.theme-color('border', 0.5);
   }
-
-  // In the grid, a header over a panel has no tile beside it to draw the divider.
-  &--over-panel {
-    border-left: 1px solid colors.theme-color('border', 0.5);
-  }
 }
 
 .naming {

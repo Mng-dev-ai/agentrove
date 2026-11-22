@@ -117,11 +117,7 @@ function HostEnd({ tileId, agentTile }: { tileId: TileId; agentTile: AgentTileId
 export function PanelHeader({ agentTile, inTile }: { agentTile: AgentTileId; inTile: boolean }) {
   return (
     <div
-      className={clsx(
-        styles.header,
-        styles['header--panel'],
-        inTile && [styles['header--in-tile'], styles['header--over-panel']],
-      )}
+      className={clsx(styles.header, styles['header--panel'], inTile && styles['header--in-tile'])}
     >
       <PaneEnd agentTile={agentTile} />
     </div>
@@ -144,16 +140,16 @@ function AgentPaneHeader({ agentTile, chatId, inTile, tabs, inStrip }: AgentPane
     s.activeStreamMetadata.some((meta) => meta.chatId === chatId),
   );
   const status = blocked ? 'blocked' : streaming ? 'streaming' : null;
-  const menuTrigger = <ChatMenuTrigger chatId={chatId} />;
+  const menuTrigger = chat && <ChatMenuTrigger chatId={chatId} />;
 
   return (
     <div className={clsx(styles.header, inTile && styles['header--in-tile'])}>
       <div className={styles.naming}>
-        {!inStrip && (
+        {!inStrip && chat && (
           <div className={styles['title-wrap']}>
             {status && <ChatStatusIcon status={status} />}
             <span className={clsx(styles.title, focused && styles['title--focused'])}>
-              {chat ? stripMarkdownTitle(chat.title) : ''}
+              {stripMarkdownTitle(chat.title)}
             </span>
             {menuTrigger}
           </div>
