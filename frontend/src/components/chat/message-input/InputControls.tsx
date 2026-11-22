@@ -79,6 +79,7 @@ export function ComposerFooter() {
           dropdownPosition={state.dropdownPosition}
           dropdownAlign="left"
           disabled={state.isLoading}
+          compact={!isMobile}
           variant="text"
         />
       )}

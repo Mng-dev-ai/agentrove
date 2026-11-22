@@ -11,8 +11,7 @@ import { getThinkingModeOption } from '@/components/chat/thinking-mode-selector/
 import { FastModeSelector } from '@/components/chat/fast-mode-selector/FastModeSelector';
 import { PermissionModeSelector } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
 import {
-  MODES_BY_AGENT,
-  SKIP_APPROVAL_MODES,
+  DEFAULT_BY_AGENT,
   getPermissionModeOption,
 } from '@/components/chat/permission-mode-selector/permissionModes';
 import { PersonaSelector } from '@/components/chat/persona-selector/PersonaSelector';
@@ -32,7 +31,7 @@ const MIN_READABLE_LABEL_EM = 8;
 
 type SettingKey = 'model' | 'thinking' | 'fast' | 'permission' | 'persona';
 type SheetView = 'list' | SettingKey;
-type ChipTone = 'warning' | 'danger' | 'accent';
+type ChipTone = 'warning' | 'accent';
 
 interface SettingRow {
   key: SettingKey;
@@ -138,13 +137,13 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
   }
 
   const chips: Chip[] = [];
-  if (permission.value !== MODES_BY_AGENT[agent][0].value) {
+  if (permission.value !== DEFAULT_BY_AGENT[agent]) {
     chips.push({
       key: 'permission',
       icon: Shield,
       label: permission.label,
       ariaLabel: `Permission mode: ${permission.label}`,
-      tone: SKIP_APPROVAL_MODES.has(permission.value) ? 'danger' : 'warning',
+      tone: 'warning',
     });
   }
   if (personaName) {

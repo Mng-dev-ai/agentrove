@@ -127,14 +127,7 @@ export const MODES_BY_AGENT: Record<AgentKind, PermissionModeOption[]> = {
   opencode: OPENCODE_PERMISSION_MODES,
 };
 
-export const SKIP_APPROVAL_MODES: ReadonlySet<PermissionMode> = new Set<PermissionMode>([
-  'bypassPermissions',
-  'full-access',
-  'always-approve',
-  'yolo',
-]);
-
-const DEFAULT_BY_AGENT: Record<AgentKind, PermissionMode> = {
+export const DEFAULT_BY_AGENT: Record<AgentKind, PermissionMode> = {
   antigravity: 'yolo',
   claude: 'bypassPermissions',
   codex: 'full-access',

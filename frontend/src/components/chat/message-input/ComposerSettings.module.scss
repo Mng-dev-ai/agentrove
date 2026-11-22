@@ -35,11 +35,6 @@
     color: var(--theme-warning-text);
   }
 
-  &--danger {
-    background-color: colors.status-color('error', 500, 0.14);
-    color: var(--theme-error-text);
-  }
-
   &--accent {
     background-color: colors.status-color('info', 500, 0.14);
     color: var(--theme-info-text);

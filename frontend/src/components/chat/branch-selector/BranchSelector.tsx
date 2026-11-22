@@ -14,6 +14,7 @@ import styles from './BranchSelector.module.scss';
 export interface BranchSelectorProps {
   dropdownPosition?: DropdownPosition;
   disabled?: boolean;
+  compact?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
 }
@@ -22,6 +23,7 @@ export const BranchSelector = memo(function BranchSelector({
   dropdownPosition = 'bottom',
   dropdownAlign,
   disabled = false,
+  compact = true,
   variant = 'default',
 }: BranchSelectorProps) {
   const { sandboxId, worktreeCwd } = useChatContext();
@@ -53,7 +55,7 @@ export const BranchSelector = memo(function BranchSelector({
       width="16rem"
       dropdownPosition={dropdownPosition}
       disabled={disabled || isPending}
-      compact
+      compact={compact}
       triggerVariant={variant}
       iconWithLabel
       dropdownAlign={dropdownAlign}
