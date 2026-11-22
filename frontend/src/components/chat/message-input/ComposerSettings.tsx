@@ -11,18 +11,19 @@ import { getThinkingModeOption } from '@/components/chat/thinking-mode-selector/
 import { FastModeSelector } from '@/components/chat/fast-mode-selector/FastModeSelector';
 import { PermissionModeSelector } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
 import {
-  DEFAULT_BY_AGENT,
   getPermissionModeOption,
+  isDefaultPermissionMode,
 } from '@/components/chat/permission-mode-selector/permissionModes';
+import { useFastModeOption } from '@/components/chat/fast-mode-selector/fastModes';
 import { PersonaSelector } from '@/components/chat/persona-selector/PersonaSelector';
+import {
+  DEFAULT_PERSONA_OPTION,
+  getPersonaOption,
+  getPersonaOptions,
+} from '@/components/chat/persona-selector/personaOptions';
 import { useInputContext } from '@/hooks/useInputContext';
 import { useChatContext } from '@/hooks/useChatContext';
 import { useChatSettings } from '@/hooks/useChatSettings';
-import {
-  DEFAULT_CHAT_SETTINGS_KEY,
-  DEFAULT_FAST_MODE,
-  useChatSettingsStore,
-} from '@/store/chatSettingsStore';
 import { preventBlur, type ComposerSettingsInfo } from './useComposerSettings';
 import styles from './ComposerSettings.module.scss';
 
@@ -50,21 +51,21 @@ interface Chip {
 }
 
 export function MobileComposerSettings({ settings }: { settings: ComposerSettingsInfo }) {
-  const { state, actions, meta } = useInputContext();
+  const { state, actions } = useInputContext();
   const { personas } = useChatContext();
   const { selectedModel, agentKind, showPersona, showFastMode } = settings;
   const agent = agentKind ?? 'claude';
-  const settingsKey = state.chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
   const { permissionMode, thinkingMode, persona } = useChatSettings(state.chatId);
-  const fastMode = useChatSettingsStore((s) => s.fastModeByChat[settingsKey] ?? DEFAULT_FAST_MODE);
+  const fastOption = useFastModeOption(state.chatId);
   const [view, setView] = useState<SheetView | null>(null);
+  // The sheet's selectors can't be disabled, so loading closes the sheet as the triggers lock
+  if (state.isLoading && view !== null) setView(null);
   const rowRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
 
   const thinking = getThinkingModeOption(thinkingMode, agent, selectedModel);
   const permission = getPermissionModeOption(permissionMode, agent);
-  const personaName = showPersona && personas.some((p) => p.name === persona) ? persona : null;
-  const isFast = showFastMode && fastMode;
+  const personaOption = getPersonaOption(persona, getPersonaOptions(personas));
   const ModelIcon = selectedModel ? AGENT_ICONS[selectedModel.agent_kind] : Brain;
   const modelName = selectedModel?.name ?? 'Model';
   const triggerLabel = thinking ? `${modelName} · ${thinking.label}` : modelName;
@@ -107,7 +108,7 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
       key: 'fast',
       icon: Zap,
       name: 'Fast mode',
-      value: fastMode ? 'Fast' : 'Normal',
+      value: fastOption.label,
       options: (
         <FastModeSelector chatId={state.chatId} agentKind={agentKind} onInlineSelect={showBack} />
       ),
@@ -131,13 +132,13 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
       key: 'persona',
       icon: UserCircle,
       name: 'Persona',
-      value: personaName ?? 'Default',
+      value: personaOption.label,
       options: <PersonaSelector chatId={state.chatId} onInlineSelect={showBack} />,
     });
   }
 
   const chips: Chip[] = [];
-  if (permission.value !== DEFAULT_BY_AGENT[agent]) {
+  if (!isDefaultPermissionMode(permission.value, agent)) {
     chips.push({
       key: 'permission',
       icon: Shield,
@@ -146,21 +147,21 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
       tone: 'warning',
     });
   }
-  if (personaName) {
+  if (showPersona && personaOption !== DEFAULT_PERSONA_OPTION) {
     chips.push({
       key: 'persona',
       icon: UserCircle,
-      label: personaName,
-      ariaLabel: `Persona: ${personaName}`,
+      label: personaOption.label,
+      ariaLabel: `Persona: ${personaOption.label}`,
       tone: 'accent',
     });
   }
-  if (isFast) {
+  if (showFastMode && fastOption.value) {
     chips.push({
       key: 'fast',
       icon: Zap,
-      label: 'Fast',
-      ariaLabel: 'Fast mode: Fast',
+      label: fastOption.label,
+      ariaLabel: `Fast mode: ${fastOption.label}`,
       tone: 'warning',
     });
   }
@@ -172,8 +173,8 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
   useLayoutEffect(() => {
     const row = rowRef.current;
     const label = labelRef.current;
-    const form = meta.formRef.current;
-    if (!row || !label) return;
+    const form = row?.closest('form');
+    if (!row || !label || !form) return;
     const measure = () => {
       row.removeAttribute('data-compact');
       const readable = parseFloat(getComputedStyle(label).fontSize) * MIN_READABLE_LABEL_EM;
@@ -183,9 +184,9 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
     };
     measure();
     const observer = new ResizeObserver(measure);
-    if (form) observer.observe(form);
+    observer.observe(form);
     return () => observer.disconnect();
-  }, [meta.formRef, chipLabels, triggerLabel, state.hasMessage]);
+  }, [chipLabels, triggerLabel, state.hasMessage]);
 
   const activeRow = rows.find((row) => row.key === view);
 

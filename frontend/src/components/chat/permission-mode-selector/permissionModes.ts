@@ -127,7 +127,7 @@ export const MODES_BY_AGENT: Record<AgentKind, PermissionModeOption[]> = {
   opencode: OPENCODE_PERMISSION_MODES,
 };
 
-export const DEFAULT_BY_AGENT: Record<AgentKind, PermissionMode> = {
+const DEFAULT_BY_AGENT: Record<AgentKind, PermissionMode> = {
   antigravity: 'yolo',
   claude: 'bypassPermissions',
   codex: 'full-access',
@@ -159,4 +159,11 @@ export function getPermissionModeOption(
   }
 
   return selectedMode;
+}
+
+export function isDefaultPermissionMode(
+  permissionMode: PermissionMode,
+  agentKind: AgentKind,
+): boolean {
+  return coercePermissionModeForAgent(permissionMode, agentKind) === DEFAULT_BY_AGENT[agentKind];
 }
