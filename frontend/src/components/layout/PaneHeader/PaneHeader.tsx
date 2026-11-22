@@ -5,14 +5,22 @@ import { ChevronDown, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
+import { ChatStatusIcon, ChatTabs } from '@/components/layout/ChatTabs/ChatTabs';
 import { DROPDOWN_MARGIN } from '@/config/constants';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
+import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useOpenSessionPanelTiles, useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
+import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import { stripMarkdownTitle } from '@/utils/format';
 import {
   agentTileFor,
+  paintedChatIds,
+  panelHostTile,
+  splitSlotOfTile,
   tileChatId,
+  tileGrid,
   tileIdToViewType,
   VIEW_ICONS,
   VIEW_LABELS,
@@ -42,17 +50,8 @@ function CloseButton({ label, onClick }: CloseButtonProps) {
   );
 }
 
-interface AgentPaneHeaderProps {
-  agentTile: AgentTileId;
-  chatId: string;
-  inTile: boolean;
-}
-
-function AgentPaneHeader({ agentTile, chatId, inTile }: AgentPaneHeaderProps) {
-  const navigate = useNavigate();
+function ChatMenuTrigger({ chatId }: { chatId: string }) {
   const chat = useChatQuery(chatId).data;
-  const focused = useUIStore((s) => s.activeAgentTile === agentTile);
-  const firstSplitChatId = useUIStore((s) => s.splitChatIds[0]);
   const menuOpen = useUIStore(
     (s) => s.chatMenu?.source === 'pane' && s.chatMenu.chat.id === chatId,
   );
@@ -70,38 +69,101 @@ function AgentPaneHeader({ agentTile, chatId, inTile }: AgentPaneHeaderProps) {
     });
   };
 
+  return (
+    <Button
+      type="button"
+      variant="unstyled"
+      className={styles.chevron}
+      onClick={toggleMenu}
+      data-chat-menu-trigger
+      aria-label="Chat menu"
+      aria-haspopup="menu"
+      aria-expanded={menuOpen}
+    >
+      <ChevronDown className={styles['chevron-icon']} />
+    </Button>
+  );
+}
+
+// A pane's view switcher and close button end its host tile's header, or sit over its open panel.
+function PaneEnd({ agentTile }: { agentTile: AgentTileId }) {
+  const navigate = useNavigate();
+  const firstSplitChatId = useUIStore((s) => s.splitChatIds[0]);
   const closePane = () => {
-    if (agentTile === 'agent:primary') {
-      useUIStore.getState().promoteFirstSplit();
-      navigate(`/chat/${firstSplitChatId}`);
+    const ui = useUIStore.getState();
+    const slot = splitSlotOfTile(agentTile);
+    if (slot) {
+      ui.closeSplitChat(ui.splitChatIds[slot - 1]);
     } else {
-      useUIStore.getState().closeSplitChat(chatId);
+      ui.promoteFirstSplit();
+      navigate(`/chat/${firstSplitChatId}`);
     }
   };
+  return (
+    <div className={styles.actions}>
+      <ViewSwitcher agentTile={agentTile} />
+      {firstSplitChatId && <CloseButton label="Close pane" onClick={closePane} />}
+    </div>
+  );
+}
+
+function HostEnd({ tileId, agentTile }: { tileId: TileId; agentTile: AgentTileId }) {
+  const isHost = useUIStore((s) => panelHostTile(s.visibleLayout, agentTile) === tileId);
+  const panelOpen = useSessionPanelOpen(agentTile);
+  if (!isHost || panelOpen) return null;
+  return <PaneEnd agentTile={agentTile} />;
+}
+
+export function PanelHeader({ agentTile, inTile }: { agentTile: AgentTileId; inTile: boolean }) {
+  return (
+    <div
+      className={clsx(
+        styles.header,
+        inTile && [styles['header--in-tile'], styles['header--over-panel']],
+      )}
+    >
+      <PaneEnd agentTile={agentTile} />
+    </div>
+  );
+}
+
+interface AgentPaneHeaderProps {
+  agentTile: AgentTileId;
+  chatId: string;
+  inTile: boolean;
+  tabs?: string[];
+  inStrip: boolean;
+}
+
+function AgentPaneHeader({ agentTile, chatId, inTile, tabs, inStrip }: AgentPaneHeaderProps) {
+  const chat = useChatQuery(chatId).data;
+  const focused = useUIStore((s) => s.activeAgentTile === agentTile);
+  const blocked = useBlockedChatIds().has(chatId);
+  const streaming = useStreamStore((s) =>
+    s.activeStreamMetadata.some((meta) => meta.chatId === chatId),
+  );
+  const status = blocked ? 'blocked' : streaming ? 'streaming' : null;
+  const menuTrigger = <ChatMenuTrigger chatId={chatId} />;
 
   return (
     <div className={clsx(styles.header, inTile && styles['header--in-tile'])}>
-      <div className={styles['title-wrap']}>
-        <span className={clsx(styles.title, focused && styles['title--focused'])}>
-          {chat ? stripMarkdownTitle(chat.title) : ''}
-        </span>
-        <Button
-          type="button"
-          variant="unstyled"
-          className={styles.chevron}
-          onClick={toggleMenu}
-          data-chat-menu-trigger
-          aria-label="Chat menu"
-          aria-haspopup="menu"
-          aria-expanded={menuOpen}
-        >
-          <ChevronDown className={styles['chevron-icon']} />
-        </Button>
+      <div className={styles.naming}>
+        {!inStrip && (
+          <div className={styles['title-wrap']}>
+            {status && <ChatStatusIcon status={status} />}
+            <span className={clsx(styles.title, focused && styles['title--focused'])}>
+              {chat ? stripMarkdownTitle(chat.title) : ''}
+            </span>
+            {menuTrigger}
+          </div>
+        )}
+        {tabs && (
+          <div className={clsx(styles.strip, !inStrip && styles['strip--after-title'])}>
+            <ChatTabs tabs={tabs} menu={{ chatId, trigger: menuTrigger }} />
+          </div>
+        )}
       </div>
-      <div className={styles.actions}>
-        <ViewSwitcher agentTile={agentTile} />
-        {firstSplitChatId && <CloseButton label="Close pane" onClick={closePane} />}
-      </div>
+      <HostEnd tileId={agentTile} agentTile={agentTile} />
     </div>
   );
 }
@@ -110,29 +172,37 @@ interface ViewTileHeaderProps {
   tileId: TileId;
   chatId: string;
   inTile: boolean;
+  tabs?: string[];
+  inStrip: boolean;
 }
 
-function ViewTileHeader({ tileId, chatId, inTile }: ViewTileHeaderProps) {
+function ViewTileHeader({ tileId, chatId, inTile, tabs, inStrip }: ViewTileHeaderProps) {
   const title = useChatQuery(chatId).data?.title;
   const view = tileIdToViewType(tileId);
   const agentTile = agentTileFor(tileId);
-  const agentVisible = useUIStore((s) => s.visibleLayout.some((row) => row.includes(agentTile)));
   const Icon = VIEW_ICONS[view];
   const label = VIEW_LABELS[view];
 
   return (
     <div className={clsx(styles.header, inTile && styles['header--in-tile'])}>
-      <Icon className={styles['view-glyph']} />
-      <span className={styles['view-label']}>
-        {title ? `${label} · ${stripMarkdownTitle(title)}` : label}
-      </span>
+      <div className={styles.naming}>
+        <Icon className={styles['view-glyph']} />
+        <span className={styles['view-label']}>
+          {title && !inStrip ? `${label} · ${stripMarkdownTitle(title)}` : label}
+        </span>
+        {tabs && (
+          <div className={clsx(styles.strip, styles['strip--after-title'])}>
+            <ChatTabs tabs={tabs} />
+          </div>
+        )}
+      </div>
       <div className={styles.actions}>
-        {!agentVisible && <ViewSwitcher agentTile={agentTile} />}
         <CloseButton
           label={`Close ${label}`}
           onClick={() => useUIStore.getState().removeTab(tileId)}
         />
       </div>
+      <HostEnd tileId={tileId} agentTile={agentTile} />
     </div>
   );
 }
@@ -141,13 +211,25 @@ interface PaneHeaderProps {
   tileId: TileId;
   chatId: string;
   inTile: boolean;
+  tabs?: string[];
+  inStrip?: boolean;
 }
 
-function PaneHeader({ tileId, chatId, inTile }: PaneHeaderProps) {
+function PaneHeader({ tileId, chatId, inTile, tabs, inStrip = false }: PaneHeaderProps) {
   if (tileIdToViewType(tileId) === 'agent') {
-    return <AgentPaneHeader agentTile={agentTileFor(tileId)} chatId={chatId} inTile={inTile} />;
+    return (
+      <AgentPaneHeader
+        agentTile={agentTileFor(tileId)}
+        chatId={chatId}
+        inTile={inTile}
+        tabs={tabs}
+        inStrip={inStrip}
+      />
+    );
   }
-  return <ViewTileHeader tileId={tileId} chatId={chatId} inTile={inTile} />;
+  return (
+    <ViewTileHeader tileId={tileId} chatId={chatId} inTile={inTile} tabs={tabs} inStrip={inStrip} />
+  );
 }
 
 export function InTilePaneHeader({ tileId, chatId }: { tileId: TileId; chatId: string }) {
@@ -160,33 +242,57 @@ export function InTilePaneHeader({ tileId, chatId }: { tileId: TileId; chatId: s
 interface PaneHeaderBandProps {
   routedChatId: string;
   leading: ReactNode;
+  tabs: string[];
 }
 
-export function PaneHeaderBand({ routedChatId, leading }: PaneHeaderBandProps) {
-  const topRow = useUIStore((s) => s.visibleLayout[0]);
+// Column 0's header hosts the tab strip; a chat another agent pane names is left out of it.
+export function PaneHeaderBand({ routedChatId, leading, tabs }: PaneHeaderBandProps) {
+  const visibleLayout = useUIStore((s) => s.visibleLayout);
   const splitChatIds = useUIStore((s) => s.splitChatIds);
-  const sessionPanelOpen = useUIStore((s) => s.sessionPanelOpen);
+  const topRow = visibleLayout[0];
+
+  const namedByOtherPanes = paintedChatIds(
+    visibleLayout.flat().filter((tile) => tile !== topRow[0] && tileIdToViewType(tile) === 'agent'),
+    splitChatIds,
+    routedChatId,
+  );
+  const stripTabs = tabs.filter((chatId) => !namedByOtherPanes.has(chatId));
+  const grid = tileGrid(visibleLayout, useOpenSessionPanelTiles());
 
   return (
-    <div className={styles.band}>
-      <div
-        className={styles.columns}
-        style={{ gridTemplateColumns: `repeat(${topRow.length}, minmax(0, 1fr))` }}
-      >
-        {topRow.map((tileId, index) => {
-          const chatId = tileChatId(tileId, splitChatIds, routedChatId);
-          return (
-            <div
-              key={tileId}
-              className={clsx(styles.column, index > 0 && styles['column--divided'])}
-            >
-              {index === 0 && leading && <div className={styles.leading}>{leading}</div>}
-              {chatId && <PaneHeader tileId={tileId} chatId={chatId} inTile={false} />}
-            </div>
-          );
-        })}
-      </div>
-      {sessionPanelOpen && <div className={styles['panel-column']} />}
+    <div className={styles.band} style={{ gridTemplateColumns: grid.template }}>
+      {topRow.map((tileId, index) => {
+        const chatId = tileChatId(tileId, splitChatIds, routedChatId);
+        return (
+          <div
+            key={tileId}
+            className={clsx(styles.column, index > 0 && styles['column--divided'])}
+            style={{ gridColumn: grid.columnOf.get(tileId) }}
+          >
+            {index === 0 && leading && <div className={styles.leading}>{leading}</div>}
+            {chatId && (
+              <PaneHeader
+                tileId={tileId}
+                chatId={chatId}
+                inTile={false}
+                tabs={index === 0 && stripTabs.length > 0 ? stripTabs : undefined}
+                inStrip={stripTabs.includes(chatId)}
+              />
+            )}
+          </div>
+        );
+      })}
+      {grid.panels
+        .filter((panel) => panel.firstRow === 0)
+        .map((panel) => (
+          <div
+            key={panel.agentTile}
+            className={clsx(styles.column, styles['column--divided'])}
+            style={{ gridColumn: panel.gridColumn }}
+          >
+            <PanelHeader agentTile={panel.agentTile} inTile={false} />
+          </div>
+        ))}
     </div>
   );
 }

@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { useMatch, useNavigate } from 'react-router-dom';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
-import type { ChatStatusTone } from '@/utils/message';
-import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { useUIStore } from '@/store/uiStore';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
-import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { stripMarkdownTitle } from '@/utils/format';
 import { paintedChatIds } from '@/utils/tileHelpers';
 import { TitleBarTab, TitleBarTabs } from '@/components/layout/TitleBarTab/TitleBarTab';
@@ -20,16 +18,30 @@ const STATUS_LABELS: Record<ChatTabStatus, string> = {
   streaming: 'Running',
 };
 
+interface ChatTabMenu {
+  chatId: string;
+  trigger: ReactNode;
+}
+
+export function ChatStatusIcon({ status }: { status: ChatTabStatus }) {
+  return status === 'streaming' ? (
+    <AsciiSpinner className={styles['tab-spinner']} />
+  ) : (
+    <ChatStatusDot tone={status} className={styles['tab-status-dot']} />
+  );
+}
+
 interface ChatTabProps {
   chatId: string;
   isActive: boolean;
   isCurrent: boolean;
-  status: ChatTabStatus | null;
+  status: ChatTabStatus;
+  menu: ReactNode;
   onSelect: (chatId: string) => void;
   onClose: (chatId: string) => void;
 }
 
-function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: ChatTabProps) {
+function ChatTab({ chatId, isActive, isCurrent, status, menu, onSelect, onClose }: ChatTabProps) {
   const chatQuery = useChatQuery(chatId);
   // Close only on confirmed 404 — transient network/auth errors must not wipe tabs.
   const isChatGone = (chatQuery.error as (Error & { status?: number }) | null)?.status === 404;
@@ -38,30 +50,15 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
   }, [isChatGone, chatId]);
 
   const title = chatQuery.data?.title ? stripMarkdownTitle(chatQuery.data.title) : '…';
-  const statusDotTone: ChatStatusTone | null = status && status !== 'streaming' ? status : null;
-  const agentKind = useChatAgentKind(
-    chatId,
-    chatQuery.data?.session_agent_kind,
-    chatQuery.data?.last_model_id,
-  );
 
   return (
     <TitleBarTab
-      icon={
-        status === 'streaming' ? (
-          <AsciiSpinner className={styles['tab-spinner']} />
-        ) : statusDotTone ? (
-          <ChatStatusDot tone={statusDotTone} className={styles['tab-status-dot']} />
-        ) : (
-          agentKind && (
-            <ProviderIcon agentKind={agentKind} className={styles['tab-provider-icon']} />
-          )
-        )
-      }
+      icon={<ChatStatusIcon status={status} />}
       title={title}
       isActive={isActive}
+      menu={menu}
       actions={{
-        tooltip: status ? `${title} · ${STATUS_LABELS[status]}` : title,
+        tooltip: `${title} · ${STATUS_LABELS[status]}`,
         isCurrent,
         onSelect: () => onSelect(chatId),
         onClose: () => onClose(chatId),
@@ -71,7 +68,7 @@ function ChatTab({ chatId, isActive, isCurrent, status, onSelect, onClose }: Cha
 }
 
 // Working-set tabs (sidebar is the archive); re-clicking the current chat surfaces the agent pane.
-export function ChatTabs({ tabs }: { tabs: string[] }) {
+export function ChatTabs({ tabs, menu }: { tabs: string[]; menu?: ChatTabMenu }) {
   const navigate = useNavigate();
   // TitleBar sits outside /chat/:chatId, so read the route from the location.
   const routedChatId = useMatch('/chat/:chatId')?.params.chatId;
@@ -125,6 +122,7 @@ export function ChatTabs({ tabs }: { tabs: string[] }) {
             isActive={visibleChatIds.has(chatId)}
             isCurrent={chatId === routedChatId}
             status={status}
+            menu={menu?.chatId === chatId && menu.trigger}
             onSelect={handleSelect}
             onClose={handleClose}
           />

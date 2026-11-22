@@ -561,7 +561,7 @@ export function LandingPage() {
       personas={resolvedPersonas}
     >
       <div className={styles.surface}>
-        <SplitViewContainer renderView={renderView} />
+        <SplitViewContainer renderView={renderView} paneSessionPanels={false} />
       </div>
       <CommandMenu />
     </ChatProvider>

@@ -105,6 +105,8 @@ type UIStoreState = ThemeState &
     setSubThreadDialogOpen: (open: boolean) => void;
     // Desktop preference (persisted); phones use the transient mobileSessionPanelOpen.
     sessionPanelOpen: boolean;
+    // Split panes' open panels, keyed by chat so the state follows a chat across slots.
+    splitSessionPanelChatIds: string[];
     mobileSessionPanelOpen: boolean;
     toggleSessionPanel: (agentTile?: AgentTileId) => void;
     closeMobileSessionPanel: () => void;
@@ -260,6 +262,26 @@ type LegacyPersistedUIState = Omit<
   visibleLayout?: string[][];
 };
 
+type SessionPanelState = Pick<
+  UIStoreState,
+  'sessionPanelOpen' | 'splitSessionPanelChatIds' | 'splitChatIds'
+>;
+
+export function sessionPanelOpenFor(state: SessionPanelState, agentTile: AgentTileId): boolean {
+  const slot = splitSlotOfTile(agentTile);
+  if (!slot) return state.sessionPanelOpen;
+  const chatId = state.splitChatIds[slot - 1];
+  return !!chatId && state.splitSessionPanelChatIds.includes(chatId);
+}
+
+export function openSessionPanelTiles(state: SessionPanelState): AgentTileId[] {
+  const agentTiles: AgentTileId[] = [
+    'agent:primary',
+    ...state.splitChatIds.map((_, index) => splitAgentTile(splitSlotAt(index))),
+  ];
+  return agentTiles.filter((agentTile) => sessionPanelOpenFor(state, agentTile));
+}
+
 export function migrateUIState(persisted: unknown, version: number): unknown {
   if (version !== 0 || !persisted || typeof persisted !== 'object') return persisted;
   const stored = persisted as LegacyPersistedUIState;
@@ -327,16 +349,25 @@ export const useUIStore = create<UIStoreState>()(
       subThreadDialogOpen: false,
       setSubThreadDialogOpen: (open) => set({ subThreadDialogOpen: open }),
       sessionPanelOpen: getInitialSidebarState(),
+      splitSessionPanelChatIds: [],
       mobileSessionPanelOpen: false,
       toggleSessionPanel: (agentTile = get().activeAgentTile) => {
         if (isDesktop()) {
           const state = get();
-          if (state.sessionPanelOpen && state.activeAgentTile === agentTile) {
-            set({ sessionPanelOpen: false });
-            return;
+          const open = !sessionPanelOpenFor(state, agentTile);
+          const slot = splitSlotOfTile(agentTile);
+          if (slot) {
+            const chatId = state.splitChatIds[slot - 1];
+            if (!chatId) return;
+            set({
+              splitSessionPanelChatIds: open
+                ? [...state.splitSessionPanelChatIds, chatId]
+                : state.splitSessionPanelChatIds.filter((id) => id !== chatId),
+            });
+          } else {
+            set({ sessionPanelOpen: open });
           }
-          get().focusTile(agentTile);
-          set({ sessionPanelOpen: true });
+          if (open) get().focusTile(agentTile);
           return;
         }
         if (get().mobileSessionPanelOpen) {
@@ -563,6 +594,7 @@ export const useUIStore = create<UIStoreState>()(
           openTabs: ['agent:primary'],
           visibleLayout: [['agent:primary']],
           splitChatIds: [],
+          splitSessionPanelChatIds: [],
           activeAgentTile: 'agent:primary',
           focusedTile: null,
           currentWorkspaceChatId: null,
@@ -704,6 +736,10 @@ export const useUIStore = create<UIStoreState>()(
           },
           currentWorkspaceChatId: promotedChatId,
           splitChatIds,
+          sessionPanelOpen: state.splitSessionPanelChatIds.includes(promotedChatId),
+          splitSessionPanelChatIds: state.splitSessionPanelChatIds.filter(
+            (id) => id !== promotedChatId,
+          ),
           openTabs,
           visibleLayout,
           focusedTile: state.focusedTile ? promotedTile(state.focusedTile) : null,
@@ -724,6 +760,7 @@ export const useUIStore = create<UIStoreState>()(
             : false;
           set({
             splitChatIds: [],
+            splitSessionPanelChatIds: [],
             openTabs,
             visibleLayout,
             activeAgentTile: 'agent:primary',
@@ -755,6 +792,7 @@ export const useUIStore = create<UIStoreState>()(
         }
         set({
           splitChatIds,
+          splitSessionPanelChatIds: state.splitSessionPanelChatIds.filter((id) => id !== chatId),
           openTabs,
           visibleLayout,
           focusedTile,
@@ -775,6 +813,7 @@ export const useUIStore = create<UIStoreState>()(
         sidebarFilters: { ...state.sidebarFilters, statuses: [] },
         collapsedSidebarSections: state.collapsedSidebarSections,
         splitChatIds: state.splitChatIds,
+        splitSessionPanelChatIds: state.splitSessionPanelChatIds,
         // Live workspace + currentWorkspaceChatId so refresh doesn't reset layout.
         openTabs: state.openTabs,
         visibleLayout: state.visibleLayout,

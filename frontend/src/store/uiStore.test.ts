@@ -7,6 +7,7 @@ import {
   MAX_SIDEBAR_WIDTH,
   DEFAULT_SIDEBAR_WIDTH,
   migrateUIState,
+  openSessionPanelTiles,
 } from './uiStore';
 import { THEME_CYCLE } from '@/utils/theme';
 
@@ -20,6 +21,8 @@ beforeEach(() => {
     openTabs: ['agent:primary'],
     visibleLayout: [['agent:primary']],
     splitChatIds: [],
+    sessionPanelOpen: false,
+    splitSessionPanelChatIds: [],
     activeAgentTile: 'agent:primary',
     focusedTile: null,
     layoutsByChat: {},
@@ -283,6 +286,28 @@ describe('split chat', () => {
     expect(state().focusedTile).toBe('agent:split-1');
     expect(state().activeAgentTile).toBe('agent:split-1');
     expect(state().layoutsByChat.a.visibleLayout).toEqual([['agent:primary', 'diff']]);
+  });
+
+  it("toggles each pane's session panel on its own and keeps it with the chat", () => {
+    state().loadWorkspaceForChat('a');
+    state().openChatInSplit('b');
+    state().openChatInSplit('c');
+
+    state().toggleSessionPanel('agent:split-1');
+    state().toggleSessionPanel('agent:primary');
+    state().toggleSessionPanel('agent:split-2');
+    state().toggleSessionPanel('agent:split-2');
+    expect(openSessionPanelTiles(state())).toEqual(['agent:primary', 'agent:split-1']);
+
+    state().promoteFirstSplit();
+    expect(state().currentWorkspaceChatId).toBe('b');
+    expect(openSessionPanelTiles(state())).toEqual(['agent:primary']);
+
+    state().openChatInSplit('d');
+    state().toggleSessionPanel('agent:split-2');
+    state().closeSplitChat('c');
+    expect(state().splitChatIds).toEqual(['d']);
+    expect(openSessionPanelTiles(state())).toEqual(['agent:primary', 'agent:split-1']);
   });
 
   it('does not open a fifth chat', () => {

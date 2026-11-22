@@ -1,3 +1,12 @@
 import { createContext } from 'react';
+import type { AgentTileId } from '@/types/ui.types';
 
-export const SessionPanelSlotContext = createContext<HTMLElement | null>(null);
+export type Slots = Partial<Record<AgentTileId, HTMLElement>>;
+
+interface SessionPanelSlots {
+  slots: Slots;
+  // Returns the ref cleanup that unregisters the element.
+  register: (agentTile: AgentTileId, el: HTMLElement) => () => void;
+}
+
+export const SessionPanelSlotContext = createContext<SessionPanelSlots | null>(null);

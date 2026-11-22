@@ -5,6 +5,10 @@ import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
 import { SplitViewContainer } from '@/components/ui/SplitViewContainer/SplitViewContainer';
+import {
+  PaneSessionPanelSlot,
+  SessionPanelSlotsProvider,
+} from '@/components/chat/session-panel/PaneSessionPanel';
 import { CommandMenu } from '@/components/ui/command-menu/CommandMenu';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
 import { tileIdToViewType } from '@/utils/tileHelpers';
@@ -111,14 +115,16 @@ export function WorkspaceTile({
 
 interface WorkspaceSurfaceProps {
   renderView: (tileId: TileId, isVisible: boolean) => ReactNode;
-  sessionPanel: ReactNode;
+  // One panel beside the whole workspace (null until it resolves); undefined gives each pane its own.
+  sessionPanel?: ReactNode;
   children?: ReactNode;
 }
 
 export function WorkspaceSurface({ renderView, sessionPanel, children }: WorkspaceSurfaceProps) {
   const isMobile = useIsMobile();
   const { pathname } = useLocation();
-  const sessionPanelOpen = useSessionPanelOpen();
+  const sessionPanelOpen = useSessionPanelOpen('agent:primary');
+  const activeAgentTile = useUIStore((s) => s.activeAgentTile);
   const createCommitDialogOpen = useUIStore((s) => s.createCommitDialogOpen);
   const createPRDialogOpen = useUIStore((s) => s.createPRDialogOpen);
   const createBranchDialogOpen = useUIStore((s) => s.createBranchDialogOpen);
@@ -126,35 +132,43 @@ export function WorkspaceSurface({ renderView, sessionPanel, children }: Workspa
   useLayoutEffect(() => {
     useUIStore.getState().closeMobileSessionPanel();
   }, [pathname, isMobile]);
-  const panel = sessionPanelOpen && sessionPanel;
+  const paneSessionPanels = sessionPanel === undefined;
+  // Desktop pane panels sit in the grid; a phone shows the active pane's in place of the workspace.
+  const panel =
+    sessionPanelOpen &&
+    (paneSessionPanels
+      ? isMobile && <PaneSessionPanelSlot agentTile={activeAgentTile} headed={false} />
+      : sessionPanel);
 
   return (
-    <div className={styles.root}>
-      <div className={isMobile && panel ? styles.hidden : styles.surface}>
-        <SplitViewContainer renderView={renderView} />
+    <SessionPanelSlotsProvider>
+      <div className={styles.root}>
+        <div className={isMobile && panel ? styles.hidden : styles.surface}>
+          <SplitViewContainer renderView={renderView} paneSessionPanels={paneSessionPanels} />
+        </div>
+        {panel}
+        <CommandMenu />
+        {children}
+        {createCommitDialogOpen && (
+          <Suspense fallback={null}>
+            <CreateCommitDialog
+              onClose={() => useUIStore.getState().setCreateCommitDialogOpen(false)}
+            />
+          </Suspense>
+        )}
+        {createPRDialogOpen && (
+          <Suspense fallback={null}>
+            <CreatePRDialog onClose={() => useUIStore.getState().setCreatePRDialogOpen(false)} />
+          </Suspense>
+        )}
+        {createBranchDialogOpen && (
+          <Suspense fallback={null}>
+            <CreateBranchDialog
+              onClose={() => useUIStore.getState().setCreateBranchDialogOpen(false)}
+            />
+          </Suspense>
+        )}
       </div>
-      {panel}
-      <CommandMenu />
-      {children}
-      {createCommitDialogOpen && (
-        <Suspense fallback={null}>
-          <CreateCommitDialog
-            onClose={() => useUIStore.getState().setCreateCommitDialogOpen(false)}
-          />
-        </Suspense>
-      )}
-      {createPRDialogOpen && (
-        <Suspense fallback={null}>
-          <CreatePRDialog onClose={() => useUIStore.getState().setCreatePRDialogOpen(false)} />
-        </Suspense>
-      )}
-      {createBranchDialogOpen && (
-        <Suspense fallback={null}>
-          <CreateBranchDialog
-            onClose={() => useUIStore.getState().setCreateBranchDialogOpen(false)}
-          />
-        </Suspense>
-      )}
-    </div>
+    </SessionPanelSlotsProvider>
   );
 }

@@ -1,7 +1,8 @@
 import { useMemo, ReactNode } from 'react';
 import clsx from 'clsx';
-import { tileRenderKey } from '@/utils/tileHelpers';
-import type { TileId } from '@/types/ui.types';
+import { PaneSessionPanelSlot } from '@/components/chat/session-panel/PaneSessionPanel';
+import { tileGrid, tileRenderKey } from '@/utils/tileHelpers';
+import type { AgentTileId, TileId } from '@/types/ui.types';
 import styles from './WorkspaceSplit.module.scss';
 
 interface WorkspaceSplitProps {
@@ -9,59 +10,49 @@ interface WorkspaceSplitProps {
   openTabs: TileId[];
   visibleLayout: TileId[][];
   splitChatIds: string[];
+  openPanelTiles: AgentTileId[];
   // isVisible false for mounted-but-hidden tabs (skip terminal fit/focus, etc.).
   renderView: (tileId: TileId, isVisible: boolean) => ReactNode;
 }
 
 interface TilePlacement {
   gridRow: number;
-  columnStart: number;
-  columnSpan: number;
+  gridColumn: string;
   topBorder: boolean;
   leftBorder: boolean;
 }
 
-function gcd(a: number, b: number): number {
-  return b === 0 ? a : gcd(b, a % b);
-}
-
-function lcm(a: number, b: number): number {
-  return (a * b) / gcd(a, b);
-}
-
-// Stable CSS-grid positions (no remount when visibility/row changes). Column count
-// is LCM of row lengths so tiles stay equal-width within each row.
+// Stable CSS-grid positions (no remount when visibility/row changes); tiles stay
+// equal-width within each row, beside the open session panels' tracks.
 export function WorkspaceSplit({
   openTabs,
   visibleLayout,
   splitChatIds,
+  openPanelTiles,
   renderView,
 }: WorkspaceSplitProps) {
-  const { placements, rows, cols } = useMemo(() => {
-    const rowCount = visibleLayout.length;
-    const colCount = visibleLayout.reduce((acc, row) => lcm(acc, row.length), 1);
+  const { placements, template, panels } = useMemo(() => {
+    const grid = tileGrid(visibleLayout, openPanelTiles);
     const map = new Map<TileId, TilePlacement>();
     visibleLayout.forEach((row, r) => {
-      const span = colCount / row.length;
       row.forEach((tileId, c) => {
         map.set(tileId, {
           gridRow: r + 1,
-          columnStart: c * span + 1,
-          columnSpan: span,
+          gridColumn: grid.columnOf.get(tileId) ?? 'auto',
           topBorder: r > 0,
           leftBorder: c > 0,
         });
       });
     });
-    return { placements: map, rows: rowCount, cols: colCount };
-  }, [visibleLayout]);
+    return { placements: map, template: grid.template, panels: grid.panels };
+  }, [visibleLayout, openPanelTiles]);
 
   return (
     <div
       className={styles['workspace-split']}
       style={{
-        gridTemplateRows: `repeat(${rows}, minmax(0, 1fr))`,
-        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+        gridTemplateRows: `repeat(${visibleLayout.length}, minmax(0, 1fr))`,
+        gridTemplateColumns: template,
       }}
     >
       {openTabs.map((tileId) => {
@@ -78,7 +69,7 @@ export function WorkspaceSplit({
             key={tileRenderKey(tileId, splitChatIds)}
             style={{
               gridRow: p.gridRow,
-              gridColumn: `${p.columnStart} / span ${p.columnSpan}`,
+              gridColumn: p.gridColumn,
             }}
             className={clsx(
               styles.tile,
@@ -90,6 +81,15 @@ export function WorkspaceSplit({
           </div>
         );
       })}
+      {panels.map((panel) => (
+        <div
+          key={panel.agentTile}
+          style={{ gridRow: panel.gridRow, gridColumn: panel.gridColumn }}
+          className={clsx(styles.tile, panel.firstRow > 0 && styles['tile--top-border'])}
+        >
+          <PaneSessionPanelSlot agentTile={panel.agentTile} headed={panel.firstRow > 0} />
+        </div>
+      ))}
     </div>
   );
 }

@@ -25,12 +25,14 @@
 
 .slot {
   display: flex;
-  width: spacing.$session-panel-width;
-  flex-shrink: 0;
+  width: 100%;
+  flex-direction: column;
+}
 
-  @include responsive.media('mobile') {
-    width: 100%;
-  }
+.slot-body {
+  display: flex;
+  min-height: 0;
+  flex: 1;
 }
 
 .card {

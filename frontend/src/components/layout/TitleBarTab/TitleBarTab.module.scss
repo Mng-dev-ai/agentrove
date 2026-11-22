@@ -10,6 +10,26 @@
   align-items: center;
   gap: var(--space-1);
   overflow-x: auto;
+  scroll-padding-inline: var(--space-6);
+
+  // Fades whichever edge has tabs scrolled out of view
+  &[data-hidden-start] {
+    mask-image: linear-gradient(to right, transparent, #000 var(--space-6));
+  }
+
+  &[data-hidden-end] {
+    mask-image: linear-gradient(to left, transparent, #000 var(--space-6));
+  }
+
+  &[data-hidden-start][data-hidden-end] {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 var(--space-6),
+      #000 calc(100% - var(--space-6)),
+      transparent
+    );
+  }
 }
 
 .tab {
@@ -25,6 +45,18 @@
   padding-left: var(--space-2);
   padding-right: var(--space-1);
   color: var(--theme-text-tertiary);
+
+  // Carries the pane's chat menu and stands in for its title. Neighbours peek past it, but not
+  // below a --space-20 title floor (the other 18.5 steps are its icon, chevron, close and gaps).
+  &--with-menu {
+    max-width: min(
+      var(--space-72),
+      max(
+        calc(100% - 2 * var(--space-6)),
+        min(100%, calc(var(--space-20) + var(--space-18) + var(--space-0-5)))
+      )
+    );
+  }
 
   // Reveal the close button while hovering anywhere on the tab
   @include responsive.hover {

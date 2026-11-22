@@ -3,11 +3,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, useLocation, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useAuthStore } from '@/store/authStore';
+import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import { SidebarOverlays } from '@/components/layout/Sidebar/SidebarOverlays';
 import { useSidebarChatActions } from '@/components/layout/Sidebar/useSidebarChatActions';
 import { useSidebarWorkspaceActions } from '@/components/layout/Sidebar/useSidebarWorkspaceActions';
 import type { Chat } from '@/types/chat.types';
+import { TitleBar } from '@/components/layout/TitleBar/TitleBar';
 import { PaneHeaderBand } from './PaneHeader';
 
 const CHATS: Record<string, Chat> = {
@@ -22,6 +25,14 @@ const CHATS: Record<string, Chat> = {
   'split-chat': {
     id: 'split-chat',
     title: 'Split chat',
+    parent_chat_id: null,
+    channel_id: null,
+    pinned_at: null,
+    workspace_id: 'ws-1',
+  } as Chat,
+  'other-chat': {
+    id: 'other-chat',
+    title: 'Other chat',
     parent_chat_id: null,
     channel_id: null,
     pinned_at: null,
@@ -88,7 +99,7 @@ function renderHeaders() {
   render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={['/chat/primary-chat']}>
-        <PaneHeaderBand routedChatId="primary-chat" leading={null} />
+        <PaneHeaderBand routedChatId="primary-chat" leading={null} tabs={[]} />
         <SidebarMenuHost />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -137,5 +148,56 @@ describe('PaneHeaderBand', () => {
     expect(useUIStore.getState().splitChatIds).toEqual([]);
     expect(useUIStore.getState().visibleLayout).toEqual([['agent:primary']]);
     expect(pathname).toBe('/chat/primary-chat');
+  });
+});
+
+describe('TitleBar', () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      'ResizeObserver',
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    useUIStore.getState().resetWorkspace();
+    useUIStore.setState({ sidebarOpen: false, chatTabs: ['primary-chat', 'other-chat'] });
+    useAuthStore.setState({ isAuthenticated: true });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    useUIStore.setState({ chatTabs: [] });
+    useStreamStore.setState({ activeStreamMetadata: [] });
+  });
+
+  function renderBar(runningChatIds: string[]) {
+    useStreamStore.setState({
+      activeStreamMetadata: runningChatIds.map((chatId) => ({
+        chatId,
+        messageId: `${chatId}-message`,
+        startTime: 0,
+      })),
+    });
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={['/chat/primary-chat']}>
+          <TitleBar />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+  }
+
+  it('names the running routed chat once, by its tab', () => {
+    renderBar(['primary-chat', 'other-chat']);
+    expect(screen.getAllByText('Primary chat')).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Chat menu' })).toHaveLength(1);
+  });
+
+  it('leads with the idle routed chat title, then the running tabs', () => {
+    renderBar(['other-chat']);
+    const title = screen.getByText('Primary chat');
+    const tab = screen.getByText('Other chat');
+    expect(title.compareDocumentPosition(tab) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

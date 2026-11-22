@@ -201,7 +201,7 @@ export function TitleBar() {
 
       {/* Auth gate: macOS desktop still renders the bar logged out; without this,
           persisted chatTabs would hit protected queries and 401-self-close. */}
-      {showTabs && <ChatTabs tabs={workingSetTabs} />}
+      {showTabs && !showPaneHeaders && <ChatTabs tabs={workingSetTabs} />}
 
       {/* Spacer after traffic lights when sidebar controls are absent. */}
       {IS_MACOS_DESKTOP && !(isAuthenticated && showSidebar) && <div className={styles.spacer} />}
@@ -213,14 +213,21 @@ export function TitleBar() {
       // The row owns the height (2.5rem bar + top inset); each section pads its
       // content below the inset (pt) so the section's background bleeds under the
       // iOS status bar. env() is 0 on desktop/web, so the bar stays a plain h-10.
-      className={clsx(styles['title-bar'], showTabs && styles['title-bar--tabs'])}
+      className={clsx(
+        styles['title-bar'],
+        showTabs && !showPaneHeaders && styles['title-bar--tabs'],
+      )}
       onMouseDown={handleMouseDown}
       onDoubleClick={handleDoubleClick}
     >
       {showPaneHeaders ? (
         <>
           {docked && left}
-          <PaneHeaderBand routedChatId={routedChatId} leading={!docked && left} />
+          <PaneHeaderBand
+            routedChatId={routedChatId}
+            leading={!docked && left}
+            tabs={showTabs ? workingSetTabs : []}
+          />
         </>
       ) : (
         <>

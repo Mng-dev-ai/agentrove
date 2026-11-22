@@ -2,20 +2,16 @@
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
-@use '@/styles/globals/spacing' as spacing;
 
 .band {
-  display: flex;
+  display: grid;
+  // One row: panel cells come after later columns, so sparse auto-placement would wrap them.
+  grid-template-rows: 100%;
+  grid-auto-flow: column dense;
   height: 100%;
   min-width: 0;
   flex: 1;
   background-color: var(--theme-surface);
-}
-
-.columns {
-  display: grid;
-  min-width: 0;
-  flex: 1;
 }
 
 .column {
@@ -32,15 +28,7 @@
 .leading {
   display: flex;
   align-self: stretch;
-  min-width: 0;
-  max-width: 50%;
-  flex: 0 1 auto;
-}
-
-.panel-column {
-  width: spacing.$session-panel-width;
   flex-shrink: 0;
-  border-left: 1px solid colors.theme-color('border', 0.5);
 }
 
 .header {
@@ -60,12 +48,38 @@
     flex: none;
     border-bottom: 1px solid colors.theme-color('border', 0.5);
   }
+
+  // In the grid, a header over a panel has no tile beside it to draw the divider.
+  &--over-panel {
+    border-left: 1px solid colors.theme-color('border', 0.5);
+  }
+}
+
+.naming {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .title-wrap {
   display: flex;
   min-width: 0;
   align-items: center;
+}
+
+.strip {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+
+  // Leaves the title a floor, so the title truncates before the tabs scroll
+  &--after-title {
+    flex-shrink: 0;
+    max-width: calc(100% - var(--space-24));
+  }
 }
 
 .title {
