@@ -61,6 +61,8 @@ export interface DropdownProps<T> {
   iconWithLabel?: boolean;
   dropdownAlign?: 'left' | 'right';
   ariaLabel?: string;
+  // Renders only the option list, in place of trigger and panel; called after each pick
+  onInlineSelect?: () => void;
 }
 
 const isGroupedItems = <T,>(
@@ -164,6 +166,7 @@ const Dropdown = memo(function Dropdown<T>({
   iconWithLabel = false,
   dropdownAlign = 'left',
   ariaLabel,
+  onInlineSelect,
 }: DropdownProps<T>) {
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -210,6 +213,140 @@ const Dropdown = memo(function Dropdown<T>({
 
   const triggerLabel = getItemShortLabel ? getItemShortLabel(value) : getItemLabel(value);
   const triggerLabelChars = Array.from(triggerLabel);
+
+  const optionList = (
+    <>
+      {renderHeader?.()}
+      {searchable && searchVariant === 'boxed' && (
+        <div className={styles['search-box']}>
+          <div className={styles['search-box-field']}>
+            <Search className={styles['search-icon']} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder={searchPlaceholder}
+              autoFocus={!isMobile}
+              className={styles['search-input']}
+            />
+            {searchQuery && (
+              <Button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                variant="unstyled"
+                aria-label="Clear search"
+                className={styles['search-clear']}
+              >
+                <X />
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+      {searchable && searchVariant === 'underline' && (
+        <div className={styles['search-underline']}>
+          <Search className={styles['search-icon']} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            placeholder={searchPlaceholder}
+            autoFocus={!isMobile}
+            className={styles['search-underline-input']}
+          />
+          {searchQuery && (
+            <Button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              variant="unstyled"
+              aria-label="Clear search"
+              className={styles['search-underline-clear']}
+            >
+              <X />
+            </Button>
+          )}
+        </div>
+      )}
+      <div className={styles.items}>
+        {displayItems.map((entry, index) => {
+          if (entry.type === 'divider') {
+            return <div key={`divider-${index}`} role="separator" className={styles.divider} />;
+          }
+          if (entry.type === 'header') {
+            return (
+              <div
+                key={`header-${entry.label}`}
+                className={clsx(
+                  styles['group-header'],
+                  index !== 0 && styles['group-header--divided'],
+                )}
+              >
+                {entry.label}
+              </div>
+            );
+          }
+
+          const item = entry.data;
+          const isSelected = getItemKey(item) === getItemKey(value);
+          return (
+            <SelectItem
+              key={getItemKey(item)}
+              isSelected={isSelected}
+              role="option"
+              onSelect={() => {
+                onSelect(item);
+                setIsOpen(false);
+                onInlineSelect?.();
+              }}
+              className={clsx(
+                styles['item-row'],
+                selectionStyle === 'accent' && styles['item-row--accent'],
+              )}
+            >
+              {selectionStyle === 'check' && (
+                <Check
+                  className={clsx(
+                    styles['item-check'],
+                    isSelected && styles['item-check--selected'],
+                  )}
+                />
+              )}
+              {selectionStyle === 'accent' && isSelected && (
+                <div className={styles['item-accent']} />
+              )}
+              <div className={clsx(styles['item-content'], itemClassName)}>
+                {renderItem ? (
+                  renderItem(item, isSelected)
+                ) : (
+                  <FloatingTooltip content={getItemLabel(item)} className={styles['item-content']}>
+                    <span
+                      className={clsx(
+                        styles['item-label'],
+                        isSelected && styles['item-label--selected'],
+                      )}
+                    >
+                      {getItemLabel(item)}
+                    </span>
+                  </FloatingTooltip>
+                )}
+              </div>
+            </SelectItem>
+          );
+        })}
+      </div>
+      {renderFooter?.()}
+    </>
+  );
+
+  if (onInlineSelect) {
+    return (
+      <div role="listbox" aria-label={ariaLabel} className={styles.inline}>
+        {optionList}
+      </div>
+    );
+  }
 
   return (
     <div className={styles.dropdown} ref={dropdownRef}>
@@ -282,129 +419,7 @@ const Dropdown = memo(function Dropdown<T>({
             fit?.maxHeight !== undefined && styles['panel--capped'],
           )}
         >
-          {renderHeader?.()}
-          {searchable && searchVariant === 'boxed' && (
-            <div className={styles['search-box']}>
-              <div className={styles['search-box-field']}>
-                <Search className={styles['search-icon']} />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={handleSearchKeyDown}
-                  placeholder={searchPlaceholder}
-                  autoFocus={!isMobile}
-                  className={styles['search-input']}
-                />
-                {searchQuery && (
-                  <Button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    variant="unstyled"
-                    aria-label="Clear search"
-                    className={styles['search-clear']}
-                  >
-                    <X />
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-          {searchable && searchVariant === 'underline' && (
-            <div className={styles['search-underline']}>
-              <Search className={styles['search-icon']} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                placeholder={searchPlaceholder}
-                autoFocus={!isMobile}
-                className={styles['search-underline-input']}
-              />
-              {searchQuery && (
-                <Button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  variant="unstyled"
-                  aria-label="Clear search"
-                  className={styles['search-underline-clear']}
-                >
-                  <X />
-                </Button>
-              )}
-            </div>
-          )}
-          <div className={styles.items}>
-            {displayItems.map((entry, index) => {
-              if (entry.type === 'divider') {
-                return <div key={`divider-${index}`} role="separator" className={styles.divider} />;
-              }
-              if (entry.type === 'header') {
-                return (
-                  <div
-                    key={`header-${entry.label}`}
-                    className={clsx(
-                      styles['group-header'],
-                      index !== 0 && styles['group-header--divided'],
-                    )}
-                  >
-                    {entry.label}
-                  </div>
-                );
-              }
-
-              const item = entry.data;
-              const isSelected = getItemKey(item) === getItemKey(value);
-              return (
-                <SelectItem
-                  key={getItemKey(item)}
-                  isSelected={isSelected}
-                  role="option"
-                  onSelect={() => {
-                    onSelect(item);
-                    setIsOpen(false);
-                  }}
-                  className={clsx(
-                    styles['item-row'],
-                    selectionStyle === 'accent' && styles['item-row--accent'],
-                  )}
-                >
-                  {selectionStyle === 'check' && (
-                    <Check
-                      className={clsx(
-                        styles['item-check'],
-                        isSelected && styles['item-check--selected'],
-                      )}
-                    />
-                  )}
-                  {selectionStyle === 'accent' && isSelected && (
-                    <div className={styles['item-accent']} />
-                  )}
-                  <div className={clsx(styles['item-content'], itemClassName)}>
-                    {renderItem ? (
-                      renderItem(item, isSelected)
-                    ) : (
-                      <FloatingTooltip
-                        content={getItemLabel(item)}
-                        className={styles['item-content']}
-                      >
-                        <span
-                          className={clsx(
-                            styles['item-label'],
-                            isSelected && styles['item-label--selected'],
-                          )}
-                        >
-                          {getItemLabel(item)}
-                        </span>
-                      </FloatingTooltip>
-                    )}
-                  </div>
-                </SelectItem>
-              );
-            })}
-          </div>
-          {renderFooter?.()}
+          {optionList}
         </div>
       )}
     </div>

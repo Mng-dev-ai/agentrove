@@ -26,6 +26,11 @@
     padding: 0;
     background-color: rgb(0 0 0 / 0.92);
   }
+
+  &--sheet {
+    align-items: flex-end;
+    padding: 0;
+  }
 }
 
 .container {
@@ -70,5 +75,18 @@
     border-radius: 0;
     background-color: transparent;
     box-shadow: none;
+  }
+
+  // Bottom sheet: the content owns its scrolling, the container caps the height
+  &--sheet {
+    display: flex;
+    max-height: 85dvh;
+    max-width: none;
+    flex-direction: column;
+    margin: 0;
+    border-bottom: none;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background-color: var(--theme-surface-secondary);
+    padding-bottom: var(--safe-area-bottom);
   }
 }

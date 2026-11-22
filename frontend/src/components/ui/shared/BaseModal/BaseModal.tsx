@@ -13,7 +13,7 @@ export interface BaseModalProps {
   size?: ModalSize;
   className?: string;
   ariaLabel?: string;
-  variant?: 'dialog' | 'lightbox';
+  variant?: 'dialog' | 'lightbox' | 'sheet';
 }
 
 export function BaseModal({
@@ -33,7 +33,7 @@ export function BaseModal({
 
   return createPortal(
     <div
-      className={clsx(styles.backdrop, variant === 'lightbox' && styles['backdrop--lightbox'])}
+      className={clsx(styles.backdrop, variant !== 'dialog' && styles[`backdrop--${variant}`])}
       onMouseDown={(e) => {
         pressOnBackdrop.current = e.target === e.currentTarget;
       }}
@@ -50,7 +50,7 @@ export function BaseModal({
         className={clsx(
           styles.container,
           styles[`container--${size}`],
-          variant === 'lightbox' && styles['container--lightbox'],
+          variant !== 'dialog' && styles[`container--${variant}`],
           className,
         )}
         onClick={(e) => e.stopPropagation()}

@@ -34,6 +34,7 @@ interface PermissionModeControlProps {
   compact?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
+  onInlineSelect?: () => void;
 }
 
 export interface PermissionModeDropdownProps extends PermissionModeControlProps {
@@ -50,6 +51,7 @@ export const PermissionModeDropdown = memo(function PermissionModeDropdown({
   disabled = false,
   compact = true,
   variant = 'default',
+  onInlineSelect,
 }: PermissionModeDropdownProps) {
   const resolvedAgentKind = agentKind ?? 'claude';
 
@@ -72,6 +74,7 @@ export const PermissionModeDropdown = memo(function PermissionModeDropdown({
       compact={compact}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
+      onInlineSelect={onInlineSelect}
       renderItem={renderPermissionItem}
     />
   );

@@ -24,6 +24,7 @@ export interface ModelSelectorProps {
   variant?: 'default' | 'text' | 'field';
   dropdownAlign?: 'left' | 'right';
   machineId?: string;
+  onInlineSelect?: () => void;
 }
 
 export const ModelSelector = memo(function ModelSelector({
@@ -35,6 +36,7 @@ export const ModelSelector = memo(function ModelSelector({
   compact = true,
   variant = 'default',
   machineId,
+  onInlineSelect,
 }: ModelSelectorProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: models = [], isLoading } = useModelsQuery({
@@ -129,6 +131,7 @@ export const ModelSelector = memo(function ModelSelector({
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
       onOpenChange={handleOpenChange}
+      onInlineSelect={onInlineSelect}
       renderHeader={
         agentKinds.length > 1
           ? () => (

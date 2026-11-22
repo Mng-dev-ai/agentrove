@@ -23,6 +23,7 @@ interface PersonaDropdownControlProps {
   compact?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
+  onInlineSelect?: () => void;
 }
 
 export interface PersonaDropdownProps extends PersonaDropdownControlProps {
@@ -40,6 +41,7 @@ export const PersonaDropdown = memo(function PersonaDropdown({
   disabled = false,
   compact = true,
   variant = 'default',
+  onInlineSelect,
 }: PersonaDropdownProps) {
   const items = useMemo(
     () => [DEFAULT_OPTION, ...personas.map((p) => ({ value: p.name, label: p.name }))],
@@ -65,6 +67,7 @@ export const PersonaDropdown = memo(function PersonaDropdown({
       compact={compact}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
+      onInlineSelect={onInlineSelect}
     />
   );
 });

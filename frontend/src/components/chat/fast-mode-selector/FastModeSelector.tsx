@@ -24,6 +24,7 @@ export interface FastModeSelectorProps {
   disabled?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
+  onInlineSelect?: () => void;
 }
 
 export const FastModeSelector = memo(function FastModeSelector({
@@ -33,6 +34,7 @@ export const FastModeSelector = memo(function FastModeSelector({
   dropdownAlign,
   disabled = false,
   variant = 'default',
+  onInlineSelect,
 }: FastModeSelectorProps) {
   const key = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
   const fastMode = useChatSettingsStore((state) => state.fastModeByChat[key] ?? DEFAULT_FAST_MODE);
@@ -57,6 +59,7 @@ export const FastModeSelector = memo(function FastModeSelector({
       compact
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
+      onInlineSelect={onInlineSelect}
       renderItem={(mode, isSelected) => (
         <span className={clsx(styles['mode-label'], isSelected && styles['mode-label--selected'])}>
           {mode.label}

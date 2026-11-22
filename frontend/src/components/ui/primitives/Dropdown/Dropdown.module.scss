@@ -445,3 +445,15 @@
     color: var(--theme-text-primary);
   }
 }
+
+// onInlineSelect: the list sits in a host surface (e.g. a bottom sheet) that scrolls it
+.inline {
+  .items {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .item-row {
+    min-height: var(--space-9);
+  }
+}
