@@ -4034,6 +4034,31 @@ async def test_fork_first_turn_continues_a_copy_of_the_source_session(
     assert detail.json()["title"] == fork["title"]
 
 
+async def test_side_question_fork_gets_a_generated_title_and_plain_fork_does_not(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    source = await create_chat(client, headers, workspace, model_id="sonnet")
+    await run_chat_turn(client, headers, source["id"], "source turn")
+    side = (
+        await fork_chat(
+            client, headers, source["id"], as_sub_thread=True, title="thanks"
+        )
+    ).json()
+    plain = (await fork_chat(client, headers, source["id"])).json()
+
+    titles = []
+    for fork in (side, plain):
+        await run_chat_turn(client, headers, fork["id"], "fork turn")
+        detail = await client.get(f"/api/v1/chat/chats/{fork['id']}", headers=headers)
+        titles.append(detail.json()["title"])
+
+    assert titles == ["Hello from the fake agent.", plain["title"]]
+
+
 async def test_fork_session_failure_fails_the_turn_and_retry_converges(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
