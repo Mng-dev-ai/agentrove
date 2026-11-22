@@ -31,6 +31,12 @@
     align-items: flex-end;
     padding: 0;
   }
+
+  // BaseModal unmounts when this ends, so it must last at least as long as the sheet's slide
+  &--closing {
+    animation: fade-out var(--duration-base) var(--easing-in) forwards;
+    pointer-events: none;
+  }
 }
 
 .container {
@@ -88,5 +94,28 @@
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     background-color: var(--theme-surface-secondary);
     padding-bottom: var(--safe-area-bottom);
+    animation: sheet-in var(--duration-base) var(--easing-out);
+
+    .backdrop--closing > & {
+      animation: sheet-out var(--duration-base) var(--easing-in) forwards;
+    }
+  }
+}
+
+@keyframes fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes sheet-out {
+  to {
+    transform: translateY(100%);
   }
 }

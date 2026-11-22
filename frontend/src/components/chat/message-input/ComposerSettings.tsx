@@ -57,11 +57,15 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
   const agent = agentKind ?? 'claude';
   const { permissionMode, thinkingMode, persona } = useChatSettings(state.chatId);
   const fastOption = useFastModeOption(state.chatId);
-  const [view, setView] = useState<SheetView | null>(null);
+  const [open, setOpen] = useState(false);
+  // Kept while closing so the sheet slides out with the content it showed
+  const [view, setView] = useState<SheetView>('list');
   // The sheet's selectors can't be disabled, so loading closes the sheet as the triggers lock
-  if (state.isLoading && view !== null) setView(null);
+  if (state.isLoading && open) setOpen(false);
   const rowRef = useRef<HTMLDivElement>(null);
   const labelRef = useRef<HTMLSpanElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyHeight = useRef(0);
 
   const thinking = getThinkingModeOption(thinkingMode, agent, selectedModel);
   const permission = getPermissionModeOption(permissionMode, agent);
@@ -70,6 +74,10 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
   const modelName = selectedModel?.name ?? 'Model';
   const triggerLabel = thinking ? `${modelName} · ${thinking.label}` : modelName;
   const showBack = () => setView('list');
+  const openSheet = (next: SheetView) => {
+    setView(next);
+    setOpen(true);
+  };
 
   const rows: SettingRow[] = [
     {
@@ -188,6 +196,28 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
     return () => observer.disconnect();
   }, [chipLabels, triggerLabel, state.hasMessage]);
 
+  // Eases the body from the previous view's height to the new one via its CSS height
+  // transition (none under reduced motion). The target waits until the new view has painted
+  // once at the old height, so its first (slow) layout doesn't eat the transition's start.
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    const from = bodyHeight.current;
+    bodyHeight.current = 0;
+    if (!open || !body) return;
+    body.style.height = '';
+    const to = body.offsetHeight;
+    bodyHeight.current = to;
+    if (!from || from === to || getComputedStyle(body).transitionDuration === '0s') return;
+    body.style.height = `${from}px`;
+    body.getBoundingClientRect();
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        body.style.height = `${to}px`;
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, view]);
+
   const activeRow = rows.find((row) => row.key === view);
 
   return (
@@ -200,7 +230,7 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
             variant="unstyled"
             disabled={state.isLoading}
             aria-label={chip.ariaLabel}
-            onClick={() => setView(chip.key)}
+            onClick={() => openSheet(chip.key)}
             className={clsx(styles.chip, styles[`chip--${chip.tone}`])}
           >
             <chip.icon className={styles['chip-icon']} />
@@ -212,9 +242,9 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
           variant="unstyled"
           disabled={state.isLoading}
           aria-haspopup="dialog"
-          aria-expanded={view !== null}
+          aria-expanded={open}
           aria-label={`Chat settings: ${triggerLabel}`}
-          onClick={() => setView('list')}
+          onClick={() => openSheet('list')}
           className={styles.trigger}
         >
           <ModelIcon className={styles['trigger-icon']} />
@@ -225,8 +255,8 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
       </div>
 
       <BaseModal
-        isOpen={view !== null}
-        onClose={() => setView(null)}
+        isOpen={open}
+        onClose={() => setOpen(false)}
         variant="sheet"
         ariaLabel="Chat settings"
       >
@@ -247,13 +277,19 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
             type="button"
             variant="unstyled"
             aria-label="Close"
-            onClick={() => setView(null)}
+            onClick={() => setOpen(false)}
             className={styles['header-button']}
           >
             <X />
           </Button>
         </div>
-        <div className={styles.body}>
+        <div
+          ref={bodyRef}
+          className={styles.body}
+          onTransitionEnd={(e) => {
+            if (e.target === e.currentTarget) e.currentTarget.style.height = '';
+          }}
+        >
           {activeRow ? (
             activeRow.options
           ) : (

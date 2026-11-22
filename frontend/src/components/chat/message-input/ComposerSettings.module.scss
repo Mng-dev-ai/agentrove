@@ -141,7 +141,8 @@
 
 .body {
   min-height: 0;
-  flex: 1;
+  flex: 0 1 auto;
+  transition: height var(--duration-base) var(--easing-out);
   overflow-y: auto;
   overscroll-behavior: contain;
 }

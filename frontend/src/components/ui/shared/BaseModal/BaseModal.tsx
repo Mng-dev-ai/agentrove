@@ -1,4 +1,4 @@
-import { ReactNode, useRef } from 'react';
+import { ReactNode, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { useModalLayer } from './useModalLayer';
@@ -27,13 +27,25 @@ export function BaseModal({
 }: BaseModalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const pressOnBackdrop = useRef(false);
-  useModalLayer(containerRef, isOpen, onClose);
+  // A sheet stays mounted after isOpen drops until its exit animation ends
+  const [sheetMounted, setSheetMounted] = useState(false);
+  if (variant === 'sheet' && isOpen && !sheetMounted) setSheetMounted(true);
+  const closing = variant === 'sheet' && sheetMounted && !isOpen;
+  const shown = isOpen || closing;
+  useModalLayer(containerRef, shown, onClose);
 
-  if (!isOpen) return null;
+  if (!shown) return null;
 
   return createPortal(
     <div
-      className={clsx(styles.backdrop, variant !== 'dialog' && styles[`backdrop--${variant}`])}
+      className={clsx(
+        styles.backdrop,
+        variant !== 'dialog' && styles[`backdrop--${variant}`],
+        closing && styles['backdrop--closing'],
+      )}
+      onAnimationEnd={(e) => {
+        if (closing && e.target === e.currentTarget) setSheetMounted(false);
+      }}
       onMouseDown={(e) => {
         pressOnBackdrop.current = e.target === e.currentTarget;
       }}
