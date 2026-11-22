@@ -1,10 +1,12 @@
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
 from croniter import croniter
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.models.schemas.channel import ChannelMemberCreate
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 
@@ -25,6 +27,20 @@ def validate_timezone_name(value: str) -> str:
     except (KeyError, ValueError) as e:
         raise ValueError("Unknown timezone") from e
     return value
+
+
+class NoExistingChannelTarget(BaseModel):
+    # Released frontends and MCP servers still send channel_id; ignoring it would
+    # silently save their channel automation as a chat automation.
+    @model_validator(mode="before")
+    @classmethod
+    def reject_channel_id(cls, data: Any) -> Any:
+        if isinstance(data, dict) and data.get("channel_id") is not None:
+            raise ValueError(
+                "Posting into an existing channel is no longer supported; "
+                "update AgentRove to target a new channel per run"
+            )
+        return data
 
 
 class AutomationBase(BaseModel):
@@ -50,17 +66,17 @@ class AutomationBase(BaseModel):
         return validate_timezone_name(value)
 
 
-class AutomationCreate(AutomationBase):
+class AutomationCreate(AutomationBase, NoExistingChannelTarget):
     workspace_id: UUID
-    channel_id: UUID | None = None
+    channel_members: list[ChannelMemberCreate] | None = Field(None, min_length=1)
 
 
-class AutomationUpdate(BaseModel):
+class AutomationUpdate(NoExistingChannelTarget):
     name: str | None = Field(None, min_length=1, max_length=255)
     prompt: str | None = Field(None, min_length=1, max_length=100000)
     model_id: str | None = Field(None, min_length=1, max_length=255)
     workspace_id: UUID | None = None
-    channel_id: UUID | None = None
+    channel_members: list[ChannelMemberCreate] | None = Field(None, min_length=1)
     cron_expression: str | None = Field(None, min_length=1, max_length=128)
     timezone: str | None = Field(None, min_length=1, max_length=64)
     permission_mode: PermissionMode | None = None
@@ -101,6 +117,14 @@ class AutomationUpdate(BaseModel):
         return None if value is None else validate_timezone_name(value)
 
 
+class AutomationChannelMember(BaseModel):
+    model_id: str
+    display_name: str | None = None
+    permission_mode: str | None = None
+    persona: str | None = None
+    thinking_mode: str | None = None
+
+
 class Automation(BaseModel):
     # Read model (not AutomationBase): skip write validators so stored rows
     # survive later rule drift — same pattern as Workspace.
@@ -109,7 +133,7 @@ class Automation(BaseModel):
     id: UUID
     user_id: UUID
     workspace_id: UUID
-    channel_id: UUID | None = None
+    channel_members: list[AutomationChannelMember] | None = None
     name: str
     prompt: str
     model_id: str
@@ -129,4 +153,3 @@ class Automation(BaseModel):
 class AutomationRunResponse(BaseModel):
     chat_id: UUID | None = None
     channel_id: UUID | None = None
-    queued: bool | None = None

@@ -93,11 +93,12 @@ export const useRunAutomationMutation = createMutation<
   { automationId: string; machineId: string }
 >(
   ({ automationId, machineId }) => automationService.runAutomation(automationId, machineId),
-  (queryClient, _data, variables) => {
+  (queryClient, data, variables) => {
     invalidateAutomations(queryClient, variables.machineId);
     void queryClient.invalidateQueries({
-      queryKey:
-        variables.machineId === LOCAL_MACHINE_ID
+      queryKey: data.channel_id
+        ? queryKeys.channels(variables.machineId)
+        : variables.machineId === LOCAL_MACHINE_ID
           ? [queryKeys.chats]
           : queryKeys.machine.chats(variables.machineId),
     });

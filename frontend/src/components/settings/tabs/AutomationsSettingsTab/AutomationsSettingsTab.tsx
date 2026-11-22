@@ -1,7 +1,6 @@
 import { Suspense, useCallback, useMemo, useState } from 'react';
 import { Clock, Server, Play } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useQueryClient } from '@tanstack/react-query';
 import {
   ListItemAction,
   ListManagementTab,
@@ -11,8 +10,6 @@ import { useSettingsContext } from '@/hooks/useSettingsContext';
 import { useMachineFilter } from '@/hooks/useMachineFilter';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
 import { useMachineSettingsQuery } from '@/hooks/queries/useMachineQueries';
-import { useMachineChannelsQuery } from '@/hooks/queries/useChannelQueries';
-import { queryKeys } from '@/hooks/queries/queryKeys';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import {
   useAutomationsAcrossMachines,
@@ -28,7 +25,8 @@ import {
   DEFAULT_WORKTREE,
   DEFAULT_PERSONA,
 } from '@/store/chatSettingsStore';
-import { useModelMap } from '@/hooks/queries/useModelQueries';
+import { useModelMap, useModelsQuery } from '@/hooks/queries/useModelQueries';
+import { memberRequest, newMemberDraft, type MemberDraft } from '@/components/channels/memberDraft';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import {
   buildCronExpression,
@@ -39,11 +37,11 @@ import {
 import { lazyNamed } from '@/utils/lazyNamed';
 import type {
   Automation,
+  AutomationChannelMember,
   AutomationCreateRequest,
   AutomationForm,
   AutomationUpdateRequest,
 } from '@/types/automation.types';
-import type { Channel } from '@/types/channel.types';
 import styles from './AutomationsSettingsTab.module.scss';
 
 const NEXT_RUN_FORMAT: Intl.DateTimeFormatOptions = {
@@ -67,7 +65,7 @@ function createDefaultForm(machineId: string): AutomationForm {
     model_id: '',
     workspace_id: '',
     target: 'chat',
-    channel_id: '',
+    members: [newMemberDraft()],
     schedule: { ...DEFAULT_SCHEDULE },
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     permission_mode: DEFAULT_PERMISSION_MODE,
@@ -78,6 +76,17 @@ function createDefaultForm(machineId: string): AutomationForm {
   };
 }
 
+function memberDraftFrom(member: AutomationChannelMember): MemberDraft {
+  return {
+    key: crypto.randomUUID(),
+    customName: member.display_name,
+    modelId: member.model_id,
+    persona: member.persona ?? DEFAULT_PERSONA,
+    thinkingMode: member.thinking_mode ?? DEFAULT_THINKING_MODE,
+    permissionMode: member.permission_mode ?? DEFAULT_PERMISSION_MODE,
+  };
+}
+
 function formFromItem(item: AutomationListItem): AutomationForm {
   const { automation } = item;
   return {
@@ -85,8 +94,8 @@ function formFromItem(item: AutomationListItem): AutomationForm {
     prompt: automation.prompt,
     model_id: automation.model_id,
     workspace_id: automation.workspace_id,
-    target: automation.channel_id ? 'channel' : 'chat',
-    channel_id: automation.channel_id ?? '',
+    target: automation.channel_members ? 'channel' : 'chat',
+    members: automation.channel_members?.map(memberDraftFrom) ?? [newMemberDraft()],
     schedule: parseCronExpression(automation.cron_expression),
     // Keep the zone the schedule was authored in — editing from another
     // timezone must not silently shift the automation's wall-clock time.
@@ -105,7 +114,14 @@ function requestFromAutomation(automation: Automation): AutomationCreateRequest 
     prompt: automation.prompt,
     model_id: automation.model_id,
     workspace_id: automation.workspace_id,
-    channel_id: automation.channel_id ?? null,
+    channel_members:
+      automation.channel_members?.map((member) => ({
+        model_id: member.model_id,
+        display_name: member.display_name ?? undefined,
+        permission_mode: member.permission_mode ?? undefined,
+        persona: member.persona,
+        thinking_mode: member.thinking_mode,
+      })) ?? null,
     cron_expression: automation.cron_expression,
     timezone: automation.timezone,
     permission_mode: automation.permission_mode,
@@ -114,19 +130,6 @@ function requestFromAutomation(automation: Automation): AutomationCreateRequest 
     selected_persona_name: automation.selected_persona_name,
     enabled: automation.enabled,
   };
-}
-
-function AutomationTargetChip({ machineId, channelId }: { machineId: string; channelId: string }) {
-  const { data: channels } = useMachineChannelsQuery(machineId, true);
-  if (!channels) return null;
-  const channel = channels.find((candidate) => candidate.id === channelId);
-  return channel ? (
-    <span className={`${styles.chip} ${styles['target-chip']}`} title={`#${channel.name}`}>
-      → #{channel.name}
-    </span>
-  ) : (
-    <span className={`${styles.chip} ${styles['target-missing']}`}>target channel missing</span>
-  );
 }
 
 export function AutomationsSettingsTab() {
@@ -152,7 +155,6 @@ export function AutomationsSettingsTab() {
   );
   const { items, load } = useAutomationsAcrossMachines(machineFilter);
   const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
-  const queryClient = useQueryClient();
 
   const createMutation = useCreateAutomationMutation();
   const updateMutation = useUpdateAutomationMutation();
@@ -165,6 +167,7 @@ export function AutomationsSettingsTab() {
   const [formError, setFormError] = useState<string | null>(null);
   const formMachineId = editingItem?.machineId ?? form.machineId;
   const modelMap = useModelMap({ machineId: formMachineId });
+  const { data: formModels = [] } = useModelsQuery({ machineId: formMachineId });
   const { data: formMachineSettings } = useMachineSettingsQuery(
     formMachineId,
     isDialogOpen && formMachineId !== LOCAL_MACHINE_ID,
@@ -234,7 +237,10 @@ export function AutomationsSettingsTab() {
       worktree: agentFields.worktree ?? false,
       selected_persona_name: agentFields.selected_persona_name,
       enabled: editingItem?.automation.enabled ?? true,
-      channel_id: form.target === 'channel' ? form.channel_id : null,
+      channel_members:
+        form.target === 'channel'
+          ? form.members.map((member) => memberRequest(member, formModels, personas))
+          : null,
     };
     const machineId = editingItem?.machineId ?? form.machineId;
     try {
@@ -245,12 +251,12 @@ export function AutomationsSettingsTab() {
             machineId,
           })
         : await createMutation.mutateAsync({ data, machineId });
-      if (data.channel_id && saved.channel_id !== data.channel_id) {
+      if (data.channel_members && !saved.channel_members) {
         const name =
           machineId === LOCAL_MACHINE_ID
             ? LOCAL_MACHINE_NAME
             : (machineNames.get(machineId) ?? 'This machine');
-        const unsupported = `${name}'s backend does not support channel targets — update AgentRove on that machine.`;
+        const unsupported = `${name}'s backend does not support new-channel targets — update AgentRove on that machine.`;
         try {
           if (editingItem) {
             await updateMutation.mutateAsync({
@@ -299,16 +305,8 @@ export function AutomationsSettingsTab() {
         automationId: item.automation.id,
         machineId: item.machineId,
       });
-      const channel = queryClient
-        .getQueryData<Channel[]>(queryKeys.channels(item.machineId))
-        ?.find((candidate) => candidate.id === result.channel_id);
-      const channelName = `#${channel?.name ?? 'its channel'}`;
       toast.success(
-        !result.channel_id
-          ? `"${item.automation.name}" started — check the sidebar for its chat`
-          : result.queued === false
-            ? `"${item.automation.name}" not posted again — its previous run is still waiting in ${channelName}`
-            : `"${item.automation.name}" posted to ${channelName}`,
+        `"${item.automation.name}" started — check the sidebar for its ${result.channel_id ? 'channel' : 'chat'}`,
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to run automation');
@@ -319,7 +317,7 @@ export function AutomationsSettingsTab() {
     <>
       <ListManagementTab<AutomationListItem>
         title="Automations"
-        description="Scheduled prompts that start a new chat with your chosen model, workspace, and settings, or post into a channel — e.g. check email daily or triage errors every 6 hours."
+        description="Scheduled prompts that start a new chat with your chosen model, workspace, and settings, or a new channel with your chosen members — e.g. check email daily or triage errors every 6 hours."
         items={items}
         emptyIcon={Clock}
         emptyText="No automations configured yet"
@@ -348,11 +346,16 @@ export function AutomationsSettingsTab() {
               )}
             </div>
             <div className={styles['item-meta']}>
-              {item.automation.channel_id ? (
-                <AutomationTargetChip
-                  machineId={item.machineId}
-                  channelId={item.automation.channel_id}
-                />
+              {item.automation.channel_members ? (
+                <span
+                  className={`${styles.chip} ${styles['target-chip']}`}
+                  title={item.automation.channel_members
+                    .map((member) => member.display_name ?? member.model_id)
+                    .join(', ')}
+                >
+                  → new channel · {item.automation.channel_members.length}{' '}
+                  {item.automation.channel_members.length === 1 ? 'member' : 'members'}
+                </span>
               ) : (
                 <span className={styles.chip}>{item.automation.model_id}</span>
               )}

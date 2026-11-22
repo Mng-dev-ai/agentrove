@@ -14,7 +14,6 @@ from app.constants import (
     REDIS_KEY_CHAT_QUEUE_SEND_NOW,
 )
 from app.models.schemas.queue import (
-    AutomationQueuedMessage,
     QueueAddResponse,
     QueuedChannelMessage,
     QueuedMessage,
@@ -237,14 +236,3 @@ class QueueService(BaseQueueService[QueuedMessage]):
 class ChannelQueueService(BaseQueueService[QueuedChannelMessage]):
     key_template = REDIS_KEY_CHANNEL_QUEUE
     item_type = QueuedChannelMessage
-
-    async def add_automation_message(
-        self, channel_id: str, message: AutomationQueuedMessage
-    ) -> QueueAddResponse | None:
-        async with self._lock(channel_id):
-            key = self._queue_key(channel_id)
-            queue = await self._read_queue(key)
-            automation_id = str(message.automation_id)
-            if any(item.get("automation_id") == automation_id for item in queue):
-                return None
-            return await self._append(key, queue, message, None)

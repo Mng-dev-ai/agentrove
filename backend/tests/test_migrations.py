@@ -42,7 +42,7 @@ ADDED_TO_BASE_TABLES = {
     "channel_messages": {("column", "device_ids", "JSON", 1, "'[]'", 0)},
     "automations": {
         ("column", "device_ids", "JSON", 1, "'[]'", 0),
-        ("column", "channel_id", "CHAR(32)", 0, None, 0),
+        ("column", "channel_members", "JSON", 0, None, 0),
     },
     "chats": {
         ("column", "owed_report_device_ids", "JSON", 0, None, 0),

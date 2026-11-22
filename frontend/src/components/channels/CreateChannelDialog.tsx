@@ -255,6 +255,53 @@ function MemberChip({ canRemove, onRemove, ...props }: MemberChipProps) {
   );
 }
 
+interface MemberChipsProps {
+  machineId: string;
+  members: MemberDraft[];
+  memberNames: MemberName[];
+  models: Model[];
+  personas: Persona[];
+  onChange: (members: MemberDraft[]) => void;
+}
+
+export function MemberChips({
+  machineId,
+  members,
+  memberNames,
+  models,
+  personas,
+  onChange,
+}: MemberChipsProps) {
+  return (
+    <div className={styles.members}>
+      {members.map((member, index) => (
+        <MemberChip
+          key={member.key}
+          machineId={machineId}
+          member={member}
+          memberName={memberNames[index]}
+          models={models}
+          personas={personas}
+          canRemove={members.length > 1}
+          onChange={(patch) =>
+            onChange(members.map((m) => (m.key === member.key ? { ...m, ...patch } : m)))
+          }
+          onRemove={() => onChange(members.filter((m) => m.key !== member.key))}
+        />
+      ))}
+      <Button
+        type="button"
+        variant="unstyled"
+        onClick={() => onChange([...members, newMemberDraft()])}
+        className={styles['add-chip']}
+        aria-label="Add member"
+      >
+        <Plus className={styles['add-icon']} />
+      </Button>
+    </div>
+  );
+}
+
 interface CreateChannelDialogProps {
   defaultWorkspaceId: string | null;
   onClose: () => void;
@@ -307,9 +354,6 @@ export function CreateChannelDialog({
 
   const memberNames = resolveMemberNames(members, models);
   const hasInvalidMemberName = memberNames.some((memberName) => memberName.error);
-
-  const updateMember = (key: string, patch: Partial<MemberDraft>) =>
-    setMembers((prev) => prev.map((m) => (m.key === key ? { ...m, ...patch } : m)));
 
   const handleCreate = async () => {
     const trimmedName = name.trim();
@@ -411,30 +455,14 @@ export function CreateChannelDialog({
 
             <div>
               <span className={styles['field-label']}>Members</span>
-              <div className={styles.members}>
-                {members.map((member, index) => (
-                  <MemberChip
-                    key={member.key}
-                    machineId={targetMachineId}
-                    member={member}
-                    memberName={memberNames[index]}
-                    models={models}
-                    personas={personas}
-                    canRemove={members.length > 1}
-                    onChange={(patch) => updateMember(member.key, patch)}
-                    onRemove={() => setMembers((prev) => prev.filter((m) => m.key !== member.key))}
-                  />
-                ))}
-                <Button
-                  type="button"
-                  variant="unstyled"
-                  onClick={() => setMembers((prev) => [...prev, newMemberDraft()])}
-                  className={styles['add-chip']}
-                  aria-label="Add member"
-                >
-                  <Plus className={styles['add-icon']} />
-                </Button>
-              </div>
+              <MemberChips
+                machineId={targetMachineId}
+                members={members}
+                memberNames={memberNames}
+                models={models}
+                personas={personas}
+                onChange={setMembers}
+              />
             </div>
           </div>
         </div>

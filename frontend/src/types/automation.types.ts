@@ -1,11 +1,21 @@
 import type { PermissionMode } from '@/store/chatSettingsStore';
 import type { ScheduleForm } from '@/utils/automationSchedule';
+import type { ChannelMemberCreateRequest } from '@/types/channel.types';
+import type { MemberDraft } from '@/components/channels/memberDraft';
+
+export interface AutomationChannelMember {
+  model_id: string;
+  display_name: string | null;
+  permission_mode: PermissionMode | null;
+  persona: string | null;
+  thinking_mode: string | null;
+}
 
 export interface Automation {
   id: string;
   user_id: string;
   workspace_id: string;
-  channel_id?: string | null;
+  channel_members?: AutomationChannelMember[] | null;
   name: string;
   prompt: string;
   model_id: string;
@@ -27,7 +37,7 @@ export interface AutomationCreateRequest {
   prompt: string;
   model_id: string;
   workspace_id: string;
-  channel_id: string | null;
+  channel_members: ChannelMemberCreateRequest[] | null;
   cron_expression: string;
   timezone: string;
   permission_mode: PermissionMode;
@@ -40,7 +50,6 @@ export interface AutomationCreateRequest {
 export interface AutomationRunResponse {
   chat_id?: string | null;
   channel_id?: string | null;
-  queued?: boolean | null;
 }
 
 export type AutomationTarget = 'chat' | 'channel';
@@ -54,7 +63,7 @@ export interface AutomationForm {
   model_id: string;
   workspace_id: string;
   target: AutomationTarget;
-  channel_id: string;
+  members: MemberDraft[];
   schedule: ScheduleForm;
   timezone: string;
   permission_mode: PermissionMode;
