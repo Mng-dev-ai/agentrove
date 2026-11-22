@@ -2,20 +2,10 @@ import { memo } from 'react';
 import clsx from 'clsx';
 import { Zap } from 'lucide-react';
 import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
-import {
-  useChatSettingsStore,
-  DEFAULT_CHAT_SETTINGS_KEY,
-  DEFAULT_FAST_MODE,
-} from '@/store/chatSettingsStore';
+import { useChatSettingsStore, DEFAULT_CHAT_SETTINGS_KEY } from '@/store/chatSettingsStore';
 import type { AgentKind } from '@/types/chat.types';
+import { FAST_MODE_OPTIONS, useFastModeOption } from './fastModes';
 import styles from './FastModeSelector.module.scss';
-
-const FAST_MODE_OPTIONS = [
-  { value: false as const, label: 'Normal' },
-  { value: true as const, label: 'Fast' },
-] as const;
-
-type FastModeOption = (typeof FAST_MODE_OPTIONS)[number];
 
 export interface FastModeSelectorProps {
   chatId?: string;
@@ -24,6 +14,7 @@ export interface FastModeSelectorProps {
   disabled?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
+  onInlineSelect?: () => void;
 }
 
 export const FastModeSelector = memo(function FastModeSelector({
@@ -33,14 +24,13 @@ export const FastModeSelector = memo(function FastModeSelector({
   dropdownAlign,
   disabled = false,
   variant = 'default',
+  onInlineSelect,
 }: FastModeSelectorProps) {
   const key = chatId ?? DEFAULT_CHAT_SETTINGS_KEY;
-  const fastMode = useChatSettingsStore((state) => state.fastModeByChat[key] ?? DEFAULT_FAST_MODE);
+  const selected = useFastModeOption(chatId);
 
   // codex-acp only advertises Fast mode; hide for every other agent.
   if (agentKind !== 'codex') return null;
-
-  const selected: FastModeOption = fastMode ? FAST_MODE_OPTIONS[1] : FAST_MODE_OPTIONS[0];
 
   return (
     <Dropdown
@@ -57,6 +47,7 @@ export const FastModeSelector = memo(function FastModeSelector({
       compact
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
+      onInlineSelect={onInlineSelect}
       renderItem={(mode, isSelected) => (
         <span className={clsx(styles['mode-label'], isSelected && styles['mode-label--selected'])}>
           {mode.label}

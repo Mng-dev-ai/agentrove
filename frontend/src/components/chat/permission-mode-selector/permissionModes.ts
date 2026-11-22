@@ -160,3 +160,10 @@ export function getPermissionModeOption(
 
   return selectedMode;
 }
+
+export function isDefaultPermissionMode(
+  permissionMode: PermissionMode,
+  agentKind: AgentKind,
+): boolean {
+  return coercePermissionModeForAgent(permissionMode, agentKind) === DEFAULT_BY_AGENT[agentKind];
+}

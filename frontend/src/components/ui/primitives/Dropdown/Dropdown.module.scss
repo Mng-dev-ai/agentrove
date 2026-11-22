@@ -132,7 +132,7 @@
     color: var(--theme-text-quaternary);
   }
 
-  // compact outside split panes: the icon stands in for the label only below the sm breakpoint
+  // A default trigger's icon shows only below the sm breakpoint
   &--responsive {
     @include responsive.media('sm-up') {
       display: none;
@@ -142,14 +142,6 @@
 
 .label-slot {
   min-width: 0;
-
-  &--compact {
-    display: none;
-
-    @include responsive.media('sm-up') {
-      display: block;
-    }
-  }
 
   &--hidden {
     display: none;
@@ -210,14 +202,6 @@
     height: var(--space-3-5);
     width: var(--space-3-5);
     margin-inline-start: auto;
-  }
-
-  &--responsive {
-    display: none;
-
-    @include responsive.media('sm-up') {
-      display: block;
-    }
   }
 }
 
@@ -443,5 +427,17 @@
 
   &--selected {
     color: var(--theme-text-primary);
+  }
+}
+
+// onInlineSelect: the list sits in a host surface (e.g. a bottom sheet) that scrolls it
+.inline {
+  .items {
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .item-row {
+    min-height: var(--space-9);
   }
 }

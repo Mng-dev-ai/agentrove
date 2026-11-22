@@ -16,6 +16,7 @@ interface ThinkingModeControlProps {
   compact?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
+  onInlineSelect?: () => void;
 }
 
 export interface ThinkingModeDropdownProps extends ThinkingModeControlProps {
@@ -33,6 +34,7 @@ export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
   disabled = false,
   compact = true,
   variant = 'default',
+  onInlineSelect,
 }: ThinkingModeDropdownProps) {
   const resolvedAgentKind = agentKind ?? 'claude';
 
@@ -58,6 +60,7 @@ export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
       compact={compact}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
+      onInlineSelect={onInlineSelect}
       renderItem={(mode, isSelected) => (
         <span className={clsx(styles['mode-label'], isSelected && styles['mode-label--selected'])}>
           {mode.label}

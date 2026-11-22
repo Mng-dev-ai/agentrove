@@ -45,7 +45,7 @@ export interface DropdownProps<T> {
   itemClassName?: string;
   dropdownPosition?: DropdownPosition;
   disabled?: boolean;
-  // leftIcon stands in for the label on phones and in split panes
+  // leftIcon stands in for the label in split panes
   compact?: boolean;
   searchable?: boolean;
   searchPlaceholder?: string;
@@ -61,6 +61,8 @@ export interface DropdownProps<T> {
   iconWithLabel?: boolean;
   dropdownAlign?: 'left' | 'right';
   ariaLabel?: string;
+  // Renders only the option list, in place of trigger and panel; called after each pick
+  onInlineSelect?: () => void;
 }
 
 const isGroupedItems = <T,>(
@@ -138,54 +140,41 @@ const TRIGGER_CLASSES = {
   field: styles['trigger-field'],
 };
 
-const Dropdown = memo(function Dropdown<T>({
+type DropdownOptionsProps<T> = Pick<
+  DropdownProps<T>,
+  | 'value'
+  | 'items'
+  | 'getItemKey'
+  | 'getItemLabel'
+  | 'renderItem'
+  | 'itemClassName'
+  | 'searchable'
+  | 'searchPlaceholder'
+  | 'searchVariant'
+  | 'selectionStyle'
+  | 'renderHeader'
+  | 'renderFooter'
+> & {
+  onPick: (item: T) => void;
+};
+
+function DropdownOptions<T>({
   value,
   items,
   getItemKey,
   getItemLabel,
-  getItemShortLabel,
-  triggerSuffix,
-  onSelect,
   renderItem,
-  leftIcon: LeftIcon,
-  width = '10rem',
   itemClassName,
-  dropdownPosition = 'bottom',
-  disabled = false,
-  compact = false,
   searchable = false,
   searchPlaceholder = 'Search...',
   searchVariant = 'boxed',
   selectionStyle = 'check',
   renderHeader,
   renderFooter,
-  onOpenChange,
-  triggerVariant = 'default',
-  iconWithLabel = false,
-  dropdownAlign = 'left',
-  ariaLabel,
-}: DropdownProps<T>) {
-  const { isOpen, dropdownRef, setIsOpen } = useDropdown();
-  const panelRef = useRef<HTMLDivElement>(null);
-  const fit = usePanelFit(dropdownRef, panelRef, isOpen && !disabled, dropdownPosition === 'auto');
-  const panelTransform = usePanelInlineShift(panelRef, isOpen && !disabled);
-  const panelSide = dropdownPosition === 'auto' ? (fit?.side ?? 'bottom') : dropdownPosition;
+  onPick,
+}: DropdownOptionsProps<T>) {
   const [searchQuery, setSearchQuery] = useState('');
   const isMobile = useIsMobile();
-  const isSplitMode = useIsSplitMode();
-  const prevIsOpenRef = useRef(isOpen);
-
-  if (prevIsOpenRef.current !== isOpen) {
-    prevIsOpenRef.current = isOpen;
-    if (!isOpen) {
-      setSearchQuery('');
-    }
-  }
-
-  // Parent-owned state can't be written from the render check above — notify via effect
-  useEffect(() => {
-    onOpenChange?.(isOpen);
-  }, [isOpen, onOpenChange]);
 
   // An empty query lets Escape through to useDropdown, which closes the panel.
   const handleSearchKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -199,15 +188,159 @@ const Dropdown = memo(function Dropdown<T>({
 
   const displayItems = normalizeToGrouped(items, searchQuery);
 
-  const showIconOnly = compact && LeftIcon;
-  const forceCompact = compact && isSplitMode;
-  // Visibility lives on the tooltip wrapper (the flex item) so a hidden label doesn't
-  // leave a zero-width slot that still consumes the trigger's gap in compact mode.
-  const labelSlotClass = clsx(
-    styles['label-slot'],
-    showIconOnly && (forceCompact ? styles['label-slot--hidden'] : styles['label-slot--compact']),
-  );
+  return (
+    <>
+      {renderHeader?.()}
+      {searchable && searchVariant === 'boxed' && (
+        <div className={styles['search-box']}>
+          <div className={styles['search-box-field']}>
+            <Search className={styles['search-icon']} />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder={searchPlaceholder}
+              autoFocus={!isMobile}
+              className={styles['search-input']}
+            />
+            {searchQuery && (
+              <Button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                variant="unstyled"
+                aria-label="Clear search"
+                className={styles['search-clear']}
+              >
+                <X />
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+      {searchable && searchVariant === 'underline' && (
+        <div className={styles['search-underline']}>
+          <Search className={styles['search-icon']} />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={handleSearchKeyDown}
+            placeholder={searchPlaceholder}
+            autoFocus={!isMobile}
+            className={styles['search-underline-input']}
+          />
+          {searchQuery && (
+            <Button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              variant="unstyled"
+              aria-label="Clear search"
+              className={styles['search-underline-clear']}
+            >
+              <X />
+            </Button>
+          )}
+        </div>
+      )}
+      <div className={styles.items}>
+        {displayItems.map((entry, index) => {
+          if (entry.type === 'divider') {
+            return <div key={`divider-${index}`} role="separator" className={styles.divider} />;
+          }
+          if (entry.type === 'header') {
+            return (
+              <div
+                key={`header-${entry.label}`}
+                className={clsx(
+                  styles['group-header'],
+                  index !== 0 && styles['group-header--divided'],
+                )}
+              >
+                {entry.label}
+              </div>
+            );
+          }
 
+          const item = entry.data;
+          const isSelected = getItemKey(item) === getItemKey(value);
+          return (
+            <SelectItem
+              key={getItemKey(item)}
+              isSelected={isSelected}
+              role="option"
+              onSelect={() => onPick(item)}
+              className={clsx(
+                styles['item-row'],
+                selectionStyle === 'accent' && styles['item-row--accent'],
+              )}
+            >
+              {selectionStyle === 'check' && (
+                <Check
+                  className={clsx(
+                    styles['item-check'],
+                    isSelected && styles['item-check--selected'],
+                  )}
+                />
+              )}
+              {selectionStyle === 'accent' && isSelected && (
+                <div className={styles['item-accent']} />
+              )}
+              <div className={clsx(styles['item-content'], itemClassName)}>
+                {renderItem ? (
+                  renderItem(item, isSelected)
+                ) : (
+                  <FloatingTooltip content={getItemLabel(item)} className={styles['item-content']}>
+                    <span
+                      className={clsx(
+                        styles['item-label'],
+                        isSelected && styles['item-label--selected'],
+                      )}
+                    >
+                      {getItemLabel(item)}
+                    </span>
+                  </FloatingTooltip>
+                )}
+              </div>
+            </SelectItem>
+          );
+        })}
+      </div>
+      {renderFooter?.()}
+    </>
+  );
+}
+
+function DropdownPopover<T>(props: DropdownProps<T>) {
+  const {
+    value,
+    getItemLabel,
+    getItemShortLabel,
+    triggerSuffix,
+    onSelect,
+    leftIcon: LeftIcon,
+    width = '10rem',
+    dropdownPosition = 'bottom',
+    disabled = false,
+    compact = false,
+    onOpenChange,
+    triggerVariant = 'default',
+    iconWithLabel = false,
+    dropdownAlign = 'left',
+    ariaLabel,
+  } = props;
+  const { isOpen, dropdownRef, setIsOpen } = useDropdown();
+  const panelRef = useRef<HTMLDivElement>(null);
+  const fit = usePanelFit(dropdownRef, panelRef, isOpen && !disabled, dropdownPosition === 'auto');
+  const panelTransform = usePanelInlineShift(panelRef, isOpen && !disabled);
+  const panelSide = dropdownPosition === 'auto' ? (fit?.side ?? 'bottom') : dropdownPosition;
+  const isSplitMode = useIsSplitMode();
+
+  useEffect(() => {
+    onOpenChange?.(isOpen);
+  }, [isOpen, onOpenChange]);
+
+  const iconOnly = compact && !!LeftIcon && isSplitMode;
   const triggerLabel = getItemShortLabel ? getItemShortLabel(value) : getItemLabel(value);
   const triggerLabelChars = Array.from(triggerLabel);
 
@@ -225,19 +358,23 @@ const Dropdown = memo(function Dropdown<T>({
         }
         className={clsx(TRIGGER_CLASSES[triggerVariant], isOpen && !disabled && stateClasses.OPEN)}
       >
-        {LeftIcon && (triggerVariant === 'text' ? showIconOnly || iconWithLabel : true) && (
+        {LeftIcon && (triggerVariant === 'text' ? iconOnly || iconWithLabel : true) && (
           <LeftIcon
             className={clsx(
               styles['trigger-icon'],
-              !forceCompact &&
-                triggerVariant !== 'toolbar' &&
-                triggerVariant !== 'field' &&
+              triggerVariant === 'default' &&
+                !iconOnly &&
                 !iconWithLabel &&
                 styles['trigger-icon--responsive'],
             )}
           />
         )}
-        <FloatingTooltip content={isOpen ? '' : triggerLabel} className={labelSlotClass}>
+        {/* Visibility lives on the tooltip wrapper (the flex item) so a hidden label doesn't
+            leave a zero-width slot that still consumes the trigger's gap. */}
+        <FloatingTooltip
+          content={isOpen ? '' : triggerLabel}
+          className={clsx(styles['label-slot'], iconOnly && styles['label-slot--hidden'])}
+        >
           <span className={styles['trigger-label']}>
             {triggerVariant === 'toolbar' ? (
               <>
@@ -253,16 +390,7 @@ const Dropdown = memo(function Dropdown<T>({
         </FloatingTooltip>
         {triggerSuffix && <span className={styles['trigger-suffix']}>{triggerSuffix}</span>}
         {triggerVariant !== 'text' && !disabled && (
-          <ChevronDown
-            className={clsx(
-              styles.chevron,
-              showIconOnly &&
-                !forceCompact &&
-                triggerVariant !== 'toolbar' &&
-                styles['chevron--responsive'],
-              isOpen && stateClasses.OPEN,
-            )}
-          />
+          <ChevronDown className={clsx(styles.chevron, isOpen && stateClasses.OPEN)} />
         )}
       </Button>
 
@@ -282,131 +410,31 @@ const Dropdown = memo(function Dropdown<T>({
             fit?.maxHeight !== undefined && styles['panel--capped'],
           )}
         >
-          {renderHeader?.()}
-          {searchable && searchVariant === 'boxed' && (
-            <div className={styles['search-box']}>
-              <div className={styles['search-box-field']}>
-                <Search className={styles['search-icon']} />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onKeyDown={handleSearchKeyDown}
-                  placeholder={searchPlaceholder}
-                  autoFocus={!isMobile}
-                  className={styles['search-input']}
-                />
-                {searchQuery && (
-                  <Button
-                    type="button"
-                    onClick={() => setSearchQuery('')}
-                    variant="unstyled"
-                    aria-label="Clear search"
-                    className={styles['search-clear']}
-                  >
-                    <X />
-                  </Button>
-                )}
-              </div>
-            </div>
-          )}
-          {searchable && searchVariant === 'underline' && (
-            <div className={styles['search-underline']}>
-              <Search className={styles['search-icon']} />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                placeholder={searchPlaceholder}
-                autoFocus={!isMobile}
-                className={styles['search-underline-input']}
-              />
-              {searchQuery && (
-                <Button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  variant="unstyled"
-                  aria-label="Clear search"
-                  className={styles['search-underline-clear']}
-                >
-                  <X />
-                </Button>
-              )}
-            </div>
-          )}
-          <div className={styles.items}>
-            {displayItems.map((entry, index) => {
-              if (entry.type === 'divider') {
-                return <div key={`divider-${index}`} role="separator" className={styles.divider} />;
-              }
-              if (entry.type === 'header') {
-                return (
-                  <div
-                    key={`header-${entry.label}`}
-                    className={clsx(
-                      styles['group-header'],
-                      index !== 0 && styles['group-header--divided'],
-                    )}
-                  >
-                    {entry.label}
-                  </div>
-                );
-              }
-
-              const item = entry.data;
-              const isSelected = getItemKey(item) === getItemKey(value);
-              return (
-                <SelectItem
-                  key={getItemKey(item)}
-                  isSelected={isSelected}
-                  role="option"
-                  onSelect={() => {
-                    onSelect(item);
-                    setIsOpen(false);
-                  }}
-                  className={clsx(
-                    styles['item-row'],
-                    selectionStyle === 'accent' && styles['item-row--accent'],
-                  )}
-                >
-                  {selectionStyle === 'check' && (
-                    <Check
-                      className={clsx(
-                        styles['item-check'],
-                        isSelected && styles['item-check--selected'],
-                      )}
-                    />
-                  )}
-                  {selectionStyle === 'accent' && isSelected && (
-                    <div className={styles['item-accent']} />
-                  )}
-                  <div className={clsx(styles['item-content'], itemClassName)}>
-                    {renderItem ? (
-                      renderItem(item, isSelected)
-                    ) : (
-                      <FloatingTooltip
-                        content={getItemLabel(item)}
-                        className={styles['item-content']}
-                      >
-                        <span
-                          className={clsx(
-                            styles['item-label'],
-                            isSelected && styles['item-label--selected'],
-                          )}
-                        >
-                          {getItemLabel(item)}
-                        </span>
-                      </FloatingTooltip>
-                    )}
-                  </div>
-                </SelectItem>
-              );
-            })}
-          </div>
-          {renderFooter?.()}
+          <DropdownOptions
+            {...props}
+            onPick={(item) => {
+              onSelect(item);
+              setIsOpen(false);
+            }}
+          />
         </div>
       )}
+    </div>
+  );
+}
+
+const Dropdown = memo(function Dropdown<T>(props: DropdownProps<T>) {
+  const { onInlineSelect, onSelect, ariaLabel } = props;
+  if (!onInlineSelect) return <DropdownPopover {...props} />;
+  return (
+    <div role="listbox" aria-label={ariaLabel} className={styles.inline}>
+      <DropdownOptions
+        {...props}
+        onPick={(item) => {
+          onSelect(item);
+          onInlineSelect();
+        }}
+      />
     </div>
   );
 }) as <T>(props: DropdownProps<T>) => ReactElement;

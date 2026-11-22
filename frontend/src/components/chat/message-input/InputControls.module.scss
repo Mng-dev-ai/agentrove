@@ -53,3 +53,10 @@
     padding-inline-end: var(--space-1);
   }
 }
+
+// Phones with neither branch nor context ring: keep only the bottom inset under the box
+.footer--bare {
+  @include responsive.media('touch') {
+    min-height: 0;
+  }
+}

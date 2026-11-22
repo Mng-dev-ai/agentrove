@@ -2,20 +2,10 @@ import { memo, useMemo } from 'react';
 import { useChatSettings } from '@/hooks/useChatSettings';
 import { UserCircle } from 'lucide-react';
 import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
-import {
-  useChatSettingsStore,
-  DEFAULT_CHAT_SETTINGS_KEY,
-  DEFAULT_PERSONA,
-} from '@/store/chatSettingsStore';
+import { useChatSettingsStore, DEFAULT_CHAT_SETTINGS_KEY } from '@/store/chatSettingsStore';
 import { useChatContext } from '@/hooks/useChatContext';
 import type { Persona } from '@/types/user.types';
-
-interface PersonaOption {
-  value: string;
-  label: string;
-}
-
-const DEFAULT_OPTION: PersonaOption = { value: DEFAULT_PERSONA, label: 'Default' };
+import { getPersonaOption, getPersonaOptions } from './personaOptions';
 
 interface PersonaDropdownControlProps {
   dropdownPosition?: DropdownPosition;
@@ -23,6 +13,7 @@ interface PersonaDropdownControlProps {
   compact?: boolean;
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
+  onInlineSelect?: () => void;
 }
 
 export interface PersonaDropdownProps extends PersonaDropdownControlProps {
@@ -40,15 +31,13 @@ export const PersonaDropdown = memo(function PersonaDropdown({
   disabled = false,
   compact = true,
   variant = 'default',
+  onInlineSelect,
 }: PersonaDropdownProps) {
-  const items = useMemo(
-    () => [DEFAULT_OPTION, ...personas.map((p) => ({ value: p.name, label: p.name }))],
-    [personas],
-  );
+  const items = useMemo(() => getPersonaOptions(personas), [personas]);
 
   if (personas.length === 0) return null;
 
-  const selectedItem = items.find((item) => item.value === value) ?? DEFAULT_OPTION;
+  const selectedItem = getPersonaOption(value, items);
 
   return (
     <Dropdown
@@ -65,6 +54,7 @@ export const PersonaDropdown = memo(function PersonaDropdown({
       compact={compact}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
+      onInlineSelect={onInlineSelect}
     />
   );
 });
