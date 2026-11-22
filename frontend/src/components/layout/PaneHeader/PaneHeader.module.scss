@@ -43,6 +43,10 @@
   background-color: var(--theme-surface);
   padding-inline: var(--space-3);
 
+  &--panel {
+    container: none;
+  }
+
   &--in-tile {
     width: 100%;
     flex: none;

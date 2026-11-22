@@ -119,6 +119,7 @@ export function PanelHeader({ agentTile, inTile }: { agentTile: AgentTileId; inT
     <div
       className={clsx(
         styles.header,
+        styles['header--panel'],
         inTile && [styles['header--in-tile'], styles['header--over-panel']],
       )}
     >
