@@ -6,7 +6,7 @@ export interface PersonaOption {
   label: string;
 }
 
-export const DEFAULT_PERSONA_OPTION: PersonaOption = { value: DEFAULT_PERSONA, label: 'Default' };
+const DEFAULT_PERSONA_OPTION: PersonaOption = { value: DEFAULT_PERSONA, label: 'Default' };
 
 export const getPersonaOptions = (personas: Persona[]): PersonaOption[] => [
   DEFAULT_PERSONA_OPTION,

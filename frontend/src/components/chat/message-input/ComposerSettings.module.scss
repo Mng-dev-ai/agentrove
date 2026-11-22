@@ -4,64 +4,6 @@
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
-.row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-1-5);
-  padding-inline-start: var(--space-1);
-
-  // Spreads the chips so their 40px touch targets don't overlap
-  @include responsive.media('touch') {
-    gap: var(--space-3);
-  }
-}
-
-.chip {
-  @include type.type-meta(500);
-  @include anim.transition-colors;
-  @include responsive.touch-target;
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-  gap: var(--space-1);
-  border-radius: var(--radius-full);
-  padding: var(--space-0-5) var(--space-2);
-  white-space: nowrap;
-
-  &--warning {
-    background-color: colors.status-color('warning', 500, 0.14);
-    color: var(--theme-warning-text);
-  }
-
-  &--accent {
-    background-color: colors.status-color('info', 500, 0.14);
-    color: var(--theme-info-text);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-}
-
-.chip-icon {
-  height: var(--space-3);
-  width: var(--space-3);
-  flex-shrink: 0;
-}
-
-.chip-label {
-  max-width: var(--space-24);
-  overflow: hidden;
-  text-overflow: ellipsis;
-
-  .row[data-compact] & {
-    display: none;
-  }
-}
-
 .trigger {
   @include type.type-meta(500);
   @include anim.transition-colors;
@@ -95,75 +37,70 @@
 }
 
 .header {
-  display: flex;
+  display: grid;
   flex-shrink: 0;
+  grid-template-columns: var(--space-10) minmax(0, 1fr) var(--space-10);
   align-items: center;
-  gap: var(--space-1);
-  border-bottom: 1px solid var(--theme-border);
-  padding: var(--space-1);
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-4) var(--space-3);
 }
 
 .title {
-  @include type.type-default(500);
+  @include type.type-body(600);
   @include type.type-overflow;
-  min-width: 0;
-  flex: 1;
-  padding-inline: var(--space-2);
+  grid-column: 2;
+  text-align: center;
   color: var(--theme-text-primary);
-
-  .header-button + & {
-    padding-inline-start: 0;
-  }
 }
 
 .header-button {
   @include anim.transition-colors;
   @include controls.focus-ring;
   display: flex;
-  height: var(--space-9);
-  width: var(--space-9);
-  flex-shrink: 0;
+  height: var(--space-10);
+  width: var(--space-10);
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-lg);
-  color: var(--theme-text-quaternary);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-full);
+  color: var(--theme-text-secondary);
 
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
-    color: var(--theme-text-secondary);
+    color: var(--theme-text-primary);
   }
 
   svg {
-    height: var(--space-4);
-    width: var(--space-4);
+    height: var(--space-5);
+    width: var(--space-5);
   }
 }
 
 .body {
   min-height: 0;
-  flex: 1;
+  flex: 0 1 auto;
+  padding: var(--space-2) var(--space-4) var(--space-4);
+  transition: height var(--duration-base) var(--easing-out);
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
 .rows {
-  padding: var(--space-1);
-
-  > * + * {
-    margin-top: 1px;
-  }
+  overflow: hidden;
+  border-radius: var(--radius-3xl);
+  background-color: var(--theme-surface-tertiary);
 }
 
 .setting-row {
   @include anim.transition-colors(var(--duration-fast));
-  @include controls.focus-ring;
+  @include controls.focus-ring(-2px);
+  position: relative;
   display: flex;
-  min-height: var(--space-9);
+  min-height: var(--space-12);
   width: 100%;
   align-items: center;
-  gap: var(--space-2);
-  border-radius: var(--radius-lg);
-  padding: var(--space-1-5) var(--space-2);
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
   text-align: left;
 
   @include responsive.hover {
@@ -173,23 +110,41 @@
   &:active {
     background-color: colors.theme-color('surface-hover', 0.7);
   }
+
+  & + .setting-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: calc(var(--space-4) + var(--space-4) + var(--space-3));
+    right: var(--space-4);
+    border-top: 1px solid var(--theme-border);
+  }
 }
 
 .setting-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  height: var(--space-4);
+  width: var(--space-4);
   flex-shrink: 0;
   color: var(--theme-text-tertiary);
 }
 
+// Name and value share a baseline; the row centres this group with the icon and chevron
+.setting-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
 .setting-name {
-  @include type.type-meta(500);
+  @include type.type-body;
   flex-shrink: 0;
   color: var(--theme-text-primary);
 }
 
 .setting-value {
-  @include type.type-meta;
+  @include type.type-default;
   @include type.type-overflow;
   min-width: 0;
   flex: 1;

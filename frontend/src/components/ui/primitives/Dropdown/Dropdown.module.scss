@@ -430,14 +430,114 @@
   }
 }
 
-// onInlineSelect: the list sits in a host surface (e.g. a bottom sheet) that scrolls it
+// onInlineSelect: the list sits in a host surface (e.g. a bottom sheet) that scrolls it, at
+// native sheet size: rows grouped into cards, separators between them, a check on the right
 .inline {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+
+  .search-underline {
+    gap: var(--space-2);
+    border: none;
+    border-radius: var(--radius-full);
+    background-color: var(--theme-surface-tertiary);
+    padding: 0 0 0 var(--space-4);
+  }
+
+  .search-icon {
+    height: var(--space-4);
+    width: var(--space-4);
+  }
+
+  .search-underline-input {
+    // 16px or more, or iOS Safari zooms the page on focus
+    @include type.type-large;
+    height: var(--space-10);
+  }
+
+  .search-underline-clear {
+    display: flex;
+    height: var(--space-10);
+    width: var(--space-10);
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+
+    svg {
+      height: var(--space-4);
+      width: var(--space-4);
+    }
+  }
+
   .items {
     max-height: none;
     overflow-y: visible;
+    padding: 0;
+
+    > * + * {
+      margin-top: 0;
+    }
+  }
+
+  .divider {
+    height: var(--space-3);
+    margin: 0;
+    border: none;
   }
 
   .item-row {
-    min-height: var(--space-9);
+    min-height: var(--space-12);
+    gap: var(--space-3);
+    border-radius: 0;
+    background-color: var(--theme-surface-tertiary);
+    padding: var(--space-1) var(--space-4);
+
+    &[aria-selected='true'] {
+      background-color: var(--theme-surface-tertiary);
+    }
+
+    &:first-child {
+      border-top-left-radius: var(--radius-3xl);
+      border-top-right-radius: var(--radius-3xl);
+    }
+
+    &:last-child,
+    &:has(+ .divider) {
+      border-bottom-left-radius: var(--radius-3xl);
+      border-bottom-right-radius: var(--radius-3xl);
+    }
+
+    & + .item-row::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: var(--space-4);
+      right: var(--space-4);
+      border-top: 1px solid var(--theme-border);
+    }
+  }
+
+  .divider + .item-row {
+    border-top-left-radius: var(--radius-3xl);
+    border-top-right-radius: var(--radius-3xl);
+  }
+
+  // Only the selected row shows its check, so the others keep the width for their label
+  .item-check {
+    display: none;
+    order: 1;
+    height: var(--space-4);
+    width: var(--space-4);
+
+    &--selected {
+      display: block;
+      color: var(--theme-info-text);
+    }
+  }
+
+  .item-label {
+    @include type.type-body;
+    color: var(--theme-text-primary);
   }
 }

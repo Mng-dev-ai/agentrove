@@ -19,6 +19,14 @@
   }
 }
 
+// Option lists that Dropdown renders inline (onInlineSelect: the phone settings sheet) take
+// native sheet sizing; the same markup in desktop popovers keeps the dense scale.
+@mixin inline-options {
+  :global([data-inline-options]) & {
+    @content;
+  }
+}
+
 @mixin button-base {
   @include type.type-default(500);
   @include anim.transition-colors;

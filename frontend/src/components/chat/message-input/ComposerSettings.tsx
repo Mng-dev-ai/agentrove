@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState } from 'react';
 import type { ComponentType, ReactNode, SVGProps } from 'react';
-import clsx from 'clsx';
 import { Brain, ChevronLeft, ChevronRight, Shield, UserCircle, X, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
@@ -10,14 +9,10 @@ import { ThinkingModeSelector } from '@/components/chat/thinking-mode-selector/T
 import { getThinkingModeOption } from '@/components/chat/thinking-mode-selector/thinkingModes';
 import { FastModeSelector } from '@/components/chat/fast-mode-selector/FastModeSelector';
 import { PermissionModeSelector } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
-import {
-  getPermissionModeOption,
-  isDefaultPermissionMode,
-} from '@/components/chat/permission-mode-selector/permissionModes';
+import { getPermissionModeOption } from '@/components/chat/permission-mode-selector/permissionModes';
 import { useFastModeOption } from '@/components/chat/fast-mode-selector/fastModes';
 import { PersonaSelector } from '@/components/chat/persona-selector/PersonaSelector';
 import {
-  DEFAULT_PERSONA_OPTION,
   getPersonaOption,
   getPersonaOptions,
 } from '@/components/chat/persona-selector/personaOptions';
@@ -27,12 +22,8 @@ import { useChatSettings } from '@/hooks/useChatSettings';
 import { preventBlur, type ComposerSettingsInfo } from './useComposerSettings';
 import styles from './ComposerSettings.module.scss';
 
-// The main label keeps at least this many of its own em before the chips give up their labels
-const MIN_READABLE_LABEL_EM = 8;
-
 type SettingKey = 'model' | 'thinking' | 'fast' | 'permission' | 'persona';
 type SheetView = 'list' | SettingKey;
-type ChipTone = 'warning' | 'accent';
 
 interface SettingRow {
   key: SettingKey;
@@ -42,14 +33,6 @@ interface SettingRow {
   options: ReactNode;
 }
 
-interface Chip {
-  key: SettingKey;
-  icon: ComponentType<SVGProps<SVGSVGElement>>;
-  label: string;
-  ariaLabel: string;
-  tone: ChipTone;
-}
-
 export function MobileComposerSettings({ settings }: { settings: ComposerSettingsInfo }) {
   const { state, actions } = useInputContext();
   const { personas } = useChatContext();
@@ -57,11 +40,13 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
   const agent = agentKind ?? 'claude';
   const { permissionMode, thinkingMode, persona } = useChatSettings(state.chatId);
   const fastOption = useFastModeOption(state.chatId);
-  const [view, setView] = useState<SheetView | null>(null);
+  const [open, setOpen] = useState(false);
+  // Kept while closing so the sheet slides out with the content it showed
+  const [view, setView] = useState<SheetView>('list');
   // The sheet's selectors can't be disabled, so loading closes the sheet as the triggers lock
-  if (state.isLoading && view !== null) setView(null);
-  const rowRef = useRef<HTMLDivElement>(null);
-  const labelRef = useRef<HTMLSpanElement>(null);
+  if (state.isLoading && open) setOpen(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const bodyHeight = useRef(0);
 
   const thinking = getThinkingModeOption(thinkingMode, agent, selectedModel);
   const permission = getPermissionModeOption(permissionMode, agent);
@@ -137,101 +122,70 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
     });
   }
 
-  const chips: Chip[] = [];
-  if (!isDefaultPermissionMode(permission.value, agent)) {
-    chips.push({
-      key: 'permission',
-      icon: Shield,
-      label: permission.label,
-      ariaLabel: `Permission mode: ${permission.label}`,
-      tone: 'warning',
-    });
-  }
-  if (showPersona && personaOption !== DEFAULT_PERSONA_OPTION) {
-    chips.push({
-      key: 'persona',
-      icon: UserCircle,
-      label: personaOption.label,
-      ariaLabel: `Persona: ${personaOption.label}`,
-      tone: 'accent',
-    });
-  }
-  if (showFastMode && fastOption.value) {
-    chips.push({
-      key: 'fast',
-      icon: Zap,
-      label: fastOption.label,
-      ariaLabel: `Fast mode: ${fastOption.label}`,
-      tone: 'warning',
-    });
-  }
-
-  const chipLabels = chips.map((chip) => chip.label).join('\n');
-
-  // Chips drop their labels only when keeping them would squeeze the main label below a
-  // readable width: try the labelled layout, measure, and collapse within the same frame.
+  // Keeps the starting height current when a filter or a running transition resizes the body
+  // between view switches
   useLayoutEffect(() => {
-    const row = rowRef.current;
-    const label = labelRef.current;
-    const form = row?.closest('form');
-    if (!row || !label || !form) return;
-    const measure = () => {
-      row.removeAttribute('data-compact');
-      const readable = parseFloat(getComputedStyle(label).fontSize) * MIN_READABLE_LABEL_EM;
-      if (label.clientWidth < Math.min(label.scrollWidth, readable)) {
-        row.setAttribute('data-compact', '');
-      }
-    };
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(form);
+    const body = bodyRef.current;
+    if (!open || !body) return;
+    const observer = new ResizeObserver(() => {
+      bodyHeight.current = body.offsetHeight;
+    });
+    observer.observe(body);
     return () => observer.disconnect();
-  }, [chipLabels, triggerLabel, state.hasMessage]);
+  }, [open]);
+
+  // Eases the body from the previous view's height to the new one via its CSS height
+  // transition (none under reduced motion). The target waits until the new view has painted
+  // once at the old height, so its first (slow) layout doesn't eat the transition's start.
+  useLayoutEffect(() => {
+    const body = bodyRef.current;
+    const from = bodyHeight.current;
+    bodyHeight.current = 0;
+    if (!open || !body) return;
+    body.style.height = '';
+    const to = body.offsetHeight;
+    bodyHeight.current = to;
+    if (!from || from === to || getComputedStyle(body).transitionDuration === '0s') return;
+    body.style.height = `${from}px`;
+    body.getBoundingClientRect();
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        body.style.height = `${to}px`;
+      });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [open, view]);
 
   const activeRow = rows.find((row) => row.key === view);
 
   return (
     <>
-      <div ref={rowRef} className={styles.row} onMouseDown={preventBlur}>
-        {chips.map((chip) => (
-          <Button
-            key={chip.key}
-            type="button"
-            variant="unstyled"
-            disabled={state.isLoading}
-            aria-label={chip.ariaLabel}
-            onClick={() => setView(chip.key)}
-            className={clsx(styles.chip, styles[`chip--${chip.tone}`])}
-          >
-            <chip.icon className={styles['chip-icon']} />
-            <span className={styles['chip-label']}>{chip.label}</span>
-          </Button>
-        ))}
-        <Button
-          type="button"
-          variant="unstyled"
-          disabled={state.isLoading}
-          aria-haspopup="dialog"
-          aria-expanded={view !== null}
-          aria-label={`Chat settings: ${triggerLabel}`}
-          onClick={() => setView('list')}
-          className={styles.trigger}
-        >
-          <ModelIcon className={styles['trigger-icon']} />
-          <span ref={labelRef} className={styles['trigger-label']}>
-            {triggerLabel}
-          </span>
-        </Button>
-      </div>
+      <Button
+        type="button"
+        variant="unstyled"
+        disabled={state.isLoading}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-label={`Chat settings: ${triggerLabel}`}
+        onMouseDown={preventBlur}
+        onClick={() => {
+          setView('list');
+          setOpen(true);
+        }}
+        className={styles.trigger}
+      >
+        <ModelIcon className={styles['trigger-icon']} />
+        <span className={styles['trigger-label']}>{triggerLabel}</span>
+      </Button>
 
       <BaseModal
-        isOpen={view !== null}
-        onClose={() => setView(null)}
+        isOpen={open}
+        onClose={() => setOpen(false)}
         variant="sheet"
         ariaLabel="Chat settings"
       >
         <div className={styles.header}>
-          {activeRow && (
+          {activeRow ? (
             <Button
               type="button"
               variant="unstyled"
@@ -241,19 +195,26 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
             >
               <ChevronLeft />
             </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="unstyled"
+              aria-label="Close"
+              onClick={() => setOpen(false)}
+              className={styles['header-button']}
+            >
+              <X />
+            </Button>
           )}
           <h3 className={styles.title}>{activeRow ? activeRow.name : 'Chat settings'}</h3>
-          <Button
-            type="button"
-            variant="unstyled"
-            aria-label="Close"
-            onClick={() => setView(null)}
-            className={styles['header-button']}
-          >
-            <X />
-          </Button>
         </div>
-        <div className={styles.body}>
+        <div
+          ref={bodyRef}
+          className={styles.body}
+          onTransitionEnd={(e) => {
+            if (e.target === e.currentTarget) e.currentTarget.style.height = '';
+          }}
+        >
           {activeRow ? (
             activeRow.options
           ) : (
@@ -267,8 +228,10 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
                   className={styles['setting-row']}
                 >
                   <row.icon className={styles['setting-icon']} />
-                  <span className={styles['setting-name']}>{row.name}</span>
-                  <span className={styles['setting-value']}>{row.value}</span>
+                  <span className={styles['setting-text']}>
+                    <span className={styles['setting-name']}>{row.name}</span>
+                    <span className={styles['setting-value']}>{row.value}</span>
+                  </span>
                   <ChevronRight className={styles['setting-chevron']} />
                 </Button>
               ))}
