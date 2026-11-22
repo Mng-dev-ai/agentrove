@@ -58,6 +58,22 @@ def _channel_summary(channel: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def _resolve_members(
+    client: AgentroveClient, members: list[ChannelMember]
+) -> list[dict[str, Any]]:
+    resolved_members = []
+    for member in members:
+        resolved_model, agent_kind = await client.resolve_model(member.model_id)
+        resolved_members.append(
+            {
+                **member.model_dump(exclude_none=True),
+                "model_id": resolved_model,
+                "permission_mode": PERMISSION_MODE_BY_AGENT[agent_kind],
+            }
+        )
+    return resolved_members
+
+
 def _automation_summary(a: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": a["id"],
@@ -779,19 +795,9 @@ async def create_channel(
     """
     client, _ = _session()
     resolved_workspace = await client.resolve_workspace_id(workspace_id)
-    resolved_members = []
-    for member in members:
-        resolved_model, agent_kind = await client.resolve_model(member.model_id)
-        resolved_members.append(
-            {
-                **member.model_dump(exclude_none=True),
-                "model_id": resolved_model,
-                "permission_mode": PERMISSION_MODE_BY_AGENT[agent_kind],
-            }
-        )
     body: dict[str, Any] = {
         "name": name,
-        "members": resolved_members,
+        "members": await _resolve_members(client, members),
         "workspace_id": resolved_workspace,
         "worktree": worktree,
         "branch": branch,
@@ -886,8 +892,8 @@ async def list_automations() -> dict[str, Any]:
     Each automation runs its prompt on a cron schedule, starting a new unattended chat
     every time it fires — or, when channel_members is set, a new channel with those
     members. Returns id, name, cron_expression, timezone, enabled, model_id,
-    workspace_id, channel_members and the next_run_at / last_run_at timestamps. Use an id with
-    update_automation, delete_automation or run_automation.
+    workspace_id, channel_members and the next_run_at / last_run_at timestamps. Use an
+    id with update_automation, delete_automation or run_automation.
     """
     client, _ = _session()
     automations = await client.list_automations()
@@ -906,6 +912,7 @@ async def create_automation(
     worktree: bool = False,
     persona: str | None = None,
     enabled: bool = True,
+    channel_members: Annotated[list[ChannelMember], Field(min_length=1)] | None = None,
 ) -> dict[str, Any]:
     """Create a scheduled automation that runs a prompt on a cron schedule.
 
@@ -916,6 +923,11 @@ async def create_automation(
     a Claude model and workspace_id to use the most recently active workspace. Per-run
     options (thinking_mode, worktree, persona) match send_message. Set
     enabled=false to create it paused.
+
+    Pass channel_members (as in create_channel) to start a new channel instead of a
+    chat: each run creates a channel named after the automation with those members in
+    the workspace and posts the prompt into it as you, so the members start working.
+    worktree applies to the channel; model_id, thinking_mode and persona are not used.
 
     Returns the created automation, including its id and next_run_at.
     """
@@ -937,7 +949,15 @@ async def create_automation(
         body["thinking_mode"] = thinking_mode
     if persona:
         body["selected_persona_name"] = persona
+    if channel_members:
+        body["channel_members"] = await _resolve_members(client, channel_members)
     automation = await client.create_automation(body)
+    if channel_members and automation.get("channel_members") is None:
+        await client.delete_automation(automation["id"])
+        raise AgentroveError(
+            "This backend does not support new-channel targets; the automation was "
+            "not created."
+        )
     return {"automation": _automation_summary(automation)}
 
 
@@ -954,11 +974,15 @@ async def update_automation(
     worktree: bool | None = None,
     persona: str | None = None,
     enabled: bool | None = None,
+    channel_members: list[ChannelMember] | None = None,
 ) -> dict[str, Any]:
     """Update an existing automation; only the arguments you pass are changed.
 
     Pass model_id to switch models (its permission mode is updated to match), enabled to
     pause/resume, or cron_expression/timezone to reschedule (next_run_at is recomputed).
+    Pass channel_members to start a new channel with those members per run (see
+    create_automation) or to replace its members, or an empty list to go back to
+    starting a new chat per run (it then needs a valid model_id).
     Returns the updated automation.
     """
     client, _ = _session()
@@ -985,7 +1009,17 @@ async def update_automation(
         body["selected_persona_name"] = persona
     if enabled is not None:
         body["enabled"] = enabled
+    if channel_members is not None:
+        body["channel_members"] = (
+            await _resolve_members(client, channel_members) if channel_members else None
+        )
     automation = await client.update_automation(automation_id, body)
+    if channel_members and automation.get("channel_members") is None:
+        raise AgentroveError(
+            "This backend does not support new-channel targets; automation "
+            f"{automation['id']} kept its other changes and still starts a new chat "
+            "per run."
+        )
     return {"automation": _automation_summary(automation)}
 
 
@@ -1003,9 +1037,9 @@ async def run_automation(automation_id: str) -> dict[str, Any]:
 
     Starts a new unattended chat with the automation's prompt right now; the regular cron
     schedule (next_run_at) is unaffected. Returns the chat_id of the new chat — poll
-    get_messages on it to read the reply. An automation with channel_members instead
-    creates a new channel with those members and posts the prompt there; it returns that
-    channel_id — read the replies with get_channel_messages.
+    get_messages on it to read the reply. For a new-channel target (channel_members)
+    it creates the channel and posts the prompt instead, and returns the new
+    channel_id — read the members' replies with get_channel_messages.
     """
     client, _ = _session()
     result = await client.run_automation(automation_id)

@@ -2503,6 +2503,7 @@ async def mcp_call_tool(
     client: httpx.AsyncClient,
     authorization: dict[str, str],
     name: str,
+    /,
     **arguments: Any,
 ) -> dict[str, Any]:
     response = await mcp_post(
@@ -3062,6 +3063,104 @@ async def test_respond_to_request_answers_only_the_callers_sub_threads(
         }
     workspace.sandbox_provider = "host"
     await db_session.commit()
+
+
+def route_sandbox_client_to_app(
+    monkeypatch: pytest.MonkeyPatch,
+    client: httpx.AsyncClient,
+    ignored_fields: frozenset[str] = frozenset(),
+) -> None:
+    async def send_via_app(
+        agent: _SandboxClient, method: str, path: str, **kwargs: Any
+    ) -> httpx.Response:
+        if "json" in kwargs:
+            kwargs["json"] = {
+                k: v for k, v in kwargs["json"].items() if k not in ignored_fields
+            }
+        headers = {"Authorization": f"Bearer {agent._access_token}"}
+        return await client.request(method, f"/api/v1{path}", headers=headers, **kwargs)
+
+    monkeypatch.setattr(_SandboxClient, "_send", send_via_app)
+
+
+async def docker_chat_authorization(
+    db_session: AsyncSession, workspace: Workspace, monkeypatch: pytest.MonkeyPatch
+) -> dict[str, str]:
+    user = await db_session.get_one(User, workspace.user_id)
+    workspace.sandbox_provider = "docker"
+    await db_session.commit()
+    chat = await create_chat_row(db_session, user, workspace)
+    monkeypatch.setitem(session_registry._mcp_sessions, "automation-scope", None)
+    server = docker_mcp_server(
+        str(user.id),
+        user.hashed_password,
+        workspace_id=str(workspace.id),
+        chat_id=str(chat.id),
+        session_id="automation-scope",
+    )
+    return {"Authorization": server["headers"]["Authorization"]}
+
+
+async def test_create_automation_tool_sends_resolved_channel_members(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _headers, workspace = auth_workspace
+    route_sandbox_client_to_app(monkeypatch, client)
+    authorization = await docker_chat_authorization(db_session, workspace, monkeypatch)
+    async with main_module.mcp_endpoint.run():
+        created = await mcp_call_tool(
+            client,
+            authorization,
+            "create_automation",
+            name="Digest",
+            prompt="Review yesterday's changes",
+            cron_expression="0 9 * * *",
+            channel_members=[{"model_id": "sonnet", "display_name": "reviewer"}],
+        )
+    workspace.sandbox_provider = "host"
+    await db_session.commit()
+
+    assert not created.get("isError"), created
+    [automation] = (await db_session.scalars(select(Automation))).all()
+    assert automation.channel_members == [
+        {
+            "model_id": "sonnet",
+            "display_name": "reviewer",
+            "permission_mode": "bypassPermissions",
+            "persona": None,
+            "thinking_mode": None,
+        }
+    ]
+
+
+async def test_create_automation_tool_refuses_a_backend_without_new_channels(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _headers, workspace = auth_workspace
+    route_sandbox_client_to_app(monkeypatch, client, frozenset({"channel_members"}))
+    authorization = await docker_chat_authorization(db_session, workspace, monkeypatch)
+    async with main_module.mcp_endpoint.run():
+        refused = await mcp_call_tool(
+            client,
+            authorization,
+            "create_automation",
+            name="Digest",
+            prompt="Review yesterday's changes",
+            cron_expression="0 9 * * *",
+            channel_members=[{"model_id": "sonnet"}],
+        )
+    workspace.sandbox_provider = "host"
+    await db_session.commit()
+
+    assert refused["isError"], refused
+    assert "does not support new-channel targets" in refused["content"][0]["text"]
+    assert (await db_session.scalars(select(Automation))).all() == []
 
 
 @pytest.mark.parametrize("revoke", ["device", "password_reset"])
