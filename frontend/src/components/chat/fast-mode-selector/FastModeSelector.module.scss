@@ -10,7 +10,7 @@
   }
 
   @include controls.inline-options {
-    @include type.type-large;
+    @include type.type-body;
     color: var(--theme-text-primary);
   }
 }

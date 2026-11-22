@@ -43,8 +43,8 @@
   color: var(--theme-text-tertiary);
 
   @include controls.inline-options {
-    height: var(--space-5);
-    width: var(--space-5);
+    height: var(--space-4);
+    width: var(--space-4);
   }
 }
 
@@ -65,7 +65,7 @@
   }
 
   @include controls.inline-options {
-    @include type.type-large;
+    @include type.type-body;
     color: var(--theme-text-primary);
   }
 }
@@ -116,8 +116,8 @@
   width: var(--space-3);
 
   @include controls.inline-options {
-    height: var(--space-5);
-    width: var(--space-5);
+    height: var(--space-4);
+    width: var(--space-4);
   }
 
   &--active {

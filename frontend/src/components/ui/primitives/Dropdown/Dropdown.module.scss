@@ -527,8 +527,8 @@
   .item-check {
     display: none;
     order: 1;
-    height: var(--space-5);
-    width: var(--space-5);
+    height: var(--space-4);
+    width: var(--space-4);
 
     &--selected {
       display: block;
@@ -537,7 +537,7 @@
   }
 
   .item-label {
-    @include type.type-large;
+    @include type.type-body;
     color: var(--theme-text-primary);
   }
 }

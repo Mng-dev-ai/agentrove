@@ -30,7 +30,7 @@
   }
 
   @include controls.inline-options {
-    @include type.type-large;
+    @include type.type-body;
     color: var(--theme-text-primary);
   }
 }
@@ -40,7 +40,7 @@
   color: var(--theme-text-quaternary);
 
   @include controls.inline-options {
-    @include type.type-body;
+    @include type.type-default;
     color: var(--theme-text-tertiary);
   }
 }

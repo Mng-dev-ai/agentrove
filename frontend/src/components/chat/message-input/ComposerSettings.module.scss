@@ -46,7 +46,7 @@
 }
 
 .title {
-  @include type.type-large(600);
+  @include type.type-body(600);
   @include type.type-overflow;
   grid-column: 2;
   text-align: center;
@@ -99,7 +99,7 @@
   min-height: var(--space-12);
   width: 100%;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   text-align: left;
 
@@ -115,27 +115,36 @@
     content: '';
     position: absolute;
     top: 0;
-    left: calc(var(--space-4) + var(--space-5) + var(--space-2));
+    left: calc(var(--space-4) + var(--space-4) + var(--space-3));
     right: var(--space-4);
     border-top: 1px solid var(--theme-border);
   }
 }
 
 .setting-icon {
-  height: var(--space-5);
-  width: var(--space-5);
+  height: var(--space-4);
+  width: var(--space-4);
   flex-shrink: 0;
   color: var(--theme-text-tertiary);
 }
 
+// Name and value share a baseline; the row centres this group with the icon and chevron
+.setting-text {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
 .setting-name {
-  @include type.type-large;
+  @include type.type-body;
   flex-shrink: 0;
   color: var(--theme-text-primary);
 }
 
 .setting-value {
-  @include type.type-body;
+  @include type.type-default;
   @include type.type-overflow;
   min-width: 0;
   flex: 1;
@@ -144,8 +153,8 @@
 }
 
 .setting-chevron {
-  height: var(--space-4);
-  width: var(--space-4);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
   flex-shrink: 0;
   color: var(--theme-text-quaternary);
 }

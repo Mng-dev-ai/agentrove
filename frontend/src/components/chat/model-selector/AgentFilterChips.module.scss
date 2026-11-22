@@ -32,7 +32,7 @@
   color: var(--theme-text-secondary);
 
   @include controls.inline-options {
-    @include type.type-large(500);
+    @include type.type-body(500);
     height: var(--space-10);
     min-width: var(--space-10);
     flex-shrink: 0;
@@ -71,7 +71,7 @@
   width: var(--space-3);
 
   @include controls.inline-options {
-    height: var(--space-5);
-    width: var(--space-5);
+    height: var(--space-4);
+    width: var(--space-4);
   }
 }

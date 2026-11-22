@@ -228,8 +228,10 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
                   className={styles['setting-row']}
                 >
                   <row.icon className={styles['setting-icon']} />
-                  <span className={styles['setting-name']}>{row.name}</span>
-                  <span className={styles['setting-value']}>{row.value}</span>
+                  <span className={styles['setting-text']}>
+                    <span className={styles['setting-name']}>{row.name}</span>
+                    <span className={styles['setting-value']}>{row.value}</span>
+                  </span>
                   <ChevronRight className={styles['setting-chevron']} />
                 </Button>
               ))}
