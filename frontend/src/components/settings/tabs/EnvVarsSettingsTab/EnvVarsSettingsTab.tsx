@@ -1,20 +1,15 @@
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
 import { Key, Server } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
-import { useMachineFilter } from '@/hooks/useMachineFilter';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import {
+  type MachineSettingsItem,
   useMachinesSettingsList,
   useUpdateMachineSettingsMutation,
 } from '@/hooks/queries/useMachineQueries';
-import {
-  LOCAL_MACHINE_NAME,
-  useMachineStore,
-  useOnlineRemoteMachineIds,
-} from '@/store/machineStore';
 import { ValidationError } from '@/services/base/ServiceError';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createDefaultEnvVarForm, validateEnvVarForm } from '@/utils/settings';
@@ -28,10 +23,7 @@ const EnvVarDialog = lazyNamed(
   'EnvVarDialog',
 );
 
-interface MachineEnvVar {
-  envVar: CustomEnvVar;
-  machineId: string;
-}
+type MachineEnvVar = MachineSettingsItem<CustomEnvVar>;
 
 const maskValue = (value: string) => {
   if (value.length <= 4) return '····';
@@ -59,52 +51,15 @@ function deleteEnvVar(envVars: CustomEnvVar[], key: string) {
 }
 
 export function EnvVarsSettingsTab() {
-  const { localSettings, persistSettings } = useSettingsContext();
-  const remoteIds = useOnlineRemoteMachineIds();
-  const machines = useMachineStore((state) => state.machines);
-  const machineNames = useMemo(
-    () => new Map(machines.map((machine) => [machine.id, machine.name])),
-    [machines],
-  );
-  const machineOptions = useMemo(
-    () => [
-      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
-      ...remoteIds.map((id) => ({ id, name: machineNames.get(id) ?? 'Machine' })),
-    ],
-    [remoteIds, machineNames],
-  );
-  const { machineId: machineFilter, filter } = useMachineFilter(
-    machineOptions,
-    'No environment variables match these filters',
-  );
+  const { persistSettings } = useSettingsContext();
   const {
-    byMachine: remoteEnvVars,
-    isLoading: remoteLoading,
+    machineOptions,
+    machineName,
+    machineId: machineFilter,
+    filter,
+    items,
     load: remoteLoad,
-  } = useMachinesSettingsList(remoteIds, 'custom_env_vars', machineFilter);
-  const envVarsByMachine = useMemo(
-    (): Record<string, CustomEnvVar[]> => ({
-      ...remoteEnvVars,
-      [LOCAL_MACHINE_ID]: localSettings.custom_env_vars ?? [],
-    }),
-    [remoteEnvVars, localSettings.custom_env_vars],
-  );
-  const items = useMemo(
-    (): MachineEnvVar[] | null =>
-      remoteLoading
-        ? null
-        : machineOptions
-            .filter((machine) => !machineFilter || machine.id === machineFilter)
-            .flatMap((machine) =>
-              (envVarsByMachine[machine.id] ?? []).map((envVar) => ({
-                envVar,
-                machineId: machine.id,
-              })),
-            ),
-    [remoteLoading, machineOptions, envVarsByMachine, machineFilter],
-  );
-
-  const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
+  } = useMachinesSettingsList('custom_env_vars', 'No environment variables match these filters');
   const queryClient = useQueryClient();
   const remoteMutation = useUpdateMachineSettingsMutation({
     scope: { id: 'machine-env-vars' },
@@ -159,7 +114,7 @@ export function EnvVarsSettingsTab() {
     const item = items?.[index];
     if (!item) return;
     setEditingItem(item);
-    setForm({ ...item.envVar, machineId: item.machineId });
+    setForm({ ...item.entry, machineId: item.machineId });
     setFormError(null);
     setIsDialogOpen(true);
   };
@@ -170,7 +125,7 @@ export function EnvVarsSettingsTab() {
     try {
       await writeEnvVars(
         item.machineId,
-        (envVars) => deleteEnvVar(envVars, item.envVar.key),
+        (envVars) => deleteEnvVar(envVars, item.entry.key),
         'Failed to delete environment variable',
       );
     } catch (error) {
@@ -181,7 +136,7 @@ export function EnvVarsSettingsTab() {
 
   const handleSave = async () => {
     const envVar: CustomEnvVar = { key: form.key, value: form.value };
-    const editingKey = editingItem?.envVar.key ?? null;
+    const editingKey = editingItem?.entry.key ?? null;
     try {
       await writeEnvVars(
         form.machineId,
@@ -206,9 +161,9 @@ export function EnvVarsSettingsTab() {
         addButtonText="Add Variable"
         deleteConfirmTitle="Delete Environment Variable"
         deleteConfirmMessage={(item) =>
-          `Are you sure you want to delete "${item.envVar.key}"? This action cannot be undone.`
+          `Are you sure you want to delete "${item.entry.key}"? This action cannot be undone.`
         }
-        getItemKey={(item) => `${item.machineId}:${item.envVar.key}`}
+        getItemKey={(item) => `${item.machineId}:${item.entry.key}`}
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
@@ -216,7 +171,7 @@ export function EnvVarsSettingsTab() {
         renderItem={(item) => (
           <>
             <div className={styles['item-header']}>
-              <h3 className={styles['item-key']}>{item.envVar.key}</h3>
+              <h3 className={styles['item-key']}>{item.entry.key}</h3>
               {item.machineId !== LOCAL_MACHINE_ID && (
                 <span className={styles.chip} title={machineName(item.machineId)}>
                   <Server className={styles['chip-icon']} />
@@ -224,7 +179,7 @@ export function EnvVarsSettingsTab() {
                 </span>
               )}
             </div>
-            <p className={styles['item-value']}>{maskValue(item.envVar.value)}</p>
+            <p className={styles['item-value']}>{maskValue(item.entry.value)}</p>
           </>
         )}
         logContext="EnvVarsSettingsTab"

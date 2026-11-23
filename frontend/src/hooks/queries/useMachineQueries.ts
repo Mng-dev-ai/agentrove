@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
 import { settingsService } from '@/services/settingsService';
@@ -6,7 +6,15 @@ import { workspaceService } from '@/services/workspaceService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
 import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
-import { useMachineStatus, useMachineStore } from '@/store/machineStore';
+import { useMachineFilter } from '@/hooks/useMachineFilter';
+import { useSettingsContext } from '@/hooks/useSettingsContext';
+import {
+  LOCAL_MACHINE_NAME,
+  useMachineStatus,
+  useMachineStore,
+  useOnlineRemoteMachineIds,
+} from '@/store/machineStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type {
   Workspace,
   WorkspaceResources,
@@ -16,6 +24,9 @@ import type { UserSettings, UserSettingsUpdate } from '@/types/user.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
 import { writeVersionedSettings } from '@/utils/settings';
 import type { ChatSearchResponse } from '@/types/chat.types';
+
+type SettingsListKey = 'personas' | 'custom_env_vars' | 'stream_actions';
+type SettingsListEntry<K extends SettingsListKey> = NonNullable<UserSettings[K]>[number];
 
 export const useMachineOnline = (machineId: string) => useMachineStatus(machineId) === 'online';
 
@@ -105,20 +116,34 @@ export const useMachineSettingsQuery = (machineId: string, enabled: boolean) => 
   });
 };
 
-export const useMachinesSettingsList = <
-  K extends 'personas' | 'custom_env_vars' | 'stream_actions',
->(
-  machineIds: string[],
-  key: K,
-  filterMachineId: string | null,
-) => {
+export interface MachineSettingsItem<T> {
+  entry: T;
+  machineId: string;
+}
+
+export const useMachinesSettingsList = <K extends SettingsListKey>(key: K, emptyText: string) => {
+  const { localSettings } = useSettingsContext();
+  const remoteIds = useOnlineRemoteMachineIds();
+  const machines = useMachineStore((state) => state.machines);
+  const machineNames = useMemo(
+    () => new Map(machines.map((machine) => [machine.id, machine.name])),
+    [machines],
+  );
+  const machineOptions = useMemo(
+    () => [
+      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
+      ...remoteIds.map((id) => ({ id, name: machineNames.get(id) ?? 'Machine' })),
+    ],
+    [remoteIds, machineNames],
+  );
+  const { machineId, filter } = useMachineFilter(machineOptions, emptyText);
   const combine = useCallback(
     (results: UseQueryResult<UserSettings>[]) => {
-      const byMachine: Record<string, NonNullable<UserSettings[K]>> = Object.fromEntries(
-        machineIds.map((machineId, index) => [machineId, results[index]?.data?.[key] ?? []]),
+      const byMachine: Record<string, SettingsListEntry<K>[]> = Object.fromEntries(
+        remoteIds.map((id, index) => [id, results[index]?.data?.[key] ?? []]),
       );
       const shown = results.filter(
-        (_result, index) => !filterMachineId || machineIds[index] === filterMachineId,
+        (_result, index) => !machineId || remoteIds[index] === machineId,
       );
       return {
         byMachine,
@@ -126,12 +151,24 @@ export const useMachinesSettingsList = <
         load: listLoadState(shown),
       };
     },
-    [machineIds, key, filterMachineId],
+    [remoteIds, key, machineId],
   );
-  return useQueries({
-    queries: machineIds.map(machineSettingsQuery),
-    combine,
-  });
+  const remote = useQueries({ queries: remoteIds.map(machineSettingsQuery), combine });
+  const localEntries: SettingsListEntry<K>[] | null = localSettings[key];
+  const items = useMemo((): MachineSettingsItem<SettingsListEntry<K>>[] | null => {
+    if (remote.isLoading) return null;
+    const byMachine: Record<string, SettingsListEntry<K>[]> = {
+      ...remote.byMachine,
+      [LOCAL_MACHINE_ID]: localEntries ?? [],
+    };
+    return machineOptions
+      .filter((machine) => !machineId || machine.id === machineId)
+      .flatMap((machine) =>
+        (byMachine[machine.id] ?? []).map((entry) => ({ entry, machineId: machine.id })),
+      );
+  }, [remote.isLoading, remote.byMachine, localEntries, machineOptions, machineId]);
+  const machineName = (id: string) => machineNames.get(id) ?? 'Machine';
+  return { machineOptions, machineName, machineId, filter, items, load: remote.load };
 };
 
 export const useUpdateMachineSettingsMutation = createMutation<
