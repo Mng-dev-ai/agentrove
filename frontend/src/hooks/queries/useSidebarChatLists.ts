@@ -55,10 +55,13 @@ function combineRemoteSources(
     const items = result.data?.items ?? [];
     source.chats = [...source.chats, ...items.filter((chat) => !seen.has(chat.id))];
     if (isLastPage) {
-      // A page still loading keeps the source's floor, or every older row flashes in.
+      // A page on its first load keeps the source's floor, or every older row flashes in.
+      // errorUpdateCount outlives the reset to pending that a refetch of a failed page causes.
       source.hasMore =
         online &&
-        (result.data ? result.data.page < result.data.pages : page > 1 && result.isLoading);
+        (result.data
+          ? result.data.page < result.data.pages
+          : page > 1 && result.isLoading && result.errorUpdateCount === 0);
     }
     source.isLoading ||= online && result.isLoading;
     source.isFetchingMore ||= page > 1 && result.isFetching;
@@ -153,7 +156,7 @@ export function useSidebarChatLists(
   const [localPagesRequested, setLocalPagesRequested] = useState<number | null>(null);
   useEffect(() => {
     if (localPagesRequested === null || isFetchingLocal) return;
-    if (localPagesLoaded >= localPagesRequested || !hasMoreLocal || localFetchMoreFailed) {
+    if (localPagesLoaded >= localPagesRequested || !pagesLocal || localFetchMoreFailed) {
       setLocalPagesRequested(null);
     } else {
       void fetchMoreLocal();
@@ -162,7 +165,7 @@ export function useSidebarChatLists(
     localPagesRequested,
     isFetchingLocal,
     localPagesLoaded,
-    hasMoreLocal,
+    pagesLocal,
     localFetchMoreFailed,
     fetchMoreLocal,
   ]);

@@ -4,6 +4,8 @@ import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { queryKeys } from '@/hooks/queries/queryKeys';
+import { ServiceError } from '@/services/base/ServiceError';
 import { chatService } from '@/services/chatService';
 import { machineChatService } from '@/services/machineChatService';
 import { assignChatRecordsToMachine, chatMachineId } from '@/store/machineOrigin';
@@ -64,16 +66,20 @@ function pageOf(pages: string[][], page: number): PaginatedChats {
   return { items, page, per_page: 2, total: pages.length * 2, pages: pages.length };
 }
 
+let queryClient: QueryClient;
+
 function wrapper({ children }: { children: ReactNode }) {
-  return <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;
+  return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }
 
 const ids = (chats: Chat[]) => chats.map((c) => c.id);
 
 describe('useSidebarChatLists Show more', () => {
-  let releaseRemotePage: () => void;
+  let laterRemotePage: () => Promise<void>;
 
   beforeEach(() => {
+    queryClient = new QueryClient();
+    laterRemotePage = () => Promise.resolve();
     useMachineStore.setState({
       machines: [{ id: REMOTE_ID, name: 'VPS', url: 'https://vps.test', pairing: null }],
       connections: { [REMOTE_ID]: { status: 'online' } },
@@ -84,12 +90,9 @@ describe('useSidebarChatLists Show more', () => {
         : pageOf(LOCAL_PAGES, params?.page ?? 1),
     );
     vi.spyOn(machineChatService, 'listWorkspaces').mockResolvedValue([]);
-    const remotePageGate = new Promise<void>((resolve) => {
-      releaseRemotePage = resolve;
-    });
     vi.spyOn(machineChatService, 'listChats').mockImplementation(async (machineId, params) => {
       const page = params?.page ?? 1;
-      if (page > 1) await remotePageGate;
+      if (page > 1) await laterRemotePage();
       const data = pageOf(REMOTE_PAGES, page);
       assignChatRecordsToMachine(machineId, data.items);
       return data;
@@ -102,7 +105,6 @@ describe('useSidebarChatLists Show more', () => {
   });
 
   it('pages only the filtered source, so a dense excluded machine cannot hold rows back', async () => {
-    releaseRemotePage();
     const { result } = renderHook(() => useSidebarChatLists([], true, LOCAL_MACHINE_ID), {
       wrapper,
     });
@@ -117,6 +119,11 @@ describe('useSidebarChatLists Show more', () => {
   });
 
   it('keeps a remote source holding older rows back while its next page loads', async () => {
+    let releaseRemotePage = () => {};
+    const gate = new Promise<void>((resolve) => {
+      releaseRemotePage = resolve;
+    });
+    laterRemotePage = () => gate;
     const { result } = renderHook(() => useSidebarChatLists([]), { wrapper });
     const firstPage = ['local-1', 'remote-1', 'remote-2'];
     await waitFor(() => expect(ids(result.current.recentChats)).toEqual(firstPage));
@@ -135,5 +142,24 @@ describe('useSidebarChatLists Show more', () => {
     await waitFor(() =>
       expect(ids(result.current.recentChats)).toEqual([...firstPage, 'remote-3', 'remote-4']),
     );
+  });
+
+  it('does not hold rows back again each time a failed remote page is refetched', async () => {
+    laterRemotePage = () => Promise.reject(new ServiceError('gone', undefined, undefined, 404));
+    const { result } = renderHook(() => useSidebarChatLists([]), { wrapper });
+    await waitFor(() => expect(result.current.hasMore).toBe(true));
+
+    act(() => result.current.loadMore());
+    const afterFailure = ['local-1', 'remote-1', 'remote-2', 'local-2', 'local-3', 'local-4'];
+    await waitFor(() => expect(ids(result.current.recentChats)).toEqual(afterFailure));
+    await waitFor(() => expect(result.current.isFetchingMore).toBe(false));
+
+    laterRemotePage = () => new Promise(() => {});
+    act(() => {
+      void queryClient.refetchQueries({ queryKey: queryKeys.machine.chatsPage(REMOTE_ID, 2) });
+    });
+    await waitFor(() => expect(result.current.isFetchingMore).toBe(true));
+
+    expect(ids(result.current.recentChats)).toEqual(afterFailure);
   });
 });
