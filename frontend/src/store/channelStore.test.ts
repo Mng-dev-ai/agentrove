@@ -136,6 +136,23 @@ describe('channel permission sync', () => {
   });
 });
 
+describe('unknown envelope kinds', () => {
+  it('leaves channel state unchanged', () => {
+    store().holdChannel(CH);
+    store().syncMessages(CH, [message('a', 1, 1)]);
+    requestLive(permission('m1', 'r1'));
+    store().syncActivity(CH, activity('e1', 1, ['m1']));
+    const { channels, activity: channelActivity, completedChannelIds } = store();
+
+    store().applyEnvelope({ channelId: CH, kind: 'channel_future', payload: {} } as never);
+
+    expect(store().channels).toEqual(channels);
+    expect(slice()).toBe(channels[CH]);
+    expect(store().activity).toBe(channelActivity);
+    expect(store().completedChannelIds).toBe(completedChannelIds);
+  });
+});
+
 describe('channel activity', () => {
   it('ignores stale versions within an epoch but accepts any version from a new epoch', () => {
     store().syncActivity(CH, activity('e1', 5, ['m1']));
