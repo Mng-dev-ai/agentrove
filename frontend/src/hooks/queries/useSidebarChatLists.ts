@@ -139,23 +139,20 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
   } = localQuery;
   const localPagesLoaded = localChatsData?.pages.length ?? 0;
   // An invalidation mid-fetch cancels the next-page fetch and refetches only the
-  // loaded pages, so Show more keeps its target and fetches again until it lands.
-  const [localPagesWanted, setLocalPagesWanted] = useState(1);
+  // loaded pages, so a pending Show more fetches again until it lands or can't.
+  const [localPagesRequested, setLocalPagesRequested] = useState<number | null>(null);
   useEffect(() => {
-    if (
-      localPagesLoaded > 0 &&
-      localPagesLoaded < localPagesWanted &&
-      hasMoreLocal &&
-      !isFetchingLocal &&
-      !localFetchMoreFailed
-    ) {
+    if (localPagesRequested === null || isFetchingLocal) return;
+    if (localPagesLoaded >= localPagesRequested || !hasMoreLocal || localFetchMoreFailed) {
+      setLocalPagesRequested(null);
+    } else {
       void fetchMoreLocal();
     }
   }, [
-    localPagesLoaded,
-    localPagesWanted,
-    hasMoreLocal,
+    localPagesRequested,
     isFetchingLocal,
+    localPagesLoaded,
+    hasMoreLocal,
     localFetchMoreFailed,
     fetchMoreLocal,
   ]);
@@ -211,14 +208,14 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
   const remoteWithMoreKey = remoteWithMore.join('\n');
   const loadMore = useCallback(() => {
     if (hasMoreLocal) {
-      setLocalPagesWanted(localPagesLoaded + 1);
+      setLocalPagesRequested(localPagesLoaded + 1);
       void fetchMoreLocal();
     }
     if (remoteWithMoreKey) loadMoreRemote(remoteWithMoreKey.split('\n'));
   }, [hasMoreLocal, localPagesLoaded, fetchMoreLocal, remoteWithMoreKey, loadMoreRemote]);
   const showLess = useCallback(() => {
     showLessRemote();
-    setLocalPagesWanted(1);
+    setLocalPagesRequested(null);
     const queryKey = infiniteChatsQueryKey({ pinned: false });
     queryClient.setQueryData<InfiniteData<PaginatedChats>>(
       queryKey,
