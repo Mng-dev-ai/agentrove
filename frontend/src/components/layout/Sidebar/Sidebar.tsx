@@ -86,6 +86,7 @@ export function Sidebar({
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  const chatLists = useSidebarChatLists(workspaces, true, filters.source);
   const {
     pinnedChats,
     recentChats,
@@ -95,13 +96,7 @@ export function Sidebar({
     threadsLoad,
     pinnedLoad,
     recentsLoad,
-    hasMore,
-    isFetchingMore,
-    loadMoreFailed,
-    loadMore,
-    canShowLess,
-    showLess,
-  } = useSidebarChatLists(workspaces, true, filters.source);
+  } = chatLists;
 
   const sidebarChats = useMemo(() => [...pinnedChats, ...recentChats], [pinnedChats, recentChats]);
   const chatActions = useSidebarChatActions({
@@ -182,7 +177,7 @@ export function Sidebar({
   const pagingCanMatch =
     hasActiveFilters && (filters.statuses.length === 0 || filters.statuses.includes('unread'));
   const showMore = useShowMoreUntilMatch(
-    { hasMore, isFetchingMore, loadMoreFailed, loadMore, showLess },
+    chatLists,
     visiblePinnedChats.length + visibleRecentChats.length,
     pagingCanMatch ? filters : null,
   );
@@ -317,10 +312,10 @@ export function Sidebar({
           onChangeFilters={(next) => useUIStore.getState().setSidebarFilters(next)}
           workspaceBadgeById={workspaceBadgeById}
           machineOptions={machineOptions}
-          hasMore={hasMore}
+          hasMore={showMore.hasMore}
           isFetchingMore={showMore.isFetchingMore}
           onLoadMore={showMore.loadMore}
-          canShowLess={canShowLess}
+          canShowLess={showMore.canShowLess}
           onShowLess={showMore.showLess}
         />
 

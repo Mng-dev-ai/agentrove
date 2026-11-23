@@ -189,6 +189,34 @@ describe('useSidebarChatLists Show more', () => {
     );
     expect(remotePages()).not.toContain(3);
   });
+  it('leaves a failed remote page alone on an invalidation until Show more is clicked', async () => {
+    laterRemotePage = () => Promise.reject(new ServiceError('gone', undefined, undefined, 404));
+    const { result } = renderHook(() => useSidebarChatLists([]), { wrapper });
+    const firstPage = ['local-1', 'remote-1', 'remote-2'];
+    await waitFor(() => expect(ids(result.current.recentChats)).toEqual(firstPage));
+    const pageTwoFetches = () =>
+      vi.mocked(machineChatService.listChats).mock.calls.filter(([, params]) => params?.page === 2)
+        .length;
+    act(() => result.current.loadMore());
+    await waitFor(() => expect(pageTwoFetches()).toBe(1));
+    await waitFor(() => expect(result.current.isFetchingMore).toBe(false));
+
+    laterRemotePage = () => Promise.resolve();
+    await act(async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(REMOTE_ID) });
+    });
+
+    expect(pageTwoFetches()).toBe(1);
+    expect(result.current.isFetchingMore).toBe(false);
+    expect(ids(result.current.recentChats)).toEqual(firstPage);
+
+    act(() => result.current.loadMore());
+    await waitFor(() =>
+      expect(ids(result.current.recentChats)).toEqual([...firstPage, 'remote-3', 'remote-4']),
+    );
+    expect(pageTwoFetches()).toBe(2);
+  });
+
   it('keeps paging after one filtered Show more until a matching row appears', async () => {
     const filters = { ...EMPTY_SIDEBAR_FILTERS, statuses: ['unread' as const] };
     const matching = ['local-1', 'remote-5'];
