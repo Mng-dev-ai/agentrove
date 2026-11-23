@@ -6,7 +6,7 @@ import {
   type Query,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import { MACHINE_CHATS_PER_PAGE } from '@/config/constants';
+import { MACHINE_CHATS_PER_PAGE, SHOW_MORE_MAX_PAGE_ROUNDS } from '@/config/constants';
 import { infiniteChatsQueryKey, useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
@@ -15,7 +15,7 @@ import { machineChatService } from '@/services/machineChatService';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
 import { mergeRecentSources } from '@/utils/mergeRecentSources';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
-import type { SidebarSourceFilter } from '@/store/sidebarFilters';
+import type { SidebarFilters, SidebarSourceFilter } from '@/store/sidebarFilters';
 import type { PaginatedChats } from '@/types/api.types';
 import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -157,7 +157,6 @@ export function useSidebarChatLists(
     hasNextPage: hasMoreLocal,
     fetchNextPage: fetchMoreLocal,
     isFetching: isFetchingLocal,
-    isFetchingNextPage: isFetchingMoreLocal,
     isFetchNextPageError: localFetchMoreFailed,
     isLoading: isLoadingLocal,
   } = localQuery;
@@ -272,13 +271,65 @@ export function useSidebarChatLists(
     isLoadingPinned: pinnedQuery.isLoading,
     hasMore: pagesLocal || remotesWithMore.length > 0,
     isFetchingMore:
-      (pagesLocal && isFetchingMoreLocal) ||
+      (pagesLocal && localPagesRequested !== null) ||
       shownRemotes.some(([, remote]) => remote.isFetchingMore),
+    loadMoreFailed:
+      (pagesLocal && localFetchMoreFailed) ||
+      remotesWithMore.some(([, remote]) => remote.retryFailedPage !== null),
     loadMore,
     canShowLess: (localChatsData?.pages.length ?? 0) > 1 || hasMoreThanFirstRemotePage,
     showLess,
     threadsLoad: listLoadState([pinnedQuery, localQuery, ...remoteFirstPages]),
     pinnedLoad: listLoadState([pinnedQuery]),
     recentsLoad: listLoadState([localQuery, ...remoteFirstPages]),
+  };
+}
+
+type ShowMorePaging = Pick<
+  ReturnType<typeof useSidebarChatLists>,
+  'hasMore' | 'isFetchingMore' | 'loadMoreFailed' | 'loadMore' | 'showLess'
+>;
+
+// Filters narrow loaded pages client-side, so a fetched page can add no visible row: one
+// click keeps paging until a match shows, nothing is left, a page fails or the cap is hit.
+// `filters` is null when paging further cannot surface a match; a new object ends the run.
+export function useShowMoreUntilMatch(
+  { hasMore, isFetchingMore, loadMoreFailed, loadMore, showLess }: ShowMorePaging,
+  matchCount: number,
+  filters: SidebarFilters | null,
+) {
+  const [run, setRun] = useState<{
+    roundsLeft: number;
+    matchCount: number;
+    filters: SidebarFilters;
+  } | null>(null);
+  useEffect(() => {
+    if (!run || isFetchingMore) return;
+    if (
+      run.filters !== filters ||
+      matchCount > run.matchCount ||
+      !hasMore ||
+      loadMoreFailed ||
+      run.roundsLeft === 0
+    ) {
+      setRun(null);
+    } else {
+      setRun({ ...run, roundsLeft: run.roundsLeft - 1 });
+      loadMore();
+    }
+  }, [run, isFetchingMore, filters, matchCount, hasMore, loadMoreFailed, loadMore]);
+
+  return {
+    isFetchingMore: isFetchingMore || run !== null,
+    loadMore: () => {
+      if (filters && !loadMoreFailed) {
+        setRun({ roundsLeft: SHOW_MORE_MAX_PAGE_ROUNDS - 1, matchCount, filters });
+      }
+      loadMore();
+    },
+    showLess: () => {
+      setRun(null);
+      showLess();
+    },
   };
 }

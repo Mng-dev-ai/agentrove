@@ -13,7 +13,8 @@ import { useMachineStore } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { PaginatedChats } from '@/types/api.types';
 import type { Chat } from '@/types/chat.types';
-import { useSidebarChatLists } from './useSidebarChatLists';
+import { EMPTY_SIDEBAR_FILTERS } from '@/store/sidebarFilters';
+import { useShowMoreUntilMatch, useSidebarChatLists } from './useSidebarChatLists';
 
 const REMOTE_ID = 'vps';
 const LOCAL_PAGES = [
@@ -187,5 +188,23 @@ describe('useSidebarChatLists Show more', () => {
       expect(ids(result.current.recentChats)).toEqual([...firstPage, 'remote-3', 'remote-4']),
     );
     expect(remotePages()).not.toContain(3);
+  });
+  it('keeps paging after one filtered Show more until a matching row appears', async () => {
+    const filters = { ...EMPTY_SIDEBAR_FILTERS, statuses: ['unread' as const] };
+    const matching = ['local-1', 'remote-5'];
+    const { result } = renderHook(
+      () => {
+        const lists = useSidebarChatLists([]);
+        const matches = ids(lists.recentChats).filter((id) => matching.includes(id));
+        return { matches, ...useShowMoreUntilMatch(lists, matches.length, filters) };
+      },
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.matches).toEqual(['local-1']));
+
+    act(() => result.current.loadMore());
+
+    await waitFor(() => expect(result.current.matches).toEqual(matching));
+    await waitFor(() => expect(result.current.isFetchingMore).toBe(false));
   });
 });

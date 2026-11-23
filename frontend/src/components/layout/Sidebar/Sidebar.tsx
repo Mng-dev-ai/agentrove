@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
-import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
+import { useShowMoreUntilMatch, useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
@@ -97,6 +97,7 @@ export function Sidebar({
     recentsLoad,
     hasMore,
     isFetchingMore,
+    loadMoreFailed,
     loadMore,
     canShowLess,
     showLess,
@@ -176,6 +177,15 @@ export function Sidebar({
     [hasActiveFilters, recentChats, chatMatchesFilters],
   );
   const hasVisibleContent = visiblePinnedChats.length > 0 || visibleRecentChats.length > 0;
+  // Running, done and needs-you come from this session's streams, which sit on the newest
+  // pages: fetching older pages for them alone would spend every round for nothing.
+  const pagingCanMatch =
+    hasActiveFilters && (filters.statuses.length === 0 || filters.statuses.includes('unread'));
+  const showMore = useShowMoreUntilMatch(
+    { hasMore, isFetchingMore, loadMoreFailed, loadMore, showLess },
+    visiblePinnedChats.length + visibleRecentChats.length,
+    pagingCanMatch ? filters : null,
+  );
   // Chats blocked on the user lift into a "Needs you" group above Pinned, so an
   // approval or question isn't buried in Recents. They leave their usual section
   // while blocked and drop back once answered.
@@ -308,10 +318,10 @@ export function Sidebar({
           workspaceBadgeById={workspaceBadgeById}
           machineOptions={machineOptions}
           hasMore={hasMore}
-          isFetchingMore={isFetchingMore}
-          onLoadMore={loadMore}
+          isFetchingMore={showMore.isFetchingMore}
+          onLoadMore={showMore.loadMore}
           canShowLess={canShowLess}
-          onShowLess={showLess}
+          onShowLess={showMore.showLess}
         />
 
         {/* Always render footer so settings/logout work even if the user query fails. */}

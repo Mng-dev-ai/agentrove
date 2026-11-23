@@ -40,3 +40,4 @@ export const EMPTY_BUILTIN_COMMANDS: Record<AgentKind, SlashCommand[]> = {
 };
 
 export const MACHINE_CHATS_PER_PAGE = 25;
+export const SHOW_MORE_MAX_PAGE_ROUNDS = 3;
