@@ -53,4 +53,34 @@ describe('FloatingTooltip', () => {
     expect(tooltip.style.top).toBe('124px');
     expect(tooltip.style.left).toBe('192px');
   });
+
+  it('hides only when the scrolled element contains the trigger', () => {
+    render(
+      <>
+        <div data-testid="trigger-scroller">
+          <FloatingTooltip content="Tooltip content">
+            <span>Trigger</span>
+          </FloatingTooltip>
+        </div>
+        <div data-testid="other-scroller" />
+      </>,
+    );
+    const trigger = screen.getByText('Trigger').parentElement!;
+    vi.spyOn(trigger, 'getBoundingClientRect').mockReturnValue({
+      top: 100,
+      bottom: 120,
+      left: 20,
+    } as DOMRect);
+    vi.spyOn(trigger, 'matches').mockImplementation((selector) => selector === ':hover');
+    fireEvent.pointerEnter(trigger, { pointerType: 'mouse' });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    fireEvent.scroll(screen.getByTestId('other-scroller'));
+    expect(screen.queryByRole('tooltip')).not.toBeNull();
+
+    fireEvent.scroll(screen.getByTestId('trigger-scroller'));
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
 });

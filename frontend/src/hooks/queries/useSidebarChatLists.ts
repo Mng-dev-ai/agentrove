@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   useQueries,
   useQueryClient,
@@ -132,9 +132,30 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     data: localChatsData,
     hasNextPage: hasMoreLocal,
     fetchNextPage: fetchMoreLocal,
+    isFetching: isFetchingLocal,
     isFetchingNextPage: isFetchingMoreLocal,
+    isFetchNextPageError: localFetchMoreFailed,
     isLoading: isLoadingLocal,
   } = localQuery;
+  const localPagesLoaded = localChatsData?.pages.length ?? 0;
+  // An invalidation mid-fetch cancels the next-page fetch and refetches only the
+  // loaded pages, so a pending Show more fetches again until it lands or can't.
+  const [localPagesRequested, setLocalPagesRequested] = useState<number | null>(null);
+  useEffect(() => {
+    if (localPagesRequested === null || isFetchingLocal) return;
+    if (localPagesLoaded >= localPagesRequested || !hasMoreLocal || localFetchMoreFailed) {
+      setLocalPagesRequested(null);
+    } else {
+      void fetchMoreLocal();
+    }
+  }, [
+    localPagesRequested,
+    isFetchingLocal,
+    localPagesLoaded,
+    hasMoreLocal,
+    localFetchMoreFailed,
+    fetchMoreLocal,
+  ]);
   const remoteMachineIds = useRemoteMachineIds();
   const {
     sources: remoteSources,
@@ -186,11 +207,15 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     .map(([machineId]) => machineId);
   const remoteWithMoreKey = remoteWithMore.join('\n');
   const loadMore = useCallback(() => {
-    if (hasMoreLocal) void fetchMoreLocal();
+    if (hasMoreLocal) {
+      setLocalPagesRequested(localPagesLoaded + 1);
+      void fetchMoreLocal();
+    }
     if (remoteWithMoreKey) loadMoreRemote(remoteWithMoreKey.split('\n'));
-  }, [hasMoreLocal, fetchMoreLocal, remoteWithMoreKey, loadMoreRemote]);
+  }, [hasMoreLocal, localPagesLoaded, fetchMoreLocal, remoteWithMoreKey, loadMoreRemote]);
   const showLess = useCallback(() => {
     showLessRemote();
+    setLocalPagesRequested(null);
     const queryKey = infiniteChatsQueryKey({ pinned: false });
     queryClient.setQueryData<InfiniteData<PaginatedChats>>(
       queryKey,
