@@ -38,7 +38,7 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 
 ## Compatibility rules
 
-- Released frontends can be older than the backend they talk to, and released frontends up to v0.1.69 wipe an open channel's state on a channel-feed envelope `kind` they do not know (`applyToSlice` in `frontend/src/store/channelStore.ts` had no default case). Never add an envelope kind. Carry new signals as optional fields on `channel_member_activity` (bump `activity_version`, `backend/app/services/channel.py`) or on existing payloads, and prove it by running the v0.1.69 `channelStore`/`streamService` against the new payload (`git show v0.1.69:<path>`).
+- Released frontends can be older than the backend they talk to. They ignore channel-feed envelope kinds they do not know (`default` case of `applyToSlice` in `frontend/src/store/channelStore.ts`; frontends up to v0.1.69 wiped the open channel instead and are unsupported), so a new kind is safe when older frontends still work without it. Changing or removing an existing kind or payload field breaks them.
 - Older backends ignore unknown request fields, so new optional request fields are safe.
 - Grok CLI is installed unpinned from `x.ai/cli/stable` (`backend/Dockerfile`): an image rebuild can change its ACP behavior. Its modes are UI labels mapped to the CLI's `default`/`plan`; always-approve is the `--always-approve` launch flag; auto-review is `_meta.autoMode` on session new/load; effort is the `reasoning_effort` config option (ignored on load). See `GrokAgentAdapter` in `backend/app/services/acp/adapters.py`.
 
