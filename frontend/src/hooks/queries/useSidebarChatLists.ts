@@ -3,6 +3,7 @@ import {
   useQueries,
   useQueryClient,
   type InfiniteData,
+  type Query,
   type UseQueryResult,
 } from '@tanstack/react-query';
 import { MACHINE_CHATS_PER_PAGE } from '@/config/constants';
@@ -29,6 +30,7 @@ interface RemoteChatSource {
   hasMore: boolean;
   isLoading: boolean;
   isFetchingMore: boolean;
+  retryFailedPage: (() => Promise<unknown>) | null;
 }
 
 interface PagePlan {
@@ -54,18 +56,19 @@ function combineRemoteSources(
       hasMore: false,
       isLoading: false,
       isFetchingMore: false,
+      retryFailedPage: null,
     };
     const seen = new Set(source.chats.map((chat) => chat.id));
     const items = result.data?.items ?? [];
     source.chats = [...source.chats, ...items.filter((chat) => !seen.has(chat.id))];
     if (isLastPage) {
-      // A page on its first load keeps the source's floor, or every older row flashes in.
-      // errorUpdateCount outlives the reset to pending that a refetch of a failed page causes.
-      source.hasMore =
-        online &&
-        (result.data
-          ? result.data.page < result.data.pages
-          : page > 1 && result.isLoading && result.errorUpdateCount === 0);
+      // A later page without data, loading or failed, still hides whatever lies beyond it,
+      // so the source keeps holding older rows back and Show more stays to retry it.
+      source.hasMore = online && (result.data ? result.data.page < result.data.pages : page > 1);
+      // errorUpdateCount outlives the reset to pending that refetching a failed page causes.
+      if (page > 1 && !result.data && result.errorUpdateCount > 0) {
+        source.retryFailedPage = result.refetch;
+      }
     }
     source.isLoading ||= online && result.isLoading;
     source.isFetchingMore ||= page > 1 && result.isLoading;
@@ -108,7 +111,12 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
         machineChatService.listChats(machineId, { page, per_page: MACHINE_CHATS_PER_PAGE }),
       enabled: enabled && online,
       staleTime: 10_000,
-      refetchInterval: 15_000,
+      // A failed Show more page waits for a click: retrying it on the interval would
+      // flip the button to Loading every 15s.
+      refetchInterval: (query: Query<PaginatedChats>) =>
+        page > 1 && query.state.data === undefined && query.state.errorUpdateCount > 0
+          ? false
+          : 15_000,
       retry: retryTransientOnce,
     })),
     combine,
@@ -223,17 +231,22 @@ export function useSidebarChatLists(
     return map;
   }, [workspaces, machineWorkspaces]);
 
-  const remoteWithMore = shownRemotes
-    .filter(([, remote]) => remote.hasMore)
-    .map(([machineId]) => machineId);
-  const remoteWithMoreKey = remoteWithMore.join('\n');
+  const remotesWithMore = useMemo(
+    () => shownRemotes.filter(([, remote]) => remote.hasMore),
+    [shownRemotes],
+  );
   const loadMore = useCallback(() => {
     if (pagesLocal) {
       setLocalPagesRequested(localPagesLoaded + 1);
       void fetchMoreLocal();
     }
-    if (remoteWithMoreKey) loadMoreRemote(remoteWithMoreKey.split('\n'));
-  }, [pagesLocal, localPagesLoaded, fetchMoreLocal, remoteWithMoreKey, loadMoreRemote]);
+    const nextPageOf: string[] = [];
+    for (const [machineId, remote] of remotesWithMore) {
+      if (remote.retryFailedPage) void remote.retryFailedPage();
+      else nextPageOf.push(machineId);
+    }
+    if (nextPageOf.length > 0) loadMoreRemote(nextPageOf);
+  }, [pagesLocal, localPagesLoaded, fetchMoreLocal, remotesWithMore, loadMoreRemote]);
   const showLess = useCallback(() => {
     showLessRemote();
     setLocalPagesRequested(null);
@@ -257,7 +270,7 @@ export function useSidebarChatLists(
     machineWorkspaces,
     isLoadingChats: isLoadingLocal || remoteSourceList.some((source) => source.isLoading),
     isLoadingPinned: pinnedQuery.isLoading,
-    hasMore: pagesLocal || remoteWithMore.length > 0,
+    hasMore: pagesLocal || remotesWithMore.length > 0,
     isFetchingMore:
       (pagesLocal && isFetchingMoreLocal) ||
       shownRemotes.some(([, remote]) => remote.isFetchingMore),

@@ -166,22 +166,26 @@ describe('useSidebarChatLists Show more', () => {
     expect(result.current.isFetchingMore).toBe(false);
   });
 
-  it('does not hold rows back again each time a failed remote page is refetched', async () => {
+  it('keeps a failed remote page holding rows back, and Show more retries that page', async () => {
     laterRemotePage = () => Promise.reject(new ServiceError('gone', undefined, undefined, 404));
     const { result } = renderHook(() => useSidebarChatLists([]), { wrapper });
-    await waitFor(() => expect(result.current.hasMore).toBe(true));
+    const firstPage = ['local-1', 'remote-1', 'remote-2'];
+    await waitFor(() => expect(ids(result.current.recentChats)).toEqual(firstPage));
 
+    const remotePages = () =>
+      vi.mocked(machineChatService.listChats).mock.calls.map(([, params]) => params?.page);
     act(() => result.current.loadMore());
-    const afterFailure = ['local-1', 'remote-1', 'remote-2', 'local-2', 'local-3', 'local-4'];
-    await waitFor(() => expect(ids(result.current.recentChats)).toEqual(afterFailure));
+    await waitFor(() => expect(remotePages()).toContain(2));
     await waitFor(() => expect(result.current.isFetchingMore).toBe(false));
+    expect(ids(result.current.recentChats)).toEqual(firstPage);
+    expect(result.current.hasMore).toBe(true);
 
-    laterRemotePage = () => new Promise(() => {});
-    act(() => {
-      void queryClient.refetchQueries({ queryKey: queryKeys.machine.chatsPage(REMOTE_ID, 2) });
-    });
-    await waitFor(() => expect(result.current.isFetchingMore).toBe(true));
+    laterRemotePage = () => Promise.resolve();
+    act(() => result.current.loadMore());
 
-    expect(ids(result.current.recentChats)).toEqual(afterFailure);
+    await waitFor(() =>
+      expect(ids(result.current.recentChats)).toEqual([...firstPage, 'remote-3', 'remote-4']),
+    );
+    expect(remotePages()).not.toContain(3);
   });
 });
