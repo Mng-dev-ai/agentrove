@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
-import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
+import { useShowMoreUntilMatch, useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore } from '@/store/uiStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
@@ -67,8 +67,26 @@ export function Sidebar({
   // pages. Lives in the persisted uiStore so reloads keep the narrowed view.
   const storedFilters = useUIStore((state) => state.sidebarFilters);
 
+  const machines = useMachineStore((state) => state.machines);
+  const machineOptions = useMemo(
+    () => [
+      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
+      ...machines.map((machine) => ({ id: machine.id, name: machine.name })),
+    ],
+    [machines],
+  );
+  const filters = useMemo(
+    () =>
+      withKnownSource(
+        storedFilters,
+        machineOptions.map((machine) => machine.id),
+      ),
+    [storedFilters, machineOptions],
+  );
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
+  const chatLists = useSidebarChatLists(workspaces, true, filters.source);
   const {
     pinnedChats,
     recentChats,
@@ -78,12 +96,7 @@ export function Sidebar({
     threadsLoad,
     pinnedLoad,
     recentsLoad,
-    hasMore,
-    isFetchingMore,
-    loadMore,
-    canShowLess,
-    showLess,
-  } = useSidebarChatLists(workspaces);
+  } = chatLists;
 
   const sidebarChats = useMemo(() => [...pinnedChats, ...recentChats], [pinnedChats, recentChats]);
   const chatActions = useSidebarChatActions({
@@ -112,23 +125,7 @@ export function Sidebar({
   // fetch time, hydrated at module load) — the workspace badge map lags behind the
   // per-machine workspaces queries and would misclassify remote chats meanwhile.
   const chatOrigins = useChatOrigins();
-  const machines = useMachineStore((state) => state.machines);
   const connections = useMachineStore((state) => state.connections);
-  const machineOptions = useMemo(
-    () => [
-      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
-      ...machines.map((machine) => ({ id: machine.id, name: machine.name })),
-    ],
-    [machines],
-  );
-  const filters = useMemo(
-    () =>
-      withKnownSource(
-        storedFilters,
-        machineOptions.map((machine) => machine.id),
-      ),
-    [storedFilters, machineOptions],
-  );
   const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
   const machineBadge = useCallback(
     (machineId: string): MachineBadge | undefined => {
@@ -175,6 +172,15 @@ export function Sidebar({
     [hasActiveFilters, recentChats, chatMatchesFilters],
   );
   const hasVisibleContent = visiblePinnedChats.length > 0 || visibleRecentChats.length > 0;
+  // Running, done and needs-you come from this session's streams, which sit on the newest
+  // pages: fetching older pages for them alone would spend every round for nothing.
+  const pagingCanMatch =
+    hasActiveFilters && (filters.statuses.length === 0 || filters.statuses.includes('unread'));
+  const showMore = useShowMoreUntilMatch(
+    chatLists,
+    visiblePinnedChats.length + visibleRecentChats.length,
+    pagingCanMatch ? filters : null,
+  );
   // Chats blocked on the user lift into a "Needs you" group above Pinned, so an
   // approval or question isn't buried in Recents. They leave their usual section
   // while blocked and drop back once answered.
@@ -306,11 +312,11 @@ export function Sidebar({
           onChangeFilters={(next) => useUIStore.getState().setSidebarFilters(next)}
           workspaceBadgeById={workspaceBadgeById}
           machineOptions={machineOptions}
-          hasMore={hasMore}
-          isFetchingMore={isFetchingMore}
-          onLoadMore={loadMore}
-          canShowLess={canShowLess}
-          onShowLess={showLess}
+          hasMore={showMore.hasMore}
+          isFetchingMore={showMore.isFetchingMore}
+          onLoadMore={showMore.loadMore}
+          canShowLess={showMore.canShowLess}
+          onShowLess={showMore.showLess}
         />
 
         {/* Always render footer so settings/logout work even if the user query fails. */}

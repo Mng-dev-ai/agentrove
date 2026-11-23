@@ -3,9 +3,10 @@ import {
   useQueries,
   useQueryClient,
   type InfiniteData,
+  type Query,
   type UseQueryResult,
 } from '@tanstack/react-query';
-import { MACHINE_CHATS_PER_PAGE } from '@/config/constants';
+import { MACHINE_CHATS_PER_PAGE, SHOW_MORE_MAX_PAGE_ROUNDS } from '@/config/constants';
 import { infiniteChatsQueryKey, useInfiniteChatsQuery } from '@/hooks/queries/useChatQueries';
 import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
@@ -14,6 +15,7 @@ import { machineChatService } from '@/services/machineChatService';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
 import { mergeRecentSources } from '@/utils/mergeRecentSources';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import type { SidebarFilters, SidebarSourceFilter } from '@/store/sidebarFilters';
 import type { PaginatedChats } from '@/types/api.types';
 import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -23,11 +25,14 @@ export interface WorkspaceBadge {
   machineId: string;
 }
 
+// The state of a source's last requested page: nothing beyond it, more to request, on
+// its first load, or failed and waiting for a Show more click to retry it.
+type Tail = 'end' | 'more' | 'loading' | 'failed';
+
 interface RemoteChatSource {
   chats: Chat[];
-  hasMore: boolean;
+  tail: Tail;
   isLoading: boolean;
-  isFetchingMore: boolean;
 }
 
 interface PagePlan {
@@ -37,33 +42,52 @@ interface PagePlan {
   isLastPage: boolean;
 }
 
+function sourceIncludes(source: SidebarSourceFilter, machineId: string): boolean {
+  return source === 'all' || source === machineId;
+}
+
+// errorUpdateCount outlives the reset to pending that refetching a failed page causes.
+function isFailedLaterPage(
+  page: number,
+  state: { data: unknown; errorUpdateCount: number },
+): boolean {
+  return page > 1 && state.data === undefined && state.errorUpdateCount > 0;
+}
+
+function tailOf(page: number, result: UseQueryResult<PaginatedChats>): Tail {
+  if (result.data) return result.data.page < result.data.pages ? 'more' : 'end';
+  if (page === 1) return 'end';
+  return isFailedLaterPage(page, result) && !result.isFetching ? 'failed' : 'loading';
+}
+
 function combineRemoteSources(
   plan: PagePlan[],
   results: UseQueryResult<PaginatedChats>[],
+  source: SidebarSourceFilter,
 ): Map<string, RemoteChatSource> {
   const sources = new Map<string, RemoteChatSource>();
   plan.forEach(({ machineId, page, online, isLastPage }, index) => {
     const result = results[index];
-    const source = sources.get(machineId) ?? {
+    const remote: RemoteChatSource = sources.get(machineId) ?? {
       chats: [],
-      hasMore: false,
+      tail: 'end',
       isLoading: false,
-      isFetchingMore: false,
     };
-    const seen = new Set(source.chats.map((chat) => chat.id));
+    const seen = new Set(remote.chats.map((chat) => chat.id));
     const items = result.data?.items ?? [];
-    source.chats = [...source.chats, ...items.filter((chat) => !seen.has(chat.id))];
-    if (isLastPage) {
-      source.hasMore = online && !!result.data && result.data.page < result.data.pages;
+    remote.chats = [...remote.chats, ...items.filter((chat) => !seen.has(chat.id))];
+    // A source that is offline or that the filter excludes shows nothing further, so it
+    // neither holds older rows back nor pages.
+    if (isLastPage && online && sourceIncludes(source, machineId)) {
+      remote.tail = tailOf(page, result);
     }
-    source.isLoading ||= online && result.isLoading;
-    source.isFetchingMore ||= page > 1 && result.isFetching;
-    sources.set(machineId, source);
+    remote.isLoading ||= online && result.isLoading;
+    sources.set(machineId, remote);
   });
   return sources;
 }
 
-function useRemoteChatSources(machineIds: string[], enabled: boolean) {
+function useRemoteChatSources(machineIds: string[], enabled: boolean, source: SidebarSourceFilter) {
   const onlineKey = useMachineStore((state) =>
     machineIds.map((id) => state.connections[id]?.status === 'online').join(','),
   );
@@ -83,19 +107,29 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
   }, [machineIds, onlineKey, pageCounts]);
 
   const combine = useCallback(
-    (results: UseQueryResult<PaginatedChats>[]) => ({
-      sources: combineRemoteSources(plan, results),
-      // Later pages come from Show more; only a failed first page means the list didn't load.
-      firstPages: results.filter((_, index) => plan[index].page === 1),
-    }),
-    [plan],
+    (results: UseQueryResult<PaginatedChats>[]) => {
+      const sources = combineRemoteSources(plan, results, source);
+      return {
+        sources,
+        // Later pages come from Show more; only a failed first page means the list didn't load.
+        firstPages: results.filter((_, index) => plan[index].page === 1),
+        failedPages: results.filter(
+          (_, index) =>
+            plan[index].isLastPage && sources.get(plan[index].machineId)?.tail === 'failed',
+        ),
+      };
+    },
+    [plan, source],
   );
-  const { sources, firstPages } = useQueries({
+  const { sources, firstPages, failedPages } = useQueries({
     queries: plan.map(({ machineId, page, online }) => ({
       queryKey: queryKeys.machine.chatsPage(machineId, page),
       queryFn: () =>
         machineChatService.listChats(machineId, { page, per_page: MACHINE_CHATS_PER_PAGE }),
-      enabled: enabled && online,
+      // A failed Show more page waits for a click: disabled, no interval, focus or
+      // invalidation refetches it, so the button never shows Loading on its own.
+      enabled: (query: Query<PaginatedChats>) =>
+        enabled && online && !isFailedLaterPage(page, query.state),
       staleTime: 10_000,
       refetchInterval: 15_000,
       retry: retryTransientOnce,
@@ -103,15 +137,16 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
     combine,
   });
 
-  const loadMore = useCallback(
-    (machineIdsWithMore: string[]) =>
-      setPageCounts((counts) => {
-        const next = { ...counts };
-        for (const machineId of machineIdsWithMore) next[machineId] = (counts[machineId] ?? 1) + 1;
-        return next;
-      }),
-    [],
-  );
+  const loadMore = useCallback(() => {
+    for (const failedPage of failedPages) void failedPage.refetch();
+    setPageCounts((counts) => {
+      const next = { ...counts };
+      for (const [machineId, remote] of sources) {
+        if (remote.tail === 'more') next[machineId] = (counts[machineId] ?? 1) + 1;
+      }
+      return next;
+    });
+  }, [failedPages, sources]);
   const showLess = useCallback(() => setPageCounts({}), []);
 
   return {
@@ -123,7 +158,11 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
   };
 }
 
-export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = true) {
+export function useSidebarChatLists(
+  workspaces: Workspace[],
+  enabled: boolean = true,
+  source: SidebarSourceFilter = 'all',
+) {
   const queryClient = useQueryClient();
   const pinnedQuery = useInfiniteChatsQuery({ pinned: true, enabled });
   const localQuery = useInfiniteChatsQuery({ pinned: false, enabled });
@@ -133,17 +172,19 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     hasNextPage: hasMoreLocal,
     fetchNextPage: fetchMoreLocal,
     isFetching: isFetchingLocal,
-    isFetchingNextPage: isFetchingMoreLocal,
     isFetchNextPageError: localFetchMoreFailed,
     isLoading: isLoadingLocal,
   } = localQuery;
   const localPagesLoaded = localChatsData?.pages.length ?? 0;
+  // Like an excluded remote: the filter hides its rows, so it neither holds older rows
+  // back nor pages.
+  const pagesLocal = !!hasMoreLocal && sourceIncludes(source, LOCAL_MACHINE_ID);
   // An invalidation mid-fetch cancels the next-page fetch and refetches only the
   // loaded pages, so a pending Show more fetches again until it lands or can't.
   const [localPagesRequested, setLocalPagesRequested] = useState<number | null>(null);
   useEffect(() => {
     if (localPagesRequested === null || isFetchingLocal) return;
-    if (localPagesLoaded >= localPagesRequested || !hasMoreLocal || localFetchMoreFailed) {
+    if (localPagesLoaded >= localPagesRequested || !pagesLocal || localFetchMoreFailed) {
       setLocalPagesRequested(null);
     } else {
       void fetchMoreLocal();
@@ -152,7 +193,7 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     localPagesRequested,
     isFetchingLocal,
     localPagesLoaded,
-    hasMoreLocal,
+    pagesLocal,
     localFetchMoreFailed,
     fetchMoreLocal,
   ]);
@@ -163,7 +204,7 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     loadMore: loadMoreRemote,
     hasMoreThanFirstPage: hasMoreThanFirstRemotePage,
     showLess: showLessRemote,
-  } = useRemoteChatSources(remoteMachineIds, enabled);
+  } = useRemoteChatSources(remoteMachineIds, enabled, source);
   const remoteSourceList = useMemo(() => [...remoteSources.values()], [remoteSources]);
 
   const pinnedChats = useMemo(() => {
@@ -180,15 +221,15 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     const local = localChatsData?.pages.flatMap((page) => page.items) ?? [];
     return mergeRecentSources(
       [
-        { items: local, hasMore: !!hasMoreLocal },
-        ...remoteSourceList.map((source) => ({
-          items: source.chats.filter((chat) => !chat.pinned_at),
-          hasMore: source.hasMore,
+        { items: local, hasMore: pagesLocal },
+        ...remoteSourceList.map((remote) => ({
+          items: remote.chats.filter((chat) => !chat.pinned_at),
+          hasMore: remote.tail !== 'end',
         })),
       ],
       (chat) => chat.updated_at,
     );
-  }, [localChatsData?.pages, hasMoreLocal, remoteSourceList]);
+  }, [localChatsData?.pages, pagesLocal, remoteSourceList]);
 
   const machineWorkspaces = useMachinesWorkspaces(remoteMachineIds, enabled);
   const workspaceBadgeById = useMemo(() => {
@@ -202,17 +243,13 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     return map;
   }, [workspaces, machineWorkspaces]);
 
-  const remoteWithMore = [...remoteSources.entries()]
-    .filter(([, source]) => source.hasMore)
-    .map(([machineId]) => machineId);
-  const remoteWithMoreKey = remoteWithMore.join('\n');
   const loadMore = useCallback(() => {
-    if (hasMoreLocal) {
+    if (pagesLocal) {
       setLocalPagesRequested(localPagesLoaded + 1);
       void fetchMoreLocal();
     }
-    if (remoteWithMoreKey) loadMoreRemote(remoteWithMoreKey.split('\n'));
-  }, [hasMoreLocal, localPagesLoaded, fetchMoreLocal, remoteWithMoreKey, loadMoreRemote]);
+    loadMoreRemote();
+  }, [pagesLocal, localPagesLoaded, fetchMoreLocal, loadMoreRemote]);
   const showLess = useCallback(() => {
     showLessRemote();
     setLocalPagesRequested(null);
@@ -236,13 +273,69 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     machineWorkspaces,
     isLoadingChats: isLoadingLocal || remoteSourceList.some((source) => source.isLoading),
     isLoadingPinned: pinnedQuery.isLoading,
-    hasMore: !!hasMoreLocal || remoteWithMore.length > 0,
-    isFetchingMore: isFetchingMoreLocal || remoteSourceList.some((source) => source.isFetchingMore),
+    hasMore: pagesLocal || remoteSourceList.some((remote) => remote.tail !== 'end'),
+    isFetchingMore:
+      (pagesLocal && localPagesRequested !== null) ||
+      remoteSourceList.some((remote) => remote.tail === 'loading'),
+    loadMoreFailed:
+      (pagesLocal && localFetchMoreFailed) ||
+      remoteSourceList.some((remote) => remote.tail === 'failed'),
     loadMore,
     canShowLess: (localChatsData?.pages.length ?? 0) > 1 || hasMoreThanFirstRemotePage,
     showLess,
     threadsLoad: listLoadState([pinnedQuery, localQuery, ...remoteFirstPages]),
     pinnedLoad: listLoadState([pinnedQuery]),
     recentsLoad: listLoadState([localQuery, ...remoteFirstPages]),
+  };
+}
+
+type ShowMorePaging = Pick<
+  ReturnType<typeof useSidebarChatLists>,
+  'hasMore' | 'canShowLess' | 'isFetchingMore' | 'loadMoreFailed' | 'loadMore' | 'showLess'
+>;
+
+// Filters narrow loaded pages client-side, so a fetched page can add no visible row: one
+// click keeps paging until a match shows, nothing is left, a page fails or the cap is hit.
+// `filters` is null when paging further cannot surface a match; a new object ends the run.
+export function useShowMoreUntilMatch(
+  { hasMore, canShowLess, isFetchingMore, loadMoreFailed, loadMore, showLess }: ShowMorePaging,
+  matchCount: number,
+  filters: SidebarFilters | null,
+) {
+  const [run, setRun] = useState<{
+    roundsLeft: number;
+    matchCount: number;
+    filters: SidebarFilters;
+  } | null>(null);
+  useEffect(() => {
+    if (!run || isFetchingMore) return;
+    if (
+      run.filters !== filters ||
+      matchCount > run.matchCount ||
+      !hasMore ||
+      loadMoreFailed ||
+      run.roundsLeft === 0
+    ) {
+      setRun(null);
+    } else {
+      setRun({ ...run, roundsLeft: run.roundsLeft - 1 });
+      loadMore();
+    }
+  }, [run, isFetchingMore, filters, matchCount, hasMore, loadMoreFailed, loadMore]);
+
+  return {
+    hasMore,
+    canShowLess,
+    isFetchingMore: isFetchingMore || run !== null,
+    loadMore: () => {
+      if (filters && !loadMoreFailed) {
+        setRun({ roundsLeft: SHOW_MORE_MAX_PAGE_ROUNDS - 1, matchCount, filters });
+      }
+      loadMore();
+    },
+    showLess: () => {
+      setRun(null);
+      showLess();
+    },
   };
 }
