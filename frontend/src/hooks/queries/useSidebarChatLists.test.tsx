@@ -144,6 +144,28 @@ describe('useSidebarChatLists Show more', () => {
     );
   });
 
+  it('leaves Show more alone while a loaded remote page refreshes in the background', async () => {
+    const { result } = renderHook(() => useSidebarChatLists([]), { wrapper });
+    await waitFor(() => expect(result.current.hasMore).toBe(true));
+    act(() => result.current.loadMore());
+    await waitFor(() => expect(ids(result.current.recentChats)).toContain('remote-4'));
+    await waitFor(() => expect(result.current.isFetchingMore).toBe(false));
+
+    laterRemotePage = () => new Promise(() => {});
+    const calls = vi.mocked(machineChatService.listChats).mock.calls.length;
+    act(() => {
+      void queryClient.refetchQueries({ queryKey: queryKeys.machine.chatsPage(REMOTE_ID, 2) });
+    });
+    await waitFor(() =>
+      expect(vi.mocked(machineChatService.listChats).mock.calls.length).toBeGreaterThan(calls),
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(result.current.isFetchingMore).toBe(false);
+  });
+
   it('does not hold rows back again each time a failed remote page is refetched', async () => {
     laterRemotePage = () => Promise.reject(new ServiceError('gone', undefined, undefined, 404));
     const { result } = renderHook(() => useSidebarChatLists([]), { wrapper });

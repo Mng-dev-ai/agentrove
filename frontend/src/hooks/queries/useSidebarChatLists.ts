@@ -38,6 +38,10 @@ interface PagePlan {
   isLastPage: boolean;
 }
 
+function sourceIncludes(source: SidebarSourceFilter, machineId: string): boolean {
+  return source === 'all' || source === machineId;
+}
+
 function combineRemoteSources(
   plan: PagePlan[],
   results: UseQueryResult<PaginatedChats>[],
@@ -64,7 +68,7 @@ function combineRemoteSources(
           : page > 1 && result.isLoading && result.errorUpdateCount === 0);
     }
     source.isLoading ||= online && result.isLoading;
-    source.isFetchingMore ||= page > 1 && result.isFetching;
+    source.isFetchingMore ||= page > 1 && result.isLoading;
     sources.set(machineId, source);
   });
   return sources;
@@ -150,7 +154,7 @@ export function useSidebarChatLists(
     isLoading: isLoadingLocal,
   } = localQuery;
   const localPagesLoaded = localChatsData?.pages.length ?? 0;
-  const pagesLocal = !!hasMoreLocal && (source === 'all' || source === LOCAL_MACHINE_ID);
+  const pagesLocal = !!hasMoreLocal && sourceIncludes(source, LOCAL_MACHINE_ID);
   // An invalidation mid-fetch cancels the next-page fetch and refetches only the
   // loaded pages, so a pending Show more fetches again until it lands or can't.
   const [localPagesRequested, setLocalPagesRequested] = useState<number | null>(null);
@@ -178,6 +182,10 @@ export function useSidebarChatLists(
     showLess: showLessRemote,
   } = useRemoteChatSources(remoteMachineIds, enabled);
   const remoteSourceList = useMemo(() => [...remoteSources.values()], [remoteSources]);
+  const shownRemotes = useMemo(
+    () => [...remoteSources].filter(([machineId]) => sourceIncludes(source, machineId)),
+    [remoteSources, source],
+  );
 
   const pinnedChats = useMemo(() => {
     const localPinned = pinnedChatsData?.pages.flatMap((page) => page.items) ?? [];
@@ -196,7 +204,7 @@ export function useSidebarChatLists(
         { items: local, hasMore: pagesLocal },
         ...[...remoteSources].map(([machineId, remote]) => ({
           items: remote.chats.filter((chat) => !chat.pinned_at),
-          hasMore: remote.hasMore && (source === 'all' || source === machineId),
+          hasMore: remote.hasMore && sourceIncludes(source, machineId),
         })),
       ],
       (chat) => chat.updated_at,
@@ -215,8 +223,8 @@ export function useSidebarChatLists(
     return map;
   }, [workspaces, machineWorkspaces]);
 
-  const remoteWithMore = [...remoteSources.entries()]
-    .filter(([machineId, remote]) => remote.hasMore && (source === 'all' || source === machineId))
+  const remoteWithMore = shownRemotes
+    .filter(([, remote]) => remote.hasMore)
     .map(([machineId]) => machineId);
   const remoteWithMoreKey = remoteWithMore.join('\n');
   const loadMore = useCallback(() => {
@@ -250,7 +258,9 @@ export function useSidebarChatLists(
     isLoadingChats: isLoadingLocal || remoteSourceList.some((source) => source.isLoading),
     isLoadingPinned: pinnedQuery.isLoading,
     hasMore: pagesLocal || remoteWithMore.length > 0,
-    isFetchingMore: isFetchingMoreLocal || remoteSourceList.some((source) => source.isFetchingMore),
+    isFetchingMore:
+      (pagesLocal && isFetchingMoreLocal) ||
+      shownRemotes.some(([, remote]) => remote.isFetchingMore),
     loadMore,
     canShowLess: (localChatsData?.pages.length ?? 0) > 1 || hasMoreThanFirstRemotePage,
     showLess,
