@@ -313,7 +313,7 @@ export async function markChatViewed(queryClient: QueryClient, chatId: string): 
 }
 
 export const useCreateChatMutation = createMutation<Chat, Error, CreateChatRequest>(
-  (data) => chatService.createChat(chatMachineId(data.parent_chat_id), data),
+  (data) => chatService.createChat(LOCAL_MACHINE_ID, data),
   (queryClient, newChat) => applyCreatedChat(queryClient, newChat),
 );
 
@@ -512,7 +512,7 @@ export const useCreateSubThreadMutation = (parentChatId: string) => {
 
   return useMutation({
     mutationFn: (data: CreateChatRequest) =>
-      chatService.createChat(chatMachineId(data.parent_chat_id), data),
+      chatService.createChat(chatMachineId(parentChatId), data),
     onSuccess: async (newChat) => {
       queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
       await Promise.all([

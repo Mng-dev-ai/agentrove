@@ -19,13 +19,17 @@ import type { ChatSearchResponse } from '@/types/chat.types';
 
 export const useMachineOnline = (machineId: string) => useMachineStatus(machineId) === 'online';
 
+const machineWorkspacesQuery = (machineId: string) => ({
+  queryKey: queryKeys.machine.workspaces(machineId),
+  queryFn: async () => (await workspaceService.listWorkspaces(machineId)).items,
+  staleTime: 30_000,
+});
+
 export const useMachineWorkspacesQuery = (machineId: string, enabled: boolean) => {
   const online = useMachineOnline(machineId);
   return useQuery<Workspace[]>({
-    queryKey: queryKeys.machine.workspaces(machineId),
-    queryFn: async () => (await workspaceService.listWorkspaces(machineId)).items,
+    ...machineWorkspacesQuery(machineId),
     enabled: enabled && online,
-    staleTime: 30_000,
   });
 };
 
@@ -40,10 +44,8 @@ export const useMachinesWorkspaces = (machineIds: string[], enabled: boolean) =>
   );
   return useQueries({
     queries: machineIds.map((machineId) => ({
-      queryKey: queryKeys.machine.workspaces(machineId),
-      queryFn: async () => (await workspaceService.listWorkspaces(machineId)).items,
+      ...machineWorkspacesQuery(machineId),
       enabled: enabled && connections[machineId]?.status === 'online',
-      staleTime: 30_000,
     })),
     combine,
   });
