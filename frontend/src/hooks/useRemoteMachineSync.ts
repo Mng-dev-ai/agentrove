@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { machineChatService } from '@/services/machineChatService';
+import { chatService } from '@/services/chatService';
 import { invalidateSubThreadListsContaining } from '@/hooks/queries/useChatQueries';
 import {
   assignChatRecordsToMachine,
@@ -19,7 +19,7 @@ function invalidateMachineLists(queryClient: QueryClient, machineId: string): vo
 }
 
 function getOwnedStreams(machineId: string): Promise<ActiveStreamSnapshot[]> {
-  return machineChatService
+  return chatService
     .getActiveStreams(machineId)
     .then((streams) => streams.filter((stream) => chatMachineId(stream.chat_id) === machineId));
 }
@@ -41,7 +41,7 @@ export function useRemoteMachineSync(machineId: string): void {
 
     const unsubscribe = subscribeChatEvents(queryClient, {
       logContext: 'useRemoteMachineSync',
-      createSource: () => machineChatService.createChatEventsSource(machineId),
+      createSource: () => chatService.createChatEventsSource(machineId),
       getActiveStreams: () => getOwnedStreams(machineId),
       claim: (event) => {
         if (event.kind === 'chat_created') {

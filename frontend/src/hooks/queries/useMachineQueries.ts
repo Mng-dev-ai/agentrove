@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { useQuery, useQueries, type UseQueryResult } from '@tanstack/react-query';
-import { machineChatService } from '@/services/machineChatService';
+import { chatService } from '@/services/chatService';
+import { settingsService } from '@/services/settingsService';
+import { workspaceService } from '@/services/workspaceService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { createMutation } from '@/hooks/queries/createMutation';
 import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
@@ -21,7 +23,7 @@ export const useMachineWorkspacesQuery = (machineId: string, enabled: boolean) =
   const online = useMachineOnline(machineId);
   return useQuery<Workspace[]>({
     queryKey: queryKeys.machine.workspaces(machineId),
-    queryFn: () => machineChatService.listWorkspaces(machineId),
+    queryFn: async () => (await workspaceService.listWorkspaces(machineId)).items,
     enabled: enabled && online,
     staleTime: 30_000,
   });
@@ -39,7 +41,7 @@ export const useMachinesWorkspaces = (machineIds: string[], enabled: boolean) =>
   return useQueries({
     queries: machineIds.map((machineId) => ({
       queryKey: queryKeys.machine.workspaces(machineId),
-      queryFn: () => machineChatService.listWorkspaces(machineId),
+      queryFn: async () => (await workspaceService.listWorkspaces(machineId)).items,
       enabled: enabled && connections[machineId]?.status === 'online',
       staleTime: 30_000,
     })),
@@ -53,7 +55,7 @@ export const useMachineUpdateWorkspaceMutation = createMutation<
   { machineId: string; workspaceId: string; data: UpdateWorkspaceRequest }
 >(
   ({ machineId, workspaceId, data }) =>
-    machineChatService.updateWorkspace(machineId, workspaceId, data),
+    workspaceService.updateWorkspace(machineId, workspaceId, data),
   (queryClient, _data, { machineId }) =>
     queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(machineId) }),
 );
@@ -63,7 +65,7 @@ export const useMachineDeleteWorkspaceMutation = createMutation<
   Error,
   { machineId: string; workspaceId: string }
 >(
-  ({ machineId, workspaceId }) => machineChatService.deleteWorkspace(machineId, workspaceId),
+  ({ machineId, workspaceId }) => workspaceService.deleteWorkspace(machineId, workspaceId),
   async (queryClient, _data, { machineId }) => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(machineId) }),
@@ -80,7 +82,7 @@ export const useMachineWorkspaceResourcesQuery = (
   const online = useMachineOnline(machineId);
   return useQuery<WorkspaceResources>({
     queryKey: queryKeys.machine.workspaceResources(machineId, workspaceId),
-    queryFn: () => machineChatService.getWorkspaceResources(machineId, workspaceId!),
+    queryFn: () => workspaceService.getWorkspaceResources(machineId, workspaceId!),
     enabled: enabled && online && !!workspaceId,
     staleTime: 30_000,
   });
@@ -88,7 +90,7 @@ export const useMachineWorkspaceResourcesQuery = (
 
 export const machineSettingsQuery = (machineId: string) => ({
   queryKey: queryKeys.machine.settings(machineId),
-  queryFn: () => machineChatService.getSettings(machineId),
+  queryFn: () => settingsService.getSettings(machineId),
   staleTime: 30_000,
   retry: retryTransientOnce,
 });
@@ -137,10 +139,10 @@ export const useUpdateMachineSettingsMutation = createMutation<
 >(
   async ({ machineId, update }) =>
     writeVersionedSettings(
-      await machineChatService.getSettings(machineId),
-      () => machineChatService.getSettings(machineId),
+      await settingsService.getSettings(machineId),
+      () => settingsService.getSettings(machineId),
       update,
-      (data) => machineChatService.updateSettings(machineId, data),
+      (data) => settingsService.updateSettings(machineId, data),
     ),
   (queryClient, data, { machineId }) => {
     queryClient.setQueryData(queryKeys.machine.settings(machineId), data);
@@ -151,7 +153,7 @@ export const useMachineActiveStreamsQuery = (machineId: string, enabled: boolean
   const online = useMachineOnline(machineId);
   return useQuery<ActiveStreamSnapshot[]>({
     queryKey: queryKeys.machine.activeStreams(machineId),
-    queryFn: () => machineChatService.getActiveStreams(machineId),
+    queryFn: () => chatService.getActiveStreams(machineId),
     enabled: enabled && online,
     staleTime: 10_000,
     refetchInterval: 15_000,
@@ -162,7 +164,7 @@ export const useMachineChatsTotalQuery = (machineId: string, enabled: boolean) =
   const online = useMachineOnline(machineId);
   return useQuery({
     queryKey: [...queryKeys.machine.chats(machineId), 'total'] as const,
-    queryFn: () => machineChatService.listChats(machineId, { page: 1, per_page: 1 }),
+    queryFn: () => chatService.listChats(machineId, { page: 1, per_page: 1 }),
     select: (data) => data.total,
     enabled: enabled && online,
     staleTime: 30_000,
@@ -175,8 +177,7 @@ export const useSearchMachineChatsQueries = (machineIds: string[], query: string
   const results = useQueries({
     queries: machineIds.map((machineId) => ({
       queryKey: [...queryKeys.machine.chats(machineId), 'search', trimmed] as const,
-      queryFn: (): Promise<ChatSearchResponse> =>
-        machineChatService.searchChats(machineId, trimmed),
+      queryFn: (): Promise<ChatSearchResponse> => chatService.searchChats(machineId, trimmed),
       enabled: trimmed.length >= 2,
       placeholderData: () => lastData.current[machineId],
       staleTime: 15_000,

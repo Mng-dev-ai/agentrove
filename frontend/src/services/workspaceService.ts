@@ -1,4 +1,4 @@
-import { apiClient, resolveChatClient } from '@/lib/api';
+import { apiClient, getMachineClient } from '@/lib/api';
 import { ensureResponse, serviceCall, buildQueryString } from '@/services/base/BaseService';
 import type {
   Workspace,
@@ -6,15 +6,24 @@ import type {
   CreateWorkspaceRequest,
   UpdateWorkspaceRequest,
 } from '@/types/workspace.types';
+import { assignSandboxesToMachine } from '@/store/machineOrigin';
 import type { PaginationParams, PaginatedResponse } from '@/types/api.types';
 
 async function listWorkspaces(
+  machineId: string,
   pagination?: PaginationParams,
 ): Promise<PaginatedResponse<Workspace>> {
   return serviceCall(async () => {
     const queryString = buildQueryString(pagination ? { ...pagination } : undefined);
-    const response = await apiClient.get<PaginatedResponse<Workspace>>(`/workspaces${queryString}`);
-    return ensureResponse(response, 'Failed to fetch workspaces');
+    const response = await getMachineClient(machineId).get<PaginatedResponse<Workspace>>(
+      `/workspaces${queryString}`,
+    );
+    const data = ensureResponse(response, 'Failed to fetch workspaces');
+    assignSandboxesToMachine(
+      machineId,
+      data.items.map((workspace) => workspace.sandbox_id).filter((id): id is string => !!id),
+    );
+    return data;
   });
 }
 
@@ -26,28 +35,31 @@ async function createWorkspace(data: CreateWorkspaceRequest): Promise<Workspace>
 }
 
 async function updateWorkspace(
+  machineId: string,
   workspaceId: string,
   data: UpdateWorkspaceRequest,
 ): Promise<Workspace> {
   return serviceCall(async () => {
-    const response = await apiClient.patch<Workspace>(`/workspaces/${workspaceId}`, data);
+    const response = await getMachineClient(machineId).patch<Workspace>(
+      `/workspaces/${workspaceId}`,
+      data,
+    );
     return ensureResponse(response, 'Failed to update workspace');
   });
 }
 
-async function deleteWorkspace(workspaceId: string): Promise<void> {
+async function deleteWorkspace(machineId: string, workspaceId: string): Promise<void> {
   await serviceCall(async () => {
-    await apiClient.delete(`/workspaces/${workspaceId}`);
+    await getMachineClient(machineId).delete(`/workspaces/${workspaceId}`);
   });
 }
 
-// chatId routes to the machine that owns the chat.
 async function getWorkspaceResources(
+  machineId: string,
   workspaceId: string,
-  chatId?: string,
 ): Promise<WorkspaceResources> {
   return serviceCall(async () => {
-    const response = await resolveChatClient(chatId).get<WorkspaceResources>(
+    const response = await getMachineClient(machineId).get<WorkspaceResources>(
       `/workspaces/${workspaceId}/resources`,
     );
     return ensureResponse(response, 'Failed to fetch workspace resources');

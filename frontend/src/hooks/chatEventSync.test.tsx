@@ -13,10 +13,12 @@ const { localSource, localStreams, machineSource, machineStreams } = vi.hoisted(
 }));
 
 vi.mock('@/services/chatService', () => ({
-  chatService: { createChatEventsSource: localSource, getActiveStreams: localStreams },
-}));
-vi.mock('@/services/machineChatService', () => ({
-  machineChatService: { createChatEventsSource: machineSource, getActiveStreams: machineStreams },
+  chatService: {
+    createChatEventsSource: (machineId: string) =>
+      machineId === 'local' ? localSource() : machineSource(),
+    getActiveStreams: (machineId: string) =>
+      machineId === 'local' ? localStreams() : machineStreams(),
+  },
 }));
 
 import { useChatEvents } from './useChatEvents';

@@ -4,6 +4,7 @@ import { AuthEventSource } from '@/services/authEventSource';
 import { validateRequired, validateId } from '@/utils/validation';
 import { chatStorage } from '@/utils/storage';
 import {
+  assignChannelsToMachine,
   assignChatRecordsToMachine,
   assignChatsToMachine,
   chatMachineId,
@@ -24,8 +25,7 @@ import type { GitCommitResult } from '@/types/sandbox.types';
 import type { CursorPaginationParams, PaginatedChats, PaginatedMessages } from '@/types/api.types';
 import type { ComposerSelection } from '@/store/uiStore';
 
-export function buildChatFormData(request: ChatRequest): FormData {
-  // Shared with machineChatService so multipart fields can't drift.
+function buildChatFormData(request: ChatRequest): FormData {
   const formData = new FormData();
   formData.append('prompt', request.prompt);
   if (request.user_message_id) {
@@ -116,11 +116,17 @@ async function checkChatStatus(chatId: string): Promise<ChatStatusResponse | nul
   return serviceCall(() => resolveChatClient(chatId).get(`/chat/chats/${chatId}/status`));
 }
 
-async function getActiveStreams(): Promise<ActiveStreamSnapshot[]> {
-  // Local registry only — one request covers every local chat/sub-thread.
+async function getActiveStreams(machineId: string): Promise<ActiveStreamSnapshot[]> {
   return serviceCall(async () => {
-    const streams = await apiClient.get<ActiveStreamSnapshot[]>('/chat/chats/active-streams');
-    return streams ?? [];
+    const response = await getMachineClient(machineId).get<ActiveStreamSnapshot[]>(
+      '/chat/chats/active-streams',
+    );
+    const streams = ensureResponse(response, 'Failed to fetch active streams');
+    assignChatsToMachine(
+      machineId,
+      streams.map((stream) => stream.chat_id),
+    );
+    return streams;
   });
 }
 
@@ -164,35 +170,44 @@ async function getMessageRender(
   });
 }
 
-async function listChats(params?: {
-  page?: number;
-  per_page?: number;
-  workspace_id?: string;
-  pinned?: boolean;
-  include_sub_threads?: boolean;
-}): Promise<PaginatedChats> {
+async function listChats(
+  machineId: string,
+  params?: {
+    page?: number;
+    per_page?: number;
+    workspace_id?: string;
+    pinned?: boolean;
+    include_sub_threads?: boolean;
+  },
+): Promise<PaginatedChats> {
   return serviceCall(
     async () => {
       const queryString = buildQueryString(params);
       const endpoint = `/chat/chats${queryString}`;
 
-      const response = await apiClient.get<PaginatedChats>(endpoint);
+      const response = await getMachineClient(machineId).get<PaginatedChats>(endpoint);
       const data = ensureResponse(response, 'Failed to fetch chats');
-      assignChatRecordsToMachine(LOCAL_MACHINE_ID, data.items);
+      assignChatRecordsToMachine(machineId, data.items);
       return data;
     },
     { maxRetries: 1 },
   );
 }
 
-async function searchChats(query: string): Promise<ChatSearchResponse> {
+async function searchChats(machineId: string, query: string): Promise<ChatSearchResponse> {
   return serviceCall(async () => {
     const queryString = buildQueryString({ q: query });
-    const response = await apiClient.get<ChatSearchResponse>(`/chat/chats/search${queryString}`);
+    const response = await getMachineClient(machineId).get<ChatSearchResponse>(
+      `/chat/chats/search${queryString}`,
+    );
     const data = ensureResponse(response, 'Failed to search chats');
     assignChatsToMachine(
-      LOCAL_MACHINE_ID,
+      machineId,
       data.results.map((result) => result.chat_id),
+    );
+    assignChannelsToMachine(
+      machineId,
+      (data.channel_results ?? []).map((result) => ({ id: result.channel_id, members: [] })),
     );
     return data;
   });
@@ -230,10 +245,9 @@ async function findRemoteChat(chatId: string, notFound: unknown): Promise<Chat> 
   throw notFound;
 }
 
-async function createChat(data: CreateChatRequest): Promise<Chat> {
+async function createChat(machineId: string, data: CreateChatRequest): Promise<Chat> {
   return serviceCall(async () => {
-    const machineId = chatMachineId(data.parent_chat_id);
-    const response = await resolveChatClient(data.parent_chat_id).post<Chat>('/chat/chats', data);
+    const response = await getMachineClient(machineId).post<Chat>('/chat/chats', data);
     const chat = ensureResponse(response, 'Failed to create chat');
     assignChatRecordsToMachine(machineId, [chat]);
     return chat;
@@ -286,9 +300,9 @@ async function deleteChat(chatId: string): Promise<void> {
   });
 }
 
-async function deleteAllChats(): Promise<void> {
+async function deleteAllChats(machineId: string): Promise<void> {
   await serviceCall(async () => {
-    await apiClient.delete('/chat/chats/all');
+    await getMachineClient(machineId).delete('/chat/chats/all');
   });
 }
 
@@ -311,8 +325,8 @@ function normalizePositiveInt(value: unknown): number {
   return Math.floor(parsed);
 }
 
-async function createChatEventsSource(): Promise<AuthEventSource> {
-  return new AuthEventSource(apiClient, '/chat/chats/events');
+async function createChatEventsSource(machineId: string): Promise<AuthEventSource> {
+  return new AuthEventSource(getMachineClient(machineId), '/chat/chats/events');
 }
 
 async function getSubThreads(chatId: string): Promise<Chat[]> {

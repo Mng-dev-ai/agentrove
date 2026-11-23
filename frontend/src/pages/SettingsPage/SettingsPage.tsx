@@ -19,6 +19,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLogout } from '@/hooks/useLogout';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { settingsService } from '@/services/settingsService';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { getGeneralSecretFields, writeVersionedSettings } from '@/utils/settings';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { SettingsSidebarNav } from './SettingsSidebarNav';
@@ -151,7 +152,7 @@ export function SettingsPage() {
         const result = options.versioned
           ? await writeVersionedSettings(
               previousSettings,
-              settingsService.getSettings,
+              () => settingsService.getSettings(LOCAL_MACHINE_ID),
               (settings) => buildChangedPayload(updater(settings), settings),
               instantUpdateMutation.mutateAsync,
             )

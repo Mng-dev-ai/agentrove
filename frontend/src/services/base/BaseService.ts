@@ -1,5 +1,6 @@
 import { ServiceError, AuthenticationError } from './ServiceError';
 import { invalidateSessionAndRedirect } from '@/utils/authSession';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
 const ERROR_MESSAGES: Record<string, string> = {
   LOGIN_BAD_CREDENTIALS: 'Invalid email or password',
@@ -83,6 +84,14 @@ export async function withAuth<T>(
     }
     throw error;
   }
+}
+
+export function withMachineAuth<T>(
+  machineId: string,
+  fn: () => Promise<T>,
+  options: ServiceCallOptions = {},
+): Promise<T> {
+  return machineId === LOCAL_MACHINE_ID ? withAuth(fn, options) : serviceCall(fn, options);
 }
 
 export function ensureResponse<T>(

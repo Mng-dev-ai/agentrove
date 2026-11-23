@@ -11,7 +11,7 @@ import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
 const settingsQuery = () => ({
   queryKey: [queryKeys.settings],
-  queryFn: () => settingsService.getSettings(),
+  queryFn: () => settingsService.getSettings(LOCAL_MACHINE_ID),
   retry: retryTransientOnce,
 });
 
@@ -65,7 +65,7 @@ export async function fetchAutoSteerQueuedMessages(
 }
 
 export const useUpdateSettingsMutation = createMutation<UserSettings, Error, UserSettingsUpdate>(
-  (data) => settingsService.updateSettings(data),
+  (data) => settingsService.updateSettings(LOCAL_MACHINE_ID, data),
   (queryClient, data) => {
     queryClient.setQueryData([queryKeys.settings], data);
   },

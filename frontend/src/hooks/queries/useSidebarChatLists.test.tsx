@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { ServiceError } from '@/services/base/ServiceError';
 import { chatService } from '@/services/chatService';
-import { machineChatService } from '@/services/machineChatService';
+import { workspaceService } from '@/services/workspaceService';
 import { assignChatRecordsToMachine, chatMachineId } from '@/store/machineOrigin';
 import { useMachineStore } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
@@ -75,6 +75,9 @@ function wrapper({ children }: { children: ReactNode }) {
 
 const ids = (chats: Chat[]) => chats.map((c) => c.id);
 
+const listChatsCalls = (machineId: string) =>
+  vi.mocked(chatService.listChats).mock.calls.filter(([calledId]) => calledId === machineId);
+
 describe('useSidebarChatLists Show more', () => {
   let laterRemotePage: () => Promise<void>;
 
@@ -85,14 +88,20 @@ describe('useSidebarChatLists Show more', () => {
       machines: [{ id: REMOTE_ID, name: 'VPS', url: 'https://vps.test', pairing: null }],
       connections: { [REMOTE_ID]: { status: 'online' } },
     });
-    vi.spyOn(chatService, 'listChats').mockImplementation(async (params) =>
-      params?.pinned
-        ? { items: [], page: 1, per_page: 2, total: 0, pages: 0 }
-        : pageOf(LOCAL_PAGES, params?.page ?? 1),
-    );
-    vi.spyOn(machineChatService, 'listWorkspaces').mockResolvedValue([]);
-    vi.spyOn(machineChatService, 'listChats').mockImplementation(async (machineId, params) => {
+    vi.spyOn(workspaceService, 'listWorkspaces').mockResolvedValue({
+      items: [],
+      page: 1,
+      per_page: 20,
+      total: 0,
+      pages: 0,
+    });
+    vi.spyOn(chatService, 'listChats').mockImplementation(async (machineId, params) => {
       const page = params?.page ?? 1;
+      if (machineId === LOCAL_MACHINE_ID) {
+        return params?.pinned
+          ? { items: [], page: 1, per_page: 2, total: 0, pages: 0 }
+          : pageOf(LOCAL_PAGES, page);
+      }
       if (page > 1) await laterRemotePage();
       const data = pageOf(REMOTE_PAGES, page);
       assignChatRecordsToMachine(machineId, data.items);
@@ -131,7 +140,7 @@ describe('useSidebarChatLists Show more', () => {
 
     act(() => result.current.loadMore());
     await waitFor(() => expect(result.current.canShowLess).toBe(true));
-    await waitFor(() => expect(chatService.listChats).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(listChatsCalls(LOCAL_MACHINE_ID)).toHaveLength(3));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
@@ -153,13 +162,11 @@ describe('useSidebarChatLists Show more', () => {
     await waitFor(() => expect(result.current.isFetchingMore).toBe(false));
 
     laterRemotePage = () => new Promise(() => {});
-    const calls = vi.mocked(machineChatService.listChats).mock.calls.length;
+    const calls = listChatsCalls(REMOTE_ID).length;
     act(() => {
       void queryClient.refetchQueries({ queryKey: queryKeys.machine.chatsPage(REMOTE_ID, 2) });
     });
-    await waitFor(() =>
-      expect(vi.mocked(machineChatService.listChats).mock.calls.length).toBeGreaterThan(calls),
-    );
+    await waitFor(() => expect(listChatsCalls(REMOTE_ID).length).toBeGreaterThan(calls));
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     });
@@ -173,8 +180,7 @@ describe('useSidebarChatLists Show more', () => {
     const firstPage = ['local-1', 'remote-1', 'remote-2'];
     await waitFor(() => expect(ids(result.current.recentChats)).toEqual(firstPage));
 
-    const remotePages = () =>
-      vi.mocked(machineChatService.listChats).mock.calls.map(([, params]) => params?.page);
+    const remotePages = () => listChatsCalls(REMOTE_ID).map(([, params]) => params?.page);
     act(() => result.current.loadMore());
     await waitFor(() => expect(remotePages()).toContain(2));
     await waitFor(() => expect(result.current.isFetchingMore).toBe(false));
@@ -195,8 +201,7 @@ describe('useSidebarChatLists Show more', () => {
     const firstPage = ['local-1', 'remote-1', 'remote-2'];
     await waitFor(() => expect(ids(result.current.recentChats)).toEqual(firstPage));
     const pageTwoFetches = () =>
-      vi.mocked(machineChatService.listChats).mock.calls.filter(([, params]) => params?.page === 2)
-        .length;
+      listChatsCalls(REMOTE_ID).filter(([, params]) => params?.page === 2).length;
     act(() => result.current.loadMore());
     await waitFor(() => expect(pageTwoFetches()).toBe(1));
     await waitFor(() => expect(result.current.isFetchingMore).toBe(false));

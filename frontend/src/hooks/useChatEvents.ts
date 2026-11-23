@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { applyCreatedChat } from '@/hooks/queries/useChatQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { subscribeChatEvents } from '@/hooks/chatEventSync';
@@ -15,8 +16,8 @@ export function useChatEvents(options?: { enabled?: boolean }) {
 
     return subscribeChatEvents(queryClient, {
       logContext: 'useChatEvents',
-      createSource: () => chatService.createChatEventsSource(),
-      getActiveStreams: () => chatService.getActiveStreams(),
+      createSource: () => chatService.createChatEventsSource(LOCAL_MACHINE_ID),
+      getActiveStreams: () => chatService.getActiveStreams(LOCAL_MACHINE_ID),
       claim: () => true,
       applyCreatedChat: (chat) => {
         void applyCreatedChat(queryClient, chat).catch((error) =>

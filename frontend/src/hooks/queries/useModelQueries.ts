@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { modelService } from '@/services/modelService';
-import { machineChatService } from '@/services/machineChatService';
 import type { Model } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { useModelStore } from '@/store/modelStore';
@@ -24,7 +23,7 @@ export const useModelsQuery = (options?: ModelsQueryOptions) => {
   const online = useMachineOnline(machineId);
   return useQuery({
     queryKey: isLocal ? [queryKeys.models] : queryKeys.machine.models(machineId),
-    queryFn: () => (isLocal ? modelService.getModels() : machineChatService.getModels(machineId)),
+    queryFn: () => modelService.getModels(machineId),
     enabled: (options?.enabled ?? true) && online,
   });
 };
