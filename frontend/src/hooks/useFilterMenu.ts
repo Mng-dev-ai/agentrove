@@ -82,13 +82,12 @@ export function useFilterMenu<V extends string>({ closeOnEscape = false } = {}) 
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, [isOpen]);
 
-  // Scrolling the page detaches the fixed panel from its trigger — close it.
-  // Scrolls inside the panel or flyout keep it open.
+  // Only a scroll that moves the trigger detaches the fixed panel from it; other
+  // scrollers (a streaming chat, the panel itself) keep it open.
   useEffect(() => {
     if (!isOpen) return;
     const handleScroll = (e: Event) => {
-      const target = e.target as Node;
-      if (panelRef.current?.contains(target) || submenuRef.current?.contains(target)) return;
+      if (!(e.target as Node).contains(triggerRef.current)) return;
       cancelSubmenuClose();
       setSubmenu(null);
       setIsOpen(false);
