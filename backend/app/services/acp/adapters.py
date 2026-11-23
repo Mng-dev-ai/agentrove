@@ -5,7 +5,7 @@ from dataclasses import dataclass, field, replace
 from collections.abc import Iterable
 from typing import Any
 
-from app.constants import MODELS
+from app.catalog import MODELS
 from app.models.types import AgentKind, PermissionMode
 from app.services.exceptions import AgentException
 

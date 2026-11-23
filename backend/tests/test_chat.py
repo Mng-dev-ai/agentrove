@@ -10,7 +10,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
-from app.constants import MODELS, REDIS_KEY_CHAT_CONTEXT_USAGE
+from app.catalog import MODELS
+from app.constants import REDIS_KEY_CHAT_CONTEXT_USAGE
 from app.core.deps import get_agent_service, get_queue_service
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message, MessageEvent
 from app.models.db_models.enums import MessageRole, MessageStreamStatus

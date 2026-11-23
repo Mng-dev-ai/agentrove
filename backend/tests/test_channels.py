@@ -12,7 +12,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
-from app.constants import MODELS
+from app.catalog import MODELS
 from app.core import deps
 from app.core.security import create_mcp_access_token
 from app.models.db_models.channel import (

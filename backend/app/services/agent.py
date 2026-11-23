@@ -41,7 +41,8 @@ from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.pairing import PairingService
 from app.services.exceptions import AgentException, ErrorCode, SandboxException
-from app.constants import DEFAULT_TITLE_MODEL_ID, MODELS
+from app.catalog import MODELS
+from app.constants import DEFAULT_TITLE_MODEL_ID
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType

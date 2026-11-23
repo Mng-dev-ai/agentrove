@@ -18,9 +18,9 @@ from sqlalchemy import Update, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
+from app.catalog import MODELS
 from app.constants import (
     ACP_RESOURCE_NOT_FOUND,
-    MODELS,
     REDIS_KEY_CHAT_CONTEXT_USAGE,
     REDIS_KEY_USER_STREAMS_LIVE,
 )

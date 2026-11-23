@@ -7,7 +7,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants import MODELS
+from app.catalog import MODELS
 from app.models.db_models.chat import Chat
 from app.services.chat import ChatService
 from app.services.exceptions import ChatException

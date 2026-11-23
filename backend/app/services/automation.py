@@ -8,7 +8,7 @@ from croniter import CroniterError, croniter
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.constants import MODELS
+from app.catalog import MODELS
 from app.models.db_models.automation import Automation
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
