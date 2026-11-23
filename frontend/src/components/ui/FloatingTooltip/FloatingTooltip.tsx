@@ -105,13 +105,16 @@ export function FloatingTooltip({
       // CSS hover state still updates when WKWebView drops the JS leave event.
       if (!triggerRef.current?.matches(':hover')) hide();
     }, HOVER_CHECK_MS);
-    window.addEventListener('scroll', hide, { capture: true, passive: true });
+    const handleScroll = (e: Event) => {
+      if ((e.target as Node).contains(triggerRef.current)) hide();
+    };
+    window.addEventListener('scroll', handleScroll, { capture: true, passive: true });
     window.addEventListener('blur', hide);
     document.addEventListener('pointerdown', hide, { capture: true });
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       window.clearInterval(hoverCheckTimer);
-      window.removeEventListener('scroll', hide, { capture: true });
+      window.removeEventListener('scroll', handleScroll, { capture: true });
       window.removeEventListener('blur', hide);
       document.removeEventListener('pointerdown', hide, { capture: true });
       document.removeEventListener('visibilitychange', handleVisibilityChange);
