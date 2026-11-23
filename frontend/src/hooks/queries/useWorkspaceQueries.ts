@@ -12,6 +12,8 @@ import type { PaginatedResponse } from '@/types/api.types';
 import type { Chat } from '@/types/chat.types';
 import type { Channel } from '@/types/channel.types';
 import { useChannelStore } from '@/store/channelStore';
+import { chatMachineId } from '@/store/machineOrigin';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
@@ -22,7 +24,7 @@ export const useWorkspaceResourcesQuery = (
 ) => {
   return useQuery({
     queryKey: queryKeys.workspaceResources(workspaceId, chatId),
-    queryFn: () => workspaceService.getWorkspaceResources(workspaceId!, chatId),
+    queryFn: () => workspaceService.getWorkspaceResources(chatMachineId(chatId), workspaceId!),
     enabled: !!workspaceId,
     staleTime: 30_000,
     ...options,
@@ -34,7 +36,7 @@ export const useWorkspacesQuery = (
 ) => {
   return useQuery({
     queryKey: queryKeys.workspaces,
-    queryFn: () => workspaceService.listWorkspaces(),
+    queryFn: () => workspaceService.listWorkspaces(LOCAL_MACHINE_ID),
     ...options,
   });
 };
@@ -59,7 +61,7 @@ export const useUpdateWorkspaceMutation = createMutation<
   Error,
   { workspaceId: string; data: UpdateWorkspaceRequest }
 >(
-  ({ workspaceId, data }) => workspaceService.updateWorkspace(workspaceId, data),
+  ({ workspaceId, data }) => workspaceService.updateWorkspace(LOCAL_MACHINE_ID, workspaceId, data),
   (queryClient) => {
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
     // Search results embed workspace_name, so a rename leaves a stale label
@@ -69,7 +71,7 @@ export const useUpdateWorkspaceMutation = createMutation<
 );
 
 export const useDeleteWorkspaceMutation = createMutation<void, Error, string>(
-  (workspaceId) => workspaceService.deleteWorkspace(workspaceId),
+  (workspaceId) => workspaceService.deleteWorkspace(LOCAL_MACHINE_ID, workspaceId),
   async (queryClient, _data, workspaceId) => {
     const allCachedChats = queryClient.getQueriesData<Chat>({ queryKey: ['chat'] });
     for (const [, chat] of allCachedChats) {

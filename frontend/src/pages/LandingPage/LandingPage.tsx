@@ -29,8 +29,8 @@ import {
 } from '@/store/chatSettingsStore';
 import { useQueryClient } from '@tanstack/react-query';
 import { machineName, machineStatus, useTargetMachineId } from '@/store/machineStore';
-import { machineChatService } from '@/services/machineChatService';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { chatService } from '@/services/chatService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { useAuthStore } from '@/store/authStore';
 import { useCreateChatMutation } from '@/hooks/queries/useChatQueries';
@@ -285,13 +285,13 @@ export function LandingPage() {
         setIsLoading(true);
         try {
           const chatSettings = useChatSettingsStore.getState();
-          const newChat = await machineChatService.createChat(targetMachineId, {
+          const newChat = await chatService.createChat(targetMachineId, {
             title,
             model_id: selectedModelId,
             workspace_id: selectedWorkspaceId,
           });
           // Same toolbar default coercion as useMessageActions (remote matches local).
-          await machineChatService.startCompletion(targetMachineId, {
+          await chatService.startCompletion({
             prompt: trimmedPrompt,
             chat_id: newChat.id,
             model_id: selectedModelId,

@@ -1,8 +1,14 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { chatService } from './chatService';
+import { workspaceService } from './workspaceService';
 import { useMachineStore } from '@/store/machineStore';
-import { assignChatsToMachine, chatMachineId } from '@/store/machineOrigin';
+import {
+  assignChatsToMachine,
+  channelMachineId,
+  chatMachineId,
+  sandboxMachineId,
+} from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { PaginatedChats } from '@/types/api.types';
 
@@ -72,7 +78,7 @@ describe('listChats', () => {
         : new Response(JSON.stringify({ detail: 'Not found' }), { status: 404 }),
     );
 
-    await chatService.listChats();
+    await chatService.listChats(LOCAL_MACHINE_ID);
 
     expect(chatMachineId(chatA)).toBe(LOCAL_MACHINE_ID);
     expect(chatMachineId(chatB)).toBe('vps');
@@ -87,5 +93,59 @@ describe('getChat', () => {
     expect(fetchMock.mock.calls.map(([input]) => new URL(String(input)).host)).not.toContain(
       'offline.ts.net',
     );
+  });
+});
+
+describe('paired-machine responses', () => {
+  const respond = (body: unknown) =>
+    fetchMock.mockResolvedValue(new Response(JSON.stringify(body)));
+
+  it('records listed chats under the machine', async () => {
+    respond({ items: [{ id: 'listed-chat', sandbox_id: 'listed-sandbox', channel_id: null }] });
+
+    await chatService.listChats('vps');
+
+    expect(chatMachineId('listed-chat')).toBe('vps');
+    expect(sandboxMachineId('listed-sandbox')).toBe('vps');
+  });
+
+  it('records a created chat under the machine', async () => {
+    respond({ id: 'created-chat', sandbox_id: 'created-sandbox', channel_id: null });
+
+    await chatService.createChat('vps', {
+      title: 'New',
+      model_id: 'model',
+      workspace_id: 'workspace',
+    });
+
+    expect(chatMachineId('created-chat')).toBe('vps');
+  });
+
+  it('records searched chats and channels under the machine', async () => {
+    respond({
+      results: [{ chat_id: 'found-chat' }],
+      channel_results: [{ channel_id: 'found-channel' }],
+    });
+
+    await chatService.searchChats('vps', 'query');
+
+    expect(chatMachineId('found-chat')).toBe('vps');
+    expect(channelMachineId('found-channel')).toBe('vps');
+  });
+
+  it('records streaming chats under the machine', async () => {
+    respond([{ chat_id: 'streaming-chat' }]);
+
+    await chatService.getActiveStreams('vps');
+
+    expect(chatMachineId('streaming-chat')).toBe('vps');
+  });
+
+  it('records workspace sandboxes under the machine', async () => {
+    respond({ items: [{ id: 'workspace', sandbox_id: 'workspace-sandbox' }] });
+
+    await workspaceService.listWorkspaces('vps');
+
+    expect(sandboxMachineId('workspace-sandbox')).toBe('vps');
   });
 });

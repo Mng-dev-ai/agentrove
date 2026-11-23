@@ -1,10 +1,10 @@
-import { apiClient } from '@/lib/api';
-import { ensureResponse, withAuth } from '@/services/base/BaseService';
+import { getMachineClient } from '@/lib/api';
+import { ensureResponse, withMachineAuth } from '@/services/base/BaseService';
 import type { Model } from '@/types/chat.types';
 
-async function getModels(): Promise<Model[]> {
-  return withAuth(async () => {
-    const response = await apiClient.get<Model[]>('/models/');
+async function getModels(machineId: string): Promise<Model[]> {
+  return withMachineAuth(machineId, async () => {
+    const response = await getMachineClient(machineId).get<Model[]>('/models/');
     return ensureResponse(response, 'Failed to fetch models');
   });
 }

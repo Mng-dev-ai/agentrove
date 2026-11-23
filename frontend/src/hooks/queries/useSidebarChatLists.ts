@@ -11,10 +11,10 @@ import { infiniteChatsQueryKey, useInfiniteChatsQuery } from '@/hooks/queries/us
 import { useMachinesWorkspaces } from '@/hooks/queries/useMachineQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
-import { machineChatService } from '@/services/machineChatService';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
 import { mergeRecentSources } from '@/utils/mergeRecentSources';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { chatService } from '@/services/chatService';
 import type { SidebarFilters, SidebarSourceFilter } from '@/store/sidebarFilters';
 import type { PaginatedChats } from '@/types/api.types';
 import type { Chat } from '@/types/chat.types';
@@ -124,8 +124,7 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean, source: Si
   const { sources, firstPages, failedPages } = useQueries({
     queries: plan.map(({ machineId, page, online }) => ({
       queryKey: queryKeys.machine.chatsPage(machineId, page),
-      queryFn: () =>
-        machineChatService.listChats(machineId, { page, per_page: MACHINE_CHATS_PER_PAGE }),
+      queryFn: () => chatService.listChats(machineId, { page, per_page: MACHINE_CHATS_PER_PAGE }),
       // A failed Show more page waits for a click: disabled, no interval, focus or
       // invalidation refetches it, so the button never shows Loading on its own.
       enabled: (query: Query<PaginatedChats>) =>

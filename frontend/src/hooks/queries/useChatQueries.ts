@@ -16,7 +16,6 @@ import type {
 } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
 import { retryTransientOnce } from '@/hooks/queries/listLoad';
-import { machineChatService } from '@/services/machineChatService';
 import { useMachineStore } from '@/store/machineStore';
 import { chatMachineId } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
@@ -74,7 +73,7 @@ export const useInfiniteChatsQuery = (options?: {
     queryKey: infiniteChatsQueryKey({ perPage, workspaceId, pinned }),
     queryFn: async ({ pageParam }) => {
       const page = pageParam as number;
-      return chatService.listChats({
+      return chatService.listChats(LOCAL_MACHINE_ID, {
         page,
         per_page: perPage,
         workspace_id: workspaceId,
@@ -100,7 +99,7 @@ export const useRecentChatsQuery = (enabled: boolean) => {
   return useQuery({
     queryKey: queryKeys.chatsRecent,
     queryFn: () =>
-      chatService.listChats({
+      chatService.listChats(LOCAL_MACHINE_ID, {
         page: 1,
         per_page: RECENT_CHATS_PER_PAGE,
         include_sub_threads: true,
@@ -117,7 +116,7 @@ export const useSearchChatsQuery = (
   const trimmed = query.trim();
   return useQuery({
     queryKey: queryKeys.chatsSearch(trimmed),
-    queryFn: () => chatService.searchChats(trimmed),
+    queryFn: () => chatService.searchChats(LOCAL_MACHINE_ID, trimmed),
     enabled: trimmed.length >= 2,
     placeholderData: keepPreviousData,
     staleTime: 15_000,
@@ -314,7 +313,7 @@ export async function markChatViewed(queryClient: QueryClient, chatId: string): 
 }
 
 export const useCreateChatMutation = createMutation<Chat, Error, CreateChatRequest>(
-  (data) => chatService.createChat(data),
+  (data) => chatService.createChat(LOCAL_MACHINE_ID, data),
   (queryClient, newChat) => applyCreatedChat(queryClient, newChat),
 );
 
@@ -461,7 +460,7 @@ export const useDeleteAllChatsMutation = () => {
   return useMutation<void, Error, void>({
     mutationFn: async () => {
       const wipes = [
-        chatService.deleteAllChats().then(() => {
+        chatService.deleteAllChats(LOCAL_MACHINE_ID).then(() => {
           // Prefix ['chats'] also clears chatsSearch.
           queryClient.removeQueries({ queryKey: [queryKeys.chats] });
           queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
@@ -471,7 +470,7 @@ export const useDeleteAllChatsMutation = () => {
       for (const { id } of machines) {
         if (connections[id]?.status !== 'online') continue;
         wipes.push(
-          machineChatService.deleteAllChats(id).then(() => {
+          chatService.deleteAllChats(id).then(() => {
             queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(id) });
             queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(id) });
           }),
@@ -512,7 +511,8 @@ export const useCreateSubThreadMutation = (parentChatId: string) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: CreateChatRequest) => chatService.createChat(data),
+    mutationFn: (data: CreateChatRequest) =>
+      chatService.createChat(chatMachineId(parentChatId), data),
     onSuccess: async (newChat) => {
       queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
       await Promise.all([
