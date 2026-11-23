@@ -67,6 +67,23 @@ export function Sidebar({
   // pages. Lives in the persisted uiStore so reloads keep the narrowed view.
   const storedFilters = useUIStore((state) => state.sidebarFilters);
 
+  const machines = useMachineStore((state) => state.machines);
+  const machineOptions = useMemo(
+    () => [
+      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
+      ...machines.map((machine) => ({ id: machine.id, name: machine.name })),
+    ],
+    [machines],
+  );
+  const filters = useMemo(
+    () =>
+      withKnownSource(
+        storedFilters,
+        machineOptions.map((machine) => machine.id),
+      ),
+    [storedFilters, machineOptions],
+  );
+
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -83,7 +100,7 @@ export function Sidebar({
     loadMore,
     canShowLess,
     showLess,
-  } = useSidebarChatLists(workspaces);
+  } = useSidebarChatLists(workspaces, true, filters.source);
 
   const sidebarChats = useMemo(() => [...pinnedChats, ...recentChats], [pinnedChats, recentChats]);
   const chatActions = useSidebarChatActions({
@@ -112,23 +129,7 @@ export function Sidebar({
   // fetch time, hydrated at module load) — the workspace badge map lags behind the
   // per-machine workspaces queries and would misclassify remote chats meanwhile.
   const chatOrigins = useChatOrigins();
-  const machines = useMachineStore((state) => state.machines);
   const connections = useMachineStore((state) => state.connections);
-  const machineOptions = useMemo(
-    () => [
-      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
-      ...machines.map((machine) => ({ id: machine.id, name: machine.name })),
-    ],
-    [machines],
-  );
-  const filters = useMemo(
-    () =>
-      withKnownSource(
-        storedFilters,
-        machineOptions.map((machine) => machine.id),
-      ),
-    [storedFilters, machineOptions],
-  );
   const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
   const machineBadge = useCallback(
     (machineId: string): MachineBadge | undefined => {

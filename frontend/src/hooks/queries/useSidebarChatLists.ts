@@ -14,6 +14,7 @@ import { machineChatService } from '@/services/machineChatService';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
 import { mergeRecentSources } from '@/utils/mergeRecentSources';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import type { SidebarSourceFilter } from '@/store/sidebarFilters';
 import type { PaginatedChats } from '@/types/api.types';
 import type { Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -54,7 +55,10 @@ function combineRemoteSources(
     const items = result.data?.items ?? [];
     source.chats = [...source.chats, ...items.filter((chat) => !seen.has(chat.id))];
     if (isLastPage) {
-      source.hasMore = online && !!result.data && result.data.page < result.data.pages;
+      // A page still loading keeps the source's floor, or every older row flashes in.
+      source.hasMore =
+        online &&
+        (result.data ? result.data.page < result.data.pages : page > 1 && result.isLoading);
     }
     source.isLoading ||= online && result.isLoading;
     source.isFetchingMore ||= page > 1 && result.isFetching;
@@ -123,7 +127,12 @@ function useRemoteChatSources(machineIds: string[], enabled: boolean) {
   };
 }
 
-export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = true) {
+// A source the filter excludes shows no rows, so it neither holds older rows back nor pages.
+export function useSidebarChatLists(
+  workspaces: Workspace[],
+  enabled: boolean = true,
+  source: SidebarSourceFilter = 'all',
+) {
   const queryClient = useQueryClient();
   const pinnedQuery = useInfiniteChatsQuery({ pinned: true, enabled });
   const localQuery = useInfiniteChatsQuery({ pinned: false, enabled });
@@ -138,6 +147,7 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     isLoading: isLoadingLocal,
   } = localQuery;
   const localPagesLoaded = localChatsData?.pages.length ?? 0;
+  const pagesLocal = !!hasMoreLocal && (source === 'all' || source === LOCAL_MACHINE_ID);
   // An invalidation mid-fetch cancels the next-page fetch and refetches only the
   // loaded pages, so a pending Show more fetches again until it lands or can't.
   const [localPagesRequested, setLocalPagesRequested] = useState<number | null>(null);
@@ -180,15 +190,15 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     const local = localChatsData?.pages.flatMap((page) => page.items) ?? [];
     return mergeRecentSources(
       [
-        { items: local, hasMore: !!hasMoreLocal },
-        ...remoteSourceList.map((source) => ({
-          items: source.chats.filter((chat) => !chat.pinned_at),
-          hasMore: source.hasMore,
+        { items: local, hasMore: pagesLocal },
+        ...[...remoteSources].map(([machineId, remote]) => ({
+          items: remote.chats.filter((chat) => !chat.pinned_at),
+          hasMore: remote.hasMore && (source === 'all' || source === machineId),
         })),
       ],
       (chat) => chat.updated_at,
     );
-  }, [localChatsData?.pages, hasMoreLocal, remoteSourceList]);
+  }, [localChatsData?.pages, pagesLocal, remoteSources, source]);
 
   const machineWorkspaces = useMachinesWorkspaces(remoteMachineIds, enabled);
   const workspaceBadgeById = useMemo(() => {
@@ -203,16 +213,16 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
   }, [workspaces, machineWorkspaces]);
 
   const remoteWithMore = [...remoteSources.entries()]
-    .filter(([, source]) => source.hasMore)
+    .filter(([machineId, remote]) => remote.hasMore && (source === 'all' || source === machineId))
     .map(([machineId]) => machineId);
   const remoteWithMoreKey = remoteWithMore.join('\n');
   const loadMore = useCallback(() => {
-    if (hasMoreLocal) {
+    if (pagesLocal) {
       setLocalPagesRequested(localPagesLoaded + 1);
       void fetchMoreLocal();
     }
     if (remoteWithMoreKey) loadMoreRemote(remoteWithMoreKey.split('\n'));
-  }, [hasMoreLocal, localPagesLoaded, fetchMoreLocal, remoteWithMoreKey, loadMoreRemote]);
+  }, [pagesLocal, localPagesLoaded, fetchMoreLocal, remoteWithMoreKey, loadMoreRemote]);
   const showLess = useCallback(() => {
     showLessRemote();
     setLocalPagesRequested(null);
@@ -236,7 +246,7 @@ export function useSidebarChatLists(workspaces: Workspace[], enabled: boolean = 
     machineWorkspaces,
     isLoadingChats: isLoadingLocal || remoteSourceList.some((source) => source.isLoading),
     isLoadingPinned: pinnedQuery.isLoading,
-    hasMore: !!hasMoreLocal || remoteWithMore.length > 0,
+    hasMore: pagesLocal || remoteWithMore.length > 0,
     isFetchingMore: isFetchingMoreLocal || remoteSourceList.some((source) => source.isFetchingMore),
     loadMore,
     canShowLess: (localChatsData?.pages.length ?? 0) > 1 || hasMoreThanFirstRemotePage,

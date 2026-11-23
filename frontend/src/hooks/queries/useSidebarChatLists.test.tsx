@@ -1,0 +1,139 @@
+// @vitest-environment jsdom
+
+import type { ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { chatService } from '@/services/chatService';
+import { machineChatService } from '@/services/machineChatService';
+import { assignChatRecordsToMachine, chatMachineId } from '@/store/machineOrigin';
+import { useMachineStore } from '@/store/machineStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import type { PaginatedChats } from '@/types/api.types';
+import type { Chat } from '@/types/chat.types';
+import { useSidebarChatLists } from './useSidebarChatLists';
+
+const REMOTE_ID = 'vps';
+const LOCAL_PAGES = [
+  ['local-1', 'local-2'],
+  ['local-3', 'local-4'],
+];
+const REMOTE_PAGES = [
+  ['remote-1', 'remote-2'],
+  ['remote-3', 'remote-4'],
+  ['remote-5', 'remote-6'],
+];
+const DAY: Record<string, number> = {
+  'local-1': 30,
+  'remote-1': 29,
+  'remote-2': 28,
+  'remote-3': 27,
+  'remote-4': 26,
+  'remote-5': 25,
+  'remote-6': 24,
+  'local-2': 20,
+  'local-3': 10,
+  'local-4': 5,
+};
+
+function chat(id: string): Chat {
+  const timestamp = new Date(Date.UTC(2026, 9, DAY[id])).toISOString();
+  return {
+    id,
+    user_id: 'user',
+    title: id,
+    workspace_id: 'workspace',
+    sandbox_id: `sandbox-${id}`,
+    created_at: timestamp,
+    updated_at: timestamp,
+    pinned_at: null,
+    worktree_cwd: null,
+    parent_chat_id: null,
+    channel_id: null,
+    sub_thread_count: 0,
+    session_agent_kind: null,
+    unread: false,
+    last_model_id: null,
+    last_thinking_mode: null,
+    last_persona_name: null,
+  };
+}
+
+function pageOf(pages: string[][], page: number): PaginatedChats {
+  const items = pages[page - 1].map(chat);
+  return { items, page, per_page: 2, total: pages.length * 2, pages: pages.length };
+}
+
+function wrapper({ children }: { children: ReactNode }) {
+  return <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>;
+}
+
+const ids = (chats: Chat[]) => chats.map((c) => c.id);
+
+describe('useSidebarChatLists Show more', () => {
+  let releaseRemotePage: () => void;
+
+  beforeEach(() => {
+    useMachineStore.setState({
+      machines: [{ id: REMOTE_ID, name: 'VPS', url: 'https://vps.test', pairing: null }],
+      connections: { [REMOTE_ID]: { status: 'online' } },
+    });
+    vi.spyOn(chatService, 'listChats').mockImplementation(async (params) =>
+      params?.pinned
+        ? { items: [], page: 1, per_page: 2, total: 0, pages: 0 }
+        : pageOf(LOCAL_PAGES, params?.page ?? 1),
+    );
+    vi.spyOn(machineChatService, 'listWorkspaces').mockResolvedValue([]);
+    const remotePageGate = new Promise<void>((resolve) => {
+      releaseRemotePage = resolve;
+    });
+    vi.spyOn(machineChatService, 'listChats').mockImplementation(async (machineId, params) => {
+      const page = params?.page ?? 1;
+      if (page > 1) await remotePageGate;
+      const data = pageOf(REMOTE_PAGES, page);
+      assignChatRecordsToMachine(machineId, data.items);
+      return data;
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useMachineStore.setState({ machines: [], connections: {} });
+  });
+
+  it('pages only the filtered source, so a dense excluded machine cannot hold rows back', async () => {
+    releaseRemotePage();
+    const { result } = renderHook(() => useSidebarChatLists([], true, LOCAL_MACHINE_ID), {
+      wrapper,
+    });
+    const visible = () =>
+      ids(result.current.recentChats.filter((c) => chatMachineId(c.id) === LOCAL_MACHINE_ID));
+    await waitFor(() => expect(visible()).toEqual(['local-1', 'local-2']));
+
+    act(() => result.current.loadMore());
+
+    await waitFor(() => expect(visible()).toEqual(['local-1', 'local-2', 'local-3', 'local-4']));
+    expect(result.current.hasMore).toBe(false);
+  });
+
+  it('keeps a remote source holding older rows back while its next page loads', async () => {
+    const { result } = renderHook(() => useSidebarChatLists([]), { wrapper });
+    const firstPage = ['local-1', 'remote-1', 'remote-2'];
+    await waitFor(() => expect(ids(result.current.recentChats)).toEqual(firstPage));
+
+    act(() => result.current.loadMore());
+    await waitFor(() => expect(result.current.canShowLess).toBe(true));
+    await waitFor(() => expect(chatService.listChats).toHaveBeenCalledTimes(3));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(ids(result.current.recentChats)).toEqual(firstPage);
+    expect(result.current.isFetchingMore).toBe(true);
+
+    releaseRemotePage();
+    await waitFor(() =>
+      expect(ids(result.current.recentChats)).toEqual([...firstPage, 'remote-3', 'remote-4']),
+    );
+  });
+});
