@@ -6,7 +6,7 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.constants import MODELS
+from app.catalog import MODELS
 from app.models.db_models.chat import Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.types import AgentKind

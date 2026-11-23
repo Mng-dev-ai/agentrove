@@ -24,10 +24,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse, ServerSentEvent
 from starlette.datastructures import Headers
 
-from app.constants import (
-    MODELS,
-    REDIS_KEY_CHAT_CONTEXT_USAGE,
-)
+from app.catalog import MODELS
+from app.constants import REDIS_KEY_CHAT_CONTEXT_USAGE
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.core.config import get_settings
 from app.core.deps import (

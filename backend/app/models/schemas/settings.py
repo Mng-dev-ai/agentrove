@@ -3,7 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.constants import DEFAULT_TITLE_MODEL_ID, MODELS
+from app.catalog import MODELS
+from app.constants import DEFAULT_TITLE_MODEL_ID
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 
 

@@ -6,7 +6,7 @@ from uuid import UUID
 from fastapi import HTTPException
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
-from app.constants import MODELS
+from app.catalog import MODELS
 from app.models.schemas.chat import MessageAttachment
 from app.models.types import PermissionMode
 from app.utils.sandbox import BaseBranch

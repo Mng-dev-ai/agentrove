@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, select, update
 
-from app.constants import BUILTIN_SLASH_COMMANDS
+from app.catalog import BUILTIN_SLASH_COMMANDS
 from app.core.config import get_settings
 from app.models.db_models.automation import Automation
 from app.models.db_models.chat import Chat, Message

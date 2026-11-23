@@ -12,11 +12,8 @@ from sqlalchemy import Row, func, or_, select, text, update, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
-from app.constants import (
-    MODELS,
-    REDIS_KEY_USER_CHATS_LIVE,
-    REDIS_KEY_USER_STREAMS_LIVE,
-)
+from app.catalog import MODELS
+from app.constants import REDIS_KEY_USER_CHATS_LIVE, REDIS_KEY_USER_STREAMS_LIVE
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, StreamEventKind
 from app.models.db_models.user import User

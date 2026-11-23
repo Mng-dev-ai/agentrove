@@ -10,7 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.constants import MODELS
+from app.catalog import MODELS
 from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole

@@ -14,7 +14,8 @@ from sqlalchemy import Select, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.constants import MODELS, REDIS_KEY_USER_STREAMS_LIVE
+from app.catalog import MODELS
+from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 from app.models.db_models.channel import (
     Channel,
     ChannelDelivery,

@@ -1,7 +1,7 @@
 import pytest
 from httpx import AsyncClient
 
-from app.constants import MODELS
+from app.catalog import MODELS
 from app.models.types import AgentKind
 from app.services.acp.adapters import THINKING_MODE_ORDER
 

@@ -8,7 +8,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import tests.bootstrap
-from app.constants import MODELS
+from app.catalog import MODELS
 from app.core.deps import get_queue_service
 from app.models.db_models.chat import Message, MessageAttachment
 from app.models.db_models.enums import AttachmentType, MessageRole, MessageStreamStatus
