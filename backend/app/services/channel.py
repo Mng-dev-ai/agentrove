@@ -411,8 +411,7 @@ class ChannelService(BaseDbService[Channel]):
         )
         if member is None:
             raise HTTPException(404, "Member not found")
-        turn = state.turns.get(member_id)
-        if turn is not None and turn.task is not None and not turn.task.done():
+        if ChannelEngine.member_busy(state, member_id):
             raise HTTPException(
                 409, f"{member.display_name} is busy, try again when it finishes"
             )
@@ -430,8 +429,7 @@ class ChannelService(BaseDbService[Channel]):
         )
         for member in state.channel.members:
             member.introduced = False
-        for turn in state.turns.values():
-            turn.introducing = False
+        ChannelEngine.clear_introducing(state)
 
     async def add_member(self, channel: Channel, data: ChannelMemberCreate) -> Channel:
         state = self.engine.state(channel)
@@ -531,7 +529,7 @@ class ChannelService(BaseDbService[Channel]):
                 for key, value in values.items():
                     setattr(member, key, value)
             self.engine.reset_member(state, member.id)
-            await self.engine.publish_activity(state)
+            await self.engine.publisher.publish_activity(state)
         return await self.get(channel.id, User(id=channel.user_id))
 
     async def remove_member(self, channel: Channel, member_id: UUID) -> Channel:
@@ -554,7 +552,7 @@ class ChannelService(BaseDbService[Channel]):
                     await db.commit()
                 member.removed_at = now
                 self.engine.forget_member(state, member.id)
-                await self.engine.publish_activity(state)
+                await self.engine.publisher.publish_activity(state)
             await session_registry.terminate(str(member.chat_id))
         return await self.get(channel.id, User(id=channel.user_id))
 
