@@ -22,6 +22,7 @@ from app.models.schemas.chat import ChatCreate, ChatRequest
 from app.models.types import PermissionMode
 from app.services.agent import AgentService
 from app.services.channel import ChannelService, channel_service
+from app.services.channel_engine import channel_engine
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import AutomationException, ErrorCode, ServiceException
@@ -407,7 +408,7 @@ class AutomationService(BaseDbService[Automation]):
             ),
         )
         try:
-            await channel_service.post(channel, automation.prompt, [], device_ids)
+            await channel_engine.post(channel, automation.prompt, [], device_ids)
         except Exception:
             try:
                 await channel_service.delete(channel)

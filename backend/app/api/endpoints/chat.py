@@ -79,6 +79,7 @@ from app.models.schemas.queue import (
     QueueMessageContent,
 )
 from app.services.channel import channel_service
+from app.services.channel_engine import channel_engine
 from app.services.chat import ChatService
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.device_session import DeviceSession
@@ -696,7 +697,7 @@ async def _attach_to_current_message(
     except StorageException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
     attachment = await message_service.create_attachment(message.id, attachment_data)
-    await channel_service.attachment_saved(chat, message.id)
+    await channel_engine.attachment_saved(chat, message.id)
     return attachment
 
 

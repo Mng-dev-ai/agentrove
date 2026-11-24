@@ -35,6 +35,7 @@ from app.core.middleware import McpAuthMiddleware, setup_middleware
 from app.db.session import SessionLocal, engine
 from app.services.agent import MCP_SERVER_PATH, AgentService
 from app.services.channel import channel_service
+from app.services.channel_engine import channel_engine
 from app.services.maintenance import MaintenanceService
 from app.services.session_registry import session_registry
 from app.services.streaming.recovery import DeadStreamRecovery
@@ -71,7 +72,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         async with mcp_endpoint.run():
             yield
     finally:
-        await channel_service.shutdown()
+        await channel_engine.shutdown()
         await maintenance_service.stop()
         await subthread_wake.shutdown()
         await ChatStreamRuntime.stop_background_chats()
