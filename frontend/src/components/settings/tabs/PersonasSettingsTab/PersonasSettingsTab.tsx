@@ -1,20 +1,15 @@
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
 import { Server, UserCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
-import { useMachineFilter } from '@/hooks/useMachineFilter';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import {
+  type MachineSettingsItem,
   useMachinesSettingsList,
   useUpdateMachineSettingsMutation,
 } from '@/hooks/queries/useMachineQueries';
-import {
-  LOCAL_MACHINE_NAME,
-  useMachineStore,
-  useOnlineRemoteMachineIds,
-} from '@/store/machineStore';
 import { ValidationError } from '@/services/base/ServiceError';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createDefaultPersonaForm, validatePersonaForm } from '@/utils/settings';
@@ -28,10 +23,7 @@ const PersonaEditDialog = lazyNamed(
   'PersonaEditDialog',
 );
 
-interface MachinePersona {
-  persona: Persona;
-  machineId: string;
-}
+type MachinePersona = MachineSettingsItem<Persona>;
 
 function createDefaultForm(machineId: string): PersonaForm {
   return { ...createDefaultPersonaForm(), machineId };
@@ -53,52 +45,15 @@ function deletePersona(personas: Persona[], name: string) {
 }
 
 export function PersonasSettingsTab() {
-  const { localSettings, persistSettings } = useSettingsContext();
-  const remoteIds = useOnlineRemoteMachineIds();
-  const machines = useMachineStore((state) => state.machines);
-  const machineNames = useMemo(
-    () => new Map(machines.map((machine) => [machine.id, machine.name])),
-    [machines],
-  );
-  const machineOptions = useMemo(
-    () => [
-      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
-      ...remoteIds.map((id) => ({ id, name: machineNames.get(id) ?? 'Machine' })),
-    ],
-    [remoteIds, machineNames],
-  );
-  const { machineId: machineFilter, filter } = useMachineFilter(
-    machineOptions,
-    'No personas match these filters',
-  );
+  const { persistSettings } = useSettingsContext();
   const {
-    byMachine: remotePersonas,
-    isLoading: remoteLoading,
+    machineOptions,
+    machineName,
+    machineId: machineFilter,
+    filter,
+    items,
     load: remoteLoad,
-  } = useMachinesSettingsList(remoteIds, 'personas', machineFilter);
-  const personasByMachine = useMemo(
-    (): Record<string, Persona[]> => ({
-      ...remotePersonas,
-      [LOCAL_MACHINE_ID]: localSettings.personas ?? [],
-    }),
-    [remotePersonas, localSettings.personas],
-  );
-  const items = useMemo(
-    (): MachinePersona[] | null =>
-      remoteLoading
-        ? null
-        : machineOptions
-            .filter((machine) => !machineFilter || machine.id === machineFilter)
-            .flatMap((machine) =>
-              (personasByMachine[machine.id] ?? []).map((persona) => ({
-                persona,
-                machineId: machine.id,
-              })),
-            ),
-    [remoteLoading, machineOptions, personasByMachine, machineFilter],
-  );
-
-  const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
+  } = useMachinesSettingsList('personas', 'No personas match these filters');
   const queryClient = useQueryClient();
   const remoteMutation = useUpdateMachineSettingsMutation({
     scope: { id: 'machine-personas' },
@@ -153,7 +108,7 @@ export function PersonasSettingsTab() {
     const item = items?.[index];
     if (!item) return;
     setEditingItem(item);
-    setForm({ ...item.persona, machineId: item.machineId });
+    setForm({ ...item.entry, machineId: item.machineId });
     setFormError(null);
     setIsDialogOpen(true);
   };
@@ -164,7 +119,7 @@ export function PersonasSettingsTab() {
     try {
       await writePersonas(
         item.machineId,
-        (personas) => deletePersona(personas, item.persona.name),
+        (personas) => deletePersona(personas, item.entry.name),
         'Failed to delete persona',
       );
     } catch (error) {
@@ -174,7 +129,7 @@ export function PersonasSettingsTab() {
 
   const handleSave = async () => {
     const persona: Persona = { name: form.name, content: form.content };
-    const editingName = editingItem?.persona.name ?? null;
+    const editingName = editingItem?.entry.name ?? null;
     try {
       await writePersonas(
         form.machineId,
@@ -199,9 +154,9 @@ export function PersonasSettingsTab() {
         addButtonText="Add Persona"
         deleteConfirmTitle="Delete Persona"
         deleteConfirmMessage={(item) =>
-          `Are you sure you want to delete "${item.persona.name}"? This action cannot be undone.`
+          `Are you sure you want to delete "${item.entry.name}"? This action cannot be undone.`
         }
-        getItemKey={(item) => `${item.machineId}:${item.persona.name}`}
+        getItemKey={(item) => `${item.machineId}:${item.entry.name}`}
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
@@ -209,7 +164,7 @@ export function PersonasSettingsTab() {
         renderItem={(item) => (
           <>
             <div className={styles['item-header']}>
-              <h3 className={styles['item-title']}>{item.persona.name}</h3>
+              <h3 className={styles['item-title']}>{item.entry.name}</h3>
               {item.machineId !== LOCAL_MACHINE_ID && (
                 <span className={styles.chip} title={machineName(item.machineId)}>
                   <Server className={styles['chip-icon']} />
@@ -217,7 +172,7 @@ export function PersonasSettingsTab() {
                 </span>
               )}
             </div>
-            <p className={styles['item-content']}>{item.persona.content}</p>
+            <p className={styles['item-content']}>{item.entry.content}</p>
           </>
         )}
         logContext="PersonasSettingsTab"

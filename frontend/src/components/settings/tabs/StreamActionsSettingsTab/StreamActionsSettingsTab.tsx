@@ -1,22 +1,17 @@
-import { Suspense, useCallback, useMemo, useState } from 'react';
+import { Suspense, useCallback, useState } from 'react';
 import { GitBranch, Server } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { ListManagementTab } from '@/components/ui/ListManagementTab/ListManagementTab';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
-import { useMachineFilter } from '@/hooks/useMachineFilter';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import {
   useMachineSettingsQuery,
+  type MachineSettingsItem,
   useMachinesSettingsList,
   useUpdateMachineSettingsMutation,
 } from '@/hooks/queries/useMachineQueries';
-import {
-  LOCAL_MACHINE_NAME,
-  useMachineStore,
-  useOnlineRemoteMachineIds,
-} from '@/store/machineStore';
 import { ValidationError } from '@/services/base/ServiceError';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createDefaultStreamActionForm, validateStreamActionForm } from '@/utils/settings';
@@ -30,10 +25,7 @@ const StreamActionEditDialog = lazyNamed(
   'StreamActionEditDialog',
 );
 
-interface MachineStreamAction {
-  action: StreamAction;
-  machineId: string;
-}
+type MachineStreamAction = MachineSettingsItem<StreamAction>;
 
 function createDefaultForm(machineId: string): StreamActionForm {
   return { ...createDefaultStreamActionForm(), machineId };
@@ -64,51 +56,14 @@ function toggleAction(actions: StreamAction[], label: string, enabled: boolean) 
 
 export function StreamActionsSettingsTab() {
   const { localSettings, persistSettings } = useSettingsContext();
-  const remoteIds = useOnlineRemoteMachineIds();
-  const machines = useMachineStore((state) => state.machines);
-  const machineNames = useMemo(
-    () => new Map(machines.map((machine) => [machine.id, machine.name])),
-    [machines],
-  );
-  const machineOptions = useMemo(
-    () => [
-      { id: LOCAL_MACHINE_ID, name: LOCAL_MACHINE_NAME },
-      ...remoteIds.map((id) => ({ id, name: machineNames.get(id) ?? 'Machine' })),
-    ],
-    [remoteIds, machineNames],
-  );
-  const { machineId: machineFilter, filter } = useMachineFilter(
-    machineOptions,
-    'No stream actions match these filters',
-  );
   const {
-    byMachine: remoteActions,
-    isLoading: remoteLoading,
+    machineOptions,
+    machineName,
+    machineId: machineFilter,
+    filter,
+    items,
     load: remoteLoad,
-  } = useMachinesSettingsList(remoteIds, 'stream_actions', machineFilter);
-  const actionsByMachine = useMemo(
-    (): Record<string, StreamAction[]> => ({
-      ...remoteActions,
-      [LOCAL_MACHINE_ID]: localSettings.stream_actions ?? [],
-    }),
-    [remoteActions, localSettings.stream_actions],
-  );
-  const items = useMemo(
-    (): MachineStreamAction[] | null =>
-      remoteLoading
-        ? null
-        : machineOptions
-            .filter((machine) => !machineFilter || machine.id === machineFilter)
-            .flatMap((machine) =>
-              (actionsByMachine[machine.id] ?? []).map((action) => ({
-                action,
-                machineId: machine.id,
-              })),
-            ),
-    [remoteLoading, machineOptions, actionsByMachine, machineFilter],
-  );
-
-  const machineName = (machineId: string) => machineNames.get(machineId) ?? 'Machine';
+  } = useMachinesSettingsList('stream_actions', 'No stream actions match these filters');
   const queryClient = useQueryClient();
   const remoteMutation = useUpdateMachineSettingsMutation({
     scope: { id: 'machine-stream-actions' },
@@ -169,7 +124,7 @@ export function StreamActionsSettingsTab() {
     const item = items?.[index];
     if (!item) return;
     setEditingItem(item);
-    setForm({ ...item.action, machineId: item.machineId });
+    setForm({ ...item.entry, machineId: item.machineId });
     setFormError(null);
     setIsDialogOpen(true);
   };
@@ -180,7 +135,7 @@ export function StreamActionsSettingsTab() {
     try {
       await writeActions(
         item.machineId,
-        (actions) => deleteAction(actions, item.action.label),
+        (actions) => deleteAction(actions, item.entry.label),
         'Failed to delete action',
       );
     } catch (error) {
@@ -192,7 +147,7 @@ export function StreamActionsSettingsTab() {
     try {
       await writeActions(
         item.machineId,
-        (actions) => toggleAction(actions, item.action.label, enabled),
+        (actions) => toggleAction(actions, item.entry.label, enabled),
         'Failed to update action',
       );
     } catch (error) {
@@ -203,7 +158,7 @@ export function StreamActionsSettingsTab() {
 
   const handleSave = async () => {
     const { machineId, ...action } = form;
-    const editingLabel = editingItem?.action.label ?? null;
+    const editingLabel = editingItem?.entry.label ?? null;
     try {
       await writeActions(
         machineId,
@@ -228,9 +183,9 @@ export function StreamActionsSettingsTab() {
         addButtonText="Add action"
         deleteConfirmTitle="Delete action"
         deleteConfirmMessage={(item) =>
-          `Are you sure you want to delete "${item.action.label}"? This action cannot be undone.`
+          `Are you sure you want to delete "${item.entry.label}"? This action cannot be undone.`
         }
-        getItemKey={(item) => `${item.machineId}:${item.action.label}`}
+        getItemKey={(item) => `${item.machineId}:${item.entry.label}`}
         onAdd={handleAdd}
         onEdit={handleEdit}
         onDelete={handleDelete}
@@ -238,7 +193,7 @@ export function StreamActionsSettingsTab() {
         renderItem={(item) => (
           <>
             <div className={styles['item-header']}>
-              <h3 className={styles['item-title']}>{item.action.label}</h3>
+              <h3 className={styles['item-title']}>{item.entry.label}</h3>
               {item.machineId !== LOCAL_MACHINE_ID && (
                 <span className={styles['machine-chip']} title={machineName(item.machineId)}>
                   <Server className={styles['chip-icon']} />
@@ -247,8 +202,8 @@ export function StreamActionsSettingsTab() {
               )}
             </div>
             <div className={styles['item-meta']}>
-              <span className={styles.chip}>{item.action.model_id}</span>
-              <span className={styles['item-command']}>{item.action.command}</span>
+              <span className={styles.chip}>{item.entry.model_id}</span>
+              <span className={styles['item-command']}>{item.entry.command}</span>
             </div>
           </>
         )}
@@ -256,9 +211,9 @@ export function StreamActionsSettingsTab() {
           <Switch
             size="sm"
             className={styles.toggle}
-            checked={item.action.enabled}
+            checked={item.entry.enabled}
             onCheckedChange={(enabled) => void handleToggle(item, enabled)}
-            aria-label={item.action.enabled ? 'Disable action' : 'Enable action'}
+            aria-label={item.entry.enabled ? 'Disable action' : 'Enable action'}
           />
         )}
         logContext="StreamActionsSettingsTab"
