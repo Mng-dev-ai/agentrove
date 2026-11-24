@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import re
 from collections.abc import Sequence
@@ -13,7 +12,6 @@ from sqlalchemy import Row, select, update
 from sqlalchemy.orm import selectinload
 
 from app.catalog import MODELS
-from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 from app.models.db_models.channel import (
     Channel,
     ChannelDelivery,
@@ -24,12 +22,13 @@ from app.models.db_models.channel import (
 from app.models.db_models.chat import Chat, Message, MessageAttachment
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
-from app.models.schemas.channel import ChannelMessageRead
 from app.models.schemas.chat import ChatRequest
 from app.models.schemas.queue import QueuedChannelMessage
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.channel_messages import ChannelMessageStore
+from app.services.channel_publisher import ChannelPublisher
+from app.services.channel_requests import ChannelRequests
 from app.services.channel_state import ChannelState, MemberRetry, MemberTurn, TurnStatus
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
@@ -77,6 +76,8 @@ class ChannelEngine(BaseDbService[Channel]):
             UserService(self.session_factory), self.session_factory
         )
         self.messages = ChannelMessageStore(self.session_factory)
+        self.publisher = ChannelPublisher()
+        self.requests = ChannelRequests(self.publisher, self.session_factory)
         self.states: dict[UUID, ChannelState] = {}
 
     def state(self, channel: Channel) -> ChannelState:
@@ -110,75 +111,6 @@ class ChannelEngine(BaseDbService[Channel]):
     def clear_introducing(state: ChannelState) -> None:
         for turn in state.turns.values():
             turn.introducing = False
-
-    async def publish(
-        self, channel: Channel, kind: str, payload: dict[str, Any]
-    ) -> None:
-        try:
-            async with cache_connection() as cache:
-                await cache.publish(
-                    REDIS_KEY_USER_STREAMS_LIVE.format(user_id=channel.user_id),
-                    json.dumps(
-                        {"channelId": str(channel.id), "kind": kind, "payload": payload}
-                    ),
-                )
-        except CacheError:
-            logger.warning("Failed to publish channel event for %s", channel.id)
-
-    async def publish_activity(
-        self, state: ChannelState, asked: dict[str, str] | None = None
-    ) -> None:
-        member_ids = [
-            str(turn.member.id)
-            for turn in state.turns.values()
-            if turn.status is TurnStatus.RUNNING
-        ]
-        waiting_member_ids = list(
-            dict.fromkeys(
-                str(member_id)
-                for member_id, _ in [*state.permissions, *state.elicitations]
-            )
-        )
-        elicitation_requests = list(state.elicitations.values())
-        retrying_member_ids = [
-            str(member_id)
-            for member_id in state.retries
-            if str(member_id) not in member_ids
-        ]
-        member_errors = {
-            member_id: state.retries[UUID(member_id)].reason
-            for member_id in retrying_member_ids
-        }
-        gave_up_members = {
-            str(member_id): reason for member_id, reason in state.gave_up.items()
-        }
-        if (
-            member_ids == state.active_member_ids
-            and waiting_member_ids == state.waiting_member_ids
-            and elicitation_requests == state.elicitation_requests
-            and retrying_member_ids == state.retrying_member_ids
-            and member_errors == state.member_errors
-            and gave_up_members == state.gave_up_members
-        ):
-            return
-        state.active_member_ids = member_ids
-        state.waiting_member_ids = waiting_member_ids
-        state.elicitation_requests = elicitation_requests
-        state.retrying_member_ids = retrying_member_ids
-        state.member_errors = member_errors
-        state.gave_up_members = gave_up_members
-        state.activity_version += 1
-        activity = state.member_activity()
-        if asked is not None:
-            activity["asked"] = asked
-        await self.publish(state.channel, "channel_member_activity", activity)
-
-    @staticmethod
-    def serialized(message: ChannelMessage) -> dict[str, Any]:
-        payload: dict[str, Any] = ChannelMessageRead.model_validate(message).model_dump(
-            mode="json"
-        )
-        return payload
 
     def reply_audience(self, state: ChannelState, turn: MemberTurn) -> list[str] | None:
         member_id = str(turn.member.id)
@@ -224,7 +156,7 @@ class ChannelEngine(BaseDbService[Channel]):
         message = await self.messages.new_message(
             state, content, attachments=attachments, device_ids=device_ids
         )
-        await self.publish_message(state.channel, message)
+        await self.publisher.publish_message(state.channel, message)
         self.fan_out(state)
         return message
 
@@ -269,7 +201,7 @@ class ChannelEngine(BaseDbService[Channel]):
                 await self.finish(state, turn)
             if turn.task is not None and turn.task.done():
                 state.turns.pop(turn.member.id)
-        await self.publish_activity(state)
+        await self.publisher.publish_activity(state)
 
     async def cancel_device_turns(self, device_ids: frozenset[UUID]) -> None:
         for state in list(self.states.values()):
@@ -348,7 +280,7 @@ class ChannelEngine(BaseDbService[Channel]):
                 state.turns[member.id] = turn
                 turn.task = asyncio.create_task(self.run_turn(state, turn))
                 turn.task.add_done_callback(self.task_done)
-            await self.publish_activity(state)
+            await self.publisher.publish_activity(state)
             if retry_times:
                 self.schedule(state, min(retry_times))
             completion = await self.settle(state)
@@ -397,10 +329,12 @@ class ChannelEngine(BaseDbService[Channel]):
             logger.warning("Failed to read queued messages for channel %s", channel_id)
             return
         state.give_fresh_attempts(message.audience)
-        await self.publish_activity(state)
-        await self.publish_message(state.channel, message)
+        await self.publisher.publish_activity(state)
+        await self.publisher.publish_message(state.channel, message)
         self.fan_out(state)
-        await self.publish(state.channel, "channel_queue_sent", {"id": item["id"]})
+        await self.publisher.publish(
+            state.channel, "channel_queue_sent", {"id": item["id"]}
+        )
 
     async def settle(self, state: ChannelState) -> tuple[UUID, str, str] | None:
         if state.last_reply is None or not state.idle():
@@ -410,7 +344,7 @@ class ChannelEngine(BaseDbService[Channel]):
         title = f"#{state.channel.name}"
         body = f"{author}: {message.content.strip() or 'Open the channel to see the result.'}"
         state.activity_version += 1
-        await self.publish(
+        await self.publisher.publish(
             state.channel,
             "channel_member_activity",
             {
@@ -447,7 +381,7 @@ class ChannelEngine(BaseDbService[Channel]):
         except Exception:
             await queue.requeue_message(channel_id, item)
             raise
-        await self.publish(channel, "channel_queue_sent", {"id": item["id"]})
+        await self.publisher.publish(channel, "channel_queue_sent", {"id": item["id"]})
         return message
 
     def backoff(
@@ -581,7 +515,7 @@ class ChannelEngine(BaseDbService[Channel]):
                     self.fail_turn(state, turn, exc)
                 else:
                     state.turns.pop(member.id)
-                await self.publish_activity(state)
+                await self.publisher.publish_activity(state)
                 self.schedule(state)
 
     @staticmethod
@@ -662,7 +596,7 @@ class ChannelEngine(BaseDbService[Channel]):
                     "streaming",
                 )
                 await db.commit()
-            await self.publish_message(state.channel, turn.message)
+            await self.publisher.publish_message(state.channel, turn.message)
         turn.last_flush_at = asyncio.get_running_loop().time()
 
     async def begin_speaking(self, state: ChannelState, turn: MemberTurn) -> None:
@@ -677,7 +611,7 @@ class ChannelEngine(BaseDbService[Channel]):
         async with self.session_factory() as db:
             await self.messages.promote_attachments(db, turn.message)
             await db.commit()
-        await self.publish_message(state.channel, turn.message)
+        await self.publisher.publish_message(state.channel, turn.message)
 
     async def attachment_saved(self, chat: Chat, source_message_id: UUID) -> None:
         state = self.states.get(chat.channel_id) if chat.channel_id else None
@@ -734,18 +668,13 @@ class ChannelEngine(BaseDbService[Channel]):
                 else "cancelled",
             )
             await db.commit()
-        await self.publish_message(state.channel, reply)
-
-    async def publish_message(self, channel: Channel, message: ChannelMessage) -> None:
-        await self.publish(
-            channel, "channel_message", {"message": self.serialized(message)}
-        )
+        await self.publisher.publish_message(state.channel, reply)
 
     async def finish(self, state: ChannelState, turn: MemberTurn) -> None:
         if turn.status is TurnStatus.FINISHED:
             return
-        await self.resolve_permissions(state, turn.member.id)
-        await self.resolve_elicitations(state, turn.member.id)
+        await self.requests.resolve_permissions(state, turn.member.id)
+        await self.requests.resolve_elicitations(state, turn.member.id)
         successful = turn.status is TurnStatus.RUNNING
         silent = self.is_silent(turn.text)
         if turn.message is None and successful and not silent:
@@ -804,7 +733,7 @@ class ChannelEngine(BaseDbService[Channel]):
         if successful:
             state.retries.pop(turn.member.id, None)
         if message is not None:
-            await self.publish_message(state.channel, message)
+            await self.publisher.publish_message(state.channel, message)
             if successful and not silent:
                 if state.last_reply is None or message.seq > state.last_reply[1].seq:
                     state.last_reply = (turn.member.display_name, message)
@@ -918,7 +847,7 @@ class ChannelEngine(BaseDbService[Channel]):
         self.states[channel.id] = state
         for message in messages:
             if message.channel_id == channel.id:
-                await self.publish_message(channel, message)
+                await self.publisher.publish_message(channel, message)
         for channel_id, member_id, source_message_id in orphans:
             if channel_id == channel.id:
                 await self.show_late_attachments(state, member_id, source_message_id)
@@ -948,31 +877,6 @@ class ChannelEngine(BaseDbService[Channel]):
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def resolve_permissions(
-        self, state: ChannelState, member_id: UUID, request_id: str | None = None
-    ) -> None:
-        for key in list(state.permissions):
-            if key[0] == member_id and (request_id is None or key[1] == request_id):
-                pending = state.permissions.pop(key)
-                session_registry.resolve_permission(pending["chat_id"], key[1])
-                await self.publish(
-                    state.channel,
-                    "channel_permission_resolved",
-                    {"member_id": str(member_id), "request_id": key[1]},
-                )
-        await self.publish_activity(state)
-
-    async def resolve_elicitations(
-        self, state: ChannelState, member_id: UUID, request_id: str | None = None
-    ) -> None:
-        for key in list(state.elicitations):
-            if key[0] == member_id and (request_id is None or key[1] == request_id):
-                pending = state.elicitations.pop(key)
-                session_registry.resolve_elicitation(
-                    pending["chat_id"], key[1], action="cancel"
-                )
-        await self.publish_activity(state)
-
     async def handle_event(
         self, state: ChannelState, turn: MemberTurn, kind: str, payload: dict[str, Any]
     ) -> None:
@@ -998,67 +902,17 @@ class ChannelEngine(BaseDbService[Channel]):
         if kind == "stream_started":
             turn.source_message_id = UUID(payload["message_id"])
         elif kind == "permission_request":
-            async with state.lock:
-                request_id = payload["request_id"]
-                if turn.status is not TurnStatus.RUNNING:
-                    session_registry.resolve_permission(
-                        str(turn.member.chat_id), request_id
-                    )
-                    return
-                pending = {
-                    "member_id": str(turn.member.id),
-                    "chat_id": str(turn.member.chat_id),
-                    "request": {
-                        "request_id": request_id,
-                        "tool_name": payload["tool_name"],
-                        "tool_input": payload["tool_input"],
-                        "options": payload["data"]["options"],
-                    },
-                }
-                state.permissions[(turn.member.id, request_id)] = pending
-                await self.publish(state.channel, "channel_permission_request", pending)
-                await self.publish_activity(state)
-            await PushService(self.session_factory).notify_permission(
-                user_id=state.channel.user_id,
-                path=f"/channels/{state.channel.id}",
-                request_id=request_id,
-                tool_name=payload["tool_name"],
-                sub_thread=False,
-            )
+            await self.requests.request_permission(state, turn, payload)
         elif kind == "permission_resolved":
             async with state.lock:
-                await self.resolve_permissions(
+                await self.requests.resolve_permissions(
                     state, turn.member.id, payload["request_id"]
                 )
         elif kind == "elicitation_request":
-            async with state.lock:
-                request_id = payload["request_id"]
-                if turn.status is not TurnStatus.RUNNING:
-                    session_registry.resolve_elicitation(
-                        str(turn.member.chat_id), request_id, action="decline"
-                    )
-                    return
-                state.elicitations[(turn.member.id, request_id)] = {
-                    "member_id": str(turn.member.id),
-                    "chat_id": str(turn.member.chat_id),
-                    "request": {"request_id": request_id, **payload["data"]},
-                }
-                asked = {
-                    "title": f"#{state.channel.name}",
-                    "body": f"{turn.member.display_name} asks: {payload['data']['message']}",
-                }
-                await self.publish_activity(state, asked)
-            await PushService(self.session_factory).notify_question(
-                user_id=state.channel.user_id,
-                path=f"/channels/{state.channel.id}",
-                request_id=f"{turn.source_message_id}:{request_id}",
-                title=asked["title"],
-                body=asked["body"],
-                sub_thread=False,
-            )
+            await self.requests.request_elicitation(state, turn, payload)
         elif kind == "elicitation_resolved":
             async with state.lock:
-                await self.resolve_elicitations(
+                await self.requests.resolve_elicitations(
                     state, turn.member.id, payload["request_id"]
                 )
         elif kind == "assistant_text":

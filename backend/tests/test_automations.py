@@ -313,7 +313,7 @@ async def test_running_a_new_channel_automation_creates_the_channel_and_posts(
     async def publish(channel: Channel, kind: str, payload: dict[str, Any]) -> None:
         published.append(kind)
 
-    monkeypatch.setattr(channel_engine, "publish", publish)
+    monkeypatch.setattr(channel_engine.publisher, "publish", publish)
     created = await create_automation(
         client, headers, workspace.id, channel_members=NEW_CHANNEL_MEMBERS
     )

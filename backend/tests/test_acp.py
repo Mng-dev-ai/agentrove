@@ -42,6 +42,7 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.types import AgentKind
 from app.services import channel_engine as channel_engine_module
+from app.services import channel_publisher as channel_publisher_module
 from app.services.acp import client as acp_client_module
 from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.automation import AutomationService
@@ -1804,6 +1805,7 @@ async def test_channel_member_question_waits_for_the_owner(
     expected_response: dict[str, Any],
 ) -> None:
     monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     channel = await client.post(
@@ -1888,6 +1890,7 @@ async def test_unanswered_channel_member_question_is_declined_on_timeout(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     monkeypatch.setattr(acp_client_module, "CHANNEL_ELICITATION_TIMEOUT_SECONDS", 0)
     headers, workspace = auth_workspace
@@ -2815,6 +2818,7 @@ async def test_channel_turn_acts_for_the_devices_behind_its_prompt(
     expected: dict[str, tuple[list[str], int]],
 ) -> None:
     monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.5)
     headers, workspace = auth_workspace
     devices = {name: await pair_device(client, headers, name) for name in ("A", "B")}
@@ -2885,6 +2889,7 @@ async def test_channel_member_gets_its_chat_and_memory_only_with_agentrove_tools
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     spawned: list[AcpSessionConfig] = []
     create = AcpSession.create
@@ -3644,6 +3649,7 @@ async def test_edited_channel_queue_item_keeps_acting_for_the_device_that_queued
 ) -> None:
     monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
@@ -3749,6 +3755,7 @@ async def test_channel_send_now_acts_for_the_clicking_device(
 ) -> None:
     monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
@@ -3805,6 +3812,7 @@ async def test_channel_send_now_keeps_the_clicking_device_when_posting_fails(
 ) -> None:
     monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
+    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")

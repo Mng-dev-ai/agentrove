@@ -223,7 +223,7 @@ async def channel_runtime(
 ) -> AsyncIterator[ScriptedTurns]:
     await reset_channel_states([])
     runtime = ScriptedTurns()
-    monkeypatch.setattr(channel_engine, "publish", runtime.publish)
+    monkeypatch.setattr(channel_engine.publisher, "publish", runtime.publish)
     monkeypatch.setattr(
         channel_engine.chats,
         "initiate_chat_completion",
