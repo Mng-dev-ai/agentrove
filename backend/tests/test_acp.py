@@ -52,6 +52,7 @@ from app.services.sandbox_providers import SandboxProviderType
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.host_provider import LocalHostProvider
 from app.services.session_registry import SessionRegistry
+from app.services.streaming import recovery as recovery_module
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES
@@ -196,6 +197,7 @@ def acp_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
     monkeypatch.setattr(chat_endpoint, "cache_connection", cache.connect)
     monkeypatch.setattr(chat_service_module, "cache_connection", cache.connect)
     monkeypatch.setattr(runtime_module, "cache_connection", cache.connect)
+    monkeypatch.setattr(recovery_module, "cache_connection", cache.connect)
     return cache
 
 

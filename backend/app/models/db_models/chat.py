@@ -11,6 +11,8 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Update,
+    update,
 )
 from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy import JSON
@@ -19,6 +21,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base_class import Base
 from app.db.migration_helpers import uuid_server_default
 from app.db.types import GUID, UTCDateTime, UUIDSet, enum_values
+from app.models.types import PermissionMode
 
 from .enums import AttachmentType, MessageRole, MessageStreamStatus
 
@@ -105,6 +108,27 @@ class Chat(Base):
     @classmethod
     def is_visible(cls) -> ColumnElement[bool]:
         return cls.channel_id.is_(None)
+
+    @classmethod
+    def record_turn_settings(
+        cls,
+        chat_id: UUID,
+        *,
+        model_id: str,
+        permission_mode: PermissionMode,
+        thinking_mode: str | None,
+        persona_name: str,
+    ) -> Update:
+        return (
+            update(cls)
+            .where(cls.id == chat_id)
+            .values(
+                last_model_id=model_id,
+                last_permission_mode=permission_mode,
+                last_thinking_mode=thinking_mode,
+                last_persona_name=persona_name,
+            )
+        )
 
     @property
     def unread(self) -> bool:

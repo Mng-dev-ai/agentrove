@@ -37,6 +37,7 @@ from app.services.agent import MCP_SERVER_PATH, AgentService
 from app.services.channel import channel_service
 from app.services.maintenance import MaintenanceService
 from app.services.session_registry import session_registry
+from app.services.streaming.recovery import DeadStreamRecovery
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.subthread_wake import subthread_wake
 from app.services.terminal import terminal_session_registry
@@ -61,7 +62,7 @@ mcp_endpoint = HttpEndpoint(AgentService.loopback_api_url())
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    await ChatStreamRuntime.reconcile_orphaned_messages(SessionLocal)
+    await DeadStreamRecovery.reconcile_orphaned_messages(SessionLocal)
     await channel_service.recover()
     await subthread_wake.recover()
     maintenance_service = MaintenanceService()

@@ -57,6 +57,7 @@ from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.streaming.scaffold import TurnScaffold
 from app.services.streaming.types import (
     ChannelMemberTurn,
     ChatStreamRequest,
@@ -1285,7 +1286,7 @@ class ChatService(BaseDbService[Chat]):
             # Record the turn's settings alongside the bump — the server-side
             # source of truth that MCP follow-ups and the UI inherit.
             await db.execute(
-                ChatStreamRuntime.record_turn_settings(
+                Chat.record_turn_settings(
                     chat.id,
                     model_id=request.model_id,
                     permission_mode=request.permission_mode,
@@ -1312,7 +1313,7 @@ class ChatService(BaseDbService[Chat]):
             sub_thread=chat.parent_chat_id is not None,
         )
 
-        async with ChatStreamRuntime.turn_scaffold(
+        async with TurnScaffold.open(
             self.message_service,
             chat,
             prompt=request.prompt,
