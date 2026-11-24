@@ -62,8 +62,6 @@ _SENTINEL = object()
 # as defense-in-depth for other or older adapters.
 _HEARTBEAT_TOOL_ID_RE = re.compile(r"-heartbeat-\d+$")
 
-IMAGE_READ_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
-
 # Valid ACP option_ids that match our PermissionMode literals directly.
 VALID_PERMISSION_MODES: set[str] = {
     "auto_edit",
@@ -578,13 +576,9 @@ class AcpClientHandler:
             )
             selected = await self._wait_for_user_choice(request_id)
             if not selected:
-                # User dismissed the question — tell Grok to stop interviewing
-                # and proceed with whatever answers it already has.
-                return {"outcome": "skip_interview"}
+                return self._adapter.question_response(None)
             answers[question_text] = selected
-        # The wire format accepts string-or-list answer values; we always send
-        # a single label (multiSelect degrades to picking one option).
-        return {"outcome": "accepted", "answers": answers}
+        return self._adapter.question_response(answers)
 
     async def ext_notification(self, method: str, params: dict[str, Any]) -> None:
         pass
@@ -787,18 +781,6 @@ class AcpClientHandler:
         if normalized := self._adapter.normalize_tool_call(tc):
             return normalized[1]
         return self._adapter.parse_raw_input(getattr(tc, "raw_input", None))
-
-    @staticmethod
-    def image_read_path(agent_kind: AgentKind, tool: ToolPayload) -> str | None:
-        key = AGENT_ADAPTERS[agent_kind].image_read_path_key
-        if key is None or tool.get("name") != "read":
-            return None
-        path = (tool.get("input") or {}).get(key)
-        if not isinstance(path, str) or not path.lower().endswith(
-            IMAGE_READ_EXTENSIONS
-        ):
-            return None
-        return path
 
     @staticmethod
     def _extract_content_images(tc: ToolCallProgress) -> list[ToolImage]:

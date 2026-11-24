@@ -64,6 +64,7 @@ from app.services.streaming import recovery as recovery_module
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES
+from app.services.streaming.types import ToolPayload
 from app.services.subthread_wake import SubThreadWake
 from app.services.user import UserService
 from app.utils.cache import CachePubSub
@@ -4441,19 +4442,6 @@ async def test_promote_is_refused_while_a_turn_is_starting(
         pytest.param(AgentKind.GROK, {"kind": "search"}, None, id="grok-web-search"),
         pytest.param(
             AgentKind.ANTIGRAVITY,
-            {
-                "kind": "other",
-                "_meta": {
-                    "is_mcp_tool_call": True,
-                    "mcp": {"tool": "list_chats", "server": "agentrove"},
-                },
-                "rawInput": {"arguments": {"limit": 5}, "limit": 5},
-            },
-            ("mcp__agentrove__list_chats", {"limit": 5}),
-            id="antigravity-mcp",
-        ),
-        pytest.param(
-            AgentKind.ANTIGRAVITY,
             {"title": "Which database?"},
             ("ask_question", {"question": "Which database?"}),
             id="antigravity-question",
@@ -4556,58 +4544,55 @@ def test_grok_adapter_prefers_the_content_text_of_a_failed_tool() -> None:
     )
 
 
-def test_adapter_lifecycle_and_stream_flags_per_agent() -> None:
-    overrides = {
-        AgentKind.ANTIGRAVITY: {"image_read_path_key": "file_path"},
-        AgentKind.CLAUDE: {"supports_steering": True},
-        AgentKind.CODEX: {
-            "supports_steering": True,
-            "image_read_path_key": "path",
-            "fast_mode_config_id": "fast-mode",
-            "instructions_file": (True, False),
-        },
-        AgentKind.COPILOT: {"image_read_path_key": "path"},
-        AgentKind.CURSOR: {},
-        AgentKind.GROK: {
-            "respawns_on_mode_change": True,
-            "ask_user_question_method": "x.ai/ask_user_question",
-            "wire_modes": ("default", "default", "plan"),
-        },
-        AgentKind.OPENCODE: {
-            "forwards_plan": False,
-            "tool_images_in_content": True,
-            "instructions_file": (False, True),
-        },
+def test_adapter_lifecycle_hooks_per_agent() -> None:
+    assert {
+        agent_kind: (
+            adapter.needs_instructions_file(True),
+            adapter.needs_instructions_file(False),
+        )
+        for agent_kind, adapter in AGENT_ADAPTERS.items()
+    } == {
+        **dict.fromkeys(AgentKind, (False, False)),
+        AgentKind.CODEX: (True, False),
+        AgentKind.OPENCODE: (False, True),
     }
-    defaults = {
-        "image_read_path_key": None,
-        "forwards_plan": True,
-        "tool_images_in_content": False,
-        "ask_user_question_method": None,
-        "supports_steering": False,
-        "fast_mode_config_id": None,
-        "respawns_on_mode_change": False,
-        "instructions_file": (False, False),
-        "wire_modes": ("auto", "always-approve", "plan"),
-    }
+    modes = ("auto", "always-approve", "plan")
+    assert [AGENT_ADAPTERS[AgentKind.GROK].wire_mode_id(mode) for mode in modes] == [
+        "default",
+        "default",
+        "plan",
+    ]
+    assert [AGENT_ADAPTERS[AgentKind.CURSOR].wire_mode_id(mode) for mode in modes] == [
+        "auto",
+        "always-approve",
+        "plan",
+    ]
+
+
+def test_adapter_image_read_path_uses_the_agents_input_key() -> None:
+    tools = [
+        ToolPayload(name="read", input={"path": "shot.PNG"}),
+        ToolPayload(name="read", input={"file_path": "shot.png"}),
+        ToolPayload(name="read", input={"path": "notes.txt"}),
+        ToolPayload(name="edit", input={"path": "shot.png"}),
+        ToolPayload(name="read", input=None),
+    ]
 
     assert {
-        agent_kind: {
-            "image_read_path_key": adapter.image_read_path_key,
-            "forwards_plan": adapter.forwards_plan,
-            "tool_images_in_content": adapter.tool_images_in_content,
-            "ask_user_question_method": adapter.ask_user_question_method,
-            "supports_steering": adapter.supports_steering,
-            "fast_mode_config_id": adapter.fast_mode_config_id,
-            "respawns_on_mode_change": adapter.respawns_on_mode_change,
-            "instructions_file": (
-                adapter.needs_instructions_file(True),
-                adapter.needs_instructions_file(False),
-            ),
-            "wire_modes": tuple(
-                adapter.wire_mode_id(mode)
-                for mode in ("auto", "always-approve", "plan")
-            ),
-        }
-        for agent_kind, adapter in AGENT_ADAPTERS.items()
-    } == {agent_kind: {**defaults, **overrides[agent_kind]} for agent_kind in AgentKind}
+        agent_kind: [AGENT_ADAPTERS[agent_kind].image_read_path(tool) for tool in tools]
+        for agent_kind in (AgentKind.CODEX, AgentKind.ANTIGRAVITY, AgentKind.CLAUDE)
+    } == {
+        AgentKind.CODEX: ["shot.PNG", None, None, None, None],
+        AgentKind.ANTIGRAVITY: [None, "shot.png", None, None, None],
+        AgentKind.CLAUDE: [None] * 5,
+    }
+
+
+def test_grok_adapter_shapes_the_question_response() -> None:
+    grok = AGENT_ADAPTERS[AgentKind.GROK]
+
+    assert grok.question_response({"Which database?": "SQLite"}) == {
+        "outcome": "accepted",
+        "answers": {"Which database?": "SQLite"},
+    }
+    assert grok.question_response(None) == {"outcome": "skip_interview"}

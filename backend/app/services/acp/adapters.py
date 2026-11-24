@@ -3,13 +3,17 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field, replace
 from collections.abc import Iterable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from acp.schema import ToolCallProgress, ToolCallStart
 
 from app.catalog import MODELS
 from app.models.types import AgentKind, PermissionMode
 from app.services.exceptions import AgentException
+
+if TYPE_CHECKING:
+    # streaming.types imports this module through the system prompt.
+    from app.services.streaming.types import ToolPayload
 
 
 # File types each agent can consume inline in the ACP prompt (base64-embedded as
@@ -62,6 +66,8 @@ PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
     }
 )
 
+
+IMAGE_READ_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
 THINKING_MODE_ORDER = (
     "none",
@@ -313,6 +319,22 @@ class AgentAdapter:
             )
         return None
 
+    def image_read_path(self, tool: ToolPayload) -> str | None:
+        key = self.image_read_path_key
+        if key is None or tool.get("name") != "read":
+            return None
+        path = (tool.get("input") or {}).get(key)
+        if not isinstance(path, str) or not path.lower().endswith(
+            IMAGE_READ_EXTENSIONS
+        ):
+            return None
+        return path
+
+    def question_response(self, answers: dict[str, str] | None) -> dict[str, Any]:
+        # Reply to `ask_user_question_method`: the chosen option label per
+        # question text, or None when the user dismissed a question.
+        raise NotImplementedError
+
     def wire_tool_name(self, tool_call: dict[str, Any]) -> str | None:
         # Tool name read from the raw JSON-RPC tool call, for agents that send
         # it in a field the SDK schema drops.
@@ -532,6 +554,14 @@ class GrokAgentAdapter(AgentAdapter):
     # It must be answered with an AskUserQuestionExtResponse — an empty result
     # fails the tool with "missing field `outcome`".
     ask_user_question_method = "x.ai/ask_user_question"
+
+    def question_response(self, answers: dict[str, str] | None) -> dict[str, Any]:
+        if answers is None:
+            # Stop interviewing and proceed with the answers already given.
+            return {"outcome": "skip_interview"}
+        # The wire format accepts string-or-list answer values; we always send
+        # a single label (multiSelect degrades to picking one option).
+        return {"outcome": "accepted", "answers": answers}
 
     def wire_mode_id(self, session_mode: str) -> str:
         # The CLI only knows `default` and `plan`; approval is a launch flag.

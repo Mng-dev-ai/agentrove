@@ -111,7 +111,7 @@ class AcpSessionConfig:
     effort_explicit: bool = False
     session_meta: dict[str, Any] = field(default_factory=dict)
     instructions_file_path: str | None = None
-    # Codex-only: 1.5x speed service tier via set_config_option("fast-mode").
+    # Faster service tier, for agents with a `fast_mode_config_id`.
     fast_mode: bool = False
     # False: a rejected model is logged and the agent's default runs (one-shot tasks).
     strict_model: bool = True
@@ -583,7 +583,7 @@ class AcpSession:
                 try:
                     await session.set_fast_mode(True)
                 except Exception:
-                    logger.warning("Failed to enable Codex fast mode", exc_info=True)
+                    logger.warning("Failed to enable fast mode", exc_info=True)
 
         except Exception as exc:
             stderr_output = ""

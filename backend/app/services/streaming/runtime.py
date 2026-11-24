@@ -32,7 +32,7 @@ from app.models.db_models.user import User, UserSettings
 from app.models.schemas.queue import QueuedMessage
 from app.models.types import AgentKind
 from app.prompts.system_prompt import build_system_prompt_for_chat
-from app.services.acp.client import AcpClientHandler
+from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.agent import (
     AgentService,
@@ -289,7 +289,8 @@ class ChatStreamRuntime:
             await self._flush_snapshot()
 
     async def _read_tool_image(self, tool: ToolPayload) -> ToolImage | None:
-        path = AcpClientHandler.image_read_path(MODELS[self.model_id].agent_kind, tool)
+        adapter = AGENT_ADAPTERS[MODELS[self.model_id].agent_kind]
+        path = adapter.image_read_path(tool)
         if path is None or tool["id"] in self._image_read_tool_ids:
             return None
         self._image_read_tool_ids.add(tool["id"])
