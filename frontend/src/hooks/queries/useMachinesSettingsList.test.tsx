@@ -101,6 +101,7 @@ describe('useMachinesSettingsList with a machine selected in the filter', () => 
     );
     expect(result.current.items).toEqual([{ entry: SELECTED_PERSONA, machineId: SELECTED_ID }]);
     expect(result.current.load.loadFailed).toBe(false);
+    expect(result.current.load.isRetrying).toBe(false);
   });
 
   it('ignores a still-loading unselected machine', async () => {
@@ -112,6 +113,7 @@ describe('useMachinesSettingsList with a machine selected in the filter', () => 
     await waitFor(() =>
       expect(result.current.items).toEqual([{ entry: SELECTED_PERSONA, machineId: SELECTED_ID }]),
     );
+    expect(result.current.load.loadFailed).toBe(false);
   });
 
   it('returns null while the selected machine is loading', async () => {

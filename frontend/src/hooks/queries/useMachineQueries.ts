@@ -137,38 +137,31 @@ export const useMachinesSettingsList = <K extends SettingsListKey>(key: K, empty
     [remoteIds, machineNames],
   );
   const { machineId, filter } = useMachineFilter(machineOptions, emptyText);
+  const localEntries: SettingsListEntry<K>[] | null = localSettings[key];
   const combine = useCallback(
     (results: UseQueryResult<UserSettings>[]) => {
-      const byMachine: Record<string, SettingsListEntry<K>[]> = Object.fromEntries(
-        remoteIds.map((id, index) => [id, results[index]?.data?.[key] ?? []]),
-      );
-      const shown = results.filter(
-        (_result, index) => !machineId || remoteIds[index] === machineId,
-      );
+      const shown = remoteIds
+        .map((id, index) => ({ id, result: results[index] }))
+        .filter(({ id }) => !machineId || id === machineId);
+      const load = listLoadState(shown.map(({ result }) => result));
+      if (shown.some(({ result }) => result.isLoading)) return { items: null, load };
+      const local = !machineId || machineId === LOCAL_MACHINE_ID ? (localEntries ?? []) : [];
       return {
-        byMachine,
-        isLoading: shown.some((result) => result.isLoading),
-        load: listLoadState(shown),
+        items: [
+          ...local.map((entry) => ({ entry, machineId: LOCAL_MACHINE_ID })),
+          ...shown.flatMap(({ id, result }) => {
+            const entries: SettingsListEntry<K>[] = result.data?.[key] ?? [];
+            return entries.map((entry) => ({ entry, machineId: id }));
+          }),
+        ],
+        load,
       };
     },
-    [remoteIds, key, machineId],
+    [remoteIds, key, machineId, localEntries],
   );
-  const remote = useQueries({ queries: remoteIds.map(machineSettingsQuery), combine });
-  const localEntries: SettingsListEntry<K>[] | null = localSettings[key];
-  const items = useMemo((): MachineSettingsItem<SettingsListEntry<K>>[] | null => {
-    if (remote.isLoading) return null;
-    const byMachine: Record<string, SettingsListEntry<K>[]> = {
-      ...remote.byMachine,
-      [LOCAL_MACHINE_ID]: localEntries ?? [],
-    };
-    return machineOptions
-      .filter((machine) => !machineId || machine.id === machineId)
-      .flatMap((machine) =>
-        (byMachine[machine.id] ?? []).map((entry) => ({ entry, machineId: machine.id })),
-      );
-  }, [remote.isLoading, remote.byMachine, localEntries, machineOptions, machineId]);
+  const { items, load } = useQueries({ queries: remoteIds.map(machineSettingsQuery), combine });
   const machineName = (id: string) => machineNames.get(id) ?? 'Machine';
-  return { machineOptions, machineName, machineId, filter, items, load: remote.load };
+  return { machineOptions, machineName, machineId, filter, items, load };
 };
 
 export const useUpdateMachineSettingsMutation = createMutation<
