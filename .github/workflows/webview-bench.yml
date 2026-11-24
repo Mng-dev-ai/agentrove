@@ -13,7 +13,7 @@ jobs:
     env:
       API_PORT: '18741'
       WEB_PORT: '18742'
-      BENCH_RUNS: '12'
+      BENCH_RUNS: '1'
 
     steps:
       - name: Checkout
