@@ -37,8 +37,11 @@ from app.services.chat import ChatService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.host_provider import LocalHostProvider
 from app.services.sandbox_providers.types import CommandResult
+from app.services.streaming import recovery as recovery_module
 from app.services.streaming import runtime as runtime_module
+from app.services.streaming.recovery import DeadStreamRecovery
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.streaming.scaffold import TurnScaffold
 from app.services.streaming.types import StreamEnvelope, StreamEvent
 from app.services.subthread_wake import SubThreadWake
 
@@ -248,6 +251,7 @@ def streaming_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
     monkeypatch.setattr(deps, "cache_connection", cache.connect)
     monkeypatch.setattr(chat_service_module, "cache_connection", cache.connect)
     monkeypatch.setattr(runtime_module, "cache_connection", cache.connect)
+    monkeypatch.setattr(recovery_module, "cache_connection", cache.connect)
     return cache
 
 
@@ -2008,7 +2012,7 @@ async def test_reconcile_orphaned_messages_finalizes_without_flagging_chats(
     await db_session.refresh(chat)
     updated_at_before = chat.updated_at
 
-    await ChatStreamRuntime.reconcile_orphaned_messages(SessionLocal)
+    await DeadStreamRecovery.reconcile_orphaned_messages(SessionLocal)
 
     messages_response = await client.get(
         f"/api/v1/chat/chats/{chat.id}/messages", headers=headers
@@ -2040,7 +2044,7 @@ async def test_reconcile_folds_events_past_stale_checkpoint(
 ) -> None:
     # Checkpoints lag the event log; recovery must keep committed output past
     # the checkpoint across replay pages before the terminal prune drops it.
-    monkeypatch.setattr(runtime_module, "EVENT_REPLAY_PAGE_SIZE", 2)
+    monkeypatch.setattr(recovery_module, "EVENT_REPLAY_PAGE_SIZE", 2)
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
@@ -2077,7 +2081,7 @@ async def test_reconcile_folds_events_past_stale_checkpoint(
         )
     await db_session.commit()
 
-    await ChatStreamRuntime.reconcile_orphaned_messages(SessionLocal)
+    await DeadStreamRecovery.reconcile_orphaned_messages(SessionLocal)
 
     messages_response = await client.get(
         f"/api/v1/chat/chats/{chat.id}/messages", headers=headers
@@ -2228,9 +2232,7 @@ async def test_failed_turn_start_discards_both_messages(
     async def failing_checkpoint(*args: Any, **kwargs: Any) -> None:
         raise ChatException("checkpoint provisioning failed")
 
-    monkeypatch.setattr(
-        ChatStreamRuntime, "create_checkpoint_for_message", failing_checkpoint
-    )
+    monkeypatch.setattr(TurnScaffold, "create_checkpoint", failing_checkpoint)
 
     response = await client.post(
         "/api/v1/chat/chat",

@@ -10,11 +10,11 @@ from copy import deepcopy
 from dataclasses import replace
 from collections.abc import AsyncIterator, Awaitable, Callable
 from functools import partial
-from typing import Any, cast
+from typing import Any
 from uuid import UUID, uuid4
 
 from acp.exceptions import RequestError
-from sqlalchemy import Update, select, update
+from sqlalchemy import select, update
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import selectinload
 
@@ -26,11 +26,11 @@ from app.constants import (
 )
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.db_models.chat import Chat, ChatCheckpoint, Message
-from app.models.db_models.enums import MessageRole, MessageStreamStatus
+from app.models.db_models.chat import Chat, Message
+from app.models.db_models.enums import MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.queue import QueuedMessage
-from app.models.types import AgentKind, MessageAttachmentDict, PermissionMode
+from app.models.types import AgentKind
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -46,18 +46,19 @@ from app.services.exceptions import (
     ErrorCode,
     SandboxException,
 )
-from app.services.git import GitService
 from app.services.fork import ForkService
 from app.services.handoff import HandoffService
 from app.services.memory import MemoryService
 from app.services.message import MessageService
 from app.services.push import PushService
 from app.services.queue import QueueService
-from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES, tool_image
+from app.services.streaming.recovery import DeadStreamRecovery
+from app.services.streaming.scaffold import TurnScaffold
 from app.services.streaming.types import (
     PROMPT_SUGGESTIONS_RE,
+    SNAPSHOT_EVENT_KINDS,
     ChatStreamRequest,
     StreamEnvelope,
     StreamEvent,
@@ -77,23 +78,7 @@ TRANSPORT_FATAL_TYPES = (
     OSError,
 )
 
-# Snapshot-contributing events (text/tools/etc.) — batched; control events persist immediately.
-SNAPSHOT_EVENT_KINDS = frozenset(
-    {
-        "assistant_text",
-        "user_steering",
-        "assistant_thinking",
-        "tool_started",
-        "tool_completed",
-        "tool_failed",
-        "prompt_suggestions",
-        "system",
-        "plan",
-    }
-)
-
 SNAPSHOT_CHECKPOINT_INTERVAL_SECONDS = 2.0
-EVENT_REPLAY_PAGE_SIZE = 500
 IMAGE_READ_TIMEOUT_SECONDS = 3.0
 
 
@@ -239,14 +224,15 @@ class ChatStreamRuntime:
         except Exception as exc:
             logger.error("Error in stream processing: %s", exc)
             # Snapshot first — it prunes the event log — then the terminal
-            # event so it survives replay.
+            # event so it survives replay. DeadStreamRecovery.finalize_dead_stream
+            # keeps the same order.
             self.snapshot.add_error(str(exc))
             snapshot = await self._save_final_snapshot(
                 stream_result, MessageStreamStatus.FAILED
             )
             if snapshot is not None:
                 status, duration_ms = snapshot
-                kind, payload = self._terminal_event_payload(
+                kind, payload = StreamEnvelope.terminal_event_payload(
                     status, duration_ms, str(exc)
                 )
                 await self._emit_terminal_signal(kind, payload)
@@ -633,7 +619,7 @@ class ChatStreamRuntime:
     async def _flush_snapshot(self) -> None:
         # Events publish every 200ms or 24 events. The full-render checkpoint is
         # rarer: catch-up replays message_events past its last_seq, and
-        # finalize_dead_stream folds those in before pruning.
+        # DeadStreamRecovery.finalize_dead_stream folds those in before pruning.
         if not self.assistant_message_id or self.pending_since_flush == 0:
             return
         now = time.monotonic()
@@ -688,7 +674,9 @@ class ChatStreamRuntime:
         if snapshot is None:
             return final_content
         saved_status, duration_ms = snapshot
-        kind, payload = self._terminal_event_payload(saved_status, duration_ms, None)
+        kind, payload = StreamEnvelope.terminal_event_payload(
+            saved_status, duration_ms, None
+        )
         if saved_status != status:
             await self._emit_terminal_signal(kind, payload)
             return final_content
@@ -737,21 +725,6 @@ class ChatStreamRuntime:
             except Exception:
                 logger.exception("Failed to emit terminal signal during cancellation")
             raise
-
-    @staticmethod
-    def _terminal_event_payload(
-        stream_status: MessageStreamStatus,
-        duration_ms: int | None,
-        error_message: str | None,
-    ) -> tuple[str, dict[str, Any]]:
-        if stream_status == MessageStreamStatus.FAILED:
-            return "error", {"error": error_message or "Stream ended unexpectedly"}
-        kind = (
-            "cancelled"
-            if stream_status == MessageStreamStatus.INTERRUPTED
-            else "complete"
-        )
-        return kind, {"status": stream_status.value, "duration_ms": duration_ms}
 
     async def _push_completion(self, *, failed: bool, reply: str) -> None:
         if self.member_turn is not None or not self.assistant_message_id:
@@ -925,126 +898,6 @@ class ChatStreamRuntime:
             parent_chat_id=chat.parent_chat_id,
         )
 
-    @staticmethod
-    async def create_checkpoint_for_message(
-        chat: Chat,
-        assistant_message_id: UUID,
-        session_factory: SessionFactoryType,
-        cwd: str,
-    ) -> UUID | None:
-        # Best-effort: a non-git workspace must not block the agent run.
-        sandbox_id = chat.sandbox_id
-        if not sandbox_id:
-            return None
-
-        try:
-            provider = SandboxProvider.create_provider(
-                chat.sandbox_provider, workspace_path=chat.workspace_path
-            )
-            checkpoint = await GitService(SandboxService(provider)).create_checkpoint(
-                sandbox_id, cwd
-            )
-            if checkpoint is None:
-                return None
-
-            async with session_factory() as db:
-                checkpoint_row = ChatCheckpoint(
-                    chat_id=chat.id,
-                    assistant_message_id=assistant_message_id,
-                    cwd=cwd,
-                    base_head=checkpoint.base_head,
-                    head_ref=checkpoint.head_ref,
-                    pre_run_diff=checkpoint.pre_run_diff,
-                )
-                db.add(checkpoint_row)
-                await db.commit()
-                await db.refresh(checkpoint_row)
-                return cast(UUID, checkpoint_row.id)
-        except (SandboxException, SQLAlchemyError, TimeoutError, ValueError) as exc:
-            logger.warning(
-                "Failed to create checkpoint for message %s: %s",
-                assistant_message_id,
-                exc,
-            )
-            return None
-
-    @staticmethod
-    def record_turn_settings(
-        chat_id: UUID,
-        *,
-        model_id: str,
-        permission_mode: PermissionMode,
-        thinking_mode: str | None,
-        persona_name: str,
-    ) -> Update:
-        return (
-            update(Chat)
-            .where(Chat.id == chat_id)
-            .values(
-                last_model_id=model_id,
-                last_permission_mode=permission_mode,
-                last_thinking_mode=thinking_mode,
-                last_persona_name=persona_name,
-            )
-        )
-
-    @classmethod
-    @asynccontextmanager
-    async def turn_scaffold(
-        cls,
-        message_service: MessageService,
-        chat: Chat,
-        *,
-        prompt: str,
-        model_id: str,
-        attachments: list[MessageAttachmentDict] | None,
-        worktree: bool,
-        base_branch: str | None,
-        session_factory: SessionFactoryType,
-        channel_member: bool = False,
-        user_app_notice: str | None = None,
-        user_message_id: UUID | None = None,
-    ) -> AsyncIterator[tuple[Message, Message, UUID | None]]:
-        # A turn that fails to start leaves no rows behind.
-        user_message = None
-        assistant_message = None
-        try:
-            chat_uuid = UUID(str(chat.id))
-            user_message = await message_service.create_message(
-                chat_uuid,
-                prompt,
-                MessageRole.USER,
-                stream_status=MessageStreamStatus.COMPLETED,
-                attachments=attachments,
-                app_notice=user_app_notice,
-                message_id=user_message_id,
-            )
-            assistant_message = await message_service.create_message(
-                chat_uuid,
-                "",
-                MessageRole.ASSISTANT,
-                model_id=model_id,
-                stream_status=MessageStreamStatus.IN_PROGRESS,
-            )
-            checkpoint_id = None
-            if not channel_member:
-                # Resolved outside the best-effort checkpoint so a worktree that
-                # can't be created fails the turn start; the checkpoint then
-                # targets the same cwd the agent runs in.
-                cwd = await AgentService(session_factory=session_factory).resolve_cwd(
-                    chat, worktree, base_branch
-                )
-                checkpoint_id = await cls.create_checkpoint_for_message(
-                    chat, assistant_message.id, session_factory, cwd
-                )
-            yield user_message, assistant_message, checkpoint_id
-        except Exception as exc:
-            logger.error("Turn failed to start for chat %s: %s", chat.id, exc)
-            for message in (assistant_message, user_message):
-                if message is not None:
-                    await message_service.discard_message_quietly(message.id)
-            raise
-
     @classmethod
     async def _start_queued_turn(
         cls,
@@ -1064,7 +917,7 @@ class ChatStreamRuntime:
         user_settings = await UserService(
             session_factory=session_factory
         ).get_user_settings(chat.user_id, db=None)
-        async with cls.turn_scaffold(
+        async with TurnScaffold.open(
             message_service,
             chat,
             prompt=queued_msg["content"],
@@ -1083,7 +936,7 @@ class ChatStreamRuntime:
             )
             async with session_factory() as db:
                 await db.execute(
-                    cls.record_turn_settings(
+                    TurnScaffold.record_settings(
                         chat.id,
                         model_id=request.model_id,
                         permission_mode=request.permission_mode,
@@ -1209,38 +1062,6 @@ class ChatStreamRuntime:
         exc = task.exception()
         if exc:
             logger.error("Background title generation failed: %s", exc)
-
-    @classmethod
-    async def reconcile_orphaned_messages(
-        cls, session_factory: SessionFactoryType
-    ) -> None:
-        # In-progress messages from a previous process can never complete.
-        try:
-            async with session_factory() as db:
-                result = await db.execute(
-                    select(Message.id).where(
-                        Message.stream_status == MessageStreamStatus.IN_PROGRESS,
-                        Message.role == MessageRole.ASSISTANT,
-                        Message.deleted_at.is_(None),
-                    )
-                )
-                orphan_ids = list(result.scalars().all())
-        except SQLAlchemyError:
-            logger.exception("Failed to scan for orphaned in-progress messages")
-            return
-
-        for message_id in orphan_ids:
-            await cls.finalize_dead_stream(
-                assistant_message_id=str(message_id),
-                session_factory=session_factory,
-                stream_status=MessageStreamStatus.INTERRUPTED,
-                record_activity=False,
-            )
-        if orphan_ids:
-            logger.info(
-                "Reconciled %d orphaned in-progress message(s) from previous run",
-                len(orphan_ids),
-            )
 
     @classmethod
     async def stop_background_chats(cls) -> None:
@@ -1540,139 +1361,6 @@ class ChatStreamRuntime:
                 await cls._requeue_message_quietly(chat_id, queued_msg)
                 raise
 
-    @staticmethod
-    async def finalize_dead_stream(
-        *,
-        assistant_message_id: str | None,
-        session_factory: SessionFactoryType,
-        stream_status: MessageStreamStatus,
-        user_id: str | None = None,
-        error_message: str | None = None,
-        # False for reconciliation: cleanup is not duration or unseen activity.
-        record_activity: bool = True,
-    ) -> None:
-        if not assistant_message_id:
-            return
-
-        try:
-            message_uuid = UUID(assistant_message_id)
-        except ValueError:
-            return
-
-        try:
-            message_service = MessageService(session_factory=session_factory)
-            message = await message_service.get_message(message_uuid)
-            if not message:
-                return
-            snapshot, last_seq = await ChatStreamRuntime._replay_past_checkpoint(
-                message_service, message
-            )
-            content_text = snapshot.content_text
-            content_render = snapshot.to_render()
-            if error_message is not None:
-                content_render["events"].append(
-                    StreamSnapshotAccumulator.error_event(error_message)
-                )
-                if not content_text:
-                    content_text = error_message
-            winning_snapshot = await message_service.update_message_snapshot(
-                message_uuid,
-                content_text=content_text,
-                content_render=content_render,
-                last_seq=last_seq,
-                active_stream_id=None,
-                stream_status=stream_status,
-                record_activity=record_activity,
-            )
-            if winning_snapshot is None:
-                return
-            status, duration_ms = winning_snapshot
-            # After the snapshot prune, so the terminal event survives for clients.
-            await ChatStreamRuntime._emit_terminal_for_dead_stream(
-                message_service=message_service,
-                chat_id=message.chat_id,
-                message_id=message_uuid,
-                stream_id=message.active_stream_id or uuid4(),
-                stream_status=status,
-                duration_ms=duration_ms,
-                user_id=user_id,
-                error_message=error_message,
-                record_activity=record_activity,
-            )
-        except Exception:
-            logger.exception(
-                "Failed to finalize assistant message %s as %s",
-                assistant_message_id,
-                stream_status.value,
-            )
-
-    @staticmethod
-    async def _replay_past_checkpoint(
-        message_service: MessageService, message: Message
-    ) -> tuple[StreamSnapshotAccumulator, int]:
-        # Checkpoints lag the event log; fold committed events past the
-        # checkpoint into the render before the terminal update prunes them.
-        snapshot = StreamSnapshotAccumulator.from_render(
-            message.content_render.get("events", [])
-        )
-        last_seq = message.last_seq
-        while True:
-            page = await message_service.get_message_events_after_seq(
-                message.id, last_seq, limit=EVENT_REPLAY_PAGE_SIZE
-            )
-            for event in page:
-                if event.event_type in SNAPSHOT_EVENT_KINDS:
-                    snapshot.add_event(event.event_type, event.render_payload)
-                last_seq = event.seq
-            if len(page) < EVENT_REPLAY_PAGE_SIZE:
-                return snapshot, last_seq
-
-    @staticmethod
-    async def _emit_terminal_for_dead_stream(
-        *,
-        message_service: MessageService,
-        chat_id: UUID,
-        message_id: UUID,
-        stream_id: UUID,
-        stream_status: MessageStreamStatus,
-        duration_ms: int | None,
-        user_id: str | None,
-        error_message: str | None = None,
-        record_activity: bool = True,
-    ) -> None:
-        kind, payload = ChatStreamRuntime._terminal_event_payload(
-            stream_status, duration_ms, error_message
-        )
-        seq = await message_service.append_event_with_next_seq(
-            chat_id=chat_id,
-            message_id=message_id,
-            stream_id=stream_id,
-            event_type=kind,
-            render_payload=payload,
-            audit_payload={"payload": payload},
-            record_activity=record_activity,
-        )
-        if seq is None or not user_id:
-            return
-        try:
-            async with cache_connection() as cache:
-                channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=user_id)
-                await cache.publish(
-                    channel,
-                    StreamEnvelope.serialize(
-                        chat_id=chat_id,
-                        message_id=message_id,
-                        stream_id=stream_id,
-                        seq=seq,
-                        kind=kind,
-                        payload=payload,
-                    ),
-                )
-        except CacheError as exc:
-            logger.warning(
-                "Failed to publish terminal event for chat %s: %s", chat_id, exc
-            )
-
     @classmethod
     async def execute_chat(
         cls,
@@ -1861,7 +1549,7 @@ class ChatStreamRuntime:
                 session_factory=session_factory,
             )
         except asyncio.CancelledError:
-            await cls.finalize_dead_stream(
+            await DeadStreamRecovery.finalize_dead_stream(
                 assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.INTERRUPTED,
@@ -1879,7 +1567,7 @@ class ChatStreamRuntime:
                 error_data,
                 exc_info=True,
             )
-            await cls.finalize_dead_stream(
+            await DeadStreamRecovery.finalize_dead_stream(
                 assistant_message_id=request.assistant_message_id,
                 session_factory=session_factory,
                 stream_status=MessageStreamStatus.FAILED,

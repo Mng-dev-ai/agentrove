@@ -9,6 +9,7 @@ from hashlib import sha256
 from typing import Any, Literal, TypedDict
 from uuid import UUID
 
+from app.models.db_models.enums import MessageStreamStatus
 from app.models.types import MessageAttachmentDict, PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 
@@ -38,6 +39,20 @@ PROMPT_SUGGESTIONS_RE = re.compile(
     re.DOTALL,
 )
 MERGEABLE_DELTA_KEYS = {"assistant_text": "text", "assistant_thinking": "thinking"}
+# Snapshot-contributing events (text/tools/etc.) — batched; control events persist immediately.
+SNAPSHOT_EVENT_KINDS = frozenset(
+    {
+        "assistant_text",
+        "user_steering",
+        "assistant_thinking",
+        "tool_started",
+        "tool_completed",
+        "tool_failed",
+        "prompt_suggestions",
+        "system",
+        "plan",
+    }
+)
 SENSITIVE_KEY_PARTS = (
     "token",
     "api_key",
@@ -248,3 +263,18 @@ class StreamEnvelope:
             return value
 
         return str(value)
+
+    @staticmethod
+    def terminal_event_payload(
+        stream_status: MessageStreamStatus,
+        duration_ms: int | None,
+        error_message: str | None,
+    ) -> tuple[str, dict[str, Any]]:
+        if stream_status == MessageStreamStatus.FAILED:
+            return "error", {"error": error_message or "Stream ended unexpectedly"}
+        kind = (
+            "cancelled"
+            if stream_status == MessageStreamStatus.INTERRUPTED
+            else "complete"
+        )
+        return kind, {"status": stream_status.value, "duration_ms": duration_ms}
