@@ -101,6 +101,16 @@ class ChannelEngine(BaseDbService[Channel]):
         state.turns.pop(member_id, None)
         cls.reset_member(state, member_id)
 
+    @staticmethod
+    def member_busy(state: ChannelState, member_id: UUID) -> bool:
+        turn = state.turns.get(member_id)
+        return turn is not None and turn.task is not None and not turn.task.done()
+
+    @staticmethod
+    def clear_introducing(state: ChannelState) -> None:
+        for turn in state.turns.values():
+            turn.introducing = False
+
     async def publish(
         self, channel: Channel, kind: str, payload: dict[str, Any]
     ) -> None:

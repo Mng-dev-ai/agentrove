@@ -411,8 +411,7 @@ class ChannelService(BaseDbService[Channel]):
         )
         if member is None:
             raise HTTPException(404, "Member not found")
-        turn = state.turns.get(member_id)
-        if turn is not None and turn.task is not None and not turn.task.done():
+        if ChannelEngine.member_busy(state, member_id):
             raise HTTPException(
                 409, f"{member.display_name} is busy, try again when it finishes"
             )
@@ -430,8 +429,7 @@ class ChannelService(BaseDbService[Channel]):
         )
         for member in state.channel.members:
             member.introduced = False
-        for turn in state.turns.values():
-            turn.introducing = False
+        ChannelEngine.clear_introducing(state)
 
     async def add_member(self, channel: Channel, data: ChannelMemberCreate) -> Channel:
         state = self.engine.state(channel)
