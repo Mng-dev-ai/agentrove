@@ -46,7 +46,7 @@ def build(rows: list[dict[str, Any]]) -> dict[str, Any]:
     memory: dict[tuple[str, str], dict[str, list[float]]] = defaultdict(
         lambda: defaultdict(list)
     )
-    frames: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    frames: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     failures = []
     for row in rows:
         host, scenario = row["host"], row["scenario"]
@@ -65,9 +65,10 @@ def build(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 metrics[(scenario, name)][host].append(float(value))
         for name in ("peak_footprint", "settled_footprint"):
             memory[(scenario, name)][host].append(row["memory"][name] / MB)
-        idle = row.get("details", {}).get("idle")
-        if idle:
-            frames[host].append(idle)
+        for key in ("idle", "idle_end"):
+            idle = row.get("details", {}).get(key)
+            if idle:
+                frames[(key, host)].append(idle)
     return {
         "metrics": {
             f"{s}.{m}": compare(v["wkwebview"], v["electron"])
@@ -78,14 +79,14 @@ def build(rows: list[dict[str, Any]]) -> dict[str, Any]:
             for (s, m), v in memory.items()
         },
         "idle_frames": {
-            host: {
+            f"{key} {host}": {
                 "runs": len(items),
                 "frames_in_1s": summarize([i["frames_in_1s"] for i in items]),
                 "median_frame_ms": summarize([i["median_frame_ms"] for i in items]),
                 "not_visible": sum(1 for i in items if i["visibility"] != "visible"),
                 "not_focused": sum(1 for i in items if not i["has_focus"]),
             }
-            for host, items in frames.items()
+            for (key, host), items in sorted(frames.items())
         },
         "failures": failures,
     }
@@ -115,9 +116,13 @@ def markdown(summary: dict[str, Any], env: dict[str, Any], fixture: dict[str, An
     lines += [""]
     lines += table("Timings and frame metrics", summary["metrics"], "ms / count")
     lines += table("Memory, all processes of the host", summary["memory_mb"], "MB")
-    lines += ["### Idle frame production (1 s rAF count before each interaction)", ""]
     lines += [
-        "| Host | runs | frames/s median | min | max | not visible | not focused |"
+        "### Frame production check (rAF callbacks in 1 s; idle = before the "
+        "interaction, idle_end = 2 s after the scenario finished)",
+        "",
+    ]
+    lines += [
+        "| Check, host | runs | frames/s median | min | max | not visible | not focused |"
     ]
     lines += ["|---|---:|---:|---:|---:|---:|---:|"]
     for host, f in summary["idle_frames"].items():

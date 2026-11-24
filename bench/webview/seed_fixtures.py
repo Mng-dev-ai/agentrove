@@ -325,6 +325,7 @@ class FixtureSeeder:
 
     def build_diff_worktree(self, root: Path) -> dict[str, int]:
         worktree = root / ".worktrees" / "bench-diff"
+        (root / ".git" / "info" / "exclude").write_text(".worktrees/\n")
         self.git(root, "worktree", "add", "-q", "-b", "bench-diff", str(worktree))
         tracked = sorted(
             p for p in worktree.rglob("*") if p.is_file() and ".git" not in p.parts

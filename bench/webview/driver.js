@@ -151,7 +151,7 @@
     };
   };
 
-  const idleCheck = async () => {
+  const idleCheck = async (key) => {
     const stop = frameRecorder();
     await sleep(1000);
     const stamps = stop();
@@ -159,7 +159,7 @@
     for (let i = 1; i < stamps.length; i += 1) deltas.push(stamps[i] - stamps[i - 1]);
     deltas.sort((a, b) => a - b);
     const refresh = deltas.length ? deltas[Math.floor(deltas.length / 2)] : 0;
-    state.details.idle = {
+    state.details[key] = {
       frames_in_1s: stamps.length,
       median_frame_ms: refresh,
       visibility: document.visibilityState,
@@ -193,7 +193,7 @@
       state.metrics.cold_ms = navToEpoch - cfg.t0EpochMs;
       state.details.cold_condition_from_nav_ms = tc;
       state.details.cold_painted_from_nav_ms = tp;
-      await idleCheck();
+      await idleCheck('idle');
       state.phase = 'warm';
       saveState(state);
       location.reload();
@@ -213,7 +213,7 @@
     },
     async open_1k() {
       await waitFor('shell', shellReady);
-      await idleCheck();
+      await idleCheck('idle');
       const cold = await timeClick(rowButton(cfg.chats.chat_1k.title), 'chat_1k', () => chatReady('chat_1k'));
       state.metrics.cold_ms = cold.painted_ms;
       await sleep(500);
@@ -222,7 +222,7 @@
     },
     async open_5k() {
       await waitFor('shell', shellReady);
-      await idleCheck();
+      await idleCheck('idle');
       const cold = await timeClick(rowButton(cfg.chats.chat_5k.title), 'chat_5k', () => chatReady('chat_5k'));
       state.metrics.cold_ms = cold.painted_ms;
       await sleep(500);
@@ -231,7 +231,7 @@
     },
     async scroll_5k() {
       await waitFor('chat_5k', () => chatReady('chat_5k'));
-      await idleCheck();
+      await idleCheck('idle');
       await sleep(500);
       const el = scroller();
       if (!el) throw new Error('no transcript scroller');
@@ -261,13 +261,17 @@
       const countBefore = messageCount();
       const height = el.scrollHeight - el.clientHeight;
       const stopDown = frameRecorder();
+      const setCosts = [];
       const tDown = await nextFrame();
       for (;;) {
         const now = await nextFrame();
         const f = Math.min(1, (now - tDown) / SCROLL_DOWN_MS);
+        const before = performance.now();
         el.scrollTop = f * (el.scrollHeight - el.clientHeight);
+        setCosts.push(performance.now() - before);
         if (f >= 1) break;
       }
+      setCosts.sort((a, b) => a - b);
       const down = frameStats(stopDown(), state.refreshMs);
       state.metrics.scroll_p95_frame_ms = down.p95_ms;
       state.metrics.scroll_long_frames = down.long_frames;
@@ -277,13 +281,15 @@
         messages_before: countBefore,
         messages_after: messageCount(),
         scroll_height_px: height,
+        scroll_set_median_ms: setCosts[Math.floor(setCosts.length / 2)],
+        scroll_set_max_ms: setCosts[setCosts.length - 1],
         frames: down,
       };
       return true;
     },
     async diff() {
       await waitFor('chat_diff', () => chatReady('chat_diff'));
-      await idleCheck();
+      await idleCheck('idle');
       const cold = await timeClick(diffToggle(), 'diff', diffReady, 16);
       state.metrics.cold_ms = cold.painted_ms;
       state.details.diff_rows = document.querySelectorAll('[data-diff-file-path]').length;
@@ -296,7 +302,7 @@
     },
     async switch() {
       await waitFor('shell', shellReady);
-      await idleCheck();
+      await idleCheck('idle');
       await timeClick(rowButton(cfg.chats.switch_a.title), 'switch_a', () => chatReady('switch_a'));
       const samples = [];
       for (let i = 0; i < SWITCH_COUNT; i += 1) {
@@ -318,6 +324,10 @@
     });
 
   const finish = async (error) => {
+    if (!error) {
+      await sleep(2000);
+      await idleCheck('idle_end');
+    }
     const result = {
       scenario: cfg.scenario,
       host: cfg.host,
