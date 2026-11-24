@@ -2,9 +2,7 @@ import asyncio
 import json
 import logging
 import re
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from enum import Enum
 from functools import partial
 from typing import Any
 from uuid import UUID, uuid4
@@ -58,6 +56,7 @@ from app.services.acp.adapters import (
     NATIVE_FILE_TYPES,
 )
 from app.services.agent import AgentService
+from app.services.channel_state import ChannelState, MemberRetry, MemberTurn, TurnStatus
 from app.services.pairing import PairingService
 from app.services.git import GitService
 from app.services.push import PushService
@@ -77,7 +76,6 @@ logger = logging.getLogger(__name__)
 DEBOUNCE_SECONDS = 2.5
 QUEUE_RETRY_SECONDS = 5
 MENTION = re.compile(r"(?:^|(?<=\s))@(\S+)")
-ACTIVITY_EPOCH = uuid4().hex
 REASON_LIMIT = 300
 MAX_ATTEMPTS = 5
 NEWCOMER_HISTORY = 20
@@ -102,70 +100,6 @@ ROUTING_NOTE = (
     "acknowledgment, non-actionable status note, or closing message, even when you're "
     "named. @mention a member only when you need something from them, never to acknowledge."
 )
-
-
-class TurnStatus(Enum):
-    RUNNING = "running"
-    CANCELLED = "cancelled"
-    FAILED = "failed"
-    FINISHED = "finished"
-
-
-@dataclass
-class MemberRetry:
-    delay: float
-    until: float
-    reason: str
-    attempts: int
-
-
-@dataclass
-class MemberTurn:
-    member: ChannelMember
-    batch: list[ChannelMessage]
-    source_message_id: UUID | None = None
-    tool_call_ids: set[str] = field(default_factory=set)
-    text: str = ""
-    reset_segment: bool = False
-    last_flush_at: float = 0
-    flush_task: asyncio.Task[None] | None = None
-    message: ChannelMessage | None = None
-    status: TurnStatus = TurnStatus.RUNNING
-    introducing: bool = False
-    provider_task: asyncio.Task[str] | None = None
-    task: asyncio.Task[None] | None = None
-
-    def started(self, task: asyncio.Task[str]) -> None:
-        self.provider_task = task
-
-    @property
-    def device_ids(self) -> frozenset[UUID]:
-        return frozenset().union(*(message.device_ids for message in self.batch))
-
-
-@dataclass
-class ChannelState:
-    channel: Channel
-    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
-    control: asyncio.Lock = field(default_factory=asyncio.Lock)
-    turns: dict[UUID, MemberTurn] = field(default_factory=dict)
-    timer: asyncio.Task[None] | None = None
-    retries: dict[UUID, MemberRetry] = field(default_factory=dict)
-    gave_up: dict[UUID, str] = field(default_factory=dict)
-    permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
-    elicitations: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
-    last_reply: tuple[str, ChannelMessage] | None = None
-    unavailable: set[UUID] = field(default_factory=set)
-    active_member_ids: list[str] = field(default_factory=list)
-    waiting_member_ids: list[str] = field(default_factory=list)
-    elicitation_requests: list[dict[str, Any]] = field(default_factory=list)
-    retrying_member_ids: list[str] = field(default_factory=list)
-    member_errors: dict[str, str] = field(default_factory=dict)
-    gave_up_members: dict[str, str] = field(default_factory=dict)
-    activity_version: int = 0
-    quiet_until: float = 0
-    paused: bool = False
-    deleted: bool = False
 
 
 class ChannelService(BaseDbService[Channel]):
@@ -513,27 +447,9 @@ class ChannelService(BaseDbService[Channel]):
             ],
             anchor_chat_id=self.anchor_chat_id(channel),
             activity=ChannelMemberActivity.model_validate(
-                self.member_activity(self.state(channel))
+                self.state(channel).member_activity()
             ),
         )
-
-    @staticmethod
-    def member_activity(state: ChannelState) -> dict[str, Any]:
-        return {
-            "epoch": ACTIVITY_EPOCH,
-            "version": state.activity_version,
-            "member_ids": state.active_member_ids,
-            "waiting_member_ids": state.waiting_member_ids,
-            "elicitations": state.elicitation_requests,
-            "retrying_member_ids": state.retrying_member_ids,
-            "member_errors": state.member_errors,
-            "unavailable_members": {
-                str(member.id): f"Model {member.model_id} is unknown on this instance"
-                for member in state.channel.members
-                if member.model_id not in MODELS
-            }
-            | state.gave_up_members,
-        }
 
     async def publish_activity(
         self, state: ChannelState, asked: dict[str, str] | None = None
@@ -578,7 +494,7 @@ class ChannelService(BaseDbService[Channel]):
         state.member_errors = member_errors
         state.gave_up_members = gave_up_members
         state.activity_version += 1
-        activity = self.member_activity(state)
+        activity = state.member_activity()
         if asked is not None:
             activity["asked"] = asked
         await self.publish(state.channel, "channel_member_activity", activity)
@@ -988,7 +904,7 @@ class ChannelService(BaseDbService[Channel]):
                         for turn in state.turns.values()
                         if audience is None or str(turn.member.id) in audience
                     ]
-                    self.give_fresh_attempts(state, audience)
+                    state.give_fresh_attempts(audience)
                     await self.cancel_active(state, turns)
                     message = await self.send(state, content, attachments, device_ids)
             finally:
@@ -999,15 +915,6 @@ class ChannelService(BaseDbService[Channel]):
                         state.paused = False
                         self.schedule(state)
             return message
-
-    @staticmethod
-    def give_fresh_attempts(state: ChannelState, audience: list[str] | None) -> None:
-        if audience is None:
-            state.retries.clear()
-            state.gave_up.clear()
-        for member_id in audience or []:
-            state.retries.pop(UUID(member_id), None)
-            state.gave_up.pop(UUID(member_id), None)
 
     async def cancel_active(self, state: ChannelState, turns: list[MemberTurn]) -> None:
         for turn in turns:
@@ -1107,20 +1014,8 @@ class ChannelService(BaseDbService[Channel]):
                 body=body,
             )
 
-    @staticmethod
-    def idle(state: ChannelState) -> bool:
-        return not (
-            state.turns
-            or state.retries
-            or state.permissions
-            or state.elicitations
-            or state.timer
-            or state.paused
-            or state.deleted
-        )
-
     async def send_next_queued(self, state: ChannelState) -> None:
-        if not self.idle(state):
+        if not state.idle():
             return
         channel_id = str(state.channel.id)
         try:
@@ -1152,14 +1047,14 @@ class ChannelService(BaseDbService[Channel]):
         except CacheError:
             logger.warning("Failed to read queued messages for channel %s", channel_id)
             return
-        self.give_fresh_attempts(state, message.audience)
+        state.give_fresh_attempts(message.audience)
         await self.publish_activity(state)
         await self.publish_message(state.channel, message)
         self.fan_out(state)
         await self.publish(state.channel, "channel_queue_sent", {"id": item["id"]})
 
     async def settle(self, state: ChannelState) -> tuple[UUID, str, str] | None:
-        if state.last_reply is None or not self.idle(state):
+        if state.last_reply is None or not state.idle():
             return None
         author, message = state.last_reply
         state.last_reply = None
@@ -1170,7 +1065,7 @@ class ChannelService(BaseDbService[Channel]):
             state.channel,
             "channel_member_activity",
             {
-                **self.member_activity(state),
+                **state.member_activity(),
                 "completed": {"title": title, "body": body},
             },
         )
