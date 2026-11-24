@@ -83,8 +83,13 @@ class ProcessSampler:
     def webkit_pids(table: dict[int, tuple[int, int, str]]) -> set[int]:
         return {pid for pid, row in table.items() if WEBKIT_MARKER in row[2]}
 
-    def host_pids(self, host: str, main_pid: int, baseline: set[int]) -> list[int]:
-        table = self.table()
+    def host_pids(
+        self,
+        host: str,
+        main_pid: int,
+        baseline: set[int],
+        table: dict[int, tuple[int, int, str]],
+    ) -> list[int]:
         if host == "wkwebview":
             extra = self.webkit_pids(table) - baseline
         else:
@@ -98,7 +103,7 @@ class ProcessSampler:
 
     def sample(self, host: str, main_pid: int, baseline: set[int]) -> dict[str, Any]:
         table = self.table()
-        pids = self.host_pids(host, main_pid, baseline)
+        pids = self.host_pids(host, main_pid, baseline, table)
         procs = []
         for pid in pids:
             procs.append(
@@ -215,7 +220,7 @@ class Orchestrator:
             subprocess.run(
                 ["screencapture", "-x", str(out_dir / "desktop.png")], check=False
             )
-        pids = self.sampler.host_pids(host, proc.pid, baseline)
+        pids = self.sampler.host_pids(host, proc.pid, baseline, self.sampler.table())
         proc.send_signal(signal.SIGTERM)
         try:
             proc.wait(timeout=10)
