@@ -33,12 +33,10 @@ from app.models.schemas.chat import ChatRequest
 from app.models.types import AgentKind
 from app.services import channel as channel_module
 from app.services import push as push_module
+from app.services.channel_state import ChannelState, MemberTurn, TurnStatus
 from app.services.channel import (
     MAX_ATTEMPTS,
     ChannelService,
-    ChannelState,
-    MemberTurn,
-    TurnStatus,
     channel_service,
 )
 from app.services.sandbox_providers.base import SandboxProvider
@@ -430,7 +428,7 @@ async def test_settled_run_pushes_its_last_visible_reply_once(
         "title": delivery.title,
         "body": delivery.body,
     }
-    assert completion == channel_service.member_activity(channel_state)
+    assert completion == channel_state.member_activity()
 
 
 async def test_tool_segments_counts_and_source_duration_are_persisted(
@@ -1244,7 +1242,7 @@ async def test_member_that_gave_up_does_not_keep_a_failed_turn(
     assert channel_state.turns == {}
     assert channel_state.retries == {}
     channel_state.paused = False
-    assert ChannelService.idle(channel_state)
+    assert channel_state.idle()
     assert activity["retrying_member_ids"] == []
     assert activity["unavailable_members"] == {
         str(member.id): "Gave up after 5 attempts: Authentication required"
