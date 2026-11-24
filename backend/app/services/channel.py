@@ -1,4 +1,3 @@
-import asyncio
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -193,7 +192,7 @@ class ChannelService(BaseDbService[Channel]):
                 )
                 channel.all_members.append(member)
             await db.commit()
-        self.engine.states[channel.id] = ChannelState(channel)
+        self.engine.register(channel)
         try:
             await self.prepare_worktree(channel)
         except Exception:
@@ -531,8 +530,7 @@ class ChannelService(BaseDbService[Channel]):
                     await db.commit()
                 for key, value in values.items():
                     setattr(member, key, value)
-            state.retries.pop(member.id, None)
-            state.gave_up.pop(member.id, None)
+            self.engine.reset_member(state, member.id)
             await self.engine.publish_activity(state)
         return await self.get(channel.id, User(id=channel.user_id))
 
@@ -555,9 +553,7 @@ class ChannelService(BaseDbService[Channel]):
                     await self.reintroduce(db, state)
                     await db.commit()
                 member.removed_at = now
-                state.turns.pop(member.id, None)
-                state.retries.pop(member.id, None)
-                state.gave_up.pop(member.id, None)
+                self.engine.forget_member(state, member.id)
                 await self.engine.publish_activity(state)
             await session_registry.terminate(str(member.chat_id))
         return await self.get(channel.id, User(id=channel.user_id))
@@ -597,17 +593,7 @@ class ChannelService(BaseDbService[Channel]):
     async def delete(self, channel: Channel) -> None:
         state = self.engine.state(channel)
         async with state.control:
-            state.deleted = True
-            await self.engine.stop_state(state)
-            tasks = [
-                turn.task for turn in state.turns.values() if turn.task is not None
-            ]
-            for task in tasks:
-                task.cancel()
-            if tasks:
-                await asyncio.gather(*tasks, return_exceptions=True)
-            for member in state.channel.members:
-                await session_registry.terminate(str(member.chat_id))
+            await self.engine.teardown(state)
             if channel.worktree:
                 chat = await self.anchor_chat(channel)
                 if chat.worktree_cwd:
@@ -619,7 +605,7 @@ class ChannelService(BaseDbService[Channel]):
                 await db.execute(delete(Channel).where(Channel.id == channel.id))
                 await db.commit()
             await ChannelQueueService.clear_queues([str(channel.id)])
-            self.engine.states.pop(channel.id, None)
+            self.engine.drop(channel)
 
     async def recover(self) -> None:
         messages, orphans, channels = await self.engine.recover_messages()

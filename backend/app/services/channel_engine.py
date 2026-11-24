@@ -87,6 +87,22 @@ class ChannelEngine(BaseDbService[Channel]):
             raise HTTPException(404, "Channel not found")
         return state
 
+    def register(self, channel: Channel) -> None:
+        self.states[channel.id] = ChannelState(channel)
+
+    def drop(self, channel: Channel) -> None:
+        self.states.pop(channel.id, None)
+
+    @staticmethod
+    def reset_member(state: ChannelState, member_id: UUID) -> None:
+        state.retries.pop(member_id, None)
+        state.gave_up.pop(member_id, None)
+
+    @classmethod
+    def forget_member(cls, state: ChannelState, member_id: UUID) -> None:
+        state.turns.pop(member_id, None)
+        cls.reset_member(state, member_id)
+
     async def publish(
         self, channel: Channel, kind: str, payload: dict[str, Any]
     ) -> None:
@@ -970,6 +986,17 @@ class ChannelEngine(BaseDbService[Channel]):
                     )
                 await db.commit()
         await self.cancel_turns(turns)
+
+    async def teardown(self, state: ChannelState) -> None:
+        state.deleted = True
+        await self.stop_state(state)
+        tasks = [turn.task for turn in state.turns.values() if turn.task is not None]
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        for member in state.channel.members:
+            await session_registry.terminate(str(member.chat_id))
 
     async def stop(self, channel: Channel) -> None:
         state = self.state(channel)
