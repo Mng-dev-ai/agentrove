@@ -26,10 +26,15 @@ from app.models.schemas.chat import ChatRequest
 from app.models.schemas.queue import QueuedChannelMessage
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
-from app.services.channel_messages import ChannelMessageStore
-from app.services.channel_publisher import ChannelPublisher
-from app.services.channel_requests import ChannelRequests
-from app.services.channel_state import ChannelState, MemberRetry, MemberTurn, TurnStatus
+from app.services.channels.messages import ChannelMessageStore
+from app.services.channels.publisher import ChannelPublisher
+from app.services.channels.requests import ChannelRequests
+from app.services.channels.state import (
+    ChannelState,
+    MemberRetry,
+    MemberTurn,
+    TurnStatus,
+)
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException

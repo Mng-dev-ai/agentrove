@@ -31,12 +31,12 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatRequest
 from app.models.types import AgentKind
-from app.services import channel as channel_module
-from app.services import channel_engine as channel_engine_module
+from app.services.channels import service as channel_module
+from app.services.channels import engine as channel_engine_module
 from app.services import push as push_module
-from app.services.channel_state import ChannelState, MemberTurn, TurnStatus
-from app.services.channel import channel_service
-from app.services.channel_engine import MAX_ATTEMPTS, ChannelEngine, channel_engine
+from app.services.channels.state import ChannelState, MemberTurn, TurnStatus
+from app.services.channels.service import channel_service
+from app.services.channels.engine import MAX_ATTEMPTS, ChannelEngine, channel_engine
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChannelMemberTurn, EventSink

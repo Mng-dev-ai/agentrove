@@ -15,7 +15,7 @@ from app.models.db_models.channel import (
 from app.models.db_models.chat import MessageAttachment
 from app.models.schemas.channel import BROADCAST_MENTIONS
 from app.models.types import MessageAttachmentDict
-from app.services.channel_state import ChannelState
+from app.services.channels.state import ChannelState
 from app.services.db import BaseDbService
 from app.services.pairing import PairingService
 from app.utils.attachment_urls import AttachmentURL

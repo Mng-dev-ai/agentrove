@@ -34,8 +34,8 @@ from app.core.config import get_settings
 from app.core.middleware import McpAuthMiddleware, setup_middleware
 from app.db.session import SessionLocal, engine
 from app.services.agent import MCP_SERVER_PATH, AgentService
-from app.services.channel import channel_service
-from app.services.channel_engine import channel_engine
+from app.services.channels.service import channel_service
+from app.services.channels.engine import channel_engine
 from app.services.maintenance import MaintenanceService
 from app.services.session_registry import session_registry
 from app.services.streaming.recovery import DeadStreamRecovery

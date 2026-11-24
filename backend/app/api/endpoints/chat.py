@@ -78,8 +78,8 @@ from app.models.schemas.queue import (
     QueuedMessageEdit,
     QueueMessageContent,
 )
-from app.services.channel import channel_service
-from app.services.channel_engine import channel_engine
+from app.services.channels.service import channel_service
+from app.services.channels.engine import channel_engine
 from app.services.chat import ChatService
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.device_session import DeviceSession

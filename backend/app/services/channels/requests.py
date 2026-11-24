@@ -1,8 +1,8 @@
 from typing import Any
 from uuid import UUID
 
-from app.services.channel_publisher import ChannelPublisher
-from app.services.channel_state import ChannelState, MemberTurn, TurnStatus
+from app.services.channels.publisher import ChannelPublisher
+from app.services.channels.state import ChannelState, MemberTurn, TurnStatus
 from app.services.db import SessionFactoryType
 from app.services.push import PushService
 from app.services.session_registry import session_registry

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
-from app.services.channel_engine import channel_engine
+from app.services.channels.engine import channel_engine
 from app.services.device_session import DeviceSession
 from app.services.refresh_token import RefreshTokenService
 from app.services.streaming.runtime import ChatStreamRuntime

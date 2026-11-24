@@ -20,7 +20,7 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatCreate, ChatRequest
 from app.services.automation import AutomationService
-from app.services.channel_engine import channel_engine
+from app.services.channels.engine import channel_engine
 from app.services.chat import ChatService
 from app.services.exceptions import ChatException
 from app.services.sandbox_providers.base import SandboxProvider

@@ -6,7 +6,7 @@ from uuid import UUID
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 from app.models.db_models.channel import Channel, ChannelMessage
 from app.models.schemas.channel import ChannelMessageRead
-from app.services.channel_state import ChannelState, TurnStatus
+from app.services.channels.state import ChannelState, TurnStatus
 from app.utils.cache import CacheError, cache_connection
 
 logger = logging.getLogger(__name__)

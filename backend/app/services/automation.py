@@ -21,8 +21,8 @@ from app.models.schemas.channel import ChannelCreate, ChannelMemberCreate
 from app.models.schemas.chat import ChatCreate, ChatRequest
 from app.models.types import PermissionMode
 from app.services.agent import AgentService
-from app.services.channel import ChannelService, channel_service
-from app.services.channel_engine import channel_engine
+from app.services.channels.service import ChannelService, channel_service
+from app.services.channels.engine import channel_engine
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import AutomationException, ErrorCode, ServiceException
