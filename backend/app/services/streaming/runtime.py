@@ -507,7 +507,7 @@ class ChatStreamRuntime:
         if self.member_turn is not None and is_terminal_signal:
             await self.member_turn.event_sink(kind, payload)
         await self.event_log.publish(seq, kind, payload)
-        # Channel member turns push from ChannelService, which knows the channel route.
+        # Channel member turns push from ChannelEngine, which knows the channel route.
         if kind == "permission_request" and self.member_turn is None:
             await PushService(self.session_factory).notify_permission(
                 user_id=self.chat.user_id,
