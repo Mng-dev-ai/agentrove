@@ -9,8 +9,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException
-from sqlalchemy import Row, Select, func, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import Row, select, update
 from sqlalchemy.orm import selectinload
 
 from app.catalog import MODELS
@@ -25,29 +24,27 @@ from app.models.db_models.channel import (
 from app.models.db_models.chat import Chat, Message, MessageAttachment
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
-from app.models.schemas.channel import BROADCAST_MENTIONS, ChannelMessageRead
+from app.models.schemas.channel import ChannelMessageRead
 from app.models.schemas.chat import ChatRequest
 from app.models.schemas.queue import QueuedChannelMessage
 from app.models.types import MessageAttachmentDict
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
+from app.services.channel_messages import ChannelMessageStore
 from app.services.channel_state import ChannelState, MemberRetry, MemberTurn, TurnStatus
 from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException
-from app.services.pairing import PairingService
 from app.services.push import PushService
 from app.services.queue import ChannelQueueService
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChannelMemberTurn
 from app.services.user import UserService
-from app.utils.attachment_urls import AttachmentURL
 from app.utils.cache import CacheError, cache_connection
 
 logger = logging.getLogger(__name__)
 DEBOUNCE_SECONDS = 2.5
 QUEUE_RETRY_SECONDS = 5
-MENTION = re.compile(r"(?:^|(?<=\s))@(\S+)")
 REASON_LIMIT = 300
 MAX_ATTEMPTS = 5
 
@@ -79,6 +76,7 @@ class ChannelEngine(BaseDbService[Channel]):
         self.chats = ChatService(
             UserService(self.session_factory), self.session_factory
         )
+        self.messages = ChannelMessageStore(self.session_factory)
         self.states: dict[UUID, ChannelState] = {}
 
     def state(self, channel: Channel) -> ChannelState:
@@ -172,91 +170,14 @@ class ChannelEngine(BaseDbService[Channel]):
         )
         return payload
 
-    async def new_message(
-        self,
-        state: ChannelState,
-        content: str,
-        member_id: UUID | None = None,
-        attachments: list[MessageAttachmentDict] | None = None,
-        source_message_id: UUID | None = None,
-        tool_call_count: int = 0,
-        *,
-        device_ids: frozenset[UUID],
-    ) -> ChannelMessage:
-        async with self.session_factory() as db:
-            now = datetime.now(timezone.utc)
-            await db.execute(
-                update(Channel)
-                .where(Channel.id == state.channel.id)
-                .values(
-                    Channel.touched_by_user(now)
-                    if member_id is None
-                    else {"updated_at": now}
-                )
-            )
-            result = await db.execute(
-                select(func.coalesce(func.max(ChannelMessage.seq), 0) + 1).where(
-                    ChannelMessage.channel_id == state.channel.id
-                )
-            )
-            seq = result.scalar_one()
-            message = ChannelMessage(
-                channel_id=state.channel.id,
-                seq=seq,
-                member_id=member_id,
-                device_ids=device_ids,
-                source_message_id=source_message_id,
-                tool_call_count=tool_call_count,
-                content=content,
-                status="streaming" if member_id else "completed",
-                audience=None
-                if member_id
-                else self.mentions(state.channel, content) or None,
-                attachments=[
-                    ChannelMessageAttachment(**attachment)
-                    for attachment in attachments or []
-                ],
-            )
-            db.add(message)
-            await db.flush()
-            for attachment in message.attachments:
-                attachment.file_url = AttachmentURL.build_preview_url(attachment.id)
-            await db.commit()
-            state.channel.updated_at = now
-        return message
-
-    @staticmethod
-    def mentions(
-        channel: Channel, text: str, author_id: UUID | None = None
-    ) -> list[str] | None:
-        # None means @all/@everyone; an empty list means no member was mentioned.
-        ids = {
-            member.display_name.lower(): str(member.id) for member in channel.members
-        }
-        mentioned: set[str] = set()
-        for match in MENTION.finditer(text):
-            name = match[1].lower()
-            while name not in ids and name[-1:] in (".", ",", ":", ";", "!", "?"):
-                name = name[:-1]
-            member_id = ids.get(name)
-            if member_id is None and name in BROADCAST_MENTIONS:
-                return None
-            if member_id is not None and member_id != str(author_id):
-                mentioned.add(member_id)
-        return sorted(mentioned)
-
-    @staticmethod
-    def addressed(message: ChannelMessage, member: ChannelMember) -> bool:
-        return message.audience is None or str(member.id) in message.audience
-
     def reply_audience(self, state: ChannelState, turn: MemberTurn) -> list[str] | None:
         member_id = str(turn.member.id)
-        explicit = self.mentions(state.channel, turn.text, turn.member.id)
+        explicit = self.messages.mentions(state.channel, turn.text, turn.member.id)
         if explicit is None or explicit:
             return explicit
         audience: set[str] = set()
         for message in turn.batch:
-            if not self.addressed(message, turn.member):
+            if not self.messages.addressed(message, turn.member):
                 continue
             if message.audience is None:
                 return None
@@ -265,43 +186,6 @@ class ChannelEngine(BaseDbService[Channel]):
                 audience.add(str(message.member_id))
         audience.discard(member_id)
         return sorted(audience)
-
-    @staticmethod
-    def unseen(member: ChannelMember) -> Select[tuple[ChannelMessage]]:
-        return (
-            select(ChannelMessage)
-            .where(
-                ChannelMessage.channel_id == member.channel_id,
-                ChannelMessage.status == "completed",
-                ChannelMessage.member_id.is_(None)
-                | (ChannelMessage.member_id != member.id),
-                ~select(ChannelDelivery.member_id)
-                .where(
-                    ChannelDelivery.member_id == member.id,
-                    ChannelDelivery.message_id == ChannelMessage.id,
-                )
-                .exists(),
-            )
-            .order_by(ChannelMessage.seq)
-        )
-
-    async def unseen_batch(
-        self, db: AsyncSession, channel: Channel, member: ChannelMember
-    ) -> list[ChannelMessage]:
-        batch = list((await db.scalars(self.unseen(member))).all())
-        active = await PairingService.active_device_ids(
-            db,
-            channel.user_id,
-            frozenset().union(*(message.device_ids for message in batch)),
-        )
-        revoked = [message for message in batch if not message.device_ids <= active]
-        if revoked:
-            db.add_all(
-                ChannelDelivery(member_id=member.id, message_id=message.id)
-                for message in revoked
-            )
-            await db.commit()
-        return [message for message in batch if message.device_ids <= active]
 
     def fan_out(self, state: ChannelState) -> None:
         state.quiet_until = asyncio.get_running_loop().time() + DEBOUNCE_SECONDS
@@ -327,7 +211,7 @@ class ChannelEngine(BaseDbService[Channel]):
         attachments: list[MessageAttachmentDict],
         device_ids: frozenset[UUID],
     ) -> ChannelMessage:
-        message = await self.new_message(
+        message = await self.messages.new_message(
             state, content, attachments=attachments, device_ids=device_ids
         )
         await self.publish_message(state.channel, message)
@@ -350,7 +234,7 @@ class ChannelEngine(BaseDbService[Channel]):
                         raise HTTPException(404, "Channel not found")
                     state.paused = True
                     state.last_reply = None
-                    audience = self.mentions(state.channel, content) or None
+                    audience = self.messages.mentions(state.channel, content) or None
                     turns = [
                         turn
                         for turn in state.turns.values()
@@ -434,9 +318,12 @@ class ChannelEngine(BaseDbService[Channel]):
                     if member.id in state.gave_up:
                         continue
                     async with self.session_factory() as db:
-                        batch = await self.unseen_batch(db, state.channel, member)
+                        batch = await self.messages.unseen_batch(
+                            db, state.channel, member
+                        )
                         if not any(
-                            self.addressed(message, member) for message in batch
+                            self.messages.addressed(message, member)
+                            for message in batch
                         ):
                             continue
                 except Exception as exc:
@@ -478,7 +365,7 @@ class ChannelEngine(BaseDbService[Channel]):
                     return
                 try:
                     queued = QueuedChannelMessage.model_validate(item)
-                    message = await self.new_message(
+                    message = await self.messages.new_message(
                         state,
                         queued.content,
                         attachments=item["attachments"] or [],
@@ -758,7 +645,7 @@ class ChannelEngine(BaseDbService[Channel]):
         else:
             async with self.session_factory() as db:
                 turn.message.tool_call_count = len(turn.tool_call_ids)
-                await self.write_message(
+                await self.messages.write_message(
                     db,
                     turn.message,
                     "" if self.is_silent(turn.text) else turn.text,
@@ -768,29 +655,8 @@ class ChannelEngine(BaseDbService[Channel]):
             await self.publish_message(state.channel, turn.message)
         turn.last_flush_at = asyncio.get_running_loop().time()
 
-    @staticmethod
-    async def write_message(
-        db: AsyncSession, message: ChannelMessage, content: str, status: str
-    ) -> None:
-        message.content = content
-        message.status = status
-        message.version += 1
-        await db.execute(
-            update(ChannelMessage)
-            .where(ChannelMessage.id == message.id)
-            .values(
-                content=content,
-                status=status,
-                version=message.version,
-                tool_call_count=message.tool_call_count,
-                duration_ms=message.duration_ms,
-                audience=message.audience,
-            )
-            .execution_options(synchronize_session=False)
-        )
-
     async def begin_speaking(self, state: ChannelState, turn: MemberTurn) -> None:
-        turn.message = await self.new_message(
+        turn.message = await self.messages.new_message(
             state,
             "" if self.is_silent(turn.text) else turn.text,
             turn.member.id,
@@ -799,7 +665,7 @@ class ChannelEngine(BaseDbService[Channel]):
             device_ids=turn.device_ids,
         )
         async with self.session_factory() as db:
-            await self.promote_attachments(db, turn.message)
+            await self.messages.promote_attachments(db, turn.message)
             await db.commit()
         await self.publish_message(state.channel, turn.message)
 
@@ -822,7 +688,7 @@ class ChannelEngine(BaseDbService[Channel]):
                 await self.begin_speaking(state, turn)
             else:
                 async with self.session_factory() as db:
-                    promoted = await self.promote_attachments(db, turn.message)
+                    promoted = await self.messages.promote_attachments(db, turn.message)
                     await db.commit()
                 if promoted and turn.status is TurnStatus.RUNNING:
                     await self.flush(state, turn)
@@ -840,7 +706,7 @@ class ChannelEngine(BaseDbService[Channel]):
                 select(Message.stream_status).where(Message.id == source_message_id)
             )
         if reply is None:
-            reply = await self.new_message(
+            reply = await self.messages.new_message(
                 state,
                 "",
                 member_id,
@@ -848,8 +714,8 @@ class ChannelEngine(BaseDbService[Channel]):
                 device_ids=frozenset(),
             )
         async with self.session_factory() as db:
-            await self.promote_attachments(db, reply)
-            await self.write_message(
+            await self.messages.promote_attachments(db, reply)
+            await self.messages.write_message(
                 db,
                 reply,
                 reply.content,
@@ -859,39 +725,6 @@ class ChannelEngine(BaseDbService[Channel]):
             )
             await db.commit()
         await self.publish_message(state.channel, reply)
-
-    @staticmethod
-    async def promote_attachments(db: AsyncSession, message: ChannelMessage) -> bool:
-        promoted = set(
-            await db.scalars(
-                select(ChannelMessageAttachment.file_path).where(
-                    ChannelMessageAttachment.message_id == message.id
-                )
-            )
-        )
-        added = [
-            ChannelMessageAttachment(
-                message_id=message.id,
-                file_url="",
-                file_path=attachment.file_path,
-                file_type=attachment.file_type.value,
-                filename=attachment.filename,
-            )
-            for attachment in await db.scalars(
-                select(MessageAttachment)
-                .where(MessageAttachment.message_id == message.source_message_id)
-                .order_by(MessageAttachment.created_at, MessageAttachment.id)
-            )
-            if attachment.file_path not in promoted
-        ]
-        if not added:
-            return False
-        db.add_all(added)
-        await db.flush()
-        for attachment in added:
-            attachment.file_url = AttachmentURL.build_preview_url(attachment.id)
-        message.attachments = [*message.attachments, *added]
-        return True
 
     async def publish_message(self, channel: Channel, message: ChannelMessage) -> None:
         await self.publish(
@@ -916,11 +749,11 @@ class ChannelEngine(BaseDbService[Channel]):
                 )
             if message is not None:
                 message.tool_call_count = len(turn.tool_call_ids)
-                await self.promote_attachments(db, message)
+                await self.messages.promote_attachments(db, message)
                 # A PASS that attached files stays visible: the user should see them.
                 silent = silent and not message.attachments
                 if silent:
-                    await self.write_message(db, message, "", "deleted")
+                    await self.messages.write_message(db, message, "", "deleted")
                 else:
                     if turn.source_message_id is not None:
                         duration_ms, created_at = (
@@ -942,7 +775,7 @@ class ChannelEngine(BaseDbService[Channel]):
                         )
                     if successful:
                         message.audience = self.reply_audience(state, turn)
-                    await self.write_message(
+                    await self.messages.write_message(
                         db,
                         message,
                         "" if self.is_silent(turn.text) else turn.text,
@@ -979,7 +812,7 @@ class ChannelEngine(BaseDbService[Channel]):
             await self.cancel_active(state, turns)
             async with self.session_factory() as db:
                 for member in state.channel.members:
-                    batch = list((await db.scalars(self.unseen(member))).all())
+                    batch = list((await db.scalars(self.messages.unseen(member))).all())
                     db.add_all(
                         ChannelDelivery(member_id=member.id, message_id=message.id)
                         for message in batch
@@ -1024,9 +857,9 @@ class ChannelEngine(BaseDbService[Channel]):
                 ).all()
             )
             for message in messages:
-                await self.promote_attachments(db, message)
+                await self.messages.promote_attachments(db, message)
                 silent = self.is_silent(message.content) and not message.attachments
-                await self.write_message(
+                await self.messages.write_message(
                     db,
                     message,
                     "" if silent else message.content,
