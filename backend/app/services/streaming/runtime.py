@@ -6,7 +6,6 @@ import logging
 import posixpath
 import time
 from contextlib import asynccontextmanager, suppress
-from copy import deepcopy
 from dataclasses import replace
 from collections.abc import AsyncIterator, Awaitable, Callable
 from functools import partial
@@ -22,7 +21,6 @@ from app.catalog import MODELS
 from app.constants import (
     ACP_RESOURCE_NOT_FOUND,
     REDIS_KEY_CHAT_CONTEXT_USAGE,
-    REDIS_KEY_USER_STREAMS_LIVE,
 )
 from app.core.config import get_settings
 from app.db.session import SessionLocal
@@ -53,16 +51,15 @@ from app.services.message import MessageService
 from app.services.push import PushService
 from app.services.queue import QueueService
 from app.services.sandbox_providers.base import SandboxProvider
+from app.services.streaming.event_log import StreamEventLog
 from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES, tool_image
 from app.services.streaming.recovery import DeadStreamRecovery
 from app.services.streaming.scaffold import TurnScaffold
 from app.services.streaming.types import (
     PROMPT_SUGGESTIONS_RE,
-    SNAPSHOT_EVENT_KINDS,
     ChatStreamRequest,
     StreamEnvelope,
     StreamEvent,
-    StreamSnapshotAccumulator,
     ToolImage,
     ToolPayload,
 )
@@ -78,7 +75,6 @@ TRANSPORT_FATAL_TYPES = (
     OSError,
 )
 
-SNAPSHOT_CHECKPOINT_INTERVAL_SECONDS = 2.0
 IMAGE_READ_TIMEOUT_SECONDS = 3.0
 
 
@@ -139,13 +135,14 @@ class ChatStreamRuntime:
         self.custom_instructions = request.custom_instructions
         self.session_factory = session_factory
 
-        self.snapshot = StreamSnapshotAccumulator()
-        self.last_seq: int = 0
-        self.pending_since_flush: int = 0
-        self.last_flush_at: float = time.monotonic()
-        self.last_checkpoint_at: float = self.last_flush_at
         self.message_service = MessageService(session_factory=session_factory)
-        self._event_buffer: list[tuple[str, dict[str, Any], dict[str, Any] | None]] = []
+        self.event_log = StreamEventLog(
+            message_service=self.message_service,
+            chat_id=chat.id,
+            assistant_message_id=self.assistant_message_id,
+            stream_id=self.stream_id,
+            publish_user_id=self.publish_user_id,
+        )
 
         self.cache: CacheStore | None = None
         self._cancel_event: asyncio.Event | None = None
@@ -178,7 +175,7 @@ class ChatStreamRuntime:
                 await self.message_service.update_message_snapshot(
                     UUID(self.assistant_message_id),
                     content_text="",
-                    content_render=self.snapshot.to_render(),
+                    content_render=self.event_log.snapshot.to_render(),
                     last_seq=start_seq,
                     active_stream_id=self.stream_id,
                 )
@@ -206,7 +203,7 @@ class ChatStreamRuntime:
             # Buffered events may not have flushed yet (debounce) — a fast turn
             # can finish with last_seq still at start_seq, so check the buffer
             # too before declaring the stream empty.
-            if self.last_seq <= start_seq and not self._event_buffer:
+            if self.event_log.last_seq <= start_seq and not self.event_log.event_buffer:
                 # Cancel/send-now may have arrived after the last event was
                 # consumed but before _consume_stream returned — the stream
                 # ended naturally (via StopAsyncIteration) so CancelledError
@@ -226,9 +223,9 @@ class ChatStreamRuntime:
             # Snapshot first — it prunes the event log — then the terminal
             # event so it survives replay. DeadStreamRecovery.finalize_dead_stream
             # keeps the same order.
-            self.snapshot.add_error(str(exc))
-            snapshot = await self._save_final_snapshot(
-                stream_result, MessageStreamStatus.FAILED
+            self.event_log.snapshot.add_error(str(exc))
+            snapshot = await self.event_log.save_final_snapshot(
+                stream_result, MessageStreamStatus.FAILED, self.session_id
             )
             if snapshot is not None:
                 status, duration_ms = snapshot
@@ -286,7 +283,7 @@ class ChatStreamRuntime:
             await self._emit_context_usage(stream_result)
         else:
             await self.emit_event(kind, payload)
-            await self._flush_snapshot()
+            await self.event_log.flush_snapshot()
 
     async def _read_tool_image(self, tool: ToolPayload) -> ToolImage | None:
         adapter = AGENT_ADAPTERS[MODELS[self.model_id].agent_kind]
@@ -344,12 +341,12 @@ class ChatStreamRuntime:
 
     async def _record_steering(self, event_payload: dict[str, Any]) -> None:
         await self.emit_event("user_steering", event_payload)
-        await self._flush_event_buffer()
+        await self.event_log.flush_event_buffer()
         await self.message_service.update_message_snapshot(
             UUID(self.assistant_message_id),
-            content_text=self.snapshot.content_text,
-            content_render=self.snapshot.to_render(),
-            last_seq=self.last_seq,
+            content_text=self.event_log.snapshot.content_text,
+            content_render=self.event_log.snapshot.to_render(),
+            last_seq=self.event_log.last_seq,
             active_stream_id=self.stream_id,
         )
 
@@ -443,7 +440,7 @@ class ChatStreamRuntime:
             return True
 
     async def _emit_prompt_suggestions(self) -> None:
-        raw = "".join(self.snapshot.text_parts)
+        raw = "".join(self.event_log.snapshot.text_parts)
         match = PROMPT_SUGGESTIONS_RE.search(raw)
         if not match:
             return
@@ -513,32 +510,14 @@ class ChatStreamRuntime:
         if self.member_turn is not None and not is_terminal_signal:
             await self.member_turn.event_sink(kind, payload)
 
-        audit = {"payload": StreamEnvelope.sanitize_payload(payload)}
-        if apply_snapshot and kind in SNAPSHOT_EVENT_KINDS:
-            # ACP tool payloads are updated in place as progress arrives, so
-            # buffered history needs its own copy or earlier events get rewritten
-            # to the latest title/status before we flush them.
-            frozen_payload = deepcopy(payload)
-            self._event_buffer.append((kind, frozen_payload, audit))
-            self.snapshot.add_event(kind, frozen_payload)
-            self.pending_since_flush += 1
-            return 0
-
-        await self._flush_event_buffer()
-        seq = await self.message_service.append_event_with_next_seq(
-            chat_id=self.chat.id,
-            message_id=UUID(self.assistant_message_id),
-            stream_id=self.stream_id,
-            event_type=kind,
-            render_payload=payload,
-            audit_payload=audit,
-        )
+        seq = await self.event_log.append(kind, payload, apply_snapshot=apply_snapshot)
         if seq is None:
             return 0
-        self.last_seq = seq
         if self.member_turn is not None and is_terminal_signal:
             await self.member_turn.event_sink(kind, payload)
-        await self._publish_to_redis([self._serialize_envelope(seq, kind, payload)])
+        await self.event_log.publish_to_redis(
+            [self.event_log.serialize_envelope(seq, kind, payload)]
+        )
         # Channel member turns push from ChannelService, which knows the channel route.
         if kind == "permission_request" and self.member_turn is None:
             await PushService(self.session_factory).notify_permission(
@@ -571,96 +550,6 @@ class ChatStreamRuntime:
             )
         return seq
 
-    async def _flush_event_buffer(self) -> None:
-        if not self._event_buffer or not self.assistant_message_id:
-            return
-        batch = self._event_buffer
-        seq = await self.message_service.append_events_batch(
-            chat_id=self.chat.id,
-            message_id=UUID(self.assistant_message_id),
-            stream_id=self.stream_id,
-            events=batch,
-        )
-        self._event_buffer = []
-        self.last_seq = seq
-
-        start_seq = seq - len(batch) + 1
-        redis_events = [
-            self._serialize_envelope(start_seq + i, kind, payload)
-            for i, (kind, payload, _audit) in enumerate(batch)
-        ]
-        await self._publish_to_redis(redis_events)
-
-    def _serialize_envelope(self, seq: int, kind: str, payload: dict[str, Any]) -> str:
-        return StreamEnvelope.serialize(
-            chat_id=self.chat.id,
-            message_id=UUID(self.assistant_message_id),
-            stream_id=self.stream_id,
-            seq=seq,
-            kind=kind,
-            payload=payload,
-        )
-
-    async def _publish_to_redis(self, events: list[str]) -> None:
-        # Envelopes carry chatId, so all of a user's streams share one channel —
-        # the multiplexed SSE feed subscribes once and routes client-side.
-        if self.publish_user_id is None or not self.cache or not events:
-            return
-        channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=self.publish_user_id)
-        for raw in events:
-            try:
-                await self.cache.publish(channel, raw)
-            except CacheError as exc:
-                logger.warning(
-                    "Failed to publish event for chat %s: %s",
-                    self.chat_id,
-                    exc,
-                )
-
-    async def _flush_snapshot(self) -> None:
-        # Events publish every 200ms or 24 events. The full-render checkpoint is
-        # rarer: catch-up replays message_events past its last_seq, and
-        # DeadStreamRecovery.finalize_dead_stream folds those in before pruning.
-        if not self.assistant_message_id or self.pending_since_flush == 0:
-            return
-        now = time.monotonic()
-        if (now - self.last_flush_at) * 1000 < 200 and self.pending_since_flush < 24:
-            return
-
-        await self._flush_event_buffer()
-        self.pending_since_flush = 0
-        self.last_flush_at = now
-        if now - self.last_checkpoint_at < SNAPSHOT_CHECKPOINT_INTERVAL_SECONDS:
-            return
-        await self.message_service.update_message_snapshot(
-            UUID(self.assistant_message_id),
-            content_text=self.snapshot.content_text,
-            content_render=self.snapshot.to_render(),
-            last_seq=self.last_seq,
-            active_stream_id=self.stream_id,
-        )
-        self.last_checkpoint_at = now
-
-    async def _save_final_snapshot(
-        self,
-        stream_result: StreamResult,
-        stream_status: MessageStreamStatus,
-    ) -> tuple[MessageStreamStatus, int | None] | None:
-        # Persist duration so the terminal event can carry it without a refetch.
-        if not self.assistant_message_id:
-            return None
-        await self._flush_event_buffer()
-        return await self.message_service.update_message_snapshot(
-            UUID(self.assistant_message_id),
-            content_text=self.snapshot.content_text,
-            content_render=self.snapshot.to_render(),
-            last_seq=self.last_seq,
-            active_stream_id=None,
-            stream_status=stream_status,
-            total_cost_usd=stream_result.total_cost_usd,
-            session_id=self.session_id,
-        )
-
     async def _complete_stream(
         self,
         stream_result: StreamResult,
@@ -670,8 +559,10 @@ class ChatStreamRuntime:
             # Close generator first so the old prompt_task finishes before the new prompt shares the handler.
             await self._close_stream()
             await self._emit_unread_events(stream_result)
-        snapshot = await self._save_final_snapshot(stream_result, status)
-        final_content = self.snapshot.content_text
+        snapshot = await self.event_log.save_final_snapshot(
+            stream_result, status, self.session_id
+        )
+        final_content = self.event_log.snapshot.content_text
         if snapshot is None:
             return final_content
         saved_status, duration_ms = snapshot
@@ -1375,6 +1266,7 @@ class ChatStreamRuntime:
         )
         async with cache_connection() as cache, runtime._registered():
             runtime.cache = cache
+            runtime.event_log.cache = cache
 
             ai_service = AgentService(session_factory=runtime.session_factory)
             user = User(id=runtime.chat.user_id)
