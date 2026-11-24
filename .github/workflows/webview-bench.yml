@@ -36,7 +36,10 @@ jobs:
 
       - name: Install Electron
         working-directory: bench/webview/electron
-        run: npm ci --no-audit --no-fund
+        run: |
+          npm ci --no-audit --no-fund
+          node node_modules/electron/install.js
+          npx electron --version
 
       - name: Build WKWebView host
         working-directory: bench/webview
