@@ -6,12 +6,11 @@ from contextlib import asynccontextmanager
 from typing import cast
 from uuid import UUID
 
-from sqlalchemy import Update, update
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
-from app.models.types import MessageAttachmentDict, PermissionMode
+from app.models.types import MessageAttachmentDict
 from app.services.agent import AgentService
 from app.services.db import SessionFactoryType
 from app.services.exceptions import SandboxException
@@ -66,26 +65,6 @@ class TurnScaffold:
                 exc,
             )
             return None
-
-    @staticmethod
-    def record_settings(
-        chat_id: UUID,
-        *,
-        model_id: str,
-        permission_mode: PermissionMode,
-        thinking_mode: str | None,
-        persona_name: str,
-    ) -> Update:
-        return (
-            update(Chat)
-            .where(Chat.id == chat_id)
-            .values(
-                last_model_id=model_id,
-                last_permission_mode=permission_mode,
-                last_thinking_mode=thinking_mode,
-                last_persona_name=persona_name,
-            )
-        )
 
     @classmethod
     @asynccontextmanager

@@ -1286,7 +1286,7 @@ class ChatService(BaseDbService[Chat]):
             # Record the turn's settings alongside the bump — the server-side
             # source of truth that MCP follow-ups and the UI inherit.
             await db.execute(
-                TurnScaffold.record_settings(
+                Chat.record_turn_settings(
                     chat.id,
                     model_id=request.model_id,
                     permission_mode=request.permission_mode,

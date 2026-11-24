@@ -936,7 +936,7 @@ class ChatStreamRuntime:
             )
             async with session_factory() as db:
                 await db.execute(
-                    TurnScaffold.record_settings(
+                    Chat.record_turn_settings(
                         chat.id,
                         model_id=request.model_id,
                         permission_mode=request.permission_mode,
