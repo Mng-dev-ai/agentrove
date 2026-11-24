@@ -37,6 +37,7 @@ from app.services.chat import ChatService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.host_provider import LocalHostProvider
 from app.services.sandbox_providers.types import CommandResult
+from app.services.streaming import event_log as event_log_module
 from app.services.streaming import recovery as recovery_module
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.recovery import DeadStreamRecovery
@@ -1900,7 +1901,7 @@ async def test_mid_turn_snapshot_plus_event_tail_rebuilds_full_output(
 ) -> None:
     # A client reconnecting mid-turn renders the persisted snapshot, then
     # replays events past its last_seq — together they must be gap-free.
-    monkeypatch.setattr(runtime_module, "SNAPSHOT_CHECKPOINT_INTERVAL_SECONDS", 0.0)
+    monkeypatch.setattr(event_log_module, "SNAPSHOT_CHECKPOINT_INTERVAL_SECONDS", 0.0)
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
     )
