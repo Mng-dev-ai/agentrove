@@ -20,8 +20,8 @@ SCENARIOS = {
     "diff": "/chat/{chat_diff}",
     "switch": "/",
 }
-WIDTH = 1280
-HEIGHT = 800
+WIDTH = 960
+HEIGHT = 640
 RUN_TIMEOUT_S = 300
 SAMPLE_INTERVAL_S = 0.1
 SETTLE_S = 3.0

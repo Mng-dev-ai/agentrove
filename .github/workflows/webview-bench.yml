@@ -79,6 +79,8 @@ jobs:
 
       - name: Run benchmark
         run: |
+          ELECTRON_BIN="$(cd bench/webview/electron && node -p "require('electron')")"
+          ls -la "$ELECTRON_BIN"
           "$RUNNER_TEMP/venv/bin/python" bench/webview/orchestrate.py \
             --fixture "$RUNNER_TEMP/bench/fixture.json" \
             --api "http://127.0.0.1:$API_PORT/api/v1" \
@@ -86,7 +88,7 @@ jobs:
             --out "$RUNNER_TEMP/out" \
             --driver bench/webview/driver.js \
             --wkhost "$RUNNER_TEMP/wkhost" \
-            --electron-bin bench/webview/electron/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron \
+            --electron-bin "$ELECTRON_BIN" \
             --electron-app bench/webview/electron \
             --runs "$BENCH_RUNS"
 
