@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
-from app.services.channel import channel_service
+from app.services.channel_engine import channel_engine
 from app.services.device_session import DeviceSession
 from app.services.refresh_token import RefreshTokenService
 from app.services.streaming.runtime import ChatStreamRuntime
@@ -56,5 +56,5 @@ class DeviceRevocationService:
     @staticmethod
     async def end_sessions(device_ids: frozenset[UUID]) -> None:
         DeviceSession.revoke(device_ids)
-        await channel_service.cancel_device_turns(device_ids)
+        await channel_engine.cancel_device_turns(device_ids)
         await ChatStreamRuntime.cancel_device_turns(device_ids)

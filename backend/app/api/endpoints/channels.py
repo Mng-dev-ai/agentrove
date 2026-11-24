@@ -32,6 +32,7 @@ from app.models.schemas.queue import (
     QueueMessageContent,
 )
 from app.services.channel import channel_service
+from app.services.channel_engine import channel_engine
 from app.services.queue import ChannelQueueService
 from app.services.exceptions import ChatException, StorageException, SandboxException
 
@@ -117,7 +118,7 @@ async def post_message(
     except (StorageException, SandboxException) as exc:
         raise HTTPException(exc.status_code, str(exc)) from exc
     response: ChannelMessageRead = ChannelMessageRead.model_validate(
-        await channel_service.post(channel, content, attachments, user.device_ids)
+        await channel_engine.post(channel, content, attachments, user.device_ids)
     )
     return response
 
@@ -143,7 +144,7 @@ async def queue_message(
     )
     if send_now:
         try:
-            await channel_service.send_queued_now(
+            await channel_engine.send_queued_now(
                 channel, queue_service, response.id, user.device_ids
             )
         except Exception:
@@ -155,7 +156,7 @@ async def queue_message(
             )
     else:
         # The channel may have gone idle before the message landed in the queue.
-        await channel_service.dispatch_queued(channel)
+        await channel_engine.dispatch_queued(channel)
     return response
 
 
@@ -209,7 +210,7 @@ async def send_queued_message_now(
     queue_service: ChannelQueueService = Depends(get_channel_queue_service),
 ) -> Response:
     channel = await channel_service.get(channel_id, user)
-    await channel_service.send_queued_now(
+    await channel_engine.send_queued_now(
         channel, queue_service, message_id, user.device_ids
     )
     return Response(status_code=204)
@@ -219,7 +220,7 @@ async def send_queued_message_now(
 async def stop_channel(
     channel_id: UUID, user: User = Depends(get_current_user)
 ) -> Response:
-    await channel_service.stop(await channel_service.get(channel_id, user))
+    await channel_engine.stop(await channel_service.get(channel_id, user))
     return Response(status_code=204)
 
 
@@ -273,7 +274,7 @@ async def pending_permissions(
     channel_id: UUID, user: User = Depends(get_current_user)
 ) -> list[dict[str, Any]]:
     channel = await channel_service.get(channel_id, user)
-    return list(channel_service.state(channel).permissions.values())
+    return list(channel_engine.state(channel).permissions.values())
 
 
 @router.get("/{channel_id}/member-activity")
@@ -281,4 +282,4 @@ async def member_activity(
     channel_id: UUID, user: User = Depends(get_current_user)
 ) -> dict[str, Any]:
     channel = await channel_service.get(channel_id, user)
-    return channel_service.state(channel).member_activity()
+    return channel_engine.state(channel).member_activity()

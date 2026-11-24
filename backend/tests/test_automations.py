@@ -20,7 +20,7 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatCreate, ChatRequest
 from app.services.automation import AutomationService
-from app.services.channel import channel_service
+from app.services.channel_engine import channel_engine
 from app.services.chat import ChatService
 from app.services.exceptions import ChatException
 from app.services.sandbox_providers.base import SandboxProvider
@@ -306,14 +306,14 @@ async def test_running_a_new_channel_automation_creates_the_channel_and_posts(
         db_session, create_user, login
     )
     monkeypatch.setattr(SandboxProvider, "create_provider", FakeProviderFactory())
-    monkeypatch.setattr(channel_service, "states", {})
-    monkeypatch.setattr(channel_service, "schedule", lambda state: None)
+    monkeypatch.setattr(channel_engine, "states", {})
+    monkeypatch.setattr(channel_engine, "schedule", lambda state: None)
     published: list[str] = []
 
     async def publish(channel: Channel, kind: str, payload: dict[str, Any]) -> None:
         published.append(kind)
 
-    monkeypatch.setattr(channel_service, "publish", publish)
+    monkeypatch.setattr(channel_engine, "publish", publish)
     created = await create_automation(
         client, headers, workspace.id, channel_members=NEW_CHANNEL_MEMBERS
     )
