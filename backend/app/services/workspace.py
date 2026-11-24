@@ -27,7 +27,7 @@ from app.models.schemas.workspace import (
     WorkspaceUpdate,
 )
 from app.models.types import AgentKind
-from app.services.channel import channel_service
+from app.services.channels.service import channel_service
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ErrorCode, WorkspaceException
 from app.services.queue import QueueService

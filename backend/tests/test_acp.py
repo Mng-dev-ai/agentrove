@@ -41,8 +41,8 @@ from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.types import AgentKind
-from app.services import channel_engine as channel_engine_module
-from app.services import channel_publisher as channel_publisher_module
+from app.services.channels import engine as channel_engine_module
+from app.services.channels import publisher as channel_publisher_module
 from app.services.acp import client as acp_client_module
 from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.automation import AutomationService

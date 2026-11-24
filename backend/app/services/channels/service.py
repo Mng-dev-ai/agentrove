@@ -40,8 +40,8 @@ from app.services.acp.adapters import (
     NORMAL_SESSION_MODE,
 )
 from app.services.agent import AgentService
-from app.services.channel_engine import ChannelEngine, channel_engine
-from app.services.channel_state import ChannelState
+from app.services.channels.engine import ChannelEngine, channel_engine
+from app.services.channels.state import ChannelState
 from app.services.git import GitService
 from app.services.queue import ChannelQueueService
 from app.services.storage import StorageService
