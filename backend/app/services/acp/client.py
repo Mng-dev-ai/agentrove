@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import base64
 import binascii
-import json
 import logging
 import re
 from collections.abc import Callable
@@ -46,6 +45,7 @@ from acp.schema import (
 
 from app.models.types import AgentKind, PermissionMode
 from app.models.db_models.enums import ToolStatus
+from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.streaming.images import tool_image
 from app.services.streaming.types import (
     StreamEvent,
@@ -62,11 +62,6 @@ _SENTINEL = object()
 # as defense-in-depth for other or older adapters.
 _HEARTBEAT_TOOL_ID_RE = re.compile(r"-heartbeat-\d+$")
 
-IMAGE_READ_PATH_KEYS = {
-    AgentKind.CODEX: "path",
-    AgentKind.COPILOT: "path",
-    AgentKind.ANTIGRAVITY: "file_path",
-}
 IMAGE_READ_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
 # Valid ACP option_ids that match our PermissionMode literals directly.
@@ -114,15 +109,6 @@ PERMISSION_MODE_BY_OPTION_NAME: dict[str, PermissionMode] = {
     "yolo": "yolo",
 }
 
-# Grok delivers its ask_user_question tool as an ACP extension request
-# (`_x.ai/ask_user_question`; the SDK strips the leading underscore). It must
-# be answered with an AskUserQuestionExtResponse — an empty result fails the
-# tool with "missing field `outcome`".
-GROK_ASK_USER_QUESTION_METHOD = "x.ai/ask_user_question"
-
-# OpenCode v2 renamed these tools; older sessions replay the v1 names.
-_OPENCODE_TOOL_ALIASES = {"bash": "shell", "task": "subagent", "apply_patch": "patch"}
-
 CHANNEL_PERMISSION_TIMEOUT_SECONDS = 300
 CHANNEL_ELICITATION_TIMEOUT_SECONDS = 15 * 60
 
@@ -132,13 +118,13 @@ class AcpClientHandler:
 
     def __init__(self, agent_kind: AgentKind, *, channel_member: bool = False) -> None:
         self.channel_member = channel_member
-        self.agent_kind = agent_kind
+        self._adapter = AGENT_ADAPTERS[agent_kind]
         self.event_queue: asyncio.Queue[StreamEvent | object] = asyncio.Queue()
         self._active_tools: dict[str, ToolPayload] = {}
         self._completed_on_start: set[str] = set()
-        # OpenCode sends its tool name only in a top-level `name` field the SDK
-        # schema drops, so observe_stream captures it from the raw JSON-RPC.
-        self._opencode_tool_names: dict[str, str] = {}
+        # Per-connection names the adapter reads from the raw JSON-RPC in
+        # observe_stream, keyed by tool call id.
+        self._wire_tool_names: dict[str, str] = {}
         self._pending_permissions: dict[str, asyncio.Future[str]] = {}
         self._pending_elicitations: dict[
             str,
@@ -170,13 +156,12 @@ class AcpClientHandler:
         if not isinstance(params, dict):
             return
         method = event.message.get("method")
-        if self.agent_kind == AgentKind.OPENCODE:
-            self._capture_opencode_tool_name(method, params)
+        self._capture_wire_tool_name(method, params)
         if method == "session/update":
             notification = SessionNotification.model_validate(params)
             self.apply_session_update(notification.session_id, notification.update)
 
-    def _capture_opencode_tool_name(self, method: Any, params: dict[str, Any]) -> None:
+    def _capture_wire_tool_name(self, method: Any, params: dict[str, Any]) -> None:
         if method == "session/update":
             tool_call = params.get("update")
         elif method == "session/request_permission":
@@ -185,12 +170,10 @@ class AcpClientHandler:
             return
         if not isinstance(tool_call, dict):
             return
-        tool_call_id, name = tool_call.get("toolCallId"), tool_call.get("name")
-        if isinstance(tool_call_id, str) and isinstance(name, str) and name:
-            name = name.lower()
-            self._opencode_tool_names[tool_call_id] = _OPENCODE_TOOL_ALIASES.get(
-                name, name
-            )
+        tool_call_id = tool_call.get("toolCallId")
+        name = self._adapter.wire_tool_name(tool_call)
+        if isinstance(tool_call_id, str) and name:
+            self._wire_tool_names[tool_call_id] = name
 
     def prepare_for_prompt(self) -> None:
         # Drain any stale events/sentinels left from a previous prompt whose
@@ -561,7 +544,7 @@ class AcpClientHandler:
         return KillTerminalResponse()
 
     async def ext_method(self, method: str, params: dict[str, Any]) -> dict[str, Any]:
-        if method == GROK_ASK_USER_QUESTION_METHOD:
+        if method == self._adapter.ask_user_question_method:
             return await self._answer_user_question(params)
         return {}
 
@@ -647,7 +630,7 @@ class AcpClientHandler:
             name=self._extract_tool_name(tc),
             title=tc.title,
             status=ToolStatus.STARTED.value,
-            parent_id=self._extract_parent_tool_id(tc),
+            parent_id=self._adapter.parent_tool_id(tc),
             input=self._extract_tool_input(tc),
         )
         if tc.locations:
@@ -655,7 +638,7 @@ class AcpClientHandler:
         # Codex attaches edit diffs as content blocks on the initial tool_call
         # (and re-sent tool_call updates), while its terminal tool_call_update
         # carries only a status — capture the diffs here or they're lost.
-        diffs = self._extract_content_diffs(tc)
+        diffs = self._adapter.content_diffs(tc)
         if diffs:
             payload["result"] = {"diffs": diffs}
         self._active_tools[tc.tool_call_id] = payload
@@ -664,19 +647,6 @@ class AcpClientHandler:
         else:
             self._completed_on_start.discard(tc.tool_call_id)
         return StreamEvent(type="tool_started", tool=payload)
-
-    @staticmethod
-    def _extract_meta_tool_name(tc: ToolCallProgress) -> str | None:
-        # claude-agent-acp stamps the real tool name at _meta.claudeCode.toolName
-        # on updates that carry no title of their own.
-        meta = getattr(tc, "field_meta", None)
-        if not isinstance(meta, dict):
-            return None
-        claude_meta = meta.get("claudeCode")
-        if not isinstance(claude_meta, dict):
-            return None
-        tool_name = claude_meta.get("toolName")
-        return tool_name if isinstance(tool_name, str) and tool_name else None
 
     def _map_tool_call_progress(self, tc: ToolCallProgress) -> StreamEvent | None:
         # Multiple progress events per tool possible; re-emit only when title/input changes.
@@ -697,14 +667,14 @@ class AcpClientHandler:
             # adapter's _meta when present; drop updates that carry no
             # renderable identity at all instead of minting "Unknown tool"
             # cards that finish() later stamps completed.
-            meta_tool_name = self._extract_meta_tool_name(
+            meta_tool_name = self._adapter.meta_tool_name(
                 tc
-            ) or self._opencode_tool_names.get(tc.tool_call_id)
+            ) or self._wire_tool_names.get(tc.tool_call_id)
             if (
                 not tc.title
                 and tc.raw_input is None
                 and meta_tool_name is None
-                and self._extract_tool_result(tc) is None
+                and self._adapter.extract_tool_result(tc) is None
             ):
                 logger.debug(
                     "Dropping update for untracked tool %s (status=%s)",
@@ -717,7 +687,7 @@ class AcpClientHandler:
                 name=meta_tool_name or "unknown",
                 title=meta_tool_name or "Unknown tool",
                 status=ToolStatus.STARTED.value,
-                parent_id=self._extract_parent_tool_id(tc),
+                parent_id=self._adapter.parent_tool_id(tc),
                 input=None,
             )
 
@@ -737,15 +707,15 @@ class AcpClientHandler:
         if status in ("completed", "failed"):
             self._active_tools.pop(tc.tool_call_id, None)
             self._completed_on_start.discard(tc.tool_call_id)
-            self._opencode_tool_names.pop(tc.tool_call_id, None)
+            self._wire_tool_names.pop(tc.tool_call_id, None)
         if status == "completed":
             existing["status"] = ToolStatus.COMPLETED.value
-            result = self._extract_tool_result(tc)
+            result = self._adapter.extract_tool_result(tc)
             # Codex edit diffs were captured from earlier tool_call events —
             # don't wipe them when the terminal update carries no result.
             if result is not None or "result" not in existing:
                 existing["result"] = result
-            if self.agent_kind == AgentKind.OPENCODE and (
+            if self._adapter.tool_images_in_content and (
                 images := self._extract_content_images(tc)
             ):
                 existing["images"] = images
@@ -755,7 +725,7 @@ class AcpClientHandler:
             return StreamEvent(type="tool_completed", tool=existing)
         if status == "failed":
             existing["status"] = ToolStatus.FAILED.value
-            existing["error"] = self._extract_tool_error(tc)
+            existing["error"] = self._adapter.extract_tool_error(tc)
             selected_mode = self._resolved_permissions.pop(tc.tool_call_id, None)
             if selected_mode is not None:
                 existing["permission_mode"] = selected_mode
@@ -784,9 +754,8 @@ class AcpClientHandler:
         return StreamEvent(type="system", data={})
 
     def _map_plan(self, plan: AgentPlanUpdate) -> StreamEvent | None:
-        # Claude sends TodoWrite and Task* state only as plan updates. OpenCode
-        # also emits todowrite tool calls, so forwarding its plan would duplicate it.
-        if self.agent_kind == AgentKind.OPENCODE:
+        # Claude sends TodoWrite and Task* state only as plan updates.
+        if not self._adapter.forwards_plan:
             return None
         # Each ACP plan update carries the complete entry list; the frontend
         # replaces the whole plan rather than appending.
@@ -800,128 +769,28 @@ class AcpClientHandler:
             },
         )
 
-    @staticmethod
-    def _extract_parent_tool_id(tc: Any) -> str | None:
-        meta = getattr(tc, "field_meta", None) or {}
-        claude_meta = meta.get("claudeCode", {})
-        parent_id = claude_meta.get("parentToolUseId")
-        if parent_id:
-            return str(parent_id)
-        return None
-
     def _extract_tool_name(self, tc: Any) -> str:
-        # Claude embeds the tool name in field_meta.claudeCode.toolName (e.g.
-        # "Read", "Edit"). OpenCode's name comes from observe_stream — its ACP
-        # `kind` collapses distinct tools (edit/write/patch all become "edit")
-        # and its `title` turns into the shell command once input arrives.
-        # Grok puts the raw tool name (write, search_replace, read_file, grep,
-        # run_terminal_command, ...) in field_meta["x.ai/tool"].name — its
-        # initial tool_call has no `kind` and later updates rewrite `title`
-        # to a human label. Web search calls lack that meta, so they fall
-        # through to `kind` ("search"). Codex/Copilot/Cursor use the
-        # top-level `kind` field.
-        meta = getattr(tc, "field_meta", None) or {}
-        claude_meta = meta.get("claudeCode", {})
-        if tool_name := claude_meta.get("toolName"):
-            return str(tool_name)
-        if mcp_call := self._extract_mcp_call(tc):
-            return mcp_call[0]
-        if tool_name := self._opencode_tool_names.get(tc.tool_call_id):
+        # Codex/Copilot/Cursor use the top-level `kind` field; the adapter
+        # hooks cover agents that name their tools elsewhere.
+        if tool_name := self._adapter.meta_tool_name(tc):
             return tool_name
-        if self._extract_antigravity_question(tc):
-            return "ask_question"
-        if self.agent_kind == AgentKind.GROK:
-            if tool_name := meta.get("x.ai/tool", {}).get("name"):
-                return str(tool_name)
+        if normalized := self._adapter.normalize_tool_call(tc):
+            return normalized[0]
+        if tool_name := self._wire_tool_names.get(tc.tool_call_id):
+            return tool_name
         kind = getattr(tc, "kind", None)
         if kind:
             return str(kind)
         return str(getattr(tc, "title", None) or "unknown")
 
-    def _extract_mcp_call(self, tc: Any) -> tuple[str, dict[str, Any]] | None:
-        # Codex, Grok and Antigravity wrap MCP tool calls in their own envelopes;
-        # unwrap them to Claude's `mcp__<server>__<tool>` name and bare arguments
-        # so the frontend's MCP renderers (agentrove tools, render_ui) apply to
-        # every agent. Codex: title "mcp.<server>.<tool>" with raw_input
-        # {server, tool, arguments}. Grok: a `use_tool` call with raw_input
-        # {tool_name: "<server>__<tool>", tool_input}. Antigravity:
-        # field_meta.mcp {tool, server?} with raw_input {arguments, **arguments}.
-        raw_input = self._extract_raw_input(getattr(tc, "raw_input", None))
-        if not raw_input:
-            return None
-        meta = getattr(tc, "field_meta", None) or {}
-        if self.agent_kind == AgentKind.CODEX and meta.get("is_mcp_tool_call"):
-            server, tool = raw_input.get("server"), raw_input.get("tool")
-            if isinstance(server, str) and isinstance(tool, str):
-                arguments = raw_input.get("arguments")
-                return (
-                    f"mcp__{server}__{tool}",
-                    arguments if isinstance(arguments, dict) else {},
-                )
-        if (
-            self.agent_kind == AgentKind.GROK
-            and meta.get("x.ai/tool", {}).get("name") == "use_tool"
-        ):
-            tool_name = raw_input.get("tool_name")
-            if isinstance(tool_name, str) and "__" in tool_name:
-                tool_input = raw_input.get("tool_input")
-                return (
-                    f"mcp__{tool_name}",
-                    tool_input if isinstance(tool_input, dict) else {},
-                )
-        if self.agent_kind == AgentKind.ANTIGRAVITY and meta.get("is_mcp_tool_call"):
-            mcp = meta.get("mcp", {})
-            server, tool = mcp.get("server"), mcp.get("tool")
-            if isinstance(server, str) and isinstance(tool, str):
-                arguments = raw_input.get("arguments")
-                return (
-                    f"mcp__{server}__{tool}",
-                    arguments if isinstance(arguments, dict) else {},
-                )
-        return None
-
-    def _extract_antigravity_question(self, tc: Any) -> str | None:
-        # Antigravity's ask_question frames are the only calls it sends without
-        # a kind; their title is the question text and raw_input is empty.
-        if self.agent_kind == AgentKind.ANTIGRAVITY and not getattr(tc, "kind", None):
-            return getattr(tc, "title", None)
-        return None
-
     def _extract_tool_input(self, tc: Any) -> dict[str, Any] | None:
-        if mcp_call := self._extract_mcp_call(tc):
-            return mcp_call[1]
-        if question := self._extract_antigravity_question(tc):
-            return {"question": question}
-        return self._extract_raw_input(getattr(tc, "raw_input", None))
-
-    @staticmethod
-    def _extract_raw_input(raw_input: Any) -> dict[str, Any] | None:
-        if not raw_input:
-            return None
-        if isinstance(raw_input, dict):
-            return raw_input
-        try:
-            parsed = json.loads(str(raw_input))
-            if isinstance(parsed, dict):
-                return parsed
-        except (json.JSONDecodeError, TypeError, ValueError):
-            pass
-        return {"raw": str(raw_input)}
-
-    @staticmethod
-    def _extract_content_texts(tc: ToolCallProgress) -> list[str]:
-        if not tc.content:
-            return []
-        texts = []
-        for block in tc.content:
-            inner = getattr(block, "content", None)
-            if inner and getattr(inner, "type", None) == "text":
-                texts.append(inner.text)
-        return texts
+        if normalized := self._adapter.normalize_tool_call(tc):
+            return normalized[1]
+        return self._adapter.parse_raw_input(getattr(tc, "raw_input", None))
 
     @staticmethod
     def image_read_path(agent_kind: AgentKind, tool: ToolPayload) -> str | None:
-        key = IMAGE_READ_PATH_KEYS.get(agent_kind)
+        key = AGENT_ADAPTERS[agent_kind].image_read_path_key
         if key is None or tool.get("name") != "read":
             return None
         path = (tool.get("input") or {}).get(key)
@@ -945,71 +814,3 @@ class AcpClientHandler:
             if image := tool_image(data):
                 images.append(image)
         return images
-
-    @staticmethod
-    def _extract_content_diffs(
-        tc: ToolCallStart | ToolCallProgress,
-    ) -> list[dict[str, Any]]:
-        # Cursor and Codex emit `edit` tool results as ACP FileEditToolCallContent
-        # blocks (type="diff") with path/oldText/newText, without raw_output —
-        # Cursor on the terminal update, Codex on the initial tool_call.
-        # Surface these so the frontend edit renderer can show the diff.
-        if not tc.content:
-            return []
-        diffs: list[dict[str, Any]] = []
-        for block in tc.content:
-            if getattr(block, "type", None) != "diff":
-                continue
-            diffs.append(
-                {
-                    "path": getattr(block, "path", None),
-                    "oldText": getattr(block, "old_text", None),
-                    "newText": getattr(block, "new_text", None),
-                }
-            )
-        return diffs
-
-    def _extract_tool_result(self, tc: ToolCallProgress) -> Any:
-        # Claude puts structured results in field_meta.claudeCode.toolResponse,
-        # Codex/Cursor put execute/read results in raw_output, OpenCode puts
-        # only metadata in raw_output and the output text in content blocks,
-        # and Cursor emits its edit results as diff content blocks. Content
-        # text blocks are the last resort for agents that use none of the above.
-        meta = getattr(tc, "field_meta", None) or {}
-        claude_meta = meta.get("claudeCode", {})
-        if "toolResponse" in claude_meta:
-            return claude_meta["toolResponse"]
-        if self.agent_kind == AgentKind.OPENCODE and isinstance(tc.raw_output, dict):
-            return {
-                "output": "\n".join(self._extract_content_texts(tc)),
-                "metadata": tc.raw_output.get("metadata"),
-            }
-        if tc.raw_output is not None:
-            return tc.raw_output
-        diffs = self._extract_content_diffs(tc)
-        if diffs:
-            return {"diffs": diffs}
-        texts = self._extract_content_texts(tc)
-        return "\n".join(texts) if texts else None
-
-    def _extract_tool_error(self, tc: ToolCallProgress) -> str:
-        # Grok's failed updates carry a variant-tag dict in raw_output (e.g.
-        # {"type": "FileNotFound"}) while the readable message lives in the
-        # content text blocks, so prefer those.
-        if self.agent_kind == AgentKind.GROK:
-            texts = self._extract_content_texts(tc)
-            if texts:
-                return "\n".join(texts)
-        if tc.raw_output is not None:
-            if isinstance(tc.raw_output, dict):
-                # Codex wraps the error in formatted_output; opencode uses a
-                # top-level `error` string. Fall through to stringifying the
-                # dict only if neither is present.
-                for key in ("formatted_output", "error"):
-                    value = tc.raw_output.get(key)
-                    if value:
-                        return str(value)
-                return str(tc.raw_output)
-            return str(tc.raw_output)
-        texts = self._extract_content_texts(tc)
-        return "\n".join(texts) if texts else "Tool execution failed"

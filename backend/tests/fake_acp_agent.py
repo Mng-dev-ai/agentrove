@@ -974,7 +974,7 @@ class FakeAgent:
             )
             return
         if MARKER_TOOL_EMPTY_RESULT in text or MARKER_TOOL_START_DIFF in text:
-            # Empty terminal update → _extract_tool_result None; START_DIFF keeps start diffs.
+            # Empty terminal update → extract_tool_result None; START_DIFF keeps start diffs.
             await self._client.session_update(
                 session_id=session_id,
                 update=ToolCallProgress(

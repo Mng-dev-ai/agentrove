@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from app.models.types import AgentKind
+from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.acp.session import AcpSession, AcpSessionConfig
 
 logger = logging.getLogger(__name__)
@@ -238,11 +238,12 @@ class SessionRegistry:
             "mcp_servers": SessionRegistry._redact_mcp_tokens(config.mcp_servers),
             "system_prompt": config.system_prompt,
             "reasoning_effort": config.reasoning_effort,
-            # Grok bakes approval into launch, so mode changes must respawn;
-            # resume_session_id preserves context. Other agents switch live,
-            # so fingerprinting their mode would respawn needlessly.
+            # Agents that switch mode live would respawn needlessly if their
+            # mode were fingerprinted.
             "permission_mode": (
-                config.permission_mode if config.agent_kind is AgentKind.GROK else None
+                config.permission_mode
+                if AGENT_ADAPTERS[config.agent_kind].respawns_on_mode_change
+                else None
             ),
         }
         data = json.dumps(fingerprint_dict, sort_keys=True, default=str)
