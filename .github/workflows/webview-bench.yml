@@ -1,0 +1,124 @@
+name: WebView Bench
+
+on:
+  push:
+    branches:
+      - worktree-881e5c5a
+
+jobs:
+  bench:
+    name: WKWebView vs Electron
+    runs-on: macos-latest
+    timeout-minutes: 150
+    env:
+      API_PORT: '18741'
+      WEB_PORT: '18742'
+      BENCH_RUNS: '12'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install backend and bench Python dependencies
+        run: |
+          uv venv "$RUNNER_TEMP/venv" --python 3.12
+          VIRTUAL_ENV="$RUNNER_TEMP/venv" uv pip install -r backend/requirements.lock scipy
+
+      - name: Install Electron
+        working-directory: bench/webview/electron
+        run: npm ci --no-audit --no-fund
+
+      - name: Build WKWebView host
+        working-directory: bench/webview
+        run: swiftc -O wkhost/main.swift -o "$RUNNER_TEMP/wkhost" -framework AppKit -framework WebKit
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:${{ env.API_PORT }}/api/v1
+          VITE_WS_URL: ws://127.0.0.1:${{ env.API_PORT }}/api/v1/ws
+        run: |
+          npm ci --legacy-peer-deps --no-audit --no-fund
+          npx vite build --mode desktop --outDir "$RUNNER_TEMP/dist"
+
+      - name: Collect environment
+        working-directory: bench/webview
+        run: python3 env_info.py "$RUNNER_TEMP/env.json"
+
+      - name: Seed fixtures
+        env:
+          PYTHON: ${{ runner.temp }}/venv/bin/python
+          BENCH_TMP: ${{ runner.temp }}/bench
+          WEB_ORIGIN: http://127.0.0.1:${{ env.WEB_PORT }}
+        run: bench/webview/backend.sh seed
+
+      - name: Start backend and static server
+        env:
+          PYTHON: ${{ runner.temp }}/venv/bin/python
+          BENCH_TMP: ${{ runner.temp }}/bench
+          WEB_ORIGIN: http://127.0.0.1:${{ env.WEB_PORT }}
+        run: |
+          nohup bench/webview/backend.sh serve > "$RUNNER_TEMP/api.log" 2>&1 &
+          nohup python3 bench/webview/static_server.py --dir "$RUNNER_TEMP/dist" --port "$WEB_PORT" > "$RUNNER_TEMP/static.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf "http://127.0.0.1:$API_PORT/health" >/dev/null && curl -sf "http://127.0.0.1:$WEB_PORT/" >/dev/null && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/api.log"
+          exit 1
+
+      - name: Run benchmark
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" bench/webview/orchestrate.py \
+            --fixture "$RUNNER_TEMP/bench/fixture.json" \
+            --api "http://127.0.0.1:$API_PORT/api/v1" \
+            --web "http://127.0.0.1:$WEB_PORT" \
+            --out "$RUNNER_TEMP/out" \
+            --driver bench/webview/driver.js \
+            --wkhost "$RUNNER_TEMP/wkhost" \
+            --electron-bin bench/webview/electron/node_modules/electron/dist/Electron.app/Contents/MacOS/Electron \
+            --electron-app bench/webview/electron \
+            --runs "$BENCH_RUNS"
+
+      - name: Report
+        if: always()
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" bench/webview/report.py \
+            --results "$RUNNER_TEMP/out/results.jsonl" \
+            --env "$RUNNER_TEMP/env.json" \
+            --fixture "$RUNNER_TEMP/bench/fixture.json" \
+            --summary-json "$RUNNER_TEMP/out/summary.json" \
+            --markdown "$RUNNER_TEMP/out/summary.md"
+          cat "$RUNNER_TEMP/out/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          cp "$RUNNER_TEMP/env.json" "$RUNNER_TEMP/bench/fixture.json" "$RUNNER_TEMP/api.log" "$RUNNER_TEMP/out/"
+          mkdir -p "$RUNNER_TEMP/shots"
+          cd "$RUNNER_TEMP/out/raw"
+          find . -name '*.png' | while read -r f; do
+            cp "$f" "$RUNNER_TEMP/shots/$(echo "${f#./}" | tr '/' '_')"
+          done
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webview-bench-results
+          path: |
+            ${{ runner.temp }}/out
+            !${{ runner.temp }}/out/raw/**/*.png
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: webview-bench-screenshots
+          path: ${{ runner.temp }}/shots
