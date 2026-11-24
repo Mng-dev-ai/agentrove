@@ -76,11 +76,9 @@ EMPTY_FROZENSET: frozenset[str] = frozenset()
 
 MODEL_CONFIG_ID = "model"
 
-# codex-acp advertises Fast mode as a session config option (select on/off, or
-# boolean when the client supports it). Values match FastModeConfig.ts.
-CODEX_FAST_MODE_CONFIG_ID = "fast-mode"
-CODEX_FAST_MODE_ON = "on"
-CODEX_FAST_MODE_OFF = "off"
+# Select values work for clients without boolean configOptions capability.
+FAST_MODE_ON = "on"
+FAST_MODE_OFF = "off"
 
 
 @dataclass
@@ -113,7 +111,7 @@ class AcpSessionConfig:
     effort_explicit: bool = False
     session_meta: dict[str, Any] = field(default_factory=dict)
     instructions_file_path: str | None = None
-    # Codex-only: 1.5x speed service tier via set_config_option("fast-mode").
+    # Faster service tier, for agents with a `fast_mode_config_id`.
     fast_mode: bool = False
     # False: a rejected model is logged and the agent's default runs (one-shot tasks).
     strict_model: bool = True
@@ -368,7 +366,8 @@ class AcpSession:
         self.current_mode = mode_id
 
     def _on_mode_update(self, mode_id: str) -> None:
-        if mode_id != self._wire_mode_id(self._agent_kind, self.current_mode):
+        adapter = AGENT_ADAPTERS[self._agent_kind]
+        if mode_id != adapter.wire_mode_id(self.current_mode):
             self.current_mode = mode_id
 
     async def set_fast_mode(self, enabled: bool) -> None:
@@ -441,16 +440,9 @@ class AcpSession:
         )
         spawn_config = replace(config, cwd=provider.resolve_workspace_path(config.cwd))
 
-        # These adapters need an instruction file outside the user's workspace.
-        if config.system_prompt and (
-            (
-                config.agent_kind == AgentKind.CODEX
-                and config.system_prompt_is_full_replace
-            )
-            or (
-                config.agent_kind == AgentKind.OPENCODE
-                and not config.system_prompt_is_full_replace
-            )
+        adapter = AGENT_ADAPTERS[config.agent_kind]
+        if config.system_prompt and adapter.needs_instructions_file(
+            config.system_prompt_is_full_replace
         ):
             instructions_abs_path = await provider.write_temp_file(
                 config.sandbox_id, config.system_prompt
@@ -552,7 +544,7 @@ class AcpSession:
                 exit_watch_task=exit_watch_task,
                 effort_levels=cls._advertised_effort(config.agent_kind, config_options),
                 supports_steering=(
-                    config.agent_kind in (AgentKind.CLAUDE, AgentKind.CODEX)
+                    adapter.supports_steering
                     and isinstance(
                         steering := (initialize_response.field_meta or {}).get(
                             "steering"
@@ -591,7 +583,7 @@ class AcpSession:
                 try:
                     await session.set_fast_mode(True)
                 except Exception:
-                    logger.warning("Failed to enable Codex fast mode", exc_info=True)
+                    logger.warning("Failed to enable fast mode", exc_info=True)
 
         except Exception as exc:
             stderr_output = ""
@@ -635,16 +627,9 @@ class AcpSession:
         mode_id: str,
     ) -> None:
         await conn.set_session_mode(
-            mode_id=AcpSession._wire_mode_id(agent_kind, mode_id),
+            mode_id=AGENT_ADAPTERS[agent_kind].wire_mode_id(mode_id),
             session_id=session_id,
         )
-
-    @staticmethod
-    def _wire_mode_id(agent_kind: AgentKind, mode_id: str) -> str:
-        # Grok's CLI only knows `default` and `plan`; approval is a launch flag.
-        if agent_kind == AgentKind.GROK and mode_id != "plan":
-            return "default"
-        return mode_id
 
     @staticmethod
     async def _set_model_on_conn(
@@ -717,14 +702,13 @@ class AcpSession:
         session_id: str,
         enabled: bool,
     ) -> None:
-        # codex-acp only; no-op for other agents. Select values ("on"/"off")
-        # work for clients without boolean configOptions capability.
-        if agent_kind != AgentKind.CODEX:
+        config_id = AGENT_ADAPTERS[agent_kind].fast_mode_config_id
+        if config_id is None:
             return
         await conn.set_config_option(
-            config_id=CODEX_FAST_MODE_CONFIG_ID,
+            config_id=config_id,
             session_id=session_id,
-            value=CODEX_FAST_MODE_ON if enabled else CODEX_FAST_MODE_OFF,
+            value=FAST_MODE_ON if enabled else FAST_MODE_OFF,
         )
 
     @staticmethod

@@ -16,7 +16,13 @@ import httpx
 import jwt
 import pytest
 import pytest_asyncio
-from acp.schema import HttpMcpServer
+from acp.schema import (
+    ContentToolCallContent,
+    HttpMcpServer,
+    TextContentBlock,
+    ToolCallProgress,
+    ToolCallStart,
+)
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -34,8 +40,10 @@ from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
+from app.models.types import AgentKind
 from app.services import channel as channel_module
 from app.services.acp import client as acp_client_module
+from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.automation import AutomationService
 from app.services.chat import ChatService
 from app.services import subthread_wake as wake_module
@@ -56,6 +64,7 @@ from app.services.streaming import recovery as recovery_module
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES
+from app.services.streaming.types import ToolPayload
 from app.services.subthread_wake import SubThreadWake
 from app.services.user import UserService
 from app.utils.cache import CachePubSub
@@ -4385,3 +4394,205 @@ async def test_promote_is_refused_while_a_turn_is_starting(
     assert reserved
     assert refused.status_code == 409, refused.text
     assert promoted.status_code == 200, promoted.text
+
+
+@pytest.mark.parametrize(
+    "agent_kind,frame,expected",
+    [
+        pytest.param(
+            AgentKind.CODEX,
+            {
+                "_meta": {"is_mcp_tool_call": True},
+                "rawInput": {
+                    "server": "agentrove",
+                    "tool": "list_chats",
+                    "arguments": {"limit": 5},
+                },
+            },
+            ("mcp__agentrove__list_chats", {"limit": 5}),
+            id="codex-mcp",
+        ),
+        pytest.param(
+            AgentKind.CODEX,
+            {"kind": "read", "rawInput": {"path": "app.py"}},
+            None,
+            id="codex-native",
+        ),
+        pytest.param(
+            AgentKind.GROK,
+            {
+                "_meta": {"x.ai/tool": {"name": "use_tool"}},
+                "rawInput": {
+                    "tool_name": "agentrove__list_chats",
+                    "tool_input": {"limit": 5},
+                },
+            },
+            ("mcp__agentrove__list_chats", {"limit": 5}),
+            id="grok-mcp",
+        ),
+        pytest.param(
+            AgentKind.GROK,
+            {
+                "_meta": {"x.ai/tool": {"name": "read_file"}},
+                "rawInput": '{"path": "app.py"}',
+            },
+            ("read_file", {"path": "app.py"}),
+            id="grok-native",
+        ),
+        pytest.param(AgentKind.GROK, {"kind": "search"}, None, id="grok-web-search"),
+        pytest.param(
+            AgentKind.ANTIGRAVITY,
+            {"title": "Which database?"},
+            ("ask_question", {"question": "Which database?"}),
+            id="antigravity-question",
+        ),
+        pytest.param(
+            AgentKind.ANTIGRAVITY,
+            {"kind": "read", "title": "Reading app.py"},
+            None,
+            id="antigravity-native",
+        ),
+    ],
+)
+def test_adapter_normalizes_its_own_tool_call_envelopes(
+    agent_kind: AgentKind,
+    frame: dict[str, Any],
+    expected: tuple[str, dict[str, Any]] | None,
+) -> None:
+    tool_call = ToolCallStart.model_validate(
+        {"sessionUpdate": "tool_call", "toolCallId": "tool-1", "title": "", **frame}
+    )
+
+    assert AGENT_ADAPTERS[agent_kind].normalize_tool_call(tool_call) == expected
+
+
+def test_claude_meta_is_read_only_by_the_claude_adapter() -> None:
+    update = ToolCallProgress.model_validate(
+        {
+            "sessionUpdate": "tool_call_update",
+            "toolCallId": "tool-1",
+            "rawOutput": "raw",
+            "_meta": {
+                "claudeCode": {
+                    "toolName": "Read",
+                    "parentToolUseId": "parent-1",
+                    "toolResponse": {"lines": 42},
+                }
+            },
+        }
+    )
+
+    assert [
+        (
+            adapter.meta_tool_name(update),
+            adapter.parent_tool_id(update),
+            adapter.extract_tool_result(update),
+        )
+        for adapter in (
+            AGENT_ADAPTERS[AgentKind.CLAUDE],
+            AGENT_ADAPTERS[AgentKind.CURSOR],
+        )
+    ] == [("Read", "parent-1", {"lines": 42}), (None, None, "raw")]
+
+
+def test_opencode_adapter_names_tools_from_the_wire_and_reshapes_results() -> None:
+    opencode = AGENT_ADAPTERS[AgentKind.OPENCODE]
+    update = ToolCallProgress(
+        session_update="tool_call_update",
+        tool_call_id="tool-1",
+        raw_output={"metadata": {"truncated": False}},
+        content=[
+            ContentToolCallContent(
+                type="content", content=TextContentBlock(type="text", text="done")
+            )
+        ],
+    )
+
+    assert [
+        opencode.wire_tool_name(tool_call)
+        for tool_call in ({"name": "Bash"}, {"name": "todowrite"}, {"name": ""}, {})
+    ] == ["shell", "todowrite", None, None]
+    assert AGENT_ADAPTERS[AgentKind.CODEX].wire_tool_name({"name": "Bash"}) is None
+    assert opencode.extract_tool_result(update) == {
+        "output": "done",
+        "metadata": {"truncated": False},
+    }
+    assert AGENT_ADAPTERS[AgentKind.CODEX].extract_tool_result(update) == {
+        "metadata": {"truncated": False}
+    }
+
+
+def test_grok_adapter_prefers_the_content_text_of_a_failed_tool() -> None:
+    update = ToolCallProgress(
+        session_update="tool_call_update",
+        tool_call_id="tool-1",
+        status="failed",
+        raw_output={"type": "FileNotFound"},
+        content=[
+            ContentToolCallContent(
+                type="content",
+                content=TextContentBlock(type="text", text="app.py not found"),
+            )
+        ],
+    )
+
+    assert AGENT_ADAPTERS[AgentKind.GROK].extract_tool_error(update) == (
+        "app.py not found"
+    )
+    assert AGENT_ADAPTERS[AgentKind.CODEX].extract_tool_error(update) == str(
+        {"type": "FileNotFound"}
+    )
+
+
+def test_adapter_lifecycle_hooks_per_agent() -> None:
+    assert {
+        agent_kind: (
+            adapter.needs_instructions_file(True),
+            adapter.needs_instructions_file(False),
+        )
+        for agent_kind, adapter in AGENT_ADAPTERS.items()
+    } == {
+        **dict.fromkeys(AgentKind, (False, False)),
+        AgentKind.CODEX: (True, False),
+        AgentKind.OPENCODE: (False, True),
+    }
+    modes = ("auto", "always-approve", "plan")
+    assert [AGENT_ADAPTERS[AgentKind.GROK].wire_mode_id(mode) for mode in modes] == [
+        "default",
+        "default",
+        "plan",
+    ]
+    assert [AGENT_ADAPTERS[AgentKind.CURSOR].wire_mode_id(mode) for mode in modes] == [
+        "auto",
+        "always-approve",
+        "plan",
+    ]
+
+
+def test_adapter_image_read_path_uses_the_agents_input_key() -> None:
+    tools = [
+        ToolPayload(name="read", input={"path": "shot.PNG"}),
+        ToolPayload(name="read", input={"file_path": "shot.png"}),
+        ToolPayload(name="read", input={"path": "notes.txt"}),
+        ToolPayload(name="edit", input={"path": "shot.png"}),
+        ToolPayload(name="read", input=None),
+    ]
+
+    assert {
+        agent_kind: [AGENT_ADAPTERS[agent_kind].image_read_path(tool) for tool in tools]
+        for agent_kind in (AgentKind.CODEX, AgentKind.ANTIGRAVITY, AgentKind.CLAUDE)
+    } == {
+        AgentKind.CODEX: ["shot.PNG", None, None, None, None],
+        AgentKind.ANTIGRAVITY: [None, "shot.png", None, None, None],
+        AgentKind.CLAUDE: [None] * 5,
+    }
+
+
+def test_grok_adapter_shapes_the_question_response() -> None:
+    grok = AGENT_ADAPTERS[AgentKind.GROK]
+
+    assert grok.question_response({"Which database?": "SQLite"}) == {
+        "outcome": "accepted",
+        "answers": {"Which database?": "SQLite"},
+    }
+    assert grok.question_response(None) == {"outcome": "skip_interview"}
