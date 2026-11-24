@@ -37,7 +37,7 @@ RUN . /etc/os-release && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.330 @agentclientprotocol/claude-agent-acp@0.109.1 @agentclientprotocol/codex-acp@2.9.0 @openai/codex@0.171.0 @github/copilot@1.0.114
+RUN npm install -g @anthropic-ai/claude-code@2.1.331 @agentclientprotocol/claude-agent-acp@0.110.1 @agentclientprotocol/codex-acp@2.10.0 @openai/codex@0.172.0 @github/copilot@1.0.114
 
 # Playwright + Chromium for browser-testing local dev servers.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
@@ -62,7 +62,7 @@ RUN set -eux; \
 
 # OpenCode CLI — used for the OpenCode ACP server (`opencode acp`); installs to
 # /root/.opencode/bin. Pinned for reproducible builds.
-RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.3.2 && \
+RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.4.1 && \
     cp /root/.opencode/bin/opencode /usr/local/bin/opencode && \
     chmod +x /usr/local/bin/opencode
 
