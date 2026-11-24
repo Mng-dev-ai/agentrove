@@ -115,9 +115,9 @@ class ChatStreamRuntime:
         *,
         request: ChatStreamRequest,
         session_factory: SessionFactoryType,
+        cache: CacheStore,
     ) -> None:
         chat = Chat.from_dict(request.chat_data)
-        self.publish_user_id = request.publish_user_id
         self.member_turn = request.member_turn
         self.chat = chat
         self._request = request
@@ -141,10 +141,11 @@ class ChatStreamRuntime:
             chat_id=chat.id,
             assistant_message_id=self.assistant_message_id,
             stream_id=self.stream_id,
-            publish_user_id=self.publish_user_id,
+            publish_user_id=request.publish_user_id,
+            cache=cache,
         )
 
-        self.cache: CacheStore | None = None
+        self.cache = cache
         self._cancel_event: asyncio.Event | None = None
         self._cancelled: bool = False
         self._bg_tasks: set[asyncio.Task[None]] = set()
@@ -200,10 +201,7 @@ class ChatStreamRuntime:
                     stream_result, MessageStreamStatus.INTERRUPTED
                 )
 
-            # Buffered events may not have flushed yet (debounce) — a fast turn
-            # can finish with last_seq still at start_seq, so check the buffer
-            # too before declaring the stream empty.
-            if self.event_log.last_seq <= start_seq and not self.event_log.event_buffer:
+            if not self.event_log.has_events_after(start_seq):
                 # Cancel/send-now may have arrived after the last event was
                 # consumed but before _consume_stream returned — the stream
                 # ended naturally (via StopAsyncIteration) so CancelledError
@@ -225,7 +223,7 @@ class ChatStreamRuntime:
             # keeps the same order.
             self.event_log.snapshot.add_error(str(exc))
             snapshot = await self.event_log.save_final_snapshot(
-                stream_result, MessageStreamStatus.FAILED, self.session_id
+                stream_result, MessageStreamStatus.FAILED, lambda: self.session_id
             )
             if snapshot is not None:
                 status, duration_ms = snapshot
@@ -341,14 +339,7 @@ class ChatStreamRuntime:
 
     async def _record_steering(self, event_payload: dict[str, Any]) -> None:
         await self.emit_event("user_steering", event_payload)
-        await self.event_log.flush_event_buffer()
-        await self.message_service.update_message_snapshot(
-            UUID(self.assistant_message_id),
-            content_text=self.event_log.snapshot.content_text,
-            content_render=self.event_log.snapshot.to_render(),
-            last_seq=self.event_log.last_seq,
-            active_stream_id=self.stream_id,
-        )
+        await self.event_log.write_checkpoint()
 
     @classmethod
     async def steer_send_now(cls, chat_id: str) -> bool:
@@ -515,9 +506,7 @@ class ChatStreamRuntime:
             return 0
         if self.member_turn is not None and is_terminal_signal:
             await self.member_turn.event_sink(kind, payload)
-        await self.event_log.publish_to_redis(
-            [self.event_log.serialize_envelope(seq, kind, payload)]
-        )
+        await self.event_log.publish(seq, kind, payload)
         # Channel member turns push from ChannelService, which knows the channel route.
         if kind == "permission_request" and self.member_turn is None:
             await PushService(self.session_factory).notify_permission(
@@ -560,7 +549,7 @@ class ChatStreamRuntime:
             await self._close_stream()
             await self._emit_unread_events(stream_result)
         snapshot = await self.event_log.save_final_snapshot(
-            stream_result, status, self.session_id
+            stream_result, status, lambda: self.session_id
         )
         final_content = self.event_log.snapshot.content_text
         if snapshot is None:
@@ -857,7 +846,7 @@ class ChatStreamRuntime:
 
     async def _emit_context_usage(self, stream_result: StreamResult) -> None:
         usage = stream_result.usage
-        if not usage or not self.cache:
+        if not usage:
             return
 
         token_usage: int = usage["input_tokens"]
@@ -1260,173 +1249,177 @@ class ChatStreamRuntime:
         request: ChatStreamRequest,
         session_factory: SessionFactoryType,
     ) -> str:
-        runtime = cls(
-            request=request,
-            session_factory=session_factory,
-        )
-        async with cache_connection() as cache, runtime._registered():
-            runtime.cache = cache
-            runtime.event_log.cache = cache
-
-            ai_service = AgentService(session_factory=runtime.session_factory)
-            user = User(id=runtime.chat.user_id)
-
-            handoff_service = HandoffService(runtime.session_factory)
-            handoff = await handoff_service.build(
-                chat_id=UUID(runtime.chat_id),
-                model_id=request.model_id,
-                assistant_message_id=UUID(request.assistant_message_id),
+        async with cache_connection() as cache:
+            runtime = cls(
+                request=request,
+                session_factory=session_factory,
+                cache=cache,
             )
-            config: AcpSessionConfig = await ai_service.build_session_config(
-                user=user,
-                device_ids=request.device_ids,
-                chat=runtime.chat,
-                model_id=request.model_id,
-                permission_mode=request.permission_mode,
-                session_id=handoff.resume_session_id,
-                thinking_mode=request.thinking_mode,
-                system_prompt=request.system_prompt,
-                worktree=request.worktree,
-                base_branch=request.base_branch,
-                selected_persona_name=request.selected_persona_name,
-                fast_mode=request.fast_mode,
-                channel_member=request.member_turn is not None,
-            )
-            # A fork with no settled turn of its own continues its copy of the
-            # source's session; another agent kind can't load that copy.
-            fork_service = ForkService(runtime.session_factory)
-            fork_agent_kind = runtime.chat.fork_agent_kind
-            resumes_fork = (
-                handoff.resume_session_id is None
-                and fork_agent_kind == config.agent_kind.value
-            )
-            if resumes_fork:
-                config = replace(
-                    config,
-                    resume_session_id=await fork_service.ensure_session(
-                        UUID(runtime.chat_id), config
-                    ),
-                )
-            elif fork_agent_kind and handoff.resume_session_id is None:
-                async with runtime.session_factory() as db:
-                    own_turn = await HandoffService.latest_settled_turn(
-                        db, UUID(runtime.chat_id), AgentKind(fork_agent_kind)
-                    )
-                if own_turn is None:
-                    agent = fork_agent_kind.capitalize()
-                    raise ChatException(
-                        f"This fork continues its source chat's {agent} session, "
-                        "which another agent can't load. Send its first message "
-                        f"with a {agent} model; you can switch models after that.",
-                        error_code=ErrorCode.VALIDATION_ERROR,
-                    )
+            async with runtime._registered():
+                ai_service = AgentService(session_factory=runtime.session_factory)
+                user = User(id=runtime.chat.user_id)
 
-            try:
-                session, _ = await session_registry.get_or_create(
-                    chat_id=runtime.chat_id,
-                    config=config,
-                )
-            except RequestError as exc:
-                # The agent no longer has the resumed session (claude-agent-acp
-                # and codex-acp both answer load_session with resource-not-found);
-                # start a fresh one and hand it the whole history instead.
-                if (
-                    exc.code != ACP_RESOURCE_NOT_FOUND
-                    or config.resume_session_id is None
-                ):
-                    raise
-                if resumes_fork:
-                    # Starting fresh would silently drop the source's context;
-                    # forget the lost copy so the next send forks again.
-                    await fork_service.discard_session(UUID(runtime.chat_id))
-                    raise ChatException(
-                        "This fork's copy of the source chat's session is gone. "
-                        "Send your message again to fork it once more.",
-                        error_code=ErrorCode.VALIDATION_ERROR,
-                    ) from exc
+                handoff_service = HandoffService(runtime.session_factory)
                 handoff = await handoff_service.build(
                     chat_id=UUID(runtime.chat_id),
                     model_id=request.model_id,
                     assistant_message_id=UUID(request.assistant_message_id),
-                    resume=False,
                 )
-                config = replace(config, resume_session_id=None)
-                session, _ = await session_registry.get_or_create(
-                    chat_id=runtime.chat_id,
-                    config=config,
+                config: AcpSessionConfig = await ai_service.build_session_config(
+                    user=user,
+                    device_ids=request.device_ids,
+                    chat=runtime.chat,
+                    model_id=request.model_id,
+                    permission_mode=request.permission_mode,
+                    session_id=handoff.resume_session_id,
+                    thinking_mode=request.thinking_mode,
+                    system_prompt=request.system_prompt,
+                    worktree=request.worktree,
+                    base_branch=request.base_branch,
+                    selected_persona_name=request.selected_persona_name,
+                    fast_mode=request.fast_mode,
+                    channel_member=request.member_turn is not None,
                 )
-            # Slash commands go to the agent verbatim, so there's no room for
-            # the transcript; anchoring on one would drop the handoff for good.
-            if handoff.transcript and runtime.is_slash_command:
-                raise ChatException(
-                    "This chat continues from another agent. Send a regular "
-                    "message first, then use slash commands.",
-                    error_code=ErrorCode.VALIDATION_ERROR,
+                # A fork with no settled turn of its own continues its copy of the
+                # source's session; another agent kind can't load that copy.
+                fork_service = ForkService(runtime.session_factory)
+                fork_agent_kind = runtime.chat.fork_agent_kind
+                resumes_fork = (
+                    handoff.resume_session_id is None
+                    and fork_agent_kind == config.agent_kind.value
                 )
-            await runtime._handle_session_update(
-                {"session_id": session.acp_session.acp_session_id}
-            )
-
-            runtime._acp_session = session.acp_session
-            session.cancel_event.clear()
-            if session_registry.consume_pending_cancel(runtime.chat_id):
-                session.cancel_event.set()
-            runtime._cancel_event = session.cancel_event
-            session.active_generation_task = asyncio.current_task()
-            stream: AsyncIterator[StreamEvent] | None = None
-            try:
-                if config.model and config.model != session.acp_session.current_model:
-                    await session.acp_session.set_model(
-                        config.model,
-                        config.reasoning_effort,
-                        config.effort_explicit,
+                if resumes_fork:
+                    config = replace(
+                        config,
+                        resume_session_id=await fork_service.ensure_session(
+                            UUID(runtime.chat_id), config
+                        ),
                     )
-                if (
-                    config.permission_mode
-                    and config.permission_mode != session.acp_session.current_mode
-                ):
-                    await session.acp_session.set_mode(config.permission_mode)
-                if config.fast_mode != session.acp_session.current_fast_mode:
-                    try:
-                        await session.acp_session.set_fast_mode(config.fast_mode)
-                    except Exception:
-                        logger.warning(
-                            "Failed to set Codex fast mode: %s",
-                            config.fast_mode,
-                            exc_info=True,
+                elif fork_agent_kind and handoff.resume_session_id is None:
+                    async with runtime.session_factory() as db:
+                        own_turn = await HandoffService.latest_settled_turn(
+                            db, UUID(runtime.chat_id), AgentKind(fork_agent_kind)
                         )
-                if config.effort_explicit:
-                    session.acp_session.ensure_effort_supported(config.reasoning_effort)
+                    if own_turn is None:
+                        agent = fork_agent_kind.capitalize()
+                        raise ChatException(
+                            f"This fork continues its source chat's {agent} session, "
+                            "which another agent can't load. Send its first message "
+                            f"with a {agent} model; you can switch models after that.",
+                            error_code=ErrorCode.VALIDATION_ERROR,
+                        )
 
-                stream_result = StreamResult()
-                stream = ai_service.stream_response(
-                    session=session.acp_session,
-                    prompt=request.prompt,
-                    custom_instructions=request.custom_instructions,
-                    result=stream_result,
-                    agent_kind=config.agent_kind,
-                    attachments=request.attachments,
-                    handoff_transcript=handoff.transcript,
-                    memory_block=await runtime._memory_block(config),
+                try:
+                    session, _ = await session_registry.get_or_create(
+                        chat_id=runtime.chat_id,
+                        config=config,
+                    )
+                except RequestError as exc:
+                    # The agent no longer has the resumed session (claude-agent-acp
+                    # and codex-acp both answer load_session with resource-not-found);
+                    # start a fresh one and hand it the whole history instead.
+                    if (
+                        exc.code != ACP_RESOURCE_NOT_FOUND
+                        or config.resume_session_id is None
+                    ):
+                        raise
+                    if resumes_fork:
+                        # Starting fresh would silently drop the source's context;
+                        # forget the lost copy so the next send forks again.
+                        await fork_service.discard_session(UUID(runtime.chat_id))
+                        raise ChatException(
+                            "This fork's copy of the source chat's session is gone. "
+                            "Send your message again to fork it once more.",
+                            error_code=ErrorCode.VALIDATION_ERROR,
+                        ) from exc
+                    handoff = await handoff_service.build(
+                        chat_id=UUID(runtime.chat_id),
+                        model_id=request.model_id,
+                        assistant_message_id=UUID(request.assistant_message_id),
+                        resume=False,
+                    )
+                    config = replace(config, resume_session_id=None)
+                    session, _ = await session_registry.get_or_create(
+                        chat_id=runtime.chat_id,
+                        config=config,
+                    )
+                # Slash commands go to the agent verbatim, so there's no room for
+                # the transcript; anchoring on one would drop the handoff for good.
+                if handoff.transcript and runtime.is_slash_command:
+                    raise ChatException(
+                        "This chat continues from another agent. Send a regular "
+                        "message first, then use slash commands.",
+                        error_code=ErrorCode.VALIDATION_ERROR,
+                    )
+                await runtime._handle_session_update(
+                    {"session_id": session.acp_session.acp_session_id}
                 )
-                return await runtime.run(stream_result, stream)
-            except (
-                AgentException,
-                asyncio.CancelledError,
-            ) as exc:
-                if cls._is_transport_fatal(exc):
+
+                runtime._acp_session = session.acp_session
+                session.cancel_event.clear()
+                if session_registry.consume_pending_cancel(runtime.chat_id):
+                    session.cancel_event.set()
+                runtime._cancel_event = session.cancel_event
+                session.active_generation_task = asyncio.current_task()
+                stream: AsyncIterator[StreamEvent] | None = None
+                try:
+                    if (
+                        config.model
+                        and config.model != session.acp_session.current_model
+                    ):
+                        await session.acp_session.set_model(
+                            config.model,
+                            config.reasoning_effort,
+                            config.effort_explicit,
+                        )
+                    if (
+                        config.permission_mode
+                        and config.permission_mode != session.acp_session.current_mode
+                    ):
+                        await session.acp_session.set_mode(config.permission_mode)
+                    if config.fast_mode != session.acp_session.current_fast_mode:
+                        try:
+                            await session.acp_session.set_fast_mode(config.fast_mode)
+                        except Exception:
+                            logger.warning(
+                                "Failed to set Codex fast mode: %s",
+                                config.fast_mode,
+                                exc_info=True,
+                            )
+                    if config.effort_explicit:
+                        session.acp_session.ensure_effort_supported(
+                            config.reasoning_effort
+                        )
+
+                    stream_result = StreamResult()
+                    stream = ai_service.stream_response(
+                        session=session.acp_session,
+                        prompt=request.prompt,
+                        custom_instructions=request.custom_instructions,
+                        result=stream_result,
+                        agent_kind=config.agent_kind,
+                        attachments=request.attachments,
+                        handoff_transcript=handoff.transcript,
+                        memory_block=await runtime._memory_block(config),
+                    )
+                    return await runtime.run(stream_result, stream)
+                except (
+                    AgentException,
+                    asyncio.CancelledError,
+                ) as exc:
+                    if cls._is_transport_fatal(exc):
+                        session.active_generation_task = None
+                        await session_registry.terminate(runtime.chat_id)
+                    raise
+                except Exception:
                     session.active_generation_task = None
                     await session_registry.terminate(runtime.chat_id)
-                raise
-            except Exception:
-                session.active_generation_task = None
-                await session_registry.terminate(runtime.chat_id)
-                raise
-            finally:
-                runtime._accepts_steering = False
-                await runtime._close_stream()
-                session.active_generation_task = None
-                session.last_used_at = time.monotonic()
+                    raise
+                finally:
+                    runtime._accepts_steering = False
+                    await runtime._close_stream()
+                    session.active_generation_task = None
+                    session.last_used_at = time.monotonic()
 
     @classmethod
     async def _bootstrap_and_execute(
