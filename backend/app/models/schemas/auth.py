@@ -99,3 +99,5 @@ class PairedDeviceOut(BaseModel):
 
 class InstanceOut(BaseModel):
     instance_id: UUID
+    max_upload_size: int
+    allowed_file_types: list[str]

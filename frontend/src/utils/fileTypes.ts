@@ -1,6 +1,21 @@
 import type { FileStructure } from '@/types/file-system.types';
+import type { InstanceInfo, UploadLimits } from '@/types/machine.types';
 
 type UploadedFileType = 'image' | 'pdf' | 'xlsx';
+
+const PDF_MIME_TYPE = 'application/pdf';
+const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const UPLOADED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const UNTYPED_MIME_TYPES = ['', 'application/octet-stream'];
+const EXTENSION_MIME_TYPES: readonly (readonly [string, string])[] = [
+  ['.pdf', PDF_MIME_TYPE],
+  ['.xlsx', XLSX_MIME_TYPE],
+];
+
+export const DEFAULT_UPLOAD_LIMITS: UploadLimits = {
+  maxUploadSize: 5 * 1024 * 1024,
+  allowedFileTypes: [...UPLOADED_IMAGE_MIME_TYPES, PDF_MIME_TYPE, XLSX_MIME_TYPE],
+};
 
 const IMAGE_EXT_RE = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i;
 
@@ -33,18 +48,30 @@ const hasFileExtension = (file: FileStructure | null, extensions: string[]): boo
   return extensions.some((ext) => fileName.endsWith(ext));
 };
 
-// Must match backend ALLOWED_IMAGE_TYPES (image/jpeg, image/png, image/gif, image/webp)
 export const isUploadedImageFile = (file: File): boolean =>
-  checkMimeType(file, ['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+  checkMimeType(file, UPLOADED_IMAGE_MIME_TYPES);
 
 export const isUploadedPdfFile = (file: File): boolean =>
-  checkMimeType(file, 'application/pdf', '.pdf');
+  checkMimeType(file, PDF_MIME_TYPE, '.pdf');
 
 export const isUploadedXlsxFile = (file: File): boolean =>
-  checkMimeType(file, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', '.xlsx');
+  checkMimeType(file, XLSX_MIME_TYPE, '.xlsx');
 
-export const isSupportedUploadedFile = (file: File): boolean =>
-  isUploadedImageFile(file) || isUploadedPdfFile(file) || isUploadedXlsxFile(file);
+export const uploadLimitsFromInstance = (instance: InstanceInfo): UploadLimits => ({
+  maxUploadSize: instance.max_upload_size ?? DEFAULT_UPLOAD_LIMITS.maxUploadSize,
+  allowedFileTypes: instance.allowed_file_types ?? DEFAULT_UPLOAD_LIMITS.allowedFileTypes,
+});
+
+export const resolveUploadMimeType = (
+  file: File,
+  allowedFileTypes: readonly string[],
+): string | null => {
+  if (allowedFileTypes.includes(file.type)) return file.type;
+  if (!UNTYPED_MIME_TYPES.includes(file.type)) return null;
+  const lowerName = file.name.toLowerCase();
+  const inferred = EXTENSION_MIME_TYPES.find(([extension]) => lowerName.endsWith(extension))?.[1];
+  return inferred && allowedFileTypes.includes(inferred) ? inferred : null;
+};
 
 export const isRenameFileType = (type?: string) =>
   type === 'rename-pure' || type === 'rename-changed';

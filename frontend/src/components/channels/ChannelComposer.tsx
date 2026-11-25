@@ -80,7 +80,8 @@ export function ChannelComposer({
   );
   const canSend = hasDraft || selections.length > 0;
 
-  const attachments = useInputAttachments({ attachedFiles: files, onAttach: setFiles });
+  const machineId = channelMachineId(channel.id);
+  const attachments = useInputAttachments({ machineId, attachedFiles: files, onAttach: setFiles });
   const { isEnhancing, handleEnhancePrompt } = useInputEnhance({
     setMessage: setDraft,
     textareaRef,
@@ -101,10 +102,7 @@ export function ChannelComposer({
     onSend();
     try {
       if (isBusy) {
-        const sendNow = await fetchAutoSteerQueuedMessages(
-          queryClient,
-          channelMachineId(channel.id),
-        );
+        const sendNow = await fetchAutoSteerQueuedMessages(queryClient, machineId);
         const result = await useChannelQueueStore
           .getState()
           .queueMessage(channel.id, content, sentFiles, sendNow);
@@ -162,6 +160,7 @@ export function ChannelComposer({
       attachments={
         <>
           <ComposerAttachmentSlots
+            machineId={machineId}
             isDragging={attachments.isDragging}
             files={files}
             previewUrls={attachments.previewUrls}

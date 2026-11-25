@@ -36,6 +36,17 @@ export interface PairedDevice {
   current: boolean;
 }
 
+export interface InstanceInfo {
+  instance_id: string;
+  max_upload_size?: number;
+  allowed_file_types?: string[];
+}
+
+export interface UploadLimits {
+  maxUploadSize: number;
+  allowedFileTypes: readonly string[];
+}
+
 export interface PairingLink {
   secret: string;
   expires_at: string;

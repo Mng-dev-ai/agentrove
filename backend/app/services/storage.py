@@ -14,6 +14,14 @@ from app.utils.attachment_urls import AttachmentURL
 
 settings = get_settings()
 
+DOCUMENT_STORAGE = {
+    "application/pdf": ("pdfs", "pdf"),
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": (
+        "xlsx",
+        "xlsx",
+    ),
+}
+
 
 class StorageService:
     def __init__(self, sandbox_service: SandboxService) -> None:
@@ -24,6 +32,22 @@ class StorageService:
         self.storage_path.mkdir(parents=True, exist_ok=True)
         for subdir in ["images", "pdfs", "xlsx"]:
             (self.storage_path / subdir).mkdir(exist_ok=True)
+
+    @staticmethod
+    def storage_target(content_type: str | None) -> tuple[str, str] | None:
+        if content_type is None or content_type not in settings.ALLOWED_FILE_TYPES:
+            return None
+        if content_type.startswith("image/"):
+            return "images", "image"
+        return DOCUMENT_STORAGE.get(content_type)
+
+    @staticmethod
+    def allowed_file_types() -> list[str]:
+        return [
+            content_type
+            for content_type in settings.ALLOWED_FILE_TYPES
+            if StorageService.storage_target(content_type)
+        ]
 
     async def save_files(
         self,
@@ -48,13 +72,14 @@ class StorageService:
         sandbox_id: str | None = None,
         user_id: str | None = None,
     ) -> MessageAttachmentDict:
-        if file.content_type not in settings.ALLOWED_FILE_TYPES:
+        target = self.storage_target(file.content_type)
+        if target is None:
             raise StorageException(f"Invalid file type: {file.content_type}")
+        folder, file_type = target
 
         if not file.filename:
             raise StorageException("Filename is required")
 
-        content_type = file.content_type
         contents = await file.read()
 
         if len(contents) > settings.MAX_UPLOAD_SIZE:
@@ -63,23 +88,6 @@ class StorageService:
             )
 
         ext = os.path.splitext(file.filename)[1].lower()
-        file_type_config = {
-            "application/pdf": ("pdfs", "pdf"),
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": (
-                "xlsx",
-                "xlsx",
-            ),
-        }
-
-        if content_type.startswith("image/"):
-            folder, file_type = "images", "image"
-        elif content_type in file_type_config:
-            folder, file_type = file_type_config[content_type]
-        else:
-            raise StorageException(
-                f"Unexpected file type: {content_type}. This should have been caught by ALLOWED_FILE_TYPES validation."
-            )
-
         unique_filename = f"{uuid4()}{ext}"
 
         if not user_id:

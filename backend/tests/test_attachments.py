@@ -457,3 +457,94 @@ async def test_attach_file_to_in_progress_turn(
     [message_item] = messages_response.json()["items"]
     assert [a["id"] for a in message_item["attachments"]] == [attachment["id"]]
     assert sandbox_provider.writes == []
+
+
+async def test_instance_advertises_the_upload_limits_save_file_enforces(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+    sandbox_provider: FakeSandboxProvider,
+) -> None:
+    monkeypatch.setattr(storage_module.settings, "MAX_UPLOAD_SIZE", 16)
+    monkeypatch.setattr(
+        storage_module.settings,
+        "ALLOWED_FILE_TYPES",
+        ["image/png", "application/pdf", "text/plain"],
+    )
+    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    limits = (await client.get("/api/v1/instance")).json()
+    uploads = {
+        name: await client.post(
+            f"/api/v1/chat/chats/{chat.id}/queue",
+            data={"content": name, "model_id": CODEX_MODEL_ID},
+            files={"attached_files": (name, content, content_type)},
+            headers=headers,
+        )
+        for name, content, content_type in [
+            ("at-limit.png", b"0" * limits["max_upload_size"], "image/png"),
+            ("over.png", b"0" * (limits["max_upload_size"] + 1), "image/png"),
+            ("unhandled.txt", b"text", "text/plain"),
+            ("unlisted.jpg", b"jpeg", "image/jpeg"),
+        ]
+    }
+
+    assert limits["max_upload_size"] == 16
+    assert limits["allowed_file_types"] == ["image/png", "application/pdf"]
+    assert uploads["at-limit.png"].status_code == 201
+    assert uploads["over.png"].json()["detail"] == (
+        "File too large: 17 bytes exceeds 16 bytes"
+    )
+    assert uploads["unhandled.txt"].json()["detail"] == "Invalid file type: text/plain"
+    assert uploads["unlisted.jpg"].json()["detail"] == "Invalid file type: image/jpeg"
+
+
+@pytest.mark.parametrize(
+    ("filename", "preflight_type"),
+    [
+        ("doc.pdf", "application/pdf"),
+        (
+            "sheet.xlsx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ),
+    ],
+    ids=["pdf", "xlsx"],
+)
+@pytest.mark.parametrize("browser_type", ["", "application/octet-stream"])
+async def test_untyped_document_is_stored_only_under_the_type_preflight_assigns(
+    app: FastAPI,
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    sandbox_provider: FakeSandboxProvider,
+    filename: str,
+    preflight_type: str,
+    browser_type: str,
+) -> None:
+    app.dependency_overrides[get_queue_service] = QueueServiceOverride()
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+
+    as_sent_by_browser, as_sent_after_preflight = [
+        await client.post(
+            f"/api/v1/chat/chats/{chat.id}/queue",
+            data={"content": "Document", "model_id": CODEX_MODEL_ID},
+            files={"attached_files": (filename, b"document", content_type)},
+            headers=headers,
+        )
+        for content_type in (browser_type, preflight_type)
+    ]
+
+    assert as_sent_by_browser.status_code == 400
+    assert as_sent_by_browser.json()["detail"].startswith("Invalid file type")
+    assert as_sent_after_preflight.status_code == 201

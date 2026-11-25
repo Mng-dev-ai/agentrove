@@ -19,6 +19,7 @@ import {
 import type { FileStructure } from '@/types/file-system.types';
 import type { FileMetadata } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
+import { DEFAULT_UPLOAD_LIMITS } from '@/utils/fileTypes';
 
 vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() } }));
 
@@ -151,25 +152,55 @@ describe('filterChatAttachmentFiles', () => {
 
   it('keeps supported files within the size limit', () => {
     const ok = upload('a.png', 'image/png', 1000);
-    expect(filterChatAttachmentFiles([ok])).toEqual([ok]);
+    expect(filterChatAttachmentFiles([ok], DEFAULT_UPLOAD_LIMITS)).toEqual([ok]);
     expect(toast.error).not.toHaveBeenCalled();
   });
 
   it('drops unsupported files and toasts', () => {
-    const result = filterChatAttachmentFiles([upload('a.txt', 'text/plain', 10)]);
+    const result = filterChatAttachmentFiles(
+      [upload('a.txt', 'text/plain', 10)],
+      DEFAULT_UPLOAD_LIMITS,
+    );
     expect(result).toEqual([]);
     expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('not a supported file type'));
   });
 
   it('drops oversized supported files and toasts the MB limit', () => {
     const big = upload('a.png', 'image/png', 6 * 1024 * 1024);
-    expect(filterChatAttachmentFiles([big])).toEqual([]);
-    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('5MB limit'));
+    expect(filterChatAttachmentFiles([big], DEFAULT_UPLOAD_LIMITS)).toEqual([]);
+    expect(toast.error).toHaveBeenCalledWith(expect.stringContaining('5.0 MB limit'));
   });
 
   it('suppresses toasts when toastOnError is false', () => {
-    filterChatAttachmentFiles([upload('a.txt', 'text/plain', 10)], { toastOnError: false });
+    filterChatAttachmentFiles([upload('a.txt', 'text/plain', 10)], DEFAULT_UPLOAD_LIMITS, {
+      toastOnError: false,
+    });
     expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['doc.pdf', '', 'application/pdf'],
+    ['doc.PDF', 'application/octet-stream', 'application/pdf'],
+    ['sheet.xlsx', '', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    [
+      'sheet.xlsx',
+      'application/octet-stream',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ],
+  ])('sends %s reported as "%s" under the type the server accepts', (name, type, sentType) => {
+    const [sent] = filterChatAttachmentFiles(
+      [new File(['document'], name, { type })],
+      DEFAULT_UPLOAD_LIMITS,
+    );
+    expect(sent.name).toBe(name);
+    expect(sent.size).toBe(8);
+    expect(sent.type).toBe(sentType);
+    expect(DEFAULT_UPLOAD_LIMITS.allowedFileTypes).toContain(sent.type);
+  });
+
+  it('drops a document whose reported type the server would reject', () => {
+    const mistyped = new File(['document'], 'doc.pdf', { type: 'text/plain' });
+    expect(filterChatAttachmentFiles([mistyped], DEFAULT_UPLOAD_LIMITS)).toEqual([]);
   });
 });
 

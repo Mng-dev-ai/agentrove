@@ -6,12 +6,18 @@ import { useInputFileOperations } from '@/hooks/useInputFileOperations';
 import { getCopiedAttachments } from '@/utils/copiedAttachments';
 
 interface UseInputAttachmentsOptions {
+  machineId: string;
   attachedFiles: File[] | null;
   onAttach?: (files: File[]) => void;
 }
 
-export function useInputAttachments({ attachedFiles, onAttach }: UseInputAttachmentsOptions) {
+export function useInputAttachments({
+  machineId,
+  attachedFiles,
+  onAttach,
+}: UseInputAttachmentsOptions) {
   const { previewUrls } = useFileHandling({
+    machineId,
     initialFiles: attachedFiles,
   });
 
@@ -27,6 +33,7 @@ export function useInputAttachments({ attachedFiles, onAttach }: UseInputAttachm
     handleDroppedFiles,
     closeDrawingModal,
   } = useInputFileOperations({
+    machineId,
     attachedFiles,
     onAttach,
   });
