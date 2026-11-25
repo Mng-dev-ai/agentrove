@@ -129,13 +129,12 @@ class _SandboxClient(AgentroveClient):
     async def attach_file(self, chat_id: str, path: str) -> dict[str, Any]:
         # HTTP callers are Docker sandbox agents: the file lives in their sandbox,
         # not on the backend's filesystem.
-        resp = await self.request(
+        return await self._request_object(
             "POST",
             f"/chat/chats/{chat_id}/attachments/sandbox",
             json={"path": path},
             expected=(201,),
         )
-        return resp.json()
 
 
 class HttpEndpoint:
@@ -316,7 +315,8 @@ async def remember(
         memory = await client.update_memory(memory_id, body)
     else:
         memory = await client.create_memory(body)
-    return memory["id"]
+    saved_id: str = memory["id"]
+    return saved_id
 
 
 @mcp.tool()

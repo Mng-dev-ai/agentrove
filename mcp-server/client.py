@@ -58,9 +58,22 @@ class AgentroveClient:
             raise AgentroveError(f"{method} {path} -> {resp.status_code}: {resp.text}")
         return resp
 
+    async def _request_object(
+        self, method: str, path: str, **kwargs: Any
+    ) -> dict[str, Any]:
+        body: dict[str, Any] = (await self.request(method, path, **kwargs)).json()
+        return body
+
+    async def _request_list(
+        self, method: str, path: str, **kwargs: Any
+    ) -> list[dict[str, Any]]:
+        body: list[dict[str, Any]] = (await self.request(method, path, **kwargs)).json()
+        return body
+
     async def list_workspaces(self) -> list[dict[str, Any]]:
         resp = await self.request("GET", "/workspaces", params={"per_page": 100})
-        return resp.json()["items"]
+        workspaces: list[dict[str, Any]] = resp.json()["items"]
+        return workspaces
 
     async def resolve_workspace_id(self, workspace_id: str | None) -> str:
         if workspace_id:
@@ -69,7 +82,8 @@ class AgentroveClient:
         items = resp.json()["items"]
         if not items:
             raise AgentroveError("No workspaces found — create one in AgentRove first.")
-        return items[0]["id"]
+        first_id: str = items[0]["id"]
+        return first_id
 
     async def list_chats(
         self, workspace_id: str | None, page: int, per_page: int
@@ -77,8 +91,7 @@ class AgentroveClient:
         params: dict[str, Any] = {"page": page, "per_page": per_page}
         if workspace_id:
             params["workspace_id"] = workspace_id
-        resp = await self.request("GET", "/chat/chats", params=params)
-        return resp.json()
+        return await self._request_object("GET", "/chat/chats", params=params)
 
     async def search_chats(
         self, query: str, workspace_id: str | None, limit: int
@@ -86,12 +99,10 @@ class AgentroveClient:
         params: dict[str, Any] = {"q": query, "limit": limit}
         if workspace_id:
             params["workspace_id"] = workspace_id
-        resp = await self.request("GET", "/chat/chats/search", params=params)
-        return resp.json()
+        return await self._request_object("GET", "/chat/chats/search", params=params)
 
     async def get_chat(self, chat_id: str) -> dict[str, Any]:
-        resp = await self.request("GET", f"/chat/chats/{chat_id}")
-        return resp.json()
+        return await self._request_object("GET", f"/chat/chats/{chat_id}")
 
     async def list_personas(self) -> list[dict[str, Any]]:
         resp = await self.request("GET", "/settings/")
@@ -160,8 +171,7 @@ class AgentroveClient:
 
     async def list_models(self, agent_kind: str | None) -> list[dict[str, Any]]:
         params = {"agent_kind": agent_kind} if agent_kind else None
-        resp = await self.request("GET", "/models/", params=params)
-        return resp.json()
+        return await self._request_list("GET", "/models/", params=params)
 
     async def resolve_model(self, model_id: str | None) -> tuple[str, str]:
         # agent_kind must come from the registry (drives permission mode).
@@ -194,8 +204,9 @@ class AgentroveClient:
         # Backend overrides workspace_id with the parent's for sub-threads.
         if parent_chat_id:
             body["parent_chat_id"] = parent_chat_id
-        resp = await self.request("POST", "/chat/chats", json=body, expected=(201,))
-        return resp.json()
+        return await self._request_object(
+            "POST", "/chat/chats", json=body, expected=(201,)
+        )
 
     async def send_message(
         self,
@@ -223,7 +234,8 @@ class AgentroveClient:
         resp = await self.request("POST", "/chat/chat", data=data, expected=(200, 409))
         if resp.status_code == 409:
             raise ChatBusyError(resp.json()["detail"])
-        return resp.json()
+        body: dict[str, Any] = resp.json()
+        return body
 
     async def queue_message(
         self,
@@ -251,10 +263,9 @@ class AgentroveClient:
         data.update(
             content=prompt, send_now=send_now, report_to_parent=report_to_parent
         )
-        resp = await self.request(
+        return await self._request_object(
             "POST", f"/chat/chats/{chat_id}/queue", data=data, expected=(201,)
         )
-        return resp.json()
 
     @staticmethod
     def _turn_form(
@@ -296,14 +307,14 @@ class AgentroveClient:
                 )
         except OSError as exc:
             raise AgentroveError(f"Cannot read attachment {path!r}: {exc}") from exc
-        return resp.json()
+        body: dict[str, Any] = resp.json()
+        return body
 
     async def stop_chat(self, chat_id: str) -> None:
         await self.request("DELETE", f"/chat/chats/{chat_id}/stream", expected=(204,))
 
     async def get_chat_status(self, chat_id: str) -> dict[str, Any]:
-        resp = await self.request("GET", f"/chat/chats/{chat_id}/status")
-        return resp.json()
+        return await self._request_object("GET", f"/chat/chats/{chat_id}/status")
 
     async def respond_to_permission(
         self, chat_id: str, request_id: str, option_id: str
@@ -333,10 +344,9 @@ class AgentroveClient:
         params: dict[str, Any] = {"limit": limit}
         if cursor:
             params["cursor"] = cursor
-        resp = await self.request(
+        return await self._request_object(
             "GET", f"/chat/chats/{chat_id}/messages", params=params
         )
-        return resp.json()
 
     async def get_context_usage(self, chat_id: str) -> dict[str, Any] | None:
         try:
@@ -345,75 +355,73 @@ class AgentroveClient:
             # No usage yet (fresh chat) or transient failure — not worth failing
             # the read that asked for messages.
             return None
-        return resp.json()
+        body: dict[str, Any] = resp.json()
+        return body
 
     async def list_channels(self, workspace_id: str | None) -> list[dict[str, Any]]:
         params = {"workspace_id": workspace_id} if workspace_id else None
-        resp = await self.request("GET", "/channels", params=params)
-        return resp.json()
+        return await self._request_list("GET", "/channels", params=params)
 
     async def get_channel(self, channel_id: str) -> dict[str, Any]:
-        resp = await self.request("GET", f"/channels/{channel_id}")
-        return resp.json()
+        return await self._request_object("GET", f"/channels/{channel_id}")
 
     async def get_channel_messages(
         self, channel_id: str, after_seq: int
     ) -> list[dict[str, Any]]:
-        resp = await self.request(
+        return await self._request_list(
             "GET", f"/channels/{channel_id}/messages", params={"after_seq": after_seq}
         )
-        return resp.json()
 
     async def create_channel(self, body: dict[str, Any]) -> dict[str, Any]:
-        resp = await self.request("POST", "/channels", json=body, expected=(201,))
-        return resp.json()
+        return await self._request_object(
+            "POST", "/channels", json=body, expected=(201,)
+        )
 
     async def post_channel_message(
         self, channel_id: str, content: str
     ) -> dict[str, Any]:
-        resp = await self.request(
+        return await self._request_object(
             "POST",
             f"/channels/{channel_id}/messages",
             data={"content": content},
             expected=(201,),
         )
-        return resp.json()
 
     async def stop_channel(self, channel_id: str) -> None:
         await self.request("POST", f"/channels/{channel_id}/stop", expected=(204,))
 
     async def list_automations(self) -> list[dict[str, Any]]:
-        resp = await self.request("GET", "/automations")
-        return resp.json()
+        return await self._request_list("GET", "/automations")
 
     async def create_automation(self, body: dict[str, Any]) -> dict[str, Any]:
-        resp = await self.request("POST", "/automations", json=body, expected=(201,))
-        return resp.json()
+        return await self._request_object(
+            "POST", "/automations", json=body, expected=(201,)
+        )
 
     async def update_automation(
         self, automation_id: str, body: dict[str, Any]
     ) -> dict[str, Any]:
-        resp = await self.request("PATCH", f"/automations/{automation_id}", json=body)
-        return resp.json()
+        return await self._request_object(
+            "PATCH", f"/automations/{automation_id}", json=body
+        )
 
     async def notify_user(self, chat_id: str, title: str, body: str) -> dict[str, Any]:
-        resp = await self.request(
+        return await self._request_object(
             "POST",
             "/inbox/messages",
             json={"chat_id": chat_id, "title": title, "body": body},
             expected=(201,),
         )
-        return resp.json()
 
     async def create_memory(self, body: dict[str, Any]) -> dict[str, Any]:
-        resp = await self.request("POST", "/memories", json=body, expected=(201,))
-        return resp.json()
+        return await self._request_object(
+            "POST", "/memories", json=body, expected=(201,)
+        )
 
     async def update_memory(
         self, memory_id: str, body: dict[str, Any]
     ) -> dict[str, Any]:
-        resp = await self.request("PATCH", f"/memories/{memory_id}", json=body)
-        return resp.json()
+        return await self._request_object("PATCH", f"/memories/{memory_id}", json=body)
 
     async def search_memories(
         self, query: str, workspace_id: str | None
@@ -421,8 +429,7 @@ class AgentroveClient:
         params = {"query": query}
         if workspace_id:
             params["workspace_id"] = workspace_id
-        resp = await self.request("GET", "/memories", params=params)
-        return resp.json()
+        return await self._request_list("GET", "/memories", params=params)
 
     async def read_memories(
         self, memory_ids: list[str], workspace_id: str | None
@@ -432,8 +439,7 @@ class AgentroveClient:
         params: dict[str, Any] = {"ids": memory_ids}
         if workspace_id:
             params["workspace_id"] = workspace_id
-        resp = await self.request("GET", "/memories", params=params)
-        return resp.json()
+        return await self._request_list("GET", "/memories", params=params)
 
     async def delete_memory(self, memory_id: str) -> None:
         await self.request("DELETE", f"/memories/{memory_id}", expected=(204,))
@@ -442,5 +448,4 @@ class AgentroveClient:
         await self.request("DELETE", f"/automations/{automation_id}", expected=(204,))
 
     async def run_automation(self, automation_id: str) -> dict[str, Any]:
-        resp = await self.request("POST", f"/automations/{automation_id}/run")
-        return resp.json()
+        return await self._request_object("POST", f"/automations/{automation_id}/run")

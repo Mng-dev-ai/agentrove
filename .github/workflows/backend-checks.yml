@@ -57,6 +57,7 @@ jobs:
         run: |
           cd backend
           mypy app/
+          mypy --config-file pyproject.toml ../mcp-server
 
       - name: Run deptry dependency checks
         run: |
