@@ -81,14 +81,14 @@ RUN useradd -m -s /bin/bash -u 1000 user && \
 COPY --chmod=755 sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
 RUN set -eux; \
-    version=1.5.2; \
+    antigravity_version=1.5.2; \
     case "$(uname -m)" in \
       x86_64|amd64) arch=x86_64 ;; \
       aarch64|arm64) arch=arm64 ;; \
       *) exit 1 ;; \
     esac; \
     mkdir -p /opt/antigravity /home/user/.local/bin; \
-    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${version}-linux-${arch}.zip" \
+    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${antigravity_version}-linux-${arch}.zip" \
       -o /tmp/antigravity.zip; \
     unzip /tmp/antigravity.zip -d /opt/antigravity; \
     rm /tmp/antigravity.zip; \
@@ -133,7 +133,7 @@ RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.4.1 && \
 # Grok Build CLI — download static binary into ~/.local/bin (already on PATH).
 # Avoid install.sh: it targets ~/.grok/bin and is awkward under non-root USER.
 RUN set -eux; \
-    version="$(curl -fsSL https://x.ai/cli/stable)"; \
+    grok_version=1.0.92; \
     arch="$(uname -m)"; \
     case "$arch" in \
       x86_64|amd64) arch=x86_64 ;; \
@@ -141,7 +141,7 @@ RUN set -eux; \
       *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
     esac; \
     mkdir -p /home/user/.local/bin; \
-    curl -fsSL "https://x.ai/cli/grok-${version}-linux-${arch}" -o /home/user/.local/bin/grok; \
+    curl -fsSL "https://x.ai/cli/grok-${grok_version}-linux-${arch}" -o /home/user/.local/bin/grok; \
     chmod +x /home/user/.local/bin/grok
 
 RUN python3 -m pip install --user --upgrade pip && \

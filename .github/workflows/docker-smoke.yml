@@ -1,0 +1,24 @@
+name: Docker Smoke
+
+on:
+  pull_request:
+    paths:
+      - 'backend/Dockerfile'
+      - 'sandbox/docker/Dockerfile'
+      - 'scripts/bump-acp-providers.sh'
+      - '.github/actions/docker-smoke/**'
+      - '.github/workflows/docker-smoke.yml'
+
+jobs:
+  docker-smoke:
+    name: Docker Build and CLI Smoke
+    # The bump workflow already built this tree before opening its PR.
+    if: github.head_ref != 'bot/bump-acp-providers'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/docker-smoke

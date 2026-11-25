@@ -40,7 +40,7 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 
 - Released frontends can be older than the backend they talk to. They ignore channel-feed envelope kinds they do not know (`default` case of `applyToSlice` in `frontend/src/store/channelStore.ts`; frontends up to v0.1.69 wiped the open channel instead and are unsupported), so a new kind is safe when older frontends still work without it. Changing or removing an existing kind or payload field breaks them.
 - Older backends ignore unknown request fields, so new optional request fields are safe.
-- Grok CLI is installed unpinned from `x.ai/cli/stable` (`backend/Dockerfile`): an image rebuild can change its ACP behavior. Its modes are UI labels mapped to the CLI's `default`/`plan`; always-approve is the `--always-approve` launch flag; auto-review is `_meta.autoMode` on session new/load; effort is the `reasoning_effort` config option (ignored on load). See `GrokAgentAdapter` in `backend/app/services/acp/adapters.py`.
+- Grok CLI is pinned as `grok_version=` in both Dockerfiles and bumped to `x.ai/cli/stable` by `scripts/bump-acp-providers.sh`: its ACP behavior changes arrive through bump PRs. Its modes are UI labels mapped to the CLI's `default`/`plan`; always-approve is the `--always-approve` launch flag; auto-review is `_meta.autoMode` on session new/load; effort is the `reasoning_effort` config option (ignored on load). See `GrokAgentAdapter` in `backend/app/services/acp/adapters.py`.
 
 ## Checks CI runs
 
@@ -49,6 +49,8 @@ Backend (`.github/workflows/backend-checks.yml`, Python 3.12, runs when `backend
 - Lint tools only, no project deps: `pip install ruff==0.15.0 mypy types-redis deptry pip-audit`. A venv with project deps gives dozens of unrelated mypy errors; use a throwaway venv with just these.
 - `ruff check . ../mcp-server`, `ruff format --check . ../mcp-server`, `mypy app/`, `mypy --config-file pyproject.toml ../mcp-server`, `deptry . --requirements-files requirements.txt`. `pip-audit -r requirements.lock` is non-blocking.
 - Tests: `uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist`, then `COVERAGE_CORE=sysmon pytest tests -n auto --cov=app --cov-fail-under=85`.
+
+Docker Smoke (`.github/workflows/docker-smoke.yml`, runs when either Dockerfile, `scripts/bump-acp-providers.sh` or `.github/actions/docker-smoke/` change): builds `backend/Dockerfile` and `sandbox/docker/Dockerfile` for linux/amd64 without pushing, then runs `--version` of every bundled agent CLI in each image (`.github/actions/docker-smoke/`). The daily bump workflow runs the same action before opening its PR, because `pull_request` runs on its `github.token` PRs wait for manual approval; the PR job is skipped on `bot/bump-acp-providers`.
 
 Frontend (`.github/workflows/frontend-checks.yml`, Node 20, runs when `frontend/` changes). From `frontend/`, after `npm ci --legacy-peer-deps`:
 
