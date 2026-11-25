@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -154,6 +155,41 @@ async def test_password_reset_removes_every_push_registration(
     assert await deliveries(db_session) == []
     assert await PushService().send_due() == {}
     assert apns.requests == []
+
+
+async def test_registration_served_after_a_password_reset_is_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    email_capture: EmailCapture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, _workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    await client.post("/api/v1/auth/forgot-password", json={"email": user.email})
+    [sent] = email_capture.password_reset
+    register_device_after_auth = PushService.register_device
+
+    async def reset_then_register(*args: Any) -> bool:
+        reset = await client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": sent["token"], "password": "newpassword123"},
+        )
+        assert reset.status_code == 200
+        return await register_device_after_auth(*args)
+
+    monkeypatch.setattr(PushService, "register_device", reset_then_register)
+
+    late = await client.post(
+        "/api/v1/push/devices",
+        json={"token": DEVICE_TOKEN, "sandbox": True},
+        headers=headers,
+    )
+
+    assert late.status_code == 401
+    assert await db_session.scalar(select(PushDevice.id)) is None
 
 
 async def test_disabled_notifications_suppress_queued_and_new_pushes(

@@ -91,10 +91,17 @@ class UserAdmin(ModelView, model=User):
         password = data.pop("password", None)
         if password:
             data["hashed_password"] = get_password_hash(password)
-            if not is_created:
-                async with SessionLocal() as db:
-                    await DeviceRevocationService.revoke_all(model.id, db)
         await super().on_model_change(data, model, is_created, request)
+
+    async def after_model_change(
+        self, data: dict[str, Any], model: User, is_created: bool, request: Request
+    ) -> None:
+        # Revoking before the new hash is committed would let a session opened
+        # under the old password in between survive.
+        if not is_created and "hashed_password" in data:
+            async with SessionLocal() as db:
+                await DeviceRevocationService.revoke_all(model.id, db)
+        await super().after_model_change(data, model, is_created, request)
 
     name = "User"
     name_plural = "Users"

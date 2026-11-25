@@ -14,10 +14,10 @@ from sqlalchemy.orm import InstrumentedAttribute
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
-from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.push import PushDelivery, PushDevice
 from app.models.db_models.user import User, UserSettings
 from app.services.db import SessionFactoryType
+from app.services.pairing import PairingService
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -53,34 +53,44 @@ class PushService:
 
     @staticmethod
     async def register_device(
-        db: AsyncSession,
-        user_id: UUID,
-        paired_device_id: UUID | None,
-        token: str,
-        sandbox: bool,
-    ) -> None:
+        db: AsyncSession, user: User, token: str, sandbox: bool
+    ) -> bool:
+        # A phone that switched accounts gets a fresh row so deliveries queued
+        # for the previous account cascade away instead of reaching the new one.
+        await db.execute(
+            delete(PushDevice).where(
+                PushDevice.token == token, PushDevice.user_id != user.id
+            )
+        )
+        # The delete took SQLite's write lock, so these reads see every committed
+        # revocation: a request authenticated before one must not register after it.
+        hashed_password = await db.scalar(
+            select(User.hashed_password).where(User.id == user.id)
+        )
+        if hashed_password != user.hashed_password or not (
+            await PairingService.all_active(db, user.id, user.device_ids)
+        ):
+            await db.rollback()
+            return False
         device = await db.scalar(select(PushDevice).where(PushDevice.token == token))
+        paired_device_id = next(iter(user.device_ids), None)
         now = datetime.now(timezone.utc)
-        if device is not None and device.user_id == user_id:
-            device.paired_device_id = paired_device_id
-            device.sandbox = sandbox
-            device.updated_at = now
-        else:
-            # A phone that switched accounts gets a fresh row so deliveries queued
-            # for the previous account cascade away instead of reaching the new one.
-            if device is not None:
-                await db.delete(device)
-                await db.flush()
+        if device is None:
             db.add(
                 PushDevice(
-                    user_id=user_id,
+                    user_id=user.id,
                     paired_device_id=paired_device_id,
                     token=token,
                     sandbox=sandbox,
                     updated_at=now,
                 )
             )
+        else:
+            device.paired_device_id = paired_device_id
+            device.sandbox = sandbox
+            device.updated_at = now
         await db.commit()
+        return True
 
     @staticmethod
     async def unregister_device(db: AsyncSession, user_id: UUID, token: str) -> None:
@@ -233,14 +243,7 @@ class PushService:
                     await db.scalars(
                         select(PushDevice.id)
                         .join(User, User.id == PushDevice.user_id)
-                        .outerjoin(
-                            PairedDevice, PairedDevice.id == PushDevice.paired_device_id
-                        )
-                        .where(
-                            PushDevice.user_id == user_id,
-                            User.is_active,
-                            PairedDevice.revoked_at.is_(None),
-                        )
+                        .where(PushDevice.user_id == user_id, User.is_active)
                     )
                 ).all()
                 if not device_ids:
@@ -325,8 +328,8 @@ class PushService:
         if claim.rowcount != 1:
             return 0
         # Re-read after the claim: logout, an account switch or a revocation deletes
-        # the device (and its deliveries), the user may have turned notifications
-        # off, and a registration can commit after its paired device was revoked.
+        # the device (and its deliveries), and the user may have turned
+        # notifications off or been deactivated.
         row = (
             await db.execute(
                 select(
@@ -334,20 +337,18 @@ class PushService:
                     PushDevice,
                     UserSettings.notifications_enabled,
                     User.is_active,
-                    PairedDevice.revoked_at,
                 )
                 .join(PushDevice, PushDevice.id == PushDelivery.device_id)
                 .join(User, User.id == PushDevice.user_id)
                 .outerjoin(UserSettings, UserSettings.user_id == PushDevice.user_id)
-                .outerjoin(PairedDevice, PairedDevice.id == PushDevice.paired_device_id)
                 .where(PushDelivery.id == delivery_id)
                 .execution_options(populate_existing=True)
             )
         ).one_or_none()
         if row is None:
             return 0
-        delivery, device, notifications_enabled, is_active, revoked_at = row
-        if notifications_enabled is False or not is_active or revoked_at is not None:
+        delivery, device, notifications_enabled, is_active = row
+        if notifications_enabled is False or not is_active:
             await self._finish(db, delivery, lease)
             return 0
 

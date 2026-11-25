@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_db
@@ -16,13 +16,14 @@ async def register_push_device(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    await PushService.register_device(
-        db,
-        current_user.id,
-        next(iter(current_user.device_ids), None),
-        device.token,
-        device.sandbox,
-    )
+    if not await PushService.register_device(
+        db, current_user, device.token, device.sandbox
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 
 @router.delete("/devices/{token}", status_code=status.HTTP_204_NO_CONTENT)
