@@ -64,9 +64,14 @@ export const MessageTrail = memo(function MessageTrail({
       // the viewport, so the tick tracks what the user is currently reading.
       const scrollerTop = scroller.getBoundingClientRect().top;
       const threshold = scroller.clientHeight * ACTIVE_VIEWPORT_FRACTION;
+      const rows = new Map<string, Element>();
+      for (const el of scroller.querySelectorAll('[data-message-id]')) {
+        const id = el.getAttribute('data-message-id');
+        if (id !== null && !rows.has(id)) rows.set(id, el);
+      }
       let current = turnIds[0];
       for (const id of turnIds) {
-        const el = scroller.querySelector(`[data-message-id="${CSS.escape(id)}"]`);
+        const el = rows.get(id);
         if (el && el.getBoundingClientRect().top - scrollerTop <= threshold) {
           current = id;
         }
