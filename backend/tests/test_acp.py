@@ -3179,6 +3179,67 @@ async def test_create_automation_tool_refuses_a_backend_without_new_channels(
     assert (await db_session.scalars(select(Automation))).all() == []
 
 
+@pytest.mark.parametrize("tier", ["ultra", "none", "minimal"])
+async def test_mcp_tools_accept_every_backend_thinking_mode_tier(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+    tier: str,
+) -> None:
+    headers, workspace = auth_workspace
+    route_sandbox_client_to_app(monkeypatch, client)
+    authorization = await docker_chat_authorization(db_session, workspace, monkeypatch)
+    async with main_module.mcp_endpoint.run():
+        channel = await mcp_call_tool(
+            client,
+            authorization,
+            "create_channel",
+            name="Tiers",
+            members=[{"model_id": "sonnet", "thinking_mode": tier}],
+        )
+        created = await mcp_call_tool(
+            client,
+            authorization,
+            "create_automation",
+            name="Digest",
+            prompt="Review",
+            cron_expression="0 9 * * *",
+            thinking_mode=tier,
+        )
+        assert not created.get("isError"), created
+        updated = await mcp_call_tool(
+            client,
+            authorization,
+            "update_automation",
+            automation_id=created["structuredContent"]["automation"]["id"],
+            thinking_mode=tier,
+        )
+        sent = await mcp_call_tool(
+            client, authorization, "send_message", prompt="hi", thinking_mode=tier
+        )
+    workspace.sandbox_provider = "host"
+    await db_session.commit()
+
+    for result in (channel, updated, sent):
+        assert not result.get("isError"), result
+    [member] = channel["structuredContent"]["channel"]["members"]
+    assert member["thinking_mode"] == tier
+    assert created["structuredContent"]["automation"]["thinking_mode"] == tier
+    assert updated["structuredContent"]["automation"]["thinking_mode"] == tier
+    chat_id = sent["structuredContent"]["chat_id"]
+    await wait_for_message(
+        client,
+        headers,
+        chat_id=chat_id,
+        message_id=sent["structuredContent"]["message_id"],
+    )
+    detail = await client.get(f"/api/v1/chat/chats/{chat_id}", headers=headers)
+    assert detail.json()["last_thinking_mode"] == tier
+
+
 @pytest.mark.parametrize("revoke", ["device", "password_reset"])
 async def test_revocation_cancels_the_devices_running_turn(
     client: httpx.AsyncClient,

@@ -32,7 +32,7 @@ class ChannelMember(BaseModel):
     model_id: str
     display_name: str | None = Field(None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
     persona: str | None = None
-    thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None
+    thinking_mode: str | None = None
 
 
 def _channel_summary(channel: dict[str, Any]) -> dict[str, Any]:
@@ -504,7 +504,7 @@ async def send_message(
     title: str | None = None,
     workspace_id: str | None = None,
     model_id: str | None = None,
-    thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None,
+    thinking_mode: str | None = None,
     worktree: bool = False,
     base_branch: str | None = None,
     fast_mode: bool = False,
@@ -912,7 +912,7 @@ async def create_automation(
     timezone: str = "UTC",
     workspace_id: str | None = None,
     model_id: str | None = None,
-    thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None,
+    thinking_mode: str | None = None,
     worktree: bool = False,
     persona: str | None = None,
     enabled: bool = True,
@@ -974,7 +974,7 @@ async def update_automation(
     timezone: str | None = None,
     workspace_id: str | None = None,
     model_id: str | None = None,
-    thinking_mode: Literal["low", "medium", "high", "xhigh", "max"] | None = None,
+    thinking_mode: str | None = None,
     worktree: bool | None = None,
     persona: str | None = None,
     enabled: bool | None = None,

@@ -42,7 +42,7 @@ export function getThinkingModesForAgent(
   if (!model?.thinking_modes.length) return EMPTY_THINKING_MODES;
   const modes = model.thinking_modes.map((value) => ({
     value,
-    label: THINKING_MODE_LABELS[value],
+    label: THINKING_MODE_LABELS[value] ?? value,
   }));
   return agentKind === 'opencode' ? [OPENCODE_DEFAULT_THINKING_MODE, ...modes] : modes;
 }
