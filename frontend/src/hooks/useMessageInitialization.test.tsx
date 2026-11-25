@@ -125,4 +125,32 @@ describe('useMessageInitialization', () => {
     rerender({ ...streamingProps, fetchedMessages: [...streamingProps.fetchedMessages] });
     expect(result.current.messages).toEqual([live]);
   });
+
+  it('while streaming, settles an earlier turn the fetch reports finished', () => {
+    const user1 = makeMessage('u1', { role: 'user', stream_status: 'completed' });
+    const user2 = makeMessage('u2', { role: 'user', stream_status: 'completed' });
+    const live = makeMessage('a2', { content_text: 'live content' });
+    const local = [user1, makeMessage('a1'), user2, live];
+    const { result, rerender } = renderInit(
+      { fetchedMessages: [user1, makeMessage('a1'), user2, makeMessage('a2')], isStreaming: true },
+      local,
+    );
+
+    const finished = makeMessage('a1', {
+      content_text: 'turn 1 reply',
+      stream_status: 'completed',
+    });
+    rerender({
+      ...defaults,
+      fetchedMessages: [user1, finished, user2, makeMessage('a2')],
+      isStreaming: true,
+    });
+
+    expect(result.current.messages[1]).toMatchObject({
+      id: 'a1',
+      content_text: 'turn 1 reply',
+      stream_status: 'completed',
+    });
+    expect(result.current.messages[3]).toBe(live);
+  });
 });
