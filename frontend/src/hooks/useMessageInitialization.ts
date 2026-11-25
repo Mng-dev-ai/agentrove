@@ -50,6 +50,23 @@ function normalizeMessage(msg: Message): Message {
   };
 }
 
+function settleFinishedTurns(local: Message[], fetched: Message[]): Message[] {
+  const fetchedById = new Map(fetched.map((message) => [message.id, message]));
+  let changed = false;
+  const settled = local.map((message) => {
+    const update = fetchedById.get(message.id);
+    if (
+      message.stream_status !== 'in_progress' ||
+      !update ||
+      update.stream_status === 'in_progress'
+    )
+      return message;
+    changed = true;
+    return normalizeMessage(update);
+  });
+  return changed ? settled : local;
+}
+
 // Normalize fetched messages into local state; inject synthetic user msg for route initial prompts.
 export function useMessageInitialization({
   fetchedMessages,
@@ -65,27 +82,30 @@ export function useMessageInitialization({
   setInitialPrompt,
 }: UseMessageInitializationParams) {
   const initializedChatRef = useRef<string | undefined>(undefined);
-  const lastMergedIdsRef = useRef<string | undefined>(undefined);
+  const lastMergedKeyRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (!fetchedMessages || !chatId || wasAborted) return;
 
     if (isLoading || (isStreaming && initializedChatRef.current === chatId)) {
-      const fetchedIds = `${chatId}:${fetchedMessages.map((message) => message.id).join(',')}`;
-      if (lastMergedIdsRef.current === fetchedIds) return;
-      lastMergedIdsRef.current = fetchedIds;
+      const fetchedKey = `${chatId}:${fetchedMessages
+        .map((message) => `${message.id}:${message.stream_status}`)
+        .join(',')}`;
+      if (lastMergedKeyRef.current === fetchedKey) return;
+      lastMergedKeyRef.current = fetchedKey;
       setMessages((prev) => {
+        const settled = settleFinishedTurns(prev, fetchedMessages);
         const existingIds = new Set(prev.map((message) => message.id));
-        if (fetchedMessages.every((message) => existingIds.has(message.id))) return prev;
+        if (fetchedMessages.every((message) => existingIds.has(message.id))) return settled;
         const incoming = fetchedMessages.map((message) =>
           existingIds.has(message.id) ? message : normalizeMessage(message),
         );
-        return insertMessagesById(prev, incoming);
+        return insertMessagesById(settled, incoming);
       });
       return;
     }
 
-    lastMergedIdsRef.current = undefined;
+    lastMergedKeyRef.current = undefined;
     const normalizedMessages = fetchedMessages.map(normalizeMessage);
 
     // Persist the highest seq from fetched messages so stream reconnection

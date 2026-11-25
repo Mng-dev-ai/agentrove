@@ -58,33 +58,36 @@ export function insertMessagesInCache(
 ): void {
   const query = queryClient
     .getQueryCache()
-    .find({ queryKey: queryKeys.messages(chatId), exact: true });
-  if (query?.state.fetchStatus === 'fetching') {
+    .find<{ pages: PaginatedMessages[]; pageParams: unknown[] }>({
+      queryKey: queryKeys.messages(chatId),
+      exact: true,
+    });
+  if (!query) return;
+  if (query.state.fetchStatus === 'fetching') {
     void query.promise?.then(
       () => insertMessagesInCache(queryClient, chatId, messages),
       () => undefined,
     );
   }
-  queryClient.setQueryData(
-    queryKeys.messages(chatId),
-    (oldData: { pages: PaginatedMessages[]; pageParams: unknown[] } | undefined) => {
-      if (!oldData?.pages.length) return oldData;
-      const ids = new Set(
-        oldData.pages.slice(1).flatMap((page) => page.items.map((message) => message.id)),
-      );
-      const current = [...oldData.pages[0].items].reverse();
-      const merged = insertMessagesById(
-        current,
-        messages.filter((message) => !ids.has(message.id)),
-      );
-      if (merged === current) return oldData;
-      const items = merged.reverse();
-      return {
-        ...oldData,
-        pages: oldData.pages.map((page, index) => (index === 0 ? { ...page, items } : page)),
-      };
-    },
+  const oldData = query.state.data;
+  if (!oldData?.pages.length) return;
+  const ids = new Set(
+    oldData.pages.slice(1).flatMap((page) => page.items.map((message) => message.id)),
   );
+  const current = [...oldData.pages[0].items].reverse();
+  const merged = insertMessagesById(
+    current,
+    messages.filter((message) => !ids.has(message.id)),
+  );
+  if (merged === current) return;
+  const items = merged.reverse();
+  // setState keeps a pending invalidation that setQueryData would clear.
+  query.setState({
+    data: {
+      ...oldData,
+      pages: oldData.pages.map((page, index) => (index === 0 ? { ...page, items } : page)),
+    },
+  });
 }
 
 export function insertStartedTurnInCache(
@@ -100,6 +103,20 @@ export function insertStartedTurnInCache(
       last_persona_name: event.selected_persona_name,
     }),
   }));
+  // One turn runs per chat, so an earlier in-progress reply missed its completion.
+  const hasStalePlaceholder = queryClient
+    .getQueryData<{ pages: PaginatedMessages[] }>(queryKeys.messages(event.chat_id))
+    ?.pages.some((page) =>
+      page.items.some(
+        (message) => message.stream_status === 'in_progress' && message.id !== event.message_id,
+      ),
+    );
+  if (hasStalePlaceholder) {
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.messages(event.chat_id),
+      exact: true,
+    });
+  }
   if (!event.user_message_id || event.content === undefined) return;
   insertMessagesInCache(
     queryClient,

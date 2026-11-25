@@ -115,4 +115,31 @@ describe('insertStartedTurnInCache', () => {
       checkpoint_id: 'cp1',
     });
   });
+
+  const turnStarted = (turn: number) => ({
+    kind: 'stream_started' as const,
+    chat_id: 'p',
+    message_id: `a${turn}`,
+    user_message_id: `u${turn}`,
+    content: `Automated update ${turn}`,
+    app_notice: true,
+    attachments: null,
+    model_id: 'model',
+    checkpoint_id: null,
+  });
+
+  it.each([
+    ['an orphan prune invalidated it between the turns', true],
+    ['no prune ran between the turns', false],
+  ])('leaves an unobserved chat due for refetch when %s', (_, pruned) => {
+    seedMessagePages(queryClient, 'p', [[makeMessage('a0', { stream_status: 'completed' })]]);
+    const query = queryClient.getQueryCache().find({ queryKey: queryKeys.messages('p') })!;
+
+    insertStartedTurnInCache(queryClient, turnStarted(1));
+    if (pruned) void queryClient.invalidateQueries({ queryKey: queryKeys.messages('p') });
+    insertStartedTurnInCache(queryClient, turnStarted(2));
+
+    expect(query.state.isInvalidated).toBe(true);
+    expect(cachedIds(queryClient, 'p')).toEqual([['a2', 'u2', 'a1', 'u1', 'a0']]);
+  });
 });
