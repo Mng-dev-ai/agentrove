@@ -9,6 +9,7 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 - `mcp-server/`: the Agentrove MCP server (`server.py`) and its HTTP client for the backend (`client.py`). It sits beside `backend/`, not inside it; the API image copies it to `/app/mcp-server/` and tests add it to `sys.path` (`backend/tests/bootstrap.py`).
 - `frontend/`: React + Vite + TypeScript app, also the Tauri desktop shell (`frontend/src-tauri`, Rust).
 - `desktop/run_build.mjs`: builds the desktop backend sidecar (`frontend/backend-sidecar`) that Tauri bundles.
+- `backend/app/catalog/opencode.py` is generated: change it only by editing `scripts/opencode_catalog_overrides.toml` (provider allow-list, display-name overrides, keep-list, legacy flags) and running `python3 scripts/sync_opencode_catalog.py [models.dev snapshot.json]` with ruff 0.15.0 on `PATH`. The daily bump workflow runs it too.
 - `sandbox/`: sandbox Docker image; `scripts/`: `install-hooks.sh` (sets `core.hooksPath=.githooks`; the pre-commit hook runs lint-staged in `frontend/` and `pre-commit` on staged backend files).
 
 ## Backend

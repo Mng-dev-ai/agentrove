@@ -1,0 +1,299 @@
+# Hand-maintained inputs for scripts/sync_opencode_catalog.py. Everything else in
+# backend/app/catalog/opencode.py comes from https://models.dev/api.json.
+
+# The run fails instead of writing a catalog smaller than this.
+min_models = 500
+
+# Provider allow-list, in output order: models.dev provider id = label used in
+# display names ("<model name> (<label>)").
+[providers]
+opencode = "OpenCode"
+opencode-go = "Opencode Go"
+amazon-bedrock = "Amazon Bedrock"
+deepseek = "Deepseek"
+github-copilot = "Github Copilot"
+google = "Google"
+google-vertex = "Google Vertex"
+openai = "Openai"
+openrouter = "Openrouter"
+perplexity-agent = "Perplexity Agent"
+zai-coding-plan = "Zai Coding Plan"
+
+# Model name to show instead of the models.dev one, keyed "<provider>/<model>".
+[display_names]
+"opencode/deepseek-v4.1-flash" = "DeepSeek V4.1 Flash"
+"opencode-go/deepseek-v4.1-flash" = "DeepSeek V4.1 Flash"
+"deepseek/deepseek-flash" = "DeepSeek V4.1 Flash"
+"openrouter/gryphe/mythomax-l2-13b" = "MythoMax 13B"
+"openrouter/openai/gpt-audio" = "GPT Audio"
+"openrouter/openai/gpt-audio-mini" = "GPT Audio Mini"
+"openrouter/qwen/qwen-2.5-coder-32b-instruct" = "Qwen2.5 Coder 32B Instruct"
+"openrouter/qwen/qwen2.5-vl-72b-instruct" = "Qwen2.5 VL 72B Instruct"
+"openrouter/qwen/qwen3-235b-a22b-thinking-2507" = "Qwen3 235B A22B Thinking 2507"
+"openrouter/qwen/qwen3-30b-a3b-instruct-2507" = "Qwen3 30B A3B Instruct 2507"
+"openrouter/z-ai/glm-5.3-flashx-legal" = "GLM 5.3 FlashX Legal"
+
+# Models models.dev does not list (or lists as deprecated) that live
+# `opencode models` still offers. A live models.dev entry takes precedence.
+[keep."openai/gpt-5.4-fast"]
+name = "GPT-5.4 Fast"
+context_window = 1_050_000
+
+[keep."openai/gpt-5.4-mini-fast"]
+name = "GPT-5.4 mini Fast"
+context_window = 400_000
+
+[keep."github-copilot/claude-opus-4.8-fast"]
+name = "Claude Opus 4.8 Fast"
+context_window = 200_000
+
+# Superseded models, shown as legacy. A model is legacy only if listed here:
+# new models start non-legacy.
+[legacy]
+opencode = [
+  "claude-fable-5",
+  "claude-haiku-4-5",
+  "claude-opus-4-5",
+  "claude-opus-4-6",
+  "claude-opus-4-7",
+  "claude-opus-4-8",
+  "claude-opus-5",
+  "claude-sonnet-4-5",
+  "claude-sonnet-4-6",
+  "claude-sonnet-5",
+  "gemini-3.5-flash",
+  "gemini-3.6-flash",
+  "gemini-3.7-flash",
+  "gpt-5",
+  "gpt-5-codex",
+  "gpt-5-nano",
+  "gpt-5.1",
+  "gpt-5.1-codex",
+  "gpt-5.2",
+  "gpt-5.2-codex",
+  "gpt-5.4",
+  "gpt-5.4-pro",
+  "gpt-5.6-luna",
+  "gpt-5.6-sol",
+  "gpt-6-sol",
+  "grok-4.5",
+  "grok-4.6",
+  "minimax-m2.5",
+  "minimax-m2.7",
+  "muse-spark-1.2",
+  "qwen3.5-plus",
+]
+opencode-go = [
+  "gpt-5.6-luna",
+  "hy3",
+  "muse-spark-1.2-contributor",
+]
+amazon-bedrock = [
+  "amazon.nova-lite-v1:0",
+  "anthropic.claude-fable-5",
+  "anthropic.claude-haiku-4-5-20251001-v1:0",
+  "anthropic.claude-opus-4-5-20251101-v1:0",
+  "anthropic.claude-opus-4-6-v1",
+  "anthropic.claude-opus-4-7",
+  "anthropic.claude-opus-4-8",
+  "anthropic.claude-opus-5",
+  "anthropic.claude-sonnet-4-6",
+  "anthropic.claude-sonnet-5",
+  "au.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "au.anthropic.claude-opus-4-6-v1",
+  "au.anthropic.claude-opus-4-7",
+  "au.anthropic.claude-opus-4-8",
+  "au.anthropic.claude-opus-5",
+  "au.anthropic.claude-sonnet-4-6",
+  "eu.amazon.nova-lite-v1:0",
+  "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "eu.anthropic.claude-opus-4-5-20251101-v1:0",
+  "eu.anthropic.claude-opus-4-6-v1",
+  "eu.anthropic.claude-opus-4-7",
+  "eu.anthropic.claude-opus-4-8",
+  "eu.anthropic.claude-opus-5",
+  "eu.anthropic.claude-sonnet-4-6",
+  "eu.anthropic.claude-sonnet-5",
+  "global.anthropic.claude-fable-5",
+  "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "global.anthropic.claude-opus-4-5-20251101-v1:0",
+  "global.anthropic.claude-opus-4-6-v1",
+  "global.anthropic.claude-opus-4-7",
+  "global.anthropic.claude-opus-4-8",
+  "global.anthropic.claude-opus-5",
+  "global.anthropic.claude-sonnet-4-6",
+  "global.anthropic.claude-sonnet-5",
+  "global.openai.gpt-5.6-luna",
+  "global.openai.gpt-5.6-sol",
+  "global.openai.gpt-6-sol",
+  "global.xai.grok-4.6",
+  "jp.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "jp.anthropic.claude-opus-4-7",
+  "jp.anthropic.claude-opus-4-8",
+  "jp.anthropic.claude-opus-5",
+  "jp.anthropic.claude-sonnet-4-6",
+  "openai.gpt-5.4",
+  "openai.gpt-5.6-luna",
+  "openai.gpt-5.6-sol",
+  "openai.gpt-6-sol",
+  "us.amazon.nova-lite-v1:0",
+  "us.anthropic.claude-fable-5",
+  "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+  "us.anthropic.claude-opus-4-5-20251101-v1:0",
+  "us.anthropic.claude-opus-4-6-v1",
+  "us.anthropic.claude-opus-4-7",
+  "us.anthropic.claude-opus-4-8",
+  "us.anthropic.claude-opus-5",
+  "us.anthropic.claude-sonnet-4-6",
+  "us.anthropic.claude-sonnet-5",
+  "us.openai.gpt-5.6-luna",
+  "us.openai.gpt-5.6-sol",
+  "us.openai.gpt-6-sol",
+  "us.xai.grok-4.6",
+  "xai.grok-4.3",
+]
+github-copilot = [
+  "claude-fable-5",
+  "claude-haiku-4.5",
+  "claude-opus-4.8",
+  "claude-sonnet-4.6",
+  "claude-sonnet-5",
+  "gpt-5.6-luna",
+  "gpt-5.6-sol",
+  "gpt-6-sol",
+  "grok-4.5",
+  "grok-4.6",
+]
+google = [
+  "gemini-2.5-flash-lite",
+  "gemini-3-flash-preview",
+  "gemini-3.6-flash",
+]
+google-vertex = [
+  "claude-fable-5@default",
+  "claude-haiku-4-5@20251001",
+  "claude-opus-4-5@20251101",
+  "claude-opus-4-6@default",
+  "claude-opus-4-7@default",
+  "claude-opus-4-8@default",
+  "claude-opus-5@default",
+  "claude-sonnet-4-6@default",
+  "claude-sonnet-5@default",
+  "gemini-2.5-flash-image",
+  "gemini-3-flash-preview",
+  "gemini-3.1-flash-image",
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash",
+  "gemini-3.7-flash",
+  "xai/grok-4.3",
+  "xai/grok-4.6",
+]
+openai = [
+  "gpt-5.2",
+  "gpt-5.2-pro",
+  "gpt-5.4",
+  "gpt-5.4-pro",
+  "gpt-5.5",
+  "gpt-5.6-luna",
+  "gpt-5.6-sol",
+  "gpt-6-sol",
+]
+openrouter = [
+  "aion-labs/aion-2.0",
+  "aion-labs/aion-3.0",
+  "aion-labs/aion-3.0-mini",
+  "amazon/nova-lite-v1",
+  "anthropic/claude-fable-5",
+  "anthropic/claude-haiku-4.5",
+  "anthropic/claude-opus-4.1",
+  "anthropic/claude-opus-4.5",
+  "anthropic/claude-opus-4.6",
+  "anthropic/claude-opus-4.7",
+  "anthropic/claude-opus-4.8",
+  "anthropic/claude-opus-5",
+  "anthropic/claude-sonnet-4.5",
+  "anthropic/claude-sonnet-4.6",
+  "anthropic/claude-sonnet-5",
+  "deepseek/deepseek-chat-v3-0324",
+  "deepseek/deepseek-chat-v3.1",
+  "deepseek/deepseek-v3.2-exp",
+  "deepseek/deepseek-v4-flash",
+  "deepseek/deepseek-v4-flash-0731",
+  "google/gemini-2.5-flash-image",
+  "google/gemini-2.5-pro-preview",
+  "google/gemini-3-flash-preview",
+  "google/gemini-3-pro-image-preview",
+  "google/gemini-3.1-flash-image",
+  "google/gemini-3.1-flash-image-preview",
+  "google/gemini-3.1-flash-lite",
+  "google/gemini-3.1-flash-lite-preview",
+  "google/gemini-3.5-flash",
+  "google/gemini-3.6-flash",
+  "google/gemini-3.7-flash",
+  "google/gemma-2-27b-it",
+  "inclusionai/ling-3.0-flash",
+  "meta-llama/llama-3.1-70b-instruct",
+  "meta/muse-spark-1.1",
+  "meta/muse-spark-1.2",
+  "meta/muse-spark-1.2-contributor",
+  "minimax/minimax-m2.5",
+  "minimax/minimax-m2.7",
+  "mistralai/mistral-large-2407",
+  "mistralai/mistral-large-2512",
+  "mistralai/mistral-small-24b-instruct-2501",
+  "mistralai/mistral-small-3.1-24b-instruct",
+  "moonshotai/kimi-k2.5",
+  "moonshotai/kimi-k2.6",
+  "openai/gpt-3.5-turbo-0613",
+  "openai/gpt-4",
+  "openai/gpt-4.1",
+  "openai/gpt-4.1-mini",
+  "openai/gpt-4.1-nano",
+  "openai/gpt-4o-2024-05-13",
+  "openai/gpt-4o-2024-08-06",
+  "openai/gpt-5",
+  "openai/gpt-5-mini",
+  "openai/gpt-5-nano",
+  "openai/gpt-5-pro",
+  "openai/gpt-5.1",
+  "openai/gpt-5.1-codex",
+  "openai/gpt-5.2",
+  "openai/gpt-5.2-codex",
+  "openai/gpt-5.2-pro",
+  "openai/gpt-5.4",
+  "openai/gpt-5.4-pro",
+  "openai/gpt-5.6-luna",
+  "openai/gpt-5.6-luna-pro",
+  "openai/gpt-5.6-sol",
+  "openai/gpt-5.6-sol-pro",
+  "openai/gpt-6-sol",
+  "openai/gpt-6-sol-pro",
+  "perceptron/perceptron-mk1",
+  "qwen/qwen3.5-27b",
+  "qwen/qwen3.5-35b-a3b",
+  "qwen/qwen3.5-flash-02-23",
+  "qwen/qwen3.5-plus-02-15",
+  "qwen/qwen3.5-plus-20260420",
+  "qwen/qwen3.6-27b",
+  "qwen/qwen3.6-flash",
+  "qwen/qwen3.6-plus",
+  "qwen/qwen3.7-flash",
+  "qwen/qwen3.7-max",
+  "tencent/hy3",
+  "unbiased/pareto-26.9",
+  "x-ai/grok-4.3",
+  "x-ai/grok-4.5",
+  "x-ai/grok-4.6",
+  "z-ai/glm-4.5v",
+  "z-ai/glm-4.6",
+  "z-ai/glm-4.7",
+  "z-ai/glm-4.7-flash",
+  "z-ai/glm-5",
+  "z-ai/glm-5.1",
+  "z-ai/glm-5.2",
+]
+perplexity-agent = [
+  "anthropic/claude-opus-4-5",
+  "anthropic/claude-opus-4-6",
+  "anthropic/claude-sonnet-4-5",
+]
