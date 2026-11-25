@@ -9,6 +9,11 @@ const SB = 'sb1';
 // [xAll name, prefixKey, fullKey]
 const CONTRACT: ReadonlyArray<readonly [string, readonly unknown[], readonly unknown[]]> = [
   ['chatsSearchAll', queryKeys.chatsSearchAll, queryKeys.chatsSearch('q')],
+  [
+    'chatsSearchAll',
+    queryKeys.machine.chatsSearchAll('m1'),
+    queryKeys.machine.chatsSearch('m1', 'q'),
+  ],
   ['fileContentAll', queryKeys.sandbox.fileContentAll(SB), queryKeys.sandbox.fileContent(SB, '/f')],
   [
     'filesMetadataAll',
