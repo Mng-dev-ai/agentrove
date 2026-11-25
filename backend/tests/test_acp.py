@@ -475,6 +475,37 @@ async def test_session_setup_gates_reasoning_effort_by_model(
         assert model_calls[0]["value"] == expected_model
 
 
+async def test_turn_with_unsupported_tier_keeps_the_chats_last_thinking_mode(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+
+    for thinking_mode, expected_status in (("low", "completed"), ("xhigh", "failed")):
+        response = await send_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            model_id="sonnet",
+            prompt="reason carefully",
+            thinking_mode=thinking_mode,
+        )
+        assert response.status_code == 200, response.text
+        message = await wait_for_message(
+            client,
+            headers,
+            chat_id=chat["id"],
+            message_id=response.json()["message_id"],
+        )
+        assert message["stream_status"] == expected_status
+
+    detail = await client.get(f"/api/v1/chat/chats/{chat['id']}", headers=headers)
+    assert detail.json()["last_thinking_mode"] == "low"
+
+
 async def test_enhance_prompt_surfaces_session_creation_failure(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
@@ -3229,15 +3260,60 @@ async def test_mcp_tools_accept_every_backend_thinking_mode_tier(
     assert member["thinking_mode"] == tier
     assert created["structuredContent"]["automation"]["thinking_mode"] == tier
     assert updated["structuredContent"]["automation"]["thinking_mode"] == tier
-    chat_id = sent["structuredContent"]["chat_id"]
+    message = await wait_for_message(
+        client,
+        headers,
+        chat_id=sent["structuredContent"]["chat_id"],
+        message_id=sent["structuredContent"]["message_id"],
+    )
+    assert message["content_text"].startswith(f"Effort `{tier}` isn't supported")
+
+
+async def test_mcp_follow_up_on_another_model_skips_a_tier_it_lacks(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="claude-haiku-5-5")
+    response = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="claude-haiku-5-5",
+        prompt="hi",
+        thinking_mode="xhigh",
+    )
+    await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=response.json()["message_id"]
+    )
+    route_sandbox_client_to_app(monkeypatch, client)
+    authorization = await docker_chat_authorization(db_session, workspace, monkeypatch)
+    async with main_module.mcp_endpoint.run():
+        sent = await mcp_call_tool(
+            client,
+            authorization,
+            "send_message",
+            prompt="again",
+            chat_id=chat["id"],
+            model_id="sonnet",
+        )
+    workspace.sandbox_provider = "host"
+    await db_session.commit()
+
+    assert not sent.get("isError"), sent
     await wait_for_message(
         client,
         headers,
-        chat_id=chat_id,
+        chat_id=chat["id"],
         message_id=sent["structuredContent"]["message_id"],
     )
-    detail = await client.get(f"/api/v1/chat/chats/{chat_id}", headers=headers)
-    assert detail.json()["last_thinking_mode"] == tier
+    detail = await client.get(f"/api/v1/chat/chats/{chat['id']}", headers=headers)
+    assert detail.json()["last_model_id"] == "sonnet"
+    assert detail.json()["last_thinking_mode"] is None
 
 
 @pytest.mark.parametrize("revoke", ["device", "password_reset"])

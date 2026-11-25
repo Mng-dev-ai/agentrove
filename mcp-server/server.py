@@ -63,12 +63,12 @@ async def _resolve_members(
 ) -> list[dict[str, Any]]:
     resolved_members = []
     for member in members:
-        resolved_model, agent_kind = await client.resolve_model(member.model_id)
+        model = await client.resolve_model(member.model_id)
         resolved_members.append(
             {
                 **member.model_dump(exclude_none=True),
-                "model_id": resolved_model,
-                "permission_mode": PERMISSION_MODE_BY_AGENT[agent_kind],
+                "model_id": model["model_id"],
+                "permission_mode": PERMISSION_MODE_BY_AGENT[model["agent_kind"]],
             }
         )
     return resolved_members
@@ -527,7 +527,8 @@ async def send_message(
     base_branch: start the worktree from this branch instead of current HEAD; only used with worktree=true.
 
     Follow-up turns (chat_id given) inherit the chat's previous model_id, thinking_mode
-    and persona when you omit them — pass a value only to change it for this turn.
+    (unless the model lacks that tier) and persona when you omit them — pass a value
+    only to change it for this turn.
 
     when_busy decides what happens if the chat already has a turn running (by default
     the call fails): "queue" adds the prompt to the chat's queue, which runs it as the
@@ -557,10 +558,15 @@ async def send_message(
         # Inherit last turn's model/persona/effort when omitted (not globals).
         chat = await client.get_chat(chat_id)
         model_id = model_id or chat.get("last_model_id")
-        thinking_mode = thinking_mode or chat.get("last_thinking_mode")
         persona = persona or chat.get("last_persona_name")
-    resolved_model, agent_kind = await client.resolve_model(model_id)
-    permission_mode = PERMISSION_MODE_BY_AGENT[agent_kind]
+    model = await client.resolve_model(model_id)
+    if chat_id is not None and not thinking_mode:
+        # A tier the model lacks fails the turn, so a model switch drops it.
+        last_thinking_mode = chat.get("last_thinking_mode")
+        if not model["thinking_modes"] or last_thinking_mode in model["thinking_modes"]:
+            thinking_mode = last_thinking_mode
+    resolved_model = model["model_id"]
+    permission_mode = PERMISSION_MODE_BY_AGENT[model["agent_kind"]]
     if chat_id is None:
         resolved_workspace = await client.resolve_workspace_id(workspace_id)
         chat_title = (title or prompt[:60]).strip() or "New chat"
@@ -936,7 +942,7 @@ async def create_automation(
     Returns the created automation, including its id and next_run_at.
     """
     client, _ = _session()
-    resolved_model, agent_kind = await client.resolve_model(model_id)
+    model = await client.resolve_model(model_id)
     resolved_workspace = await client.resolve_workspace_id(workspace_id)
     body: dict[str, Any] = {
         "name": name,
@@ -944,8 +950,8 @@ async def create_automation(
         "cron_expression": cron_expression,
         "timezone": timezone,
         "workspace_id": resolved_workspace,
-        "model_id": resolved_model,
-        "permission_mode": PERMISSION_MODE_BY_AGENT[agent_kind],
+        "model_id": model["model_id"],
+        "permission_mode": PERMISSION_MODE_BY_AGENT[model["agent_kind"]],
         "worktree": worktree,
         "enabled": enabled,
     }
@@ -1002,9 +1008,9 @@ async def update_automation(
     if workspace_id is not None:
         body["workspace_id"] = workspace_id
     if model_id is not None:
-        resolved_model, agent_kind = await client.resolve_model(model_id)
-        body["model_id"] = resolved_model
-        body["permission_mode"] = PERMISSION_MODE_BY_AGENT[agent_kind]
+        model = await client.resolve_model(model_id)
+        body["model_id"] = model["model_id"]
+        body["permission_mode"] = PERMISSION_MODE_BY_AGENT[model["agent_kind"]]
     if thinking_mode is not None:
         body["thinking_mode"] = thinking_mode
     if worktree is not None:

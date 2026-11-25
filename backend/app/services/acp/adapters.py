@@ -242,6 +242,13 @@ class AgentAdapter:
             thinking_mode, modes, self.default_thinking_mode
         )
 
+    def accepts_thinking_mode(self, model_id: str, thinking_mode: str | None) -> bool:
+        try:
+            self.reasoning_effort(model_id, thinking_mode)
+        except AgentException:
+            return False
+        return True
+
     def map_session_mode(self, permission_mode: str) -> str:
         # UI permission mode → ACP session mode id (plan-mode transitions).
         if permission_mode in self.session_modes:
