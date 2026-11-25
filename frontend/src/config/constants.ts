@@ -3,15 +3,6 @@ import type { SlashCommand } from '@/types/ui.types';
 
 export const CONTEXT_WINDOW_TOKENS = 200_000;
 
-// Agents whose ACP servers don't emit UsageUpdate notifications — the context
-// window indicator stays at 0 for these, so we hide it entirely.
-export const AGENTS_WITHOUT_USAGE_UPDATE: ReadonlySet<AgentKind> = new Set([
-  'copilot',
-  'cursor',
-  'grok',
-  'opencode',
-]);
-
 export const MAX_DIFF_LENGTH = 150_000;
 
 export const MAX_MESSAGE_SIZE_BYTES = 100000;

@@ -1,5 +1,4 @@
 import { coercePermissionModeForAgent } from '@/components/chat/permission-mode-selector/permissionModes';
-import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
 import {
   coerceThinkingModeForAgent,
   getThinkingModesForAgent,
@@ -12,7 +11,7 @@ import {
   type PermissionMode,
 } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
-import type { Model } from '@/types/chat.types';
+import { supportsPersona, type Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
 import type { ChannelMember, ChannelMemberCreateRequest } from '@/types/channel.types';
 
@@ -72,7 +71,7 @@ export function resolveMember(member: MemberDraft, models: Model[]) {
     agentKind,
     model,
     hasThinking: getThinkingModesForAgent(agentKind, model).length > 0,
-    supportsPersona: PERSONAS_SUPPORTED_AGENTS.has(agentKind),
+    supportsPersona: supportsPersona(model, agentKind),
   };
 }
 

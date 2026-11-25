@@ -7,7 +7,7 @@ import { NoticeCard } from './NoticeCard';
 import { PromptSuggestions } from './PromptSuggestions';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import {
-  getAgentKindForModelId,
+  resolveAgentKind,
   type AssistantStreamEvent,
   type MessageAttachment,
 } from '@/types/chat.types';
@@ -184,7 +184,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   // modelId tells us which agent produced the tool calls embedded in this
   // message, so tool renderers can handle per-agent rawInput shape variations
   // (e.g. Copilot's apply_patch vs. Codex's structured changes).
-  const agentKind = modelId ? getAgentKindForModelId(modelId) : undefined;
+  const agentKind = modelId ? resolveAgentKind(modelMap, modelId) : undefined;
   const omittedToolResults = useMemo(
     () => (toolResultsOmitted && chatId ? { chatId, messageId: id } : undefined),
     [toolResultsOmitted, chatId, id],

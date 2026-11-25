@@ -53,6 +53,7 @@ export function coerceThinkingModeForAgent(
   model: Model | undefined,
 ): string {
   const modes = getThinkingModesForAgent(agentKind, model);
+  // Compatibility: paired backends older than v0.1.68 still serve this model.
   if (
     agentKind === 'antigravity' &&
     model?.model_id === 'antigravity:gemini-3.1-pro' &&

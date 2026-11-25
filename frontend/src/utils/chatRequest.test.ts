@@ -95,6 +95,23 @@ describe('buildAgentChatFields', () => {
     expect(fields.thinking_mode).toBe('high');
   });
 
+  it('sends fast_mode by supports_fast_mode, falling back to codex-only when it is absent', () => {
+    const fastMode = (over: Partial<Model> & Pick<Model, 'agent_kind'>) =>
+      buildAgentChatFields(
+        'm1',
+        new Map([['m1', model({ model_id: 'm1', ...over })]]),
+        raw({ fastMode: true }),
+        [],
+      ).fast_mode;
+    expect(fastMode({ agent_kind: 'claude', supports_fast_mode: true })).toBe(true);
+    expect(fastMode({ agent_kind: 'codex', supports_fast_mode: false })).toBeUndefined();
+    expect(fastMode({ agent_kind: 'codex' })).toBe(true);
+    expect(fastMode({ agent_kind: 'claude' })).toBeUndefined();
+    expect(buildAgentChatFields('gpt-5.5', new Map(), raw({ fastMode: true }), []).fast_mode).toBe(
+      true,
+    );
+  });
+
   it('maps worktree to true only when enabled, else undefined', () => {
     const on = buildAgentChatFields('claude-x', new Map(), raw({ worktree: true }), []);
     const off = buildAgentChatFields('claude-x', new Map(), raw({ worktree: false }), []);

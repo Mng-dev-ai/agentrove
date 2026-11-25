@@ -3,7 +3,11 @@ from httpx import AsyncClient
 
 from app.catalog import MODELS
 from app.models.types import AgentKind
-from app.services.acp.adapters import THINKING_MODE_ORDER
+from app.services.acp.adapters import (
+    AGENT_ADAPTERS,
+    PERSONAS_SUPPORTED_AGENTS,
+    THINKING_MODE_ORDER,
+)
 
 from tests.conftest import LoginClient, UserFactory
 
@@ -40,6 +44,23 @@ async def test_list_models_exposes_registry_with_ordered_thinking_modes(
         assert item["thinking_modes"] == sorted(
             item["thinking_modes"], key=THINKING_MODE_ORDER.index
         )
+
+
+async def test_list_models_exposes_agent_capabilities(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+) -> None:
+    response = await client.get("/api/v1/models/", headers=auth_headers)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert {item["model_id"] for item in body} == MODELS.keys()
+    for item in body:
+        kind = MODELS[item["model_id"]].agent_kind
+        adapter = AGENT_ADAPTERS[kind]
+        assert item["supports_persona"] is (kind in PERSONAS_SUPPORTED_AGENTS)
+        assert item["supports_fast_mode"] is (adapter.fast_mode_config_id is not None)
+        assert item["supports_usage_updates"] is adapter.supports_usage_updates
 
 
 async def test_list_models_filters_by_agent_kind(

@@ -1,25 +1,54 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQueries, useQuery, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { modelService } from '@/services/modelService';
 import type { Model } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID, type MachineQueryOptions } from '@/types/machine.types';
 import { useModelStore } from '@/store/modelStore';
 import { useChatMachineId } from '@/store/machineOrigin';
-import { useMachineOnline } from '@/store/machineStore';
+import { useMachineOnline, useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
 import { queryKeys } from './queryKeys';
 import { useChatQuery, useInfiniteMessagesQuery } from './useChatQueries';
 
 const EMPTY_MODEL_MAP = new Map<string, Model>();
 const DEFAULT_MODEL_KEY = '__default__';
 
+function modelsQuery(machineId: string) {
+  return {
+    queryKey:
+      machineId === LOCAL_MACHINE_ID ? [queryKeys.models] : queryKeys.machine.models(machineId),
+    queryFn: () => modelService.getModels(machineId),
+  };
+}
+
+function toModelMap(models: Model[] | undefined): Map<string, Model> {
+  return models ? new Map(models.map((m) => [m.model_id, m])) : EMPTY_MODEL_MAP;
+}
+
 export const useModelsQuery = (options?: MachineQueryOptions) => {
   const machineId = options?.machineId ?? LOCAL_MACHINE_ID;
-  const isLocal = machineId === LOCAL_MACHINE_ID;
   const online = useMachineOnline(machineId);
   return useQuery({
-    queryKey: isLocal ? [queryKeys.models] : queryKeys.machine.models(machineId),
-    queryFn: () => modelService.getModels(machineId),
+    ...modelsQuery(machineId),
     enabled: (options?.enabled ?? true) && online,
+  });
+};
+
+export const useMachinesModelMaps = (enabled: boolean) => {
+  const remoteIds = useRemoteMachineIds();
+  const connections = useMachineStore((state) => state.connections);
+  const machineIds = useMemo(() => [LOCAL_MACHINE_ID, ...remoteIds], [remoteIds]);
+  const combine = useCallback(
+    (results: UseQueryResult<Model[]>[]) =>
+      new Map(machineIds.map((machineId, index) => [machineId, toModelMap(results[index]?.data)])),
+    [machineIds],
+  );
+  return useQueries({
+    queries: machineIds.map((machineId) => ({
+      ...modelsQuery(machineId),
+      enabled:
+        enabled && (machineId === LOCAL_MACHINE_ID || connections[machineId]?.status === 'online'),
+    })),
+    combine,
   });
 };
 
@@ -73,8 +102,5 @@ export const useModelSelection = (options?: {
 // `/models/` is auth-protected — public callers must pass enabled=false.
 export function useModelMap(options?: MachineQueryOptions): Map<string, Model> {
   const { data: models } = useModelsQuery(options);
-  return useMemo(
-    () => (models ? new Map(models.map((m) => [m.model_id, m])) : EMPTY_MODEL_MAP),
-    [models],
-  );
+  return useMemo(() => toModelMap(models), [models]);
 }

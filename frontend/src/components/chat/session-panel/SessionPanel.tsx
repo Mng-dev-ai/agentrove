@@ -27,7 +27,7 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
-import { AGENTS_WITHOUT_USAGE_UPDATE, CONTEXT_WINDOW_TOKENS } from '@/config/constants';
+import { CONTEXT_WINDOW_TOKENS } from '@/config/constants';
 import {
   useChatQuery,
   useContextUsageQuery,
@@ -52,7 +52,7 @@ import { useChatSessionState } from '@/hooks/useChatSessionContext';
 import { useChannelActivity } from '@/store/channelStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
-import { getAgentKindForModelId, type Chat } from '@/types/chat.types';
+import { resolveAgentKind, supportsUsageUpdates, type Chat } from '@/types/chat.types';
 import type { Channel, ChannelMember, ChannelMemberCreateRequest } from '@/types/channel.types';
 import type { DiffMode, GitDiffStatsData, GitDiffTotals } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -375,7 +375,7 @@ function MemberRow({
       <Row
         icon={
           <ProviderIcon
-            agentKind={getAgentKindForModelId(member.model_id)}
+            agentKind={resolveAgentKind(modelMap, member.model_id)}
             className={styles.glyph}
           />
         }
@@ -426,9 +426,8 @@ function ContextTrack({ usage, label }: { usage: ContextUsageDisplay; label: str
 function ContextCard({ chat }: { chat: Chat }) {
   const { contextUsage, selectedModelId } = useChatSessionState();
   const modelMap = useModelMap({ machineId: useChatMachineId(chat.id) });
-  const agentKind =
-    modelMap.get(selectedModelId)?.agent_kind ?? getAgentKindForModelId(selectedModelId);
-  if (!contextUsage || AGENTS_WITHOUT_USAGE_UPDATE.has(agentKind)) return null;
+  const agentKind = resolveAgentKind(modelMap, selectedModelId);
+  if (!contextUsage || !supportsUsageUpdates(modelMap.get(selectedModelId), agentKind)) return null;
   const usage = getContextUsageDisplay(contextUsage);
   return (
     <Card title="Context" action={<ContextValue usage={usage} />}>

@@ -19,8 +19,7 @@ import {
   type InputContextValue,
 } from './InputContext';
 import type { InputProps } from './Input';
-import { getAgentKindForModelId, type Chat } from '@/types/chat.types';
-import { AGENTS_WITHOUT_USAGE_UPDATE } from '@/config/constants';
+import { getAgentKindForModelId, supportsUsageUpdates, type Chat } from '@/types/chat.types';
 import { canAskSideQuestion, SIDE_QUESTION_SLASH_COMMAND } from '@/utils/sideQuestion';
 
 // Stable fallback so chat-less composers (landing page) don't churn the selector.
@@ -74,7 +73,9 @@ export function InputProvider({
   // Hide the context-usage indicator for agents whose ACP servers never emit
   // UsageUpdate notifications — without those events the value stays 0 and
   // the bar is misleading.
-  const visibleContextUsage = AGENTS_WITHOUT_USAGE_UPDATE.has(agentKind) ? undefined : contextUsage;
+  const visibleContextUsage = supportsUsageUpdates(selectedModel, agentKind)
+    ? contextUsage
+    : undefined;
   const storedSelections = useUIStore((s) =>
     chatId ? s.composerSelectionsByChat[chatId] : undefined,
   );

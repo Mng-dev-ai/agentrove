@@ -1,6 +1,22 @@
 import type { ToolEventPayload } from './tools.types';
 import type { PermissionMode } from '@/store/chatSettingsStore';
 
+// Fallback for backends whose /models/ predates supports_persona.
+const PERSONAS_SUPPORTED_AGENTS: ReadonlySet<AgentKind> = new Set<AgentKind>([
+  'claude',
+  'codex',
+  'grok',
+  'opencode',
+]);
+
+// Fallback for backends whose /models/ predates supports_usage_updates.
+const AGENTS_WITHOUT_USAGE_UPDATE: ReadonlySet<AgentKind> = new Set<AgentKind>([
+  'copilot',
+  'cursor',
+  'grok',
+  'opencode',
+]);
+
 export interface MessageAttachment {
   id: string;
   message_id: string;
@@ -219,6 +235,9 @@ export interface Model {
   legacy?: boolean;
   thinking_modes: string[];
   supports_fork?: boolean;
+  supports_persona?: boolean;
+  supports_fast_mode?: boolean;
+  supports_usage_updates?: boolean;
 }
 
 const CODEX_MODEL_IDS = new Set([
@@ -252,6 +271,29 @@ export function getAgentKindForModelId(modelId: string | null | undefined): Agen
   if (modelId.startsWith('grok:')) return 'grok';
   if (modelId.startsWith('opencode:')) return 'opencode';
   return 'claude';
+}
+
+export function resolveAgentKind(
+  modelMap: ReadonlyMap<string, Model>,
+  modelId: string | null | undefined,
+): AgentKind {
+  return modelMap.get(modelId ?? '')?.agent_kind ?? getAgentKindForModelId(modelId);
+}
+
+export function supportsPersona(model: Model | undefined, agentKind: AgentKind): boolean {
+  return model?.supports_persona ?? PERSONAS_SUPPORTED_AGENTS.has(agentKind);
+}
+
+export function supportsFastMode(
+  model: Model | undefined,
+  agentKind: AgentKind | undefined,
+): boolean {
+  // Fallback for backends whose /models/ predates supports_fast_mode.
+  return model?.supports_fast_mode ?? agentKind === 'codex';
+}
+
+export function supportsUsageUpdates(model: Model | undefined, agentKind: AgentKind): boolean {
+  return model?.supports_usage_updates ?? !AGENTS_WITHOUT_USAGE_UPDATE.has(agentKind);
 }
 
 export interface ContextUsage {
