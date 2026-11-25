@@ -7,6 +7,7 @@ on:
       - 'backend/**'
       - 'sandbox/**'
       - 'scripts/**'
+      - 'mcp-server/**'
       - '.github/workflows/backend-checks.yml'
   pull_request:
     branches: [main]
@@ -14,6 +15,7 @@ on:
       - 'backend/**'
       - 'sandbox/**'
       - 'scripts/**'
+      - 'mcp-server/**'
       - '.github/workflows/backend-checks.yml'
 
 jobs:
@@ -44,12 +46,12 @@ jobs:
       - name: Run ruff linting
         run: |
           cd backend
-          ruff check .
+          ruff check . ../mcp-server
 
       - name: Run ruff formatting check
         run: |
           cd backend
-          ruff format --check .
+          ruff format --check . ../mcp-server
 
       - name: Run mypy type checking
         run: |
