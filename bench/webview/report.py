@@ -14,6 +14,10 @@ VARIANTS = ("plain", "wrapped", "trailoff")
 DOM_CALLS = ("querySelector", "querySelectorAll", "getBoundingClientRect")
 MARKS = ("open", "paged", "scrolled")
 TOP_CATEGORIES = 10
+AB_BUILDS = ("main", "fix")
+AB_MEM = ("mem_fixed", "mem_timed")
+AB_MARKS = ("paged", "scrolled", "idle30", "idle90")
+AB_TOP_CATEGORIES = 4
 
 
 def fmt(value: float | None, digits: int = 1) -> str:
@@ -343,6 +347,118 @@ def trail_probe(rows: list[dict[str, Any]]) -> list[str]:
     return lines + [""]
 
 
+def ab_rows(rows: list[dict[str, Any]], scenario: str, host: str, build: str):
+    return [
+        r
+        for r in rows
+        if r.get("ok") and r["scenario"] == f"{scenario}@{build}" and r["host"] == host
+    ]
+
+
+def ab_memory(rows: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "### Same-job A/B: main (ccb7a17d) vs fix (45d8d77b)",
+        "",
+        "Builds alternate within each host on the same VM. mem_fixed scrolls the "
+        "paged transcript top to bottom at a fixed 460 px per frame; mem_timed uses "
+        "the 15 s time-based scroll of scroll_5k. Points: paged (~300 messages), "
+        "scrolled (right after the scroll), idle30 / idle90 (that long after the "
+        "scroll ended, page idle). Medians over runs.",
+        "",
+    ]
+    for scenario in AB_MEM:
+        for host in HOSTS:
+            sel = {b: ab_rows(rows, scenario, host, b) for b in AB_BUILDS}
+            if not any(sel.values()):
+                continue
+            cats: dict[str, list[float]] = defaultdict(list)
+            for r in sel["main"] + sel["fix"]:
+                for cat, size in (
+                    r["memory"]["marks"].get("scrolled", {}).get("categories", {}).items()
+                ):
+                    cats[cat].append(size / MB)
+            top = sorted(cats, key=lambda c: -(med(cats[c]) or 0))[:AB_TOP_CATEGORIES]
+            lines += [
+                f"#### {scenario}, {host}",
+                "",
+                "| Build | Point | summed MB | renderer MB | "
+                + " | ".join(f"{c} MB" for c in top)
+                + " | messages | n |",
+                "|---|---|---:|---:|" + "---:|" * len(top) + "---:|---:|",
+            ]
+            for build in AB_BUILDS:
+                for name in AB_MARKS:
+                    m = [
+                        r["memory"]["marks"][name]
+                        for r in sel[build]
+                        if name in r["memory"]["marks"]
+                    ]
+                    cols = [
+                        fmt(med([x["categories"].get(c, 0) / MB for x in m]))
+                        for c in top
+                    ]
+                    msgs = [
+                        r["details"]["marks"][name]["messages"]
+                        for r in sel[build]
+                        if name in r["details"]["marks"]
+                    ]
+                    lines.append(
+                        f"| {build} | {name} | {fmt(med([x['footprint'] / MB for x in m]))} "
+                        f"| {fmt(med([x['renderer_footprint'] / MB for x in m]))} "
+                        f"| {' | '.join(cols)} | {fmt(med(msgs), 0)} | {len(m)} |"
+                    )
+            lines += [
+                "",
+                "| Build | frames | px travelled | duration ms | fps | median frame ms "
+                "| p95 frame ms | long frames | messages before/after | n |",
+                "|---|---:|---:|---:|---:|---:|---:|---:|---|---:|",
+            ]
+            for build in AB_BUILDS:
+                sc = [r["details"]["mem_scroll"] for r in sel[build]]
+                lines.append(
+                    f"| {build} | {fmt(med([x['frames'] for x in sc]), 0)} "
+                    f"| {fmt(med([x['travelled_px'] for x in sc]), 0)} "
+                    f"| {fmt(med([x['duration_ms'] for x in sc]), 0)} "
+                    f"| {fmt(med([x['fps'] for x in sc]))} "
+                    f"| {fmt(med([x['median_ms'] for x in sc]))} "
+                    f"| {fmt(med([x['p95_ms'] for x in sc]))} "
+                    f"| {fmt(med([x['long_frames'] for x in sc]), 0)} "
+                    f"| {fmt(med([x['messages_before'] for x in sc]), 0)}/"
+                    f"{fmt(med([x['messages_after'] for x in sc]), 0)} | {len(sc)} |"
+                )
+            lines.append("")
+    lines += [
+        "#### cells_5k_plain at 320 mounted, per build",
+        "",
+        "| Host | Speed | Build | fps | median frame ms | p95 frame ms "
+        "| long frames | probe pass/fail | n |",
+        "|---|---|---|---:|---:|---:|---:|---|---:|",
+    ]
+    for host in HOSTS:
+        for speed in ("human", "fast"):
+            for build in AB_BUILDS:
+                sel = ab_rows(rows, "cells_5k_plain", host, build)
+                if not sel:
+                    continue
+                cells = [
+                    c
+                    for r in sel
+                    for c in r["details"]["cells"]
+                    if c["speed"] == speed and c["mounted"] == 320
+                ]
+                probes = [r["details"]["trail_probe"] for r in sel]
+                lines.append(
+                    f"| {host} | {speed} | {build} "
+                    f"| {fmt(med([c['fps'] for c in cells]))} "
+                    f"| {fmt(med([c['median_ms'] for c in cells]))} "
+                    f"| {fmt(med([c['p95_ms'] for c in cells]))} "
+                    f"| {fmt(med([c['long_frames'] for c in cells]), 0)} "
+                    f"| {sum(t['pass'] for t in probes)}/{sum(t['fail'] for t in probes)} "
+                    f"| {len(cells)} |"
+                )
+    return lines + [""]
+
+
 def memory_marks(rows: list[dict[str, Any]]) -> list[str]:
     runs = [
         r
@@ -475,6 +591,7 @@ def markdown(
     lines += memory_marks(rows)
     lines += trail_off(rows)
     lines += trail_probe(rows)
+    lines += ab_memory(rows)
     return "\n".join(lines) + "\n"
 
 

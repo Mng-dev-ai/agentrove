@@ -7,6 +7,9 @@
   const SWITCH_COUNT = 10;
   const HISTORY_TARGET_MESSAGES = 300;
   const SCROLL_DOWN_MS = 15000;
+  const MEM_STEP_PX = 460;
+  const MEM_IDLE_S = [30, 90];
+  const MEM_LOAD_WAIT_MS = 5000;
   const CELL_COUNTS = [20, 100, 320];
   const CELL_FRAMES = 150;
   const CELL_MAX_MS = 8000;
@@ -422,6 +425,80 @@
     return out;
   };
 
+  const timedScrollDown = async (el) => {
+    const stopDown = frameRecorder();
+    const setCosts = [];
+    const tDown = await nextFrame();
+    for (;;) {
+      const now = await nextFrame();
+      const f = Math.min(1, (now - tDown) / SCROLL_DOWN_MS);
+      const before = performance.now();
+      el.scrollTop = f * (el.scrollHeight - el.clientHeight);
+      setCosts.push(performance.now() - before);
+      if (f >= 1) break;
+    }
+    setCosts.sort((a, b) => a - b);
+    return { down: frameStats(stopDown(), state.refreshMs), setCosts };
+  };
+
+  const fixedScrollDown = async (el) => {
+    const stop = frameRecorder();
+    let pos = el.scrollTop;
+    await nextFrame();
+    while (pos < el.scrollHeight - el.clientHeight) {
+      pos += MEM_STEP_PX;
+      el.scrollTop = pos;
+      await nextFrame();
+    }
+    return frameStats(stop(), state.refreshMs);
+  };
+
+  const memPoint = (el) => ({ messages: messageCount(), elements: elementCount(el), t_ms: performance.now() });
+
+  const memScroll = async (mode) => {
+    await waitFor('chat_5k', () => chatReady('chat_5k'));
+    await idleCheck('idle');
+    await sleep(500);
+    const el = scroller();
+    if (!el) throw new Error('no transcript scroller');
+    await pageTo(el, HISTORY_TARGET_MESSAGES, []);
+    await sleep(1000);
+    state.details.marks = { paged: memPoint(el) };
+    await mark('paged');
+    const paged = messageCount();
+    el.scrollTop = 0;
+    const tLoad = performance.now();
+    while (messageCount() === paged && performance.now() - tLoad < MEM_LOAD_WAIT_MS) await sleep(50);
+    await sleep(1000);
+    const startTop = el.scrollTop;
+    const countBefore = messageCount();
+    const frames = mode === 'fixed' ? await fixedScrollDown(el) : (await timedScrollDown(el)).down;
+    const tEnd = performance.now();
+    state.details.mem_scroll = {
+      mode,
+      step_px: mode === 'fixed' ? MEM_STEP_PX : null,
+      messages_before: countBefore,
+      messages_after: messageCount(),
+      start_top: startTop,
+      end_top: el.scrollTop,
+      travelled_px: el.scrollTop - startTop,
+      frames: frames.frames,
+      duration_ms: frames.duration_ms,
+      fps: frames.fps,
+      median_ms: frames.median_ms,
+      p95_ms: frames.p95_ms,
+      long_frames: frames.long_frames,
+    };
+    state.details.marks.scrolled = memPoint(el);
+    await mark('scrolled');
+    for (const s of MEM_IDLE_S) {
+      await sleep(Math.max(0, tEnd + s * 1000 - performance.now()));
+      state.details.marks[`idle${s}`] = memPoint(el);
+      await mark(`idle${s}`);
+    }
+    return true;
+  };
+
   const cells5k = async () => {
     await waitFor('chat_5k', () => chatReady('chat_5k'));
     await idleCheck('idle');
@@ -510,19 +587,7 @@
       await sleep(1000);
       const countBefore = messageCount();
       const height = el.scrollHeight - el.clientHeight;
-      const stopDown = frameRecorder();
-      const setCosts = [];
-      const tDown = await nextFrame();
-      for (;;) {
-        const now = await nextFrame();
-        const f = Math.min(1, (now - tDown) / SCROLL_DOWN_MS);
-        const before = performance.now();
-        el.scrollTop = f * (el.scrollHeight - el.clientHeight);
-        setCosts.push(performance.now() - before);
-        if (f >= 1) break;
-      }
-      setCosts.sort((a, b) => a - b);
-      const down = frameStats(stopDown(), state.refreshMs);
+      const { down, setCosts } = await timedScrollDown(el);
       state.metrics.scroll_p95_frame_ms = down.p95_ms;
       state.metrics.scroll_long_frames = down.long_frames;
       state.metrics.scroll_dropped_frames = down.dropped_frames;
@@ -539,6 +604,12 @@
       state.details.marks.scrolled = { messages: messageCount(), elements: elementCount(el) };
       await mark('scrolled');
       return true;
+    },
+    async mem_fixed() {
+      return memScroll('fixed');
+    },
+    async mem_timed() {
+      return memScroll('timed');
     },
     async cells_5k_plain() {
       return cells5k();

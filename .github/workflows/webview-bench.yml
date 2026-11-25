@@ -10,21 +10,30 @@ jobs:
   bench:
     name: WKWebView vs Electron (${{ matrix.group }})
     runs-on: macos-latest
-    timeout-minutes: 75
+    timeout-minutes: 150
     strategy:
       fail-fast: false
       matrix:
         include:
-          - group: launch
-            scenarios: launch_shell launch_chat open_1k open_5k
-          - group: interact
-            scenarios: diff switch scroll_5k
-          - group: attribution
-            scenarios: cells_5k_plain cells_5k_wrapped cells_5k_trailoff
+          - group: ab-wkwebview-fixed
+            hosts: wkwebview
+            scenarios: mem_fixed@main mem_fixed@fix cells_5k_plain@main cells_5k_plain@fix
+          - group: ab-wkwebview-timed
+            hosts: wkwebview
+            scenarios: mem_timed@main mem_timed@fix
+          - group: ab-electron-fixed
+            hosts: electron
+            scenarios: mem_fixed@main mem_fixed@fix cells_5k_plain@main cells_5k_plain@fix
+          - group: ab-electron-timed
+            hosts: electron
+            scenarios: mem_timed@main mem_timed@fix
     env:
       API_PORT: '18741'
       WEB_PORT: '18742'
-      BENCH_RUNS: '8'
+      WEB_PORT_MAIN: '18743'
+      MAIN_SHA: ccb7a17d1e014de00ddd50ef40d3e17a580aba54
+      FIX_SHA: 45d8d77bf54459ca519ac610306e01b64060761c
+      BENCH_RUNS: '6'
 
     steps:
       - name: Checkout
@@ -56,14 +65,19 @@ jobs:
         working-directory: bench/webview
         run: swiftc -O wkhost/main.swift -o "$RUNNER_TEMP/wkhost" -framework AppKit -framework WebKit
 
-      - name: Build frontend
-        working-directory: frontend
+      - name: Build frontends (main and fix)
         env:
           VITE_API_BASE_URL: http://127.0.0.1:${{ env.API_PORT }}/api/v1
           VITE_WS_URL: ws://127.0.0.1:${{ env.API_PORT }}/api/v1/ws
         run: |
-          npm ci --legacy-peer-deps --no-audit --no-fund
-          npx vite build --mode desktop --outDir "$RUNNER_TEMP/dist"
+          git fetch --no-tags --depth=1 origin "$MAIN_SHA" "$FIX_SHA"
+          for pair in "main:$MAIN_SHA" "fix:$FIX_SHA"; do
+            name="${pair%%:*}"
+            src="$RUNNER_TEMP/src-$name"
+            mkdir -p "$src"
+            git archive "${pair#*:}" frontend | tar -x -C "$src"
+            (cd "$src/frontend" && npm ci --legacy-peer-deps --no-audit --no-fund && npx vite build --mode desktop --outDir "$RUNNER_TEMP/dist-$name")
+          done
 
       - name: Collect environment
         working-directory: bench/webview
@@ -73,19 +87,20 @@ jobs:
         env:
           PYTHON: ${{ runner.temp }}/venv/bin/python
           BENCH_TMP: ${{ runner.temp }}/bench
-          WEB_ORIGIN: http://127.0.0.1:${{ env.WEB_PORT }}
+          WEB_ORIGIN: http://127.0.0.1:${{ env.WEB_PORT }},http://127.0.0.1:${{ env.WEB_PORT_MAIN }}
         run: bench/webview/backend.sh seed
 
       - name: Start backend and static server
         env:
           PYTHON: ${{ runner.temp }}/venv/bin/python
           BENCH_TMP: ${{ runner.temp }}/bench
-          WEB_ORIGIN: http://127.0.0.1:${{ env.WEB_PORT }}
+          WEB_ORIGIN: http://127.0.0.1:${{ env.WEB_PORT }},http://127.0.0.1:${{ env.WEB_PORT_MAIN }}
         run: |
           nohup bench/webview/backend.sh serve > "$RUNNER_TEMP/api.log" 2>&1 &
-          nohup python3 bench/webview/static_server.py --dir "$RUNNER_TEMP/dist" --port "$WEB_PORT" > "$RUNNER_TEMP/static.log" 2>&1 &
+          nohup python3 bench/webview/static_server.py --dir "$RUNNER_TEMP/dist-fix" --port "$WEB_PORT" > "$RUNNER_TEMP/static.log" 2>&1 &
+          nohup python3 bench/webview/static_server.py --dir "$RUNNER_TEMP/dist-main" --port "$WEB_PORT_MAIN" > "$RUNNER_TEMP/static-main.log" 2>&1 &
           for _ in $(seq 1 60); do
-            curl -sf "http://127.0.0.1:$API_PORT/health" >/dev/null && curl -sf "http://127.0.0.1:$WEB_PORT/" >/dev/null && exit 0
+            curl -sf "http://127.0.0.1:$API_PORT/health" >/dev/null && curl -sf "http://127.0.0.1:$WEB_PORT/" >/dev/null && curl -sf "http://127.0.0.1:$WEB_PORT_MAIN/" >/dev/null && exit 0
             sleep 1
           done
           cat "$RUNNER_TEMP/api.log"
@@ -105,6 +120,8 @@ jobs:
             --electron-bin "$ELECTRON_BIN" \
             --electron-app bench/webview/electron \
             --runs "$BENCH_RUNS" \
+            --hosts ${{ matrix.hosts }} \
+            --builds "main=http://127.0.0.1:$WEB_PORT_MAIN" "fix=http://127.0.0.1:$WEB_PORT" \
             --scenarios ${{ matrix.scenarios }}
 
       - name: Report

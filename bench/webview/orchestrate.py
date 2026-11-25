@@ -23,6 +23,8 @@ SCENARIOS = {
     "cells_5k_plain": "/chat/{chat_5k}",
     "cells_5k_wrapped": "/chat/{chat_5k}",
     "cells_5k_trailoff": "/chat/{chat_5k}",
+    "mem_fixed": "/chat/{chat_5k}",
+    "mem_timed": "/chat/{chat_5k}",
 }
 VARIANTS = {
     "cells_5k_wrapped": "wrapped",
@@ -42,7 +44,7 @@ FOOTPRINT_ROW = re.compile(rf"^\s*{SIZE}\s+{SIZE}\s+{SIZE}\s+(\d+)\s+(\S.*?)\s*$
 UNITS = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}
 WIDTH = 960
 HEIGHT = 640
-RUN_TIMEOUT_S = 300
+RUN_TIMEOUT_S = 900
 SAMPLE_INTERVAL_S = 0.1
 SETTLE_S = 3.0
 WEBKIT_MARKER = "com.apple.WebKit."
@@ -179,6 +181,7 @@ class Orchestrator:
         self.sampler = ProcessSampler()
         self.tokens = self.login()
         self.results_path = args.out / "results.jsonl"
+        self.builds = dict(b.split("=", 1) for b in args.builds)
 
     def login(self) -> dict[str, str]:
         body = urllib.parse.urlencode(
@@ -198,7 +201,13 @@ class Orchestrator:
         return [str(self.args.electron_bin), str(self.args.electron_app)]
 
     def bench_config(
-        self, host: str, scenario: str, run: int, t0: float, screenshot: bool
+        self,
+        host: str,
+        scenario: str,
+        build: str,
+        run: int,
+        t0: float,
+        screenshot: bool,
     ) -> dict[str, Any]:
         chats = self.fixture["chats"]
         diff = self.fixture["sizes"]["diff"]
@@ -206,11 +215,12 @@ class Orchestrator:
             "scenario": scenario,
             "host": host,
             "run": run,
-            "launchId": f"{host}-{scenario}-{run}-{int(t0)}",
+            "launchId": f"{host}-{scenario}-{build}-{run}-{int(t0)}",
             "t0EpochMs": t0,
             "accessToken": self.tokens["access_token"],
             "refreshToken": self.tokens["refresh_token"],
             "variant": VARIANTS.get(scenario, "plain"),
+            "build": build,
             "chats": chats,
             "diffFiles": diff["modified_files"] + diff["untracked_files"],
             "screenshot": screenshot,
@@ -246,19 +256,20 @@ class Orchestrator:
         out_dir = self.args.out / "raw" / scenario / host / str(run)
         out_dir.mkdir(parents=True, exist_ok=True)
         result_file = out_dir / "result.json"
-        path = SCENARIOS[scenario].format(
+        base, _, build = scenario.partition("@")
+        path = SCENARIOS[base].format(
             **{k: v["id"] for k, v in self.fixture["chats"].items()}
         )
         baseline = self.sampler.webkit_pids(self.sampler.table())
         screenshot = run == 0
         t0 = time.time() * 1000
         config = {
-            "url": f"{self.args.web}{path}",
+            "url": f"{self.builds.get(build, self.args.web)}{path}",
             "out_dir": str(out_dir),
             "width": WIDTH,
             "height": HEIGHT,
             "driver_path": str(self.args.driver),
-            "bench": self.bench_config(host, scenario, run, t0, screenshot),
+            "bench": self.bench_config(host, base, build, run, t0, screenshot),
         }
         config_path = out_dir / "config.json"
         config_path.write_text(json.dumps(config))
@@ -307,6 +318,7 @@ class Orchestrator:
         result.update(
             {
                 "scenario": scenario,
+                "build": build,
                 "host": host,
                 "run": run,
                 "memory": {
@@ -333,11 +345,12 @@ class Orchestrator:
         return result
 
     def run(self) -> None:
-        for host in ("wkwebview", "electron"):
+        for host in self.args.hosts:
             self.run_one(host, "launch_shell", -1)
         for run in range(self.args.runs):
-            for scenario in self.args.scenarios:
-                order = ("wkwebview", "electron")
+            scenarios = self.args.scenarios
+            for scenario in scenarios if run % 2 == 0 else scenarios[::-1]:
+                order = self.args.hosts
                 for host in order if run % 2 == 0 else order[::-1]:
                     self.run_one(host, scenario, run)
 
@@ -356,6 +369,8 @@ def main() -> None:
     parser.add_argument("--password", default="bench-password-123")
     parser.add_argument("--runs", type=int, default=12)
     parser.add_argument("--scenarios", nargs="+", default=list(SCENARIOS))
+    parser.add_argument("--hosts", nargs="+", default=["wkwebview", "electron"])
+    parser.add_argument("--builds", nargs="*", default=[])
     args = parser.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
     Orchestrator(args).run()
