@@ -49,7 +49,7 @@ Backend (`.github/workflows/backend-checks.yml`, Python 3.12, runs when `backend
 
 - Lint tools only, no project deps: `pip install ruff==0.15.0 mypy types-redis deptry pip-audit`. A venv with project deps gives dozens of unrelated mypy errors; use a throwaway venv with just these.
 - `ruff check . ../mcp-server`, `ruff format --check . ../mcp-server`, `mypy app/`, `mypy --config-file pyproject.toml ../mcp-server`, `deptry . --requirements-files requirements.txt`. `pip-audit -r requirements.lock` is non-blocking.
-- Tests: `uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist`, then `COVERAGE_CORE=sysmon pytest tests -n auto --cov=app --cov-fail-under=85`.
+- Tests: `uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist ruff==0.15.0`, then `COVERAGE_CORE=sysmon pytest tests -n auto --cov=app --cov-fail-under=85`.
 
 Docker Smoke (`.github/workflows/docker-smoke.yml`, runs when either Dockerfile, `scripts/bump-acp-providers.sh` or `.github/actions/docker-smoke/` change): builds `backend/Dockerfile` and `sandbox/docker/Dockerfile` for linux/amd64 without pushing, then runs `--version` of every bundled agent CLI in each image (`.github/actions/docker-smoke/`). The daily bump workflow runs the same action before opening its PR, because `pull_request` runs on its `github.token` PRs wait for manual approval; the PR job is skipped on `bot/bump-acp-providers`.
 
