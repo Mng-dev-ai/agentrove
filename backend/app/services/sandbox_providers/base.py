@@ -54,6 +54,26 @@ esac
 class SandboxProvider:
     _pty_sessions: dict[str, dict[str, Any]]
 
+    # Directory names skipped by non-git list_files — mirrors common .gitignore entries.
+    WALK_SKIP_DIRS = frozenset(
+        {
+            ".git",
+            "node_modules",
+            ".venv",
+            "venv",
+            "__pycache__",
+            ".next",
+            ".nuxt",
+            "dist",
+            "build",
+            ".pytest_cache",
+            ".mypy_cache",
+            ".ruff_cache",
+            ".tox",
+            ".eggs",
+        }
+    )
+
     @property
     def workspace_root(self) -> str:
         # Container path (Docker) or host path (local); used to ground relative paths.
