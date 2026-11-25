@@ -1,0 +1,8 @@
+{
+  "name": "agentrove-webview-bench-electron",
+  "private": true,
+  "main": "main.js",
+  "devDependencies": {
+    "electron": "45.5.0"
+  }
+}
