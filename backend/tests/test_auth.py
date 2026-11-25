@@ -403,7 +403,12 @@ def test_agent_route_allowlist_is_exactly_what_the_mcp_client_calls(
     source = (mcp_server / "client.py").read_text() + (
         mcp_server / "server.py"
     ).read_text()
-    called = set(re.findall(r'self\.request\(\s*"([A-Z]+)",\s*f?"([^"]+)"', source))
+    called = set(
+        re.findall(
+            r'self\.(?:request|_request_object|_request_list)\(\s*"([A-Z]+)",\s*f?"([^"]+)"',
+            source,
+        )
+    )
     registered = {
         (method, route.path)
         for route in app.routes

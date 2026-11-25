@@ -44,10 +44,10 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 
 ## Checks CI runs
 
-Backend (`.github/workflows/backend-checks.yml`, Python 3.12, runs when `backend/`, `sandbox/` or `scripts/` change). From `backend/`:
+Backend (`.github/workflows/backend-checks.yml`, Python 3.12, runs when `backend/`, `mcp-server/`, `sandbox/` or `scripts/` change). From `backend/`:
 
 - Lint tools only, no project deps: `pip install ruff==0.15.0 mypy types-redis deptry pip-audit`. A venv with project deps gives dozens of unrelated mypy errors; use a throwaway venv with just these.
-- `ruff check .`, `ruff format --check .`, `mypy app/`, `deptry . --requirements-files requirements.txt`. `pip-audit -r requirements.lock` is non-blocking.
+- `ruff check . ../mcp-server`, `ruff format --check . ../mcp-server`, `mypy app/`, `mypy --config-file pyproject.toml ../mcp-server`, `deptry . --requirements-files requirements.txt`. `pip-audit -r requirements.lock` is non-blocking.
 - Tests: `uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist`, then `COVERAGE_CORE=sysmon pytest tests -n auto --cov=app --cov-fail-under=85`.
 
 Frontend (`.github/workflows/frontend-checks.yml`, Node 20, runs when `frontend/` changes). From `frontend/`, after `npm ci --legacy-peer-deps`:

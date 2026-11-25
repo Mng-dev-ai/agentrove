@@ -7,9 +7,10 @@ cd frontend
 npx lint-staged
 cd ..
 
-# Backend CI runs Ruff on the whole backend tree. Running the shared pre-commit
-# hooks on staged backend paths catches the same failures before PR creation.
-backend_files=$(git diff --cached --name-only --diff-filter=ACMR | grep '^backend/' || true)
-if [ -n "$backend_files" ]; then
-  pre-commit run --files $backend_files
+# Backend CI runs Ruff on the whole backend and mcp-server trees. Running the
+# shared pre-commit hooks on staged paths there catches the same failures
+# before PR creation.
+python_files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '^(backend|mcp-server)/' || true)
+if [ -n "$python_files" ]; then
+  pre-commit run --files $python_files
 fi
