@@ -10,14 +10,9 @@ import type { Chat } from '@/types/chat.types';
 import type { Channel } from '@/types/channel.types';
 import { useChannelStore } from '@/store/channelStore';
 import { useMachineOnline } from '@/store/machineStore';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { LOCAL_MACHINE_ID, type MachineQueryOptions } from '@/types/machine.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
-
-interface MachineQueryOptions {
-  enabled?: boolean;
-  machineId?: string;
-}
 
 const EMPTY_WORKSPACES: Workspace[] = [];
 
@@ -46,10 +41,10 @@ export const useWorkspacesList = (options?: MachineQueryOptions): Workspace[] =>
   useWorkspacesQuery(options).data ?? EMPTY_WORKSPACES;
 
 export const useWorkspaceResourcesQuery = (
+  machineId: string,
   workspaceId: string | undefined,
-  options?: MachineQueryOptions,
+  enabled = true,
 ) => {
-  const machineId = options?.machineId ?? LOCAL_MACHINE_ID;
   const online = useMachineOnline(machineId);
   return useQuery({
     queryKey:
@@ -57,7 +52,7 @@ export const useWorkspaceResourcesQuery = (
         ? queryKeys.workspaceResources(workspaceId)
         : queryKeys.machine.workspaceResources(machineId, workspaceId),
     queryFn: () => workspaceService.getWorkspaceResources(machineId, workspaceId!),
-    enabled: (options?.enabled ?? true) && online && !!workspaceId,
+    enabled: enabled && online && !!workspaceId,
     staleTime: 30_000,
   });
 };

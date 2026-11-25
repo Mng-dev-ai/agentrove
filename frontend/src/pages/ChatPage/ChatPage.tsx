@@ -153,9 +153,10 @@ export function ChatPage() {
   // Remote chats resolve personas against their machine's settings list.
   const { data: settings } = useSettingsForChatQuery(chatId);
 
-  const { data: workspaceResources } = useWorkspaceResourcesQuery(currentChat?.workspace_id, {
-    machineId: useChatMachineId(chatId),
-  });
+  const { data: workspaceResources } = useWorkspaceResourcesQuery(
+    useChatMachineId(chatId),
+    currentChat?.workspace_id,
+  );
 
   useEffect(() => {
     useChatStore.getState().setCurrentChat(currentChat || null);

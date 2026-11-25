@@ -7,13 +7,8 @@ import { retryTransientOnce } from './listLoad';
 import { queryKeys } from './queryKeys';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineOnline } from '@/store/machineStore';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { LOCAL_MACHINE_ID, type MachineQueryOptions } from '@/types/machine.types';
 import { writeVersionedSettings } from '@/utils/settings';
-
-interface SettingsQueryOptions {
-  enabled?: boolean;
-  machineId?: string;
-}
 
 type SettingsWrite =
   | { data: UserSettingsUpdate }
@@ -29,7 +24,7 @@ export const settingsQuery = (machineId: string) => ({
 
 // Settings are per-instance: a remote chat's personas and stream actions live on
 // the machine that owns it.
-export const useSettingsQuery = (options?: SettingsQueryOptions) => {
+export const useSettingsQuery = (options?: MachineQueryOptions) => {
   const machineId = options?.machineId ?? LOCAL_MACHINE_ID;
   const online = useMachineOnline(machineId);
   return useQuery({

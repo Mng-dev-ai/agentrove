@@ -25,9 +25,10 @@ interface AgentPaneProps {
 export const AgentPane = memo(function AgentPane({ chatId, agentTile }: AgentPaneProps) {
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
   const { fileStructure } = useSandboxFiles(currentChat, chatId);
-  const { data: workspaceResources } = useWorkspaceResourcesQuery(currentChat?.workspace_id, {
-    machineId: useChatMachineId(chatId),
-  });
+  const { data: workspaceResources } = useWorkspaceResourcesQuery(
+    useChatMachineId(chatId),
+    currentChat?.workspace_id,
+  );
   // Personas come from the instance that owns the chat (local or cloud VPS).
   const { data: settings } = useSettingsForChatQuery(chatId);
   const isMobile = useIsMobile();

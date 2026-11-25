@@ -56,9 +56,7 @@ export function StreamActionEditDialog({
 }: StreamActionEditDialogProps) {
   const { data: models = [] } = useModelsQuery({ machineId: action.machineId });
   const workspaceId = useWorkspacesList({ machineId: action.machineId })[0]?.id;
-  const { data: resources } = useWorkspaceResourcesQuery(workspaceId, {
-    machineId: action.machineId,
-  });
+  const { data: resources } = useWorkspaceResourcesQuery(action.machineId, workspaceId);
   const builtinSlashCommands = resources?.builtin_slash_commands ?? EMPTY_BUILTIN_COMMANDS;
 
   // Seed model when missing/left registry. Effect: onActionChange writes parent state.

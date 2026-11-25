@@ -186,8 +186,9 @@ export function LandingPage() {
 
   // Slash commands are per-instance — the target machine's list before a chat exists.
   const { data: resolvedWorkspaceResources } = useWorkspaceResourcesQuery(
+    targetMachineId,
     selectedWorkspaceId ?? undefined,
-    { machineId: targetMachineId, enabled: isAuthenticated },
+    isAuthenticated,
   );
 
   // Personas are per-instance — the target machine's list so create resolves against it.
