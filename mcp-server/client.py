@@ -173,7 +173,7 @@ class AgentroveClient:
         params = {"agent_kind": agent_kind} if agent_kind else None
         return await self._request_list("GET", "/models/", params=params)
 
-    async def resolve_model(self, model_id: str | None) -> tuple[str, str]:
+    async def resolve_model(self, model_id: str | None) -> dict[str, Any]:
         # agent_kind must come from the registry (drives permission mode).
         if self._models_cache is None:
             resp = await self.request("GET", "/models/")
@@ -187,7 +187,7 @@ class AgentroveClient:
             chosen = next((m for m in models if m["model_id"] == model_id), None)
             if chosen is None:
                 raise AgentroveError(f"Unknown model_id: {model_id}")
-        return chosen["model_id"], chosen["agent_kind"]
+        return chosen
 
     async def create_chat(
         self,
