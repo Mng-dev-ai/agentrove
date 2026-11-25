@@ -8,6 +8,7 @@ on:
       - 'sandbox/**'
       - 'scripts/**'
       - 'mcp-server/**'
+      - 'desktop/requirements*'
       - '.github/workflows/backend-checks.yml'
   pull_request:
     branches: [main]
@@ -16,6 +17,7 @@ on:
       - 'sandbox/**'
       - 'scripts/**'
       - 'mcp-server/**'
+      - 'desktop/requirements*'
       - '.github/workflows/backend-checks.yml'
 
 jobs:
@@ -63,6 +65,12 @@ jobs:
         run: |
           cd backend
           deptry . --requirements-files requirements.txt
+
+      - name: Check desktop requirements.lock is fresh
+        run: |
+          pip install uv==0.13.10
+          uv pip compile backend/requirements-core.txt -c backend/requirements.lock -o desktop/requirements.lock --python-version 3.12 --python-platform aarch64-apple-darwin --quiet
+          git diff --exit-code desktop/requirements.lock
 
       - name: Run pip-audit vulnerability scan
         continue-on-error: true
