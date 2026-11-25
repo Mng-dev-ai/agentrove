@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import io
 import logging
 import posixpath
@@ -34,21 +35,15 @@ from app.services.sandbox_providers.types import (
 logger = logging.getLogger(__name__)
 
 DOCKER_SANDBOX_CONTAINER_PREFIX = "agentrove-sandbox-"
-DOCKER_EXEC_ID_ENV = "AGENTROVE_EXEC_ID"
-# $1 is the NAME=value entry execute_command put in the command's environment.
-# Field 5 of /proc/<pid>/stat is the process group; the exec'd bash leads one.
-DOCKER_KILL_EXEC_SCRIPT = """\
-for dir in /proc/[0-9]*; do
-    while IFS= read -r -d "" entry; do
-        [[ $entry == "$1" ]] || continue
-        stat=$(<"$dir/stat") && set -- "$1" ${stat##*) } && kill -KILL -- "-$4"
-        break
-    done <"$dir/environ"
-done 2>/dev/null
-"""
+DOCKER_KILL_TIMEOUT = 5
+DOCKER_READ_TIMEOUT = 30
+# Prints the pid of the bash that runs the command ($1) before it starts: exec
+# keeps the pid, and the exec'd process leads its own process group.
+DOCKER_COMMAND_WRAPPER = 'echo $$; exec bash -c "$1"'
 # $1 is the file, $2 the workspace root. The containment check and the read
 # share one open fd, so swapping a symlink in between cannot redirect the read.
 DOCKER_READ_FILE_SCRIPT = """\
+PATH=/usr/bin:/bin
 root=$(cd -P -- "$2" && pwd) || exit 1
 [[ -f $1 ]] || { echo "File not found" >&2; exit 1; }
 exec 3<"$1" || exit 1
@@ -344,24 +339,57 @@ class LocalDockerProvider(SandboxProvider):
 
         return items
 
-    async def _collect_exec_output(self, exec_obj: Any) -> tuple[int, str]:
+    async def _drain_exec(self, exec_obj: Any, messages: list[Any]) -> int:
         stream = exec_obj.start()
-        output_parts: list[bytes] = []
         try:
             while True:
                 msg = await stream.read_out()
                 if msg is None:
                     break
-                output_parts.append(msg.data)
+                messages.append(msg)
         finally:
             try:
                 await stream.close()
             except Exception:
                 pass
         exec_info = await exec_obj.inspect()
-        exit_code = exec_info.get("ExitCode", -1)
-        output = b"".join(output_parts).decode("utf-8", errors="replace")
-        return exit_code, output
+        exit_code: int = exec_info.get("ExitCode", -1)
+        return exit_code
+
+    async def _collect_exec_output(self, exec_obj: Any) -> tuple[int, str]:
+        messages: list[Any] = []
+        exit_code = await self._drain_exec(exec_obj, messages)
+        output = b"".join(msg.data for msg in messages)
+        return exit_code, output.decode("utf-8", errors="replace")
+
+    @staticmethod
+    def _split_leader_pid(messages: list[Any]) -> tuple[int | None, bytes]:
+        # The pid line opens stdout, but stderr frames can arrive ahead of it;
+        # an exec that never reached the wrapper has no pid line.
+        leader_pid: int | None = None
+        seen_stdout = False
+        output_parts: list[bytes] = []
+        for msg in messages:
+            data = msg.data
+            if msg.stream == 1 and not seen_stdout:
+                seen_stdout = True
+                pid, newline, rest = data.partition(b"\n")
+                if newline and pid.isdigit():
+                    leader_pid, data = int(pid), rest
+            output_parts.append(data)
+        return leader_pid, b"".join(output_parts)
+
+    async def _kill_process_group(self, container: Any, pgid: int) -> None:
+        # As root so sudo'd members die too; bounded and best-effort so the
+        # caller's TimeoutError is neither delayed nor replaced.
+        with contextlib.suppress(
+            asyncio.TimeoutError, aiodocker.exceptions.DockerError, aiohttp.ClientError
+        ):
+            async with asyncio.timeout(DOCKER_KILL_TIMEOUT):
+                kill_exec = await container.exec(
+                    cmd=["/bin/bash", "-c", f"kill -KILL -- -{pgid}"], user="root"
+                )
+                await self._collect_exec_output(kill_exec)
 
     async def execute_command(
         self,
@@ -376,33 +404,36 @@ class LocalDockerProvider(SandboxProvider):
         ):
             # aiodocker merges stdout/stderr, so stderr is always empty.
             container = await self._get_container(sandbox_id)
-            exec_id = f"{DOCKER_EXEC_ID_ENV}={uuid.uuid4().hex}"
-            env_list = [f"{k}={v}" for k, v in (envs or {}).items()] + [exec_id]
+            env_list = [f"{k}={v}" for k, v in (envs or {}).items()]
 
             # Exec from the workspace root so relative cwd prefixes (e.g.
             # `cd '.worktrees/abc' && ...`) resolve against the project files,
             # not the user's home dir.
             exec_obj = await container.exec(
-                cmd=["bash", "-c", command],
+                cmd=["/bin/bash", "-c", DOCKER_COMMAND_WRAPPER, "bash", command],
                 environment=env_list,
                 workdir=self.workspace_root,
             )
 
+            messages: list[Any] = []
             try:
-                exit_code, output_str = await asyncio.wait_for(
-                    self._collect_exec_output(exec_obj),
+                exit_code = await asyncio.wait_for(
+                    self._drain_exec(exec_obj, messages),
                     timeout=timeout,
                 )
             except asyncio.TimeoutError:
-                # Closing the stream leaves the process running; kill every
-                # process group still carrying this exec's id, as the user.
-                kill_exec = await container.exec(
-                    cmd=["bash", "-c", DOCKER_KILL_EXEC_SCRIPT, "bash", exec_id]
-                )
-                await self._collect_exec_output(kill_exec)
+                # Closing the stream leaves the process running.
+                leader_pid, _ = self._split_leader_pid(messages)
+                if leader_pid is not None:
+                    await self._kill_process_group(container, leader_pid)
                 raise TimeoutError(f"Command execution timed out after {timeout}s")
 
-            return CommandResult(stdout=output_str, stderr="", exit_code=exit_code)
+            _, output = self._split_leader_pid(messages)
+            return CommandResult(
+                stdout=output.decode("utf-8", errors="replace"),
+                stderr="",
+                exit_code=exit_code,
+            )
 
     @staticmethod
     def _build_file_tar(filename: str, content_bytes: bytes) -> bytes:
@@ -463,8 +494,13 @@ class LocalDockerProvider(SandboxProvider):
             stderr: list[bytes] = []
             stream = exec_obj.start()
             try:
-                while (msg := await stream.read_out()) is not None:
-                    (stdout if msg.stream == 1 else stderr).append(msg.data)
+                async with asyncio.timeout(DOCKER_READ_TIMEOUT):
+                    while (msg := await stream.read_out()) is not None:
+                        (stdout if msg.stream == 1 else stderr).append(msg.data)
+            except asyncio.TimeoutError:
+                raise SandboxException(
+                    f"Cannot read {path}: timed out after {DOCKER_READ_TIMEOUT}s"
+                ) from None
             finally:
                 await stream.close()
             exit_code = (await exec_obj.inspect()).get("ExitCode", -1)
@@ -481,7 +517,7 @@ class LocalDockerProvider(SandboxProvider):
         content_bytes = await self._read_exec_stdout(
             sandbox_id,
             [
-                "bash",
+                "/bin/bash",
                 "-c",
                 DOCKER_READ_FILE_SCRIPT,
                 "bash",

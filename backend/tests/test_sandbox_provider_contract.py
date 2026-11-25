@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import aiodocker
-import aiohttp
 import pytest
 from aiodocker.exceptions import DockerError
 from aiodocker.utils import mktar_from_dockerfile
@@ -90,7 +89,10 @@ async def open_docker_sandbox() -> AsyncIterator[Sandbox]:
     try:
         try:
             await docker.version()
-        except (aiohttp.ClientError, OSError):
+        except DockerError as e:
+            # aiodocker reports a failed connection as status 900.
+            if e.status != 900:
+                raise
             pytest.skip("no Docker daemon reachable")
         await ensure_test_image(docker)
         # The default bridge always exists, so nothing is left behind.
@@ -196,14 +198,15 @@ async def test_git_list_files_honors_gitignore(sandbox: Sandbox) -> None:
     ]
 
 
+@pytest.mark.parametrize("prefix", ["", "exec env -i "])
 async def test_execute_command_timeout_kills_foreground_and_background_children(
-    sandbox: Sandbox,
+    sandbox: Sandbox, prefix: str
 ) -> None:
+    script = "(sleep 2; touch background-marker) & sleep 2; touch foreground-marker"
+
     with pytest.raises(TimeoutError):
         await sandbox.provider.execute_command(
-            sandbox.sandbox_id,
-            "(sleep 2; touch background-marker) & sleep 2; touch foreground-marker",
-            timeout=1,
+            sandbox.sandbox_id, f"{prefix}/bin/sh -c '{script}'", timeout=1
         )
 
     await asyncio.sleep(3)
