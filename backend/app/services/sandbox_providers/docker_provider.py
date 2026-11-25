@@ -34,6 +34,30 @@ from app.services.sandbox_providers.types import (
 logger = logging.getLogger(__name__)
 
 DOCKER_SANDBOX_CONTAINER_PREFIX = "agentrove-sandbox-"
+DOCKER_EXEC_ID_ENV = "AGENTROVE_EXEC_ID"
+# $1 is the NAME=value entry execute_command put in the command's environment.
+# Field 5 of /proc/<pid>/stat is the process group; the exec'd bash leads one.
+DOCKER_KILL_EXEC_SCRIPT = """\
+for dir in /proc/[0-9]*; do
+    while IFS= read -r -d "" entry; do
+        [[ $entry == "$1" ]] || continue
+        stat=$(<"$dir/stat") && set -- "$1" ${stat##*) } && kill -KILL -- "-$4"
+        break
+    done <"$dir/environ"
+done 2>/dev/null
+"""
+# $1 is the file, $2 the workspace root. The containment check and the read
+# share one open fd, so swapping a symlink in between cannot redirect the read.
+DOCKER_READ_FILE_SCRIPT = """\
+root=$(cd -P -- "$2" && pwd) || exit 1
+[[ -f $1 ]] || { echo "File not found" >&2; exit 1; }
+exec 3<"$1" || exit 1
+[[ $(readlink "/proc/$$/fd/3") == "$root"/* ]] || {
+    echo "Path escapes workspace root" >&2
+    exit 1
+}
+cat <&3
+"""
 
 
 @dataclass
@@ -285,8 +309,12 @@ class LocalDockerProvider(SandboxProvider):
             return SandboxProvider.parse_git_ls_files(git_result.stdout)
 
         # Non-git fallback.
+        skip_dirs = " -o ".join(
+            f"-name {shlex.quote(name)}" for name in sorted(self.WALK_SKIP_DIRS)
+        )
         find_command = (
-            f"find {shlex.quote(target_path)} -mindepth 1 -printf '%P\\0%y\\0'"
+            f"find {shlex.quote(target_path)} -mindepth 1"
+            f" -type d \\( {skip_dirs} \\) -prune -o -printf '%P\\0%y\\0'"
         )
         result = await self.execute_command(sandbox_id, find_command, timeout=30)
         return self._parse_find_output(result.stdout)
@@ -348,7 +376,8 @@ class LocalDockerProvider(SandboxProvider):
         ):
             # aiodocker merges stdout/stderr, so stderr is always empty.
             container = await self._get_container(sandbox_id)
-            env_list = [f"{k}={v}" for k, v in (envs or {}).items()]
+            exec_id = f"{DOCKER_EXEC_ID_ENV}={uuid.uuid4().hex}"
+            env_list = [f"{k}={v}" for k, v in (envs or {}).items()] + [exec_id]
 
             # Exec from the workspace root so relative cwd prefixes (e.g.
             # `cd '.worktrees/abc' && ...`) resolve against the project files,
@@ -365,6 +394,12 @@ class LocalDockerProvider(SandboxProvider):
                     timeout=timeout,
                 )
             except asyncio.TimeoutError:
+                # Closing the stream leaves the process running; kill every
+                # process group still carrying this exec's id, as the user.
+                kill_exec = await container.exec(
+                    cmd=["bash", "-c", DOCKER_KILL_EXEC_SCRIPT, "bash", exec_id]
+                )
+                await self._collect_exec_output(kill_exec)
                 raise TimeoutError(f"Command execution timed out after {timeout}s")
 
             return CommandResult(stdout=output_str, stderr="", exit_code=exit_code)
@@ -416,44 +451,14 @@ class LocalDockerProvider(SandboxProvider):
             await container.put_archive("/tmp", tar)
             return posixpath.join("/tmp", filename)
 
-    async def read_file(
-        self,
-        sandbox_id: str,
-        path: str,
-    ) -> FileContent:
-        async with self._docker_operation("read file from Docker sandbox"):
-            # get_archive returns a tar; take the first member.
-            container = await self._get_container(sandbox_id)
-            normalized_path = self.resolve_workspace_path(path)
-
-            tar_obj = await container.get_archive(normalized_path)
-
-            content_bytes = b""
-            members = tar_obj.getmembers()
-            if members:
-                f = tar_obj.extractfile(members[0])
-                if f:
-                    content_bytes = f.read()
-
-            content, is_binary = self.encode_file_content(path, content_bytes)
-
-            return FileContent(
-                path=path,
-                content=content,
-                type="file",
-                is_binary=is_binary,
-            )
-
-    async def read_file_bytes(
-        self, sandbox_id: str, path: str, max_bytes: int
+    async def _read_exec_stdout(
+        self, sandbox_id: str, cmd: list[str], path: str
     ) -> bytes:
         # Exec runs as the container's sandbox user, so permissions match what
         # the agent sees; get_archive would read as root.
         async with self._docker_operation("read file from Docker sandbox"):
             container = await self._get_container(sandbox_id)
-            exec_obj = await container.exec(
-                cmd=["head", "-c", str(max_bytes), "--", path]
-            )
+            exec_obj = await container.exec(cmd=cmd)
             stdout: list[bytes] = []
             stderr: list[bytes] = []
             stream = exec_obj.start()
@@ -467,6 +472,33 @@ class LocalDockerProvider(SandboxProvider):
             error = b"".join(stderr).decode("utf-8", errors="replace").strip()
             raise SandboxException(f"Cannot read {path}: {error}")
         return b"".join(stdout)
+
+    async def read_file(
+        self,
+        sandbox_id: str,
+        path: str,
+    ) -> FileContent:
+        content_bytes = await self._read_exec_stdout(
+            sandbox_id,
+            [
+                "bash",
+                "-c",
+                DOCKER_READ_FILE_SCRIPT,
+                "bash",
+                self.resolve_workspace_path(path),
+                self.workspace_root,
+            ],
+            path,
+        )
+        content, is_binary = self.encode_file_content(path, content_bytes)
+        return FileContent(path=path, content=content, type="file", is_binary=is_binary)
+
+    async def read_file_bytes(
+        self, sandbox_id: str, path: str, max_bytes: int
+    ) -> bytes:
+        return await self._read_exec_stdout(
+            sandbox_id, ["head", "-c", str(max_bytes), "--", path], path
+        )
 
     async def create_pty(
         self,

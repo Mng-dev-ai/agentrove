@@ -166,26 +166,6 @@ class LocalHostProvider(SandboxProvider):
                 return b""
             return f.read(max_bytes)
 
-    # os.walk skip list (non-git) — mirrors common .gitignore entries.
-    WALK_SKIP_DIRS = frozenset(
-        {
-            ".git",
-            "node_modules",
-            ".venv",
-            "venv",
-            "__pycache__",
-            ".next",
-            ".nuxt",
-            "dist",
-            "build",
-            ".pytest_cache",
-            ".mypy_cache",
-            ".ruff_cache",
-            ".tox",
-            ".eggs",
-        }
-    )
-
     @staticmethod
     def _walk_files(base_dir: Path) -> list[FileMetadata]:
         items: list[FileMetadata] = []
