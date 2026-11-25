@@ -2,6 +2,7 @@ import argparse
 import ctypes
 import json
 import os
+import re
 import signal
 import statistics
 import subprocess
@@ -19,7 +20,26 @@ SCENARIOS = {
     "scroll_5k": "/chat/{chat_5k}",
     "diff": "/chat/{chat_diff}",
     "switch": "/",
+    "cells_5k_plain": "/chat/{chat_5k}",
+    "cells_5k_wrapped": "/chat/{chat_5k}",
+    "cells_5k_trailoff": "/chat/{chat_5k}",
 }
+VARIANTS = {
+    "cells_5k_wrapped": "wrapped",
+    "cells_5k_trailoff": "trailoff",
+}
+RENDERER_NAMES = {
+    "wkwebview": "com.apple.WebKit.WebContent",
+    "electron": "Electron Helper (Renderer)",
+}
+BREAKDOWN_COMMANDS = (
+    ("footprint", ["sudo", "-n", "footprint"]),
+    ("vmmap", ["sudo", "-n", "vmmap", "--summary"]),
+)
+BREAKDOWN_TIMEOUT_S = 120
+SIZE = r"(\d+(?:\.\d+)?) ([KMGT]?B)"
+FOOTPRINT_ROW = re.compile(rf"^\s*{SIZE}\s+{SIZE}\s+{SIZE}\s+(\d+)\s+(\S.*?)\s*$")
+UNITS = {"B": 1, "KB": 1024, "MB": 1024**2, "GB": 1024**3, "TB": 1024**4}
 WIDTH = 960
 HEIGHT = 640
 RUN_TIMEOUT_S = 300
@@ -121,6 +141,36 @@ class ProcessSampler:
             "procs": procs,
         }
 
+    @staticmethod
+    def breakdown(pid: int) -> tuple[str, str]:
+        failures = []
+        for tool, cmd in BREAKDOWN_COMMANDS:
+            try:
+                done = subprocess.run(
+                    [*cmd, str(pid)],
+                    capture_output=True,
+                    text=True,
+                    timeout=BREAKDOWN_TIMEOUT_S,
+                )
+            except subprocess.TimeoutExpired:
+                failures.append(f"{tool}: timeout")
+                continue
+            if done.returncode == 0 and done.stdout.strip():
+                return tool, done.stdout
+            failures.append(f"{tool}: rc={done.returncode} {done.stderr.strip()}")
+        return "none", "\n".join(failures)
+
+    @staticmethod
+    def footprint_categories(text: str) -> dict[str, int]:
+        categories = {}
+        for line in text.splitlines():
+            row = FOOTPRINT_ROW.match(line)
+            if row and row.group(8) != "TOTAL":
+                categories[row.group(8)] = int(
+                    float(row.group(1)) * UNITS[row.group(2)]
+                )
+        return categories
+
 
 class Orchestrator:
     def __init__(self, args: argparse.Namespace) -> None:
@@ -160,6 +210,7 @@ class Orchestrator:
             "t0EpochMs": t0,
             "accessToken": self.tokens["access_token"],
             "refreshToken": self.tokens["refresh_token"],
+            "variant": VARIANTS.get(scenario, "plain"),
             "chats": chats,
             "diffFiles": diff["modified_files"] + diff["untracked_files"],
             "screenshot": screenshot,
@@ -171,6 +222,25 @@ class Orchestrator:
             if not set(pids) & set(self.sampler.table()):
                 return
             time.sleep(0.2)
+
+    def mark(
+        self, host: str, main_pid: int, baseline: set[int], out_dir: Path, name: str
+    ) -> dict[str, Any]:
+        sample = self.sampler.sample(host, main_pid, baseline)
+        renderers = [p for p in sample["procs"] if p["name"] == RENDERER_NAMES[host]]
+        target = max(renderers, key=lambda p: p["footprint"] or 0)
+        tool, text = self.sampler.breakdown(target["pid"])
+        (out_dir / f"breakdown-{name}.txt").write_text(text)
+        return {
+            "footprint": sample["footprint"],
+            "procs": sample["procs"],
+            "renderer_pid": target["pid"],
+            "renderer_footprint": target["footprint"],
+            "tool": tool,
+            "categories": self.sampler.footprint_categories(text)
+            if tool == "footprint"
+            else {},
+        }
 
     def run_one(self, host: str, scenario: str, run: int) -> dict[str, Any]:
         out_dir = self.args.out / "raw" / scenario / host / str(run)
@@ -199,10 +269,16 @@ class Orchestrator:
             stderr=subprocess.STDOUT,
         )
         peak = {"footprint": 0, "rss": 0}
+        marks: dict[str, Any] = {}
         deadline = time.monotonic() + RUN_TIMEOUT_S
         while not result_file.exists() and time.monotonic() < deadline:
             if proc.poll() is not None:
                 break
+            for path in sorted(out_dir.glob("mark-*")):
+                name = path.name.removeprefix("mark-")
+                if name not in marks:
+                    marks[name] = self.mark(host, proc.pid, baseline, out_dir, name)
+                    (out_dir / f"ack-{name}").touch()
             sample = self.sampler.sample(host, proc.pid, baseline)
             peak["footprint"] = max(peak["footprint"], sample["footprint"])
             peak["rss"] = max(peak["rss"], sample["rss"])
@@ -242,6 +318,7 @@ class Orchestrator:
                     "settled_rss": statistics.median(s["rss"] for s in settled_samples),
                     "settled_procs": settled_samples[-1]["procs"],
                     "footprint_missing": settled_samples[-1]["footprint_missing"],
+                    "marks": marks,
                 },
             }
         )

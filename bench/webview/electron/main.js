@@ -35,6 +35,14 @@ ipcMain.on('bench', async (_event, raw) => {
     const image = await win.webContents.capturePage();
     fs.writeFileSync(path.join(config.out_dir, 'screenshot.png'), image.toPNG());
     win.webContents.executeJavaScript('window.__benchSnapshotDone && window.__benchSnapshotDone()');
+  } else if (msg.type === 'mark') {
+    fs.writeFileSync(path.join(config.out_dir, `mark-${msg.name}`), '');
+    const ack = path.join(config.out_dir, `ack-${msg.name}`);
+    const timer = setInterval(() => {
+      if (!fs.existsSync(ack)) return;
+      clearInterval(timer);
+      win.webContents.executeJavaScript('window.__benchMarkDone && window.__benchMarkDone()');
+    }, 100);
   } else if (msg.type === 'result') {
     fs.writeFileSync(
       path.join(config.out_dir, 'result.json'),

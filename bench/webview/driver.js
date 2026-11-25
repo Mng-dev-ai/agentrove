@@ -7,7 +7,60 @@
   const SWITCH_COUNT = 10;
   const HISTORY_TARGET_MESSAGES = 300;
   const SCROLL_DOWN_MS = 15000;
+  const CELL_COUNTS = [20, 100, 320];
+  const CELL_FRAMES = 150;
+  const CELL_MAX_MS = 8000;
+  const CELL_WINDOW_PX = 9000;
+  const SPEEDS = { human: 60, fast: 460 };
+  const TRAIL_PASS_PER_SPAN = 2;
+  const ROW_SELECTOR_PREFIX = '[data-message-id="';
   const errors = [];
+  const dom = { scroller: null, span: 0, nulled: 0, calls: {} };
+
+  const wrapDom = (proto, name, trailOff) => {
+    const orig = proto[name];
+    const c = { n: 0, ms: 0 };
+    dom.calls[name] = c;
+    proto[name] = function (...args) {
+      if (
+        trailOff &&
+        this === dom.scroller &&
+        typeof args[0] === 'string' &&
+        args[0].startsWith(ROW_SELECTOR_PREFIX)
+      ) {
+        if (!dom.span) queueMicrotask(() => (dom.span = 0));
+        dom.span += 1;
+        if (dom.span > TRAIL_PASS_PER_SPAN) {
+          dom.nulled += 1;
+          return null;
+        }
+      }
+      const t = performance.now();
+      const r = orig.apply(this, args);
+      c.ms += performance.now() - t;
+      c.n += 1;
+      return r;
+    };
+  };
+
+  if (cfg.variant === 'wrapped' || cfg.variant === 'trailoff') {
+    wrapDom(Element.prototype, 'querySelector', cfg.variant === 'trailoff');
+    wrapDom(Element.prototype, 'querySelectorAll', false);
+    wrapDom(Element.prototype, 'getBoundingClientRect', false);
+  }
+
+  const domSnapshot = () => {
+    const out = { nulled: dom.nulled };
+    for (const [name, c] of Object.entries(dom.calls)) out[name] = { n: c.n, ms: c.ms };
+    return out;
+  };
+  const domDelta = (a, b) => {
+    const out = { nulled: b.nulled - a.nulled };
+    for (const name of Object.keys(dom.calls)) {
+      out[name] = { n: b[name].n - a[name].n, ms: Math.round((b[name].ms - a[name].ms) * 100) / 100 };
+    }
+    return out;
+  };
 
   window.addEventListener('error', (e) => errors.push(String(e.message || e)));
   window.addEventListener('unhandledrejection', (e) => errors.push(String(e.reason)));
@@ -98,6 +151,7 @@
     return composerReady() && document.querySelectorAll('[data-message-id]').length >= Math.min(20, chat.messages);
   };
   const messageCount = () => document.querySelectorAll('[data-message-id]').length;
+  const elementCount = (el) => el.getElementsByTagName('*').length;
   const diffReady = () => {
     const rows = document.querySelectorAll('[data-diff-file-path]').length;
     if (rows < cfg.diffFiles) return false;
@@ -170,6 +224,86 @@
     state.refreshMs = refresh > 0 ? refresh : 1000 / 60;
   };
 
+  const mark = (name) =>
+    new Promise((resolve) => {
+      window.__benchMarkDone = resolve;
+      post({ type: 'mark', name });
+    });
+
+  const pageTo = async (el, target, pages) => {
+    while (messageCount() < target) {
+      const before = messageCount();
+      el.scrollTop = el.clientHeight;
+      await nextFrame();
+      await nextFrame();
+      const d0 = domSnapshot();
+      const t0 = performance.now();
+      el.scrollTop = 0;
+      await waitFor('older page', () => messageCount() > before);
+      const ms = (await painted()) - t0;
+      pages.push({ ms, from: before, to: messageCount(), elements: elementCount(el), dom: domDelta(d0, domSnapshot()) });
+      await sleep(200);
+    }
+  };
+
+  const scrollCell = async (el, speed) => {
+    const step = SPEEDS[speed];
+    const max = el.scrollHeight - el.clientHeight;
+    const span = Math.min(CELL_WINDOW_PX, max - 2 * el.clientHeight);
+    const lo = max - span;
+    el.scrollTop = lo;
+    await nextFrame();
+    await nextFrame();
+    await sleep(500);
+    const stamps = [];
+    const perFrame = [];
+    let pos = lo;
+    let dir = 1;
+    let travelled = 0;
+    let prev = domSnapshot();
+    const tStart = await nextFrame();
+    stamps.push(tStart);
+    for (;;) {
+      if (speed === 'human') {
+        pos = Math.min(max, pos + step);
+      } else {
+        pos += dir * step;
+        if (pos >= max) {
+          pos = max;
+          dir = -1;
+        } else if (pos <= lo) {
+          pos = lo;
+          dir = 1;
+        }
+      }
+      travelled += Math.abs(pos - el.scrollTop);
+      el.scrollTop = pos;
+      const now = await nextFrame();
+      stamps.push(now);
+      const snap = domSnapshot();
+      perFrame.push(domDelta(prev, snap));
+      prev = snap;
+      if ((speed === 'human' && pos >= max) || stamps.length > CELL_FRAMES || now - tStart > CELL_MAX_MS) break;
+    }
+    const stats = frameStats(stamps, state.refreshMs);
+    return {
+      speed,
+      step_px: step,
+      window_px: span,
+      travelled_px: travelled,
+      messages: messageCount(),
+      elements: elementCount(el),
+      fps: stats.fps,
+      p95_ms: stats.p95_ms,
+      median_ms: stats.median_ms,
+      long_frames: stats.long_frames,
+      frames: stats.frames,
+      duration_ms: stats.duration_ms,
+      deltas_ms: stats.deltas_ms,
+      dom_per_frame: dom.calls.querySelector ? perFrame : undefined,
+    };
+  };
+
   const timeClick = async (el, label, cond, pollMs) => {
     if (!el) throw new Error(`missing click target for ${label}`);
     const t0 = performance.now();
@@ -204,6 +338,31 @@
     return true;
   };
 
+  const cells5k = async () => {
+    await waitFor('chat_5k', () => chatReady('chat_5k'));
+    await idleCheck('idle');
+    await sleep(500);
+    const el = scroller();
+    if (!el) throw new Error('no transcript scroller');
+    dom.scroller = el;
+    const pages = [];
+    const cells = [];
+    const counts = cfg.variant === 'trailoff' ? [CELL_COUNTS[CELL_COUNTS.length - 1]] : CELL_COUNTS;
+    for (const count of counts) {
+      await pageTo(el, count, pages);
+      if (scroller() !== el) throw new Error('transcript scroller replaced');
+      for (const speed of Object.keys(SPEEDS)) {
+        const cell = await scrollCell(el, speed);
+        cell.mounted = count;
+        cells.push(cell);
+      }
+    }
+    state.details.pages = pages;
+    state.details.cells = cells;
+    state.details.trail_nulled = dom.nulled;
+    return true;
+  };
+
   const scenarios = {
     async launch_shell() {
       return launchPhase(shellReady, 'shell');
@@ -235,6 +394,9 @@
       await sleep(500);
       const el = scroller();
       if (!el) throw new Error('no transcript scroller');
+      state.details.marks = { open: { messages: messageCount(), elements: elementCount(el) } };
+      await mark('open');
+      await sleep(500);
       const startCount = messageCount();
       const stopUp = frameRecorder();
       const tUp = performance.now();
@@ -255,6 +417,9 @@
       state.metrics.history_page_median_ms = sortedPages[Math.floor(sortedPages.length / 2)];
       const up = frameStats(stopUp(), state.refreshMs);
       state.details.history = { start_messages: startCount, end_messages: messageCount(), page_ms: pages, frames: up };
+      await sleep(1000);
+      state.details.marks.paged = { messages: messageCount(), elements: elementCount(el) };
+      await mark('paged');
       el.scrollTop = 0;
       await nextFrame();
       await sleep(1000);
@@ -285,7 +450,19 @@
         scroll_set_max_ms: setCosts[setCosts.length - 1],
         frames: down,
       };
+      await sleep(1000);
+      state.details.marks.scrolled = { messages: messageCount(), elements: elementCount(el) };
+      await mark('scrolled');
       return true;
+    },
+    async cells_5k_plain() {
+      return cells5k();
+    },
+    async cells_5k_wrapped() {
+      return cells5k();
+    },
+    async cells_5k_trailoff() {
+      return cells5k();
     },
     async diff() {
       await waitFor('chat_diff', () => chatReady('chat_diff'));
@@ -340,6 +517,8 @@
       user_agent: navigator.userAgent,
       url: location.href,
       message_count: messageCount(),
+      variant: cfg.variant,
+      overflow_anchor: CSS.supports('overflow-anchor', 'auto'),
       body_text: error ? (document.body ? document.body.innerText.slice(0, 2000) : '') : undefined,
     };
     sessionStorage.removeItem(STATE_KEY);

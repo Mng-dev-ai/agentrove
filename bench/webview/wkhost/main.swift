@@ -83,6 +83,15 @@ final class Host: NSObject, NSApplicationDelegate, WKScriptMessageHandler {
                 }
                 self.webView.evaluateJavaScript("window.__benchSnapshotDone && window.__benchSnapshotDone()")
             }
+        } else if type == "mark", let name = msg["name"] as? String {
+            let dir = URL(fileURLWithPath: config.out_dir)
+            FileManager.default.createFile(atPath: dir.appendingPathComponent("mark-\(name)").path, contents: nil)
+            let ack = dir.appendingPathComponent("ack-\(name)").path
+            Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
+                guard FileManager.default.fileExists(atPath: ack) else { return }
+                timer.invalidate()
+                self.webView.evaluateJavaScript("window.__benchMarkDone && window.__benchMarkDone()")
+            }
         } else if type == "result", var result = msg["result"] as? [String: Any] {
             result["host_info"] = hostInfo()
             let data = try! JSONSerialization.data(withJSONObject: result)
