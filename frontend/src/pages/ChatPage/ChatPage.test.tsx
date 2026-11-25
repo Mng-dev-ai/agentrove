@@ -30,9 +30,6 @@ vi.mock('@/hooks/queries/useWorkspaceQueries', () => ({
   useWorkspacesList: () => [],
   useWorkspaceResourcesQuery: () => ({ data: undefined }),
 }));
-vi.mock('@/hooks/queries/useMachineQueries', () => ({
-  useMachineWorkspacesQuery: () => ({ data: undefined }),
-}));
 vi.mock('@/hooks/queries/useSettingsQueries', () => ({
   useSettingsForChatQuery: () => ({ data: undefined }),
 }));

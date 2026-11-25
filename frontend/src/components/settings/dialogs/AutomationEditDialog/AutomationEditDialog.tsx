@@ -22,7 +22,6 @@ import {
 } from '@/components/chat/permission-mode-selector/permissionModes';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { MemberChips } from '@/components/channels/CreateChannelDialog';
 import { resolveMemberNames } from '@/components/channels/memberDraft';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
@@ -66,10 +65,7 @@ export function AutomationEditDialog({
 }: AutomationEditDialogProps) {
   const { data: models = [] } = useModelsQuery({ machineId: form.machineId });
   const isLocal = form.machineId === LOCAL_MACHINE_ID;
-  const localWorkspaces = useWorkspacesList();
-  const { data: machineWorkspaces = [] } = useMachineWorkspacesQuery(form.machineId, !isLocal);
-
-  const workspaces = isLocal ? localWorkspaces : machineWorkspaces;
+  const workspaces = useWorkspacesList({ machineId: form.machineId });
   const machineOffline = !machineOptions.some((machine) => machine.id === form.machineId);
   const isChannel = form.target === 'channel';
   const memberNames = resolveMemberNames(form.members, models);

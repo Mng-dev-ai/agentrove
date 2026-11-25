@@ -69,8 +69,7 @@ export const queryKeys = {
       ] as const,
   },
   workspaces: ['workspaces'] as const,
-  workspaceResources: (workspaceId?: string, chatId?: string) =>
-    ['workspaces', workspaceId, 'resources', chatId] as const,
+  workspaceResources: (workspaceId?: string) => ['workspaces', workspaceId, 'resources'] as const,
   machine: {
     all: (machineId: string) => ['machine', machineId] as const,
     workspaces: (machineId: string) => ['machine', machineId, 'workspaces'] as const,
@@ -79,6 +78,9 @@ export const queryKeys = {
     settings: (machineId: string) => ['machine', machineId, 'settings'] as const,
     models: (machineId: string) => ['machine', machineId, 'models'] as const,
     chats: (machineId: string) => ['machine', machineId, 'chats'] as const,
+    chatsSearch: (machineId: string, query: string) =>
+      ['machine', machineId, 'chats', 'search', query] as const,
+    chatsSearchAll: (machineId: string) => ['machine', machineId, 'chats', 'search'] as const,
     chatsPage: (machineId: string, page: number) =>
       ['machine', machineId, 'chats', 'page', page] as const,
     activeStreams: (machineId: string) => ['machine', machineId, 'active-streams'] as const,

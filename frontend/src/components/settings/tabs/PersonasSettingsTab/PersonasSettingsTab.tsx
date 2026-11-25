@@ -8,8 +8,8 @@ import { queryKeys } from '@/hooks/queries/queryKeys';
 import {
   type MachineSettingsItem,
   useMachinesSettingsList,
-  useUpdateMachineSettingsMutation,
 } from '@/hooks/queries/useMachineQueries';
+import { useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
 import { ValidationError } from '@/services/base/ServiceError';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createDefaultPersonaForm, validatePersonaForm } from '@/utils/settings';
@@ -55,7 +55,7 @@ export function PersonasSettingsTab() {
     load: remoteLoad,
   } = useMachinesSettingsList('personas', 'No personas match these filters');
   const queryClient = useQueryClient();
-  const remoteMutation = useUpdateMachineSettingsMutation({
+  const remoteMutation = useUpdateSettingsMutation({
     scope: { id: 'machine-personas' },
     onError: (_error, { machineId }) =>
       queryClient.invalidateQueries({ queryKey: queryKeys.machine.settings(machineId) }),

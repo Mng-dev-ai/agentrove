@@ -3,18 +3,14 @@ import type { FileStructure } from '@/types/file-system.types';
 import type { Persona } from '@/types/user.types';
 import type { SlashCommand } from '@/types/ui.types';
 import type { AgentKind } from '@/types/chat.types';
-import type { Workspace } from '@/types/workspace.types';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useAuthStore } from '@/store/authStore';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { ChatContext } from './ChatContextDefinition';
 import { EMPTY_BUILTIN_COMMANDS } from '@/config/constants';
 
 const EMPTY_FILES: FileStructure[] = [];
 const EMPTY_PERSONAS: Persona[] = [];
-const EMPTY_WORKSPACES: Workspace[] = [];
 
 interface ChatProviderProps {
   chatId?: string;
@@ -40,12 +36,11 @@ export function ChatProvider({
   const resolvedFileStructure = fileStructure ?? EMPTY_FILES;
   const resolvedBuiltinSlashCommands = builtinSlashCommands ?? EMPTY_BUILTIN_COMMANDS;
   const resolvedPersonas = personas ?? EMPTY_PERSONAS;
-  const machineId = useChatMachineId(chatId);
-  const isRemote = machineId !== LOCAL_MACHINE_ID;
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const localWorkspaces = useWorkspacesList({ enabled: isAuthenticated });
-  const { data: machineWorkspaces } = useMachineWorkspacesQuery(machineId, isRemote);
-  const workspaces = isRemote ? (machineWorkspaces ?? EMPTY_WORKSPACES) : localWorkspaces;
+  const workspaces = useWorkspacesList({
+    machineId: useChatMachineId(chatId),
+    enabled: isAuthenticated,
+  });
 
   const value = useMemo(
     () => ({

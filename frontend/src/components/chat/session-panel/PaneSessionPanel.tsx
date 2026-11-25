@@ -4,10 +4,8 @@ import { PanelHeader } from '@/components/layout/PaneHeader/PaneHeader';
 import { SessionPanelSlotContext, type Slots } from '@/contexts/SessionPanelSlotContext';
 import { createContextHook } from '@/hooks/createContextHook';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useUIStore } from '@/store/uiStore';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Chat } from '@/types/chat.types';
 import type { AgentTileId } from '@/types/ui.types';
 import { SessionPanel } from './SessionPanel';
@@ -51,13 +49,8 @@ export function PaneSessionPanelSlot({
 }
 
 function ChatSessionPanel({ chat }: { chat: Chat }) {
-  const workspaces = useWorkspacesList();
-  const machineId = useChatMachineId(chat.id);
-  const isRemote = machineId !== LOCAL_MACHINE_ID;
-  const { data: machineWorkspaces } = useMachineWorkspacesQuery(machineId, isRemote);
-  const workspace = (isRemote ? machineWorkspaces : workspaces)?.find(
-    (w) => w.id === chat.workspace_id,
-  );
+  const workspaces = useWorkspacesList({ machineId: useChatMachineId(chat.id) });
+  const workspace = workspaces.find((w) => w.id === chat.workspace_id);
   return <SessionPanel chat={chat} workspace={workspace} />;
 }
 

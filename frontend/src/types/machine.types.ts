@@ -1,5 +1,10 @@
 export const LOCAL_MACHINE_ID = 'local';
 
+export interface MachineQueryOptions {
+  enabled?: boolean;
+  machineId?: string;
+}
+
 export interface MachinePairing {
   instanceId: string;
   deviceId: string;

@@ -8,8 +8,8 @@ import { queryKeys } from '@/hooks/queries/queryKeys';
 import {
   type MachineSettingsItem,
   useMachinesSettingsList,
-  useUpdateMachineSettingsMutation,
 } from '@/hooks/queries/useMachineQueries';
+import { useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
 import { ValidationError } from '@/services/base/ServiceError';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createDefaultEnvVarForm, validateEnvVarForm } from '@/utils/settings';
@@ -61,7 +61,7 @@ export function EnvVarsSettingsTab() {
     load: remoteLoad,
   } = useMachinesSettingsList('custom_env_vars', 'No environment variables match these filters');
   const queryClient = useQueryClient();
-  const remoteMutation = useUpdateMachineSettingsMutation({
+  const remoteMutation = useUpdateSettingsMutation({
     scope: { id: 'machine-env-vars' },
     onError: (_error, { machineId }) =>
       queryClient.invalidateQueries({ queryKey: queryKeys.machine.settings(machineId) }),

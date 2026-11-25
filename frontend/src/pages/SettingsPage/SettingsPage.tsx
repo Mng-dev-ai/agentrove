@@ -18,9 +18,8 @@ import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
 import { useLogout } from '@/hooks/useLogout';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { settingsService } from '@/services/settingsService';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
-import { getGeneralSecretFields, writeVersionedSettings } from '@/utils/settings';
+import { getGeneralSecretFields } from '@/utils/settings';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { SettingsSidebarNav } from './SettingsSidebarNav';
 import { SettingsMobileNav } from './SettingsMobileNav';
@@ -149,14 +148,15 @@ export function SettingsPage() {
         const payload = buildChangedPayload(updatedSettings, previousSettings);
         if (Object.keys(payload).length === 0) return;
 
-        const result = options.versioned
-          ? await writeVersionedSettings(
-              previousSettings,
-              () => settingsService.getSettings(LOCAL_MACHINE_ID),
-              (settings) => buildChangedPayload(updater(settings), settings),
-              instantUpdateMutation.mutateAsync,
-            )
-          : await instantUpdateMutation.mutateAsync(payload);
+        const result = await instantUpdateMutation.mutateAsync(
+          options.versioned
+            ? {
+                machineId: LOCAL_MACHINE_ID,
+                read: previousSettings,
+                update: (settings) => buildChangedPayload(updater(settings), settings),
+              }
+            : { machineId: LOCAL_MACHINE_ID, data: payload },
+        );
         setLocalSettings(result);
         localSettingsRef.current = result;
         // Stable id collapses rapid successive autosaves into one updating toast

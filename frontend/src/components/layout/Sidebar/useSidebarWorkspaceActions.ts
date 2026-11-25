@@ -8,11 +8,6 @@ import {
   useDeleteWorkspaceMutation,
   useUpdateWorkspaceMutation,
 } from '@/hooks/queries/useWorkspaceQueries';
-import {
-  useMachineUpdateWorkspaceMutation,
-  useMachineDeleteWorkspaceMutation,
-} from '@/hooks/queries/useMachineQueries';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore, type MenuPosition } from '@/store/uiStore';
 import { useChatOrigins } from '@/store/machineOrigin';
@@ -57,8 +52,6 @@ export function useSidebarWorkspaceActions({
   const chatOrigins = useChatOrigins();
   const deleteWorkspace = useDeleteWorkspaceMutation();
   const updateWorkspace = useUpdateWorkspaceMutation();
-  const machineUpdateWorkspace = useMachineUpdateWorkspaceMutation();
-  const machineDeleteWorkspace = useMachineDeleteWorkspaceMutation();
 
   useMountEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -121,14 +114,15 @@ export function useSidebarWorkspaceActions({
     async (newName: string) => {
       if (!workspaceToRename) return;
       const { workspace, machineId } = workspaceToRename;
-      const data = { name: newName };
-      await (machineId === LOCAL_MACHINE_ID
-        ? updateWorkspace.mutateAsync({ workspaceId: workspace.id, data })
-        : machineUpdateWorkspace.mutateAsync({ machineId, workspaceId: workspace.id, data }));
+      await updateWorkspace.mutateAsync({
+        machineId,
+        workspaceId: workspace.id,
+        data: { name: newName },
+      });
       toast.success('Workspace renamed');
       setWorkspaceToRename(null);
     },
-    [workspaceToRename, updateWorkspace, machineUpdateWorkspace],
+    [workspaceToRename, updateWorkspace],
   );
 
   const handleDeleteWorkspace = useCallback((workspaceId: string, machineId: string) => {
@@ -141,10 +135,7 @@ export function useSidebarWorkspaceActions({
     const { id, machineId } = workspaceToDelete;
     try {
       await mutateWithToast(
-        () =>
-          machineId === LOCAL_MACHINE_ID
-            ? deleteWorkspace.mutateAsync(id)
-            : machineDeleteWorkspace.mutateAsync({ machineId, workspaceId: id }),
+        () => deleteWorkspace.mutateAsync({ machineId, workspaceId: id }),
         'Workspace deleted',
         'Failed to delete workspace',
       );
@@ -159,7 +150,6 @@ export function useSidebarWorkspaceActions({
   }, [
     workspaceToDelete,
     deleteWorkspace,
-    machineDeleteWorkspace,
     selectedChatId,
     selectedChannelId,
     selectedChatWorkspaceId,
@@ -175,7 +165,6 @@ export function useSidebarWorkspaceActions({
     workspaceToRename,
     setWorkspaceToRename,
     updateWorkspace,
-    machineUpdateWorkspace,
     handleNewWorkspaceThread,
     openWorkspaceMenu,
     handleRenameWorkspace,

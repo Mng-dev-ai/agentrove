@@ -39,7 +39,7 @@ import {
   useUpdateChannelMemberMutation,
 } from '@/hooks/queries/useChannelQueries';
 import { useModelMap, useModelsQuery } from '@/hooks/queries/useModelQueries';
-import { useSettingsForMachineQuery } from '@/hooks/queries/useSettingsQueries';
+import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import {
   useGitBranchesQuery,
   useGitDiffStatsQuery,
@@ -246,7 +246,7 @@ function MemberEditor({
 }) {
   const machineId = useChatMachineId(channel.anchor_chat_id);
   const { data: models = [] } = useModelsQuery({ machineId });
-  const { data: settings } = useSettingsForMachineQuery(machineId);
+  const { data: settings } = useSettingsQuery({ machineId });
   const personas = settings?.personas ?? [];
   const [draft, setDraft] = useState(() => (member ? memberDraftFrom(member) : newMemberDraft()));
   const [confirmingRemove, setConfirmingRemove] = useState(false);

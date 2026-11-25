@@ -18,6 +18,7 @@ import { useChatQuery, markChatViewed } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
+import { useChatMachineId } from '@/store/machineOrigin';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { InTilePaneHeader } from '@/components/layout/PaneHeader/PaneHeader';
 import { PaneSessionPanel } from '@/components/chat/session-panel/PaneSessionPanel';
@@ -153,8 +154,8 @@ export function ChatPage() {
   const { data: settings } = useSettingsForChatQuery(chatId);
 
   const { data: workspaceResources } = useWorkspaceResourcesQuery(
+    useChatMachineId(chatId),
     currentChat?.workspace_id,
-    chatId,
   );
 
   useEffect(() => {

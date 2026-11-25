@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
+import { useWorkspacesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useMachineName } from '@/store/machineStore';
 import { WorkspacePicker } from './WorkspacePicker';
 import styles from './MachineWorkspaceSelector.module.scss';
@@ -18,7 +18,7 @@ export function MachineWorkspaceSelector({
   disabled = false,
 }: MachineWorkspaceSelectorProps) {
   const name = useMachineName(machineId);
-  const { data: workspaces = [], isLoading, error } = useMachineWorkspacesQuery(machineId, true);
+  const { data: workspaces = [], isLoading, error } = useWorkspacesQuery({ machineId });
 
   useEffect(() => {
     if (!workspaces.length) return;

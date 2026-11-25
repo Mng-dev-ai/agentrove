@@ -10,10 +10,7 @@ import { useDraftField } from '@/hooks/useDraftField';
 import { useDefaultMachineId } from '@/hooks/useMachineFilter';
 import { listLoadState } from '@/hooks/queries/listLoad';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-import {
-  useMachineSettingsQuery,
-  useUpdateMachineSettingsMutation,
-} from '@/hooks/queries/useMachineQueries';
+import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
 import {
   LOCAL_MACHINE_NAME,
   useMachineStore,
@@ -72,10 +69,10 @@ export function InstructionsSettingsTab({ instructions, onPersist }: Instruction
       : defaultId;
   const isRemote = machineId !== LOCAL_MACHINE_ID;
 
-  const remoteQuery = useMachineSettingsQuery(machineId, isRemote);
+  const remoteQuery = useSettingsQuery({ machineId, enabled: isRemote });
   const remoteLoad = listLoadState([remoteQuery]);
   const queryClient = useQueryClient();
-  const remoteMutation = useUpdateMachineSettingsMutation({
+  const remoteMutation = useUpdateSettingsMutation({
     scope: { id: 'machine-instructions' },
     onError: (_error, variables) =>
       queryClient.invalidateQueries({ queryKey: queryKeys.machine.settings(variables.machineId) }),

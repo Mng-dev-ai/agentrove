@@ -18,11 +18,9 @@ import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useChatStore } from '@/store/chatStore';
 import { useUIStore } from '@/store/uiStore';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { channelMachineId } from '@/store/machineOrigin';
 import { useOnlineRemoteMachineIds } from '@/store/machineStore';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Channel } from '@/types/channel.types';
 import type { TileId } from '@/types/ui.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -98,8 +96,7 @@ export function ChannelPage() {
   const workspaces = useWorkspacesList();
   const { data: channel, error } = useChannelQuery(channelId);
   const channelMachine = channelMachineId(channelId);
-  const isRemote = channelMachine !== LOCAL_MACHINE_ID;
-  const { data: machineWorkspaces } = useMachineWorkspacesQuery(channelMachine, isRemote);
+  const channelWorkspaces = useWorkspacesList({ machineId: channelMachine });
   const onlineMachineIds = useOnlineRemoteMachineIds();
   const queryClient = useQueryClient();
   const isChannelGone = (error as (Error & { status?: number }) | null)?.status === 404;
@@ -136,9 +133,7 @@ export function ChannelPage() {
   return (
     <ChannelWorkspace
       channel={channel}
-      workspace={(isRemote ? machineWorkspaces : workspaces)?.find(
-        (w) => w.id === channel.workspace_id,
-      )}
+      workspace={channelWorkspaces.find((w) => w.id === channel.workspace_id)}
     />
   );
 }

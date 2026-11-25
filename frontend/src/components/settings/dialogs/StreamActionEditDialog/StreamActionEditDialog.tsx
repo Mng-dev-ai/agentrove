@@ -23,15 +23,10 @@ import {
 } from '@/components/chat/permission-mode-selector/permissionModes';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
-import {
-  useMachineWorkspaceResourcesQuery,
-  useMachineWorkspacesQuery,
-} from '@/hooks/queries/useMachineQueries';
 import { useSlashCommandSuggestions } from '@/hooks/useSlashCommandSuggestions';
 import { insertToken } from '@/utils/mentionParser';
 import { EMPTY_BUILTIN_COMMANDS } from '@/config/constants';
 import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import styles from './StreamActionEditDialog.module.scss';
 
 interface StreamActionEditDialogProps {
@@ -59,20 +54,9 @@ export function StreamActionEditDialog({
   onSubmit,
   onActionChange,
 }: StreamActionEditDialogProps) {
-  const isLocal = action.machineId === LOCAL_MACHINE_ID;
   const { data: models = [] } = useModelsQuery({ machineId: action.machineId });
-  const localWorkspaces = useWorkspacesList({ enabled: isLocal });
-  const { data: machineWorkspaces = [] } = useMachineWorkspacesQuery(action.machineId, !isLocal);
-  const workspaceId = (isLocal ? localWorkspaces : machineWorkspaces)[0]?.id;
-  const { data: localResources } = useWorkspaceResourcesQuery(workspaceId, undefined, {
-    enabled: isLocal && !!workspaceId,
-  });
-  const { data: machineResources } = useMachineWorkspaceResourcesQuery(
-    action.machineId,
-    workspaceId,
-    !isLocal,
-  );
-  const resources = isLocal ? localResources : machineResources;
+  const workspaceId = useWorkspacesList({ machineId: action.machineId })[0]?.id;
+  const { data: resources } = useWorkspaceResourcesQuery(action.machineId, workspaceId);
   const builtinSlashCommands = resources?.builtin_slash_commands ?? EMPTY_BUILTIN_COMMANDS;
 
   // Seed model when missing/left registry. Effect: onActionChange writes parent state.
