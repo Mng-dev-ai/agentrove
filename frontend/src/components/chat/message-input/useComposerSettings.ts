@@ -1,9 +1,9 @@
 import { getThinkingModesForAgent } from '@/components/chat/thinking-mode-selector/thinkingModes';
-import { PERSONAS_SUPPORTED_AGENTS } from '@/components/chat/persona-selector/personaSupport';
 import { useInputState } from '@/hooks/useInputContext';
 import { useAuthStore } from '@/store/authStore';
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatContext } from '@/hooks/useChatContext';
+import { supportsFastMode, supportsPersona } from '@/types/chat.types';
 
 export function useComposerSettings() {
   const state = useInputState();
@@ -19,8 +19,8 @@ export function useComposerSettings() {
     // Model-aware: some agents only expose a reasoning dial on specific models
     // (e.g. Claude's Haiku has none), so the base per-agent list isn't enough.
     showThinking: agentKind ? getThinkingModesForAgent(agentKind, selectedModel).length > 0 : true,
-    showPersona: personas.length > 0 && (!agentKind || PERSONAS_SUPPORTED_AGENTS.has(agentKind)),
-    showFastMode: agentKind === 'codex',
+    showPersona: personas.length > 0 && (!agentKind || supportsPersona(selectedModel, agentKind)),
+    showFastMode: supportsFastMode(selectedModel, agentKind),
   };
 }
 

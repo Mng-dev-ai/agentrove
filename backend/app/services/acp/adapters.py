@@ -132,6 +132,7 @@ class AgentAdapter:
     supports_steering = False
     # Session config option (select on/off) that toggles the fast service tier.
     fast_mode_config_id: str | None = None
+    supports_usage_updates = True
     # True when the permission mode is baked into the launch command.
     respawns_on_mode_change = False
 
@@ -519,6 +520,7 @@ class CopilotCliAdapter(AgentAdapter):
     binary = "copilot"
     cli_args = ("--acp", "--stdio")
     model_id_namespace = "copilot:"
+    supports_usage_updates = False
     session_modes = frozenset({"agent", "plan", "autopilot"})
     fallback_session_mode = "agent"
     default_thinking_mode = "high"
@@ -537,6 +539,7 @@ class CursorAgentAdapter(AgentAdapter):
     binary = "cursor-agent"
     cli_args = ("acp",)
     model_id_namespace = "cursor:"
+    supports_usage_updates = False
     # Cursor CLI exposes three ACP session modes (see https://cursor.com/docs/cli/acp).
     session_modes = frozenset({"agent", "plan", "ask"})
     fallback_session_mode = "agent"
@@ -546,6 +549,7 @@ class GrokAgentAdapter(AgentAdapter):
     # Permission mode is launch-baked; changes respawn via fingerprint.
     binary = "grok"
     model_id_namespace = "grok:"
+    supports_usage_updates = False
     # The CLI ignores --reasoning-effort on session/load and keeps the saved tier.
     effort_config_id = "reasoning_effort"
     # UI labels, not CLI mode ids (wire_mode_id maps them to `default`/`plan`).
@@ -709,6 +713,7 @@ class OpencodeAgentAdapter(AgentAdapter):
     binary = "opencode"
     cli_args = ("acp",)
     model_id_namespace = "opencode:"
+    supports_usage_updates = False
     # OpenCode's built-in primary agents double as ACP session modes; `plan`
     # (built-in) restricts edits to `~/.opencode/plan/*`, `build` has full access.
     # Unknown modes fall back to plan so switching agents never silently widens

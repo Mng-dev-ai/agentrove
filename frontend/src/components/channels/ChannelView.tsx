@@ -31,6 +31,7 @@ import { MessageRenderer } from '@/components/chat/message-bubble/MessageRendere
 import { ToolPlaceholder } from '@/components/chat/message-bubble/SegmentView';
 import { WorkedRollup } from '@/components/chat/message-bubble/WorkedRollup';
 import { useChannelMessageActivityQuery } from '@/hooks/queries/useChannelQueries';
+import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChannelLive } from '@/hooks/useChannelLive';
 import { useClipboard } from '@/hooks/useClipboard';
 import { useSmoothText } from '@/hooks/useSmoothText';
@@ -50,7 +51,7 @@ import {
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineName, useMachineStatus } from '@/store/machineStore';
 import {
-  getAgentKindForModelId,
+  resolveAgentKind,
   type AgentKind,
   type ElicitationAction,
   type ElicitationContent,
@@ -123,7 +124,8 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
 }: AgentChannelMessageProps) {
   const isStreaming = message.status === 'streaming';
   const isInterrupted = message.status === 'cancelled';
-  const agentKind = getAgentKindForModelId(member?.model_id);
+  const modelMap = useModelMap({ machineId: useChatMachineId(chatId) });
+  const agentKind = resolveAgentKind(modelMap, member?.model_id);
   const [content, isRevealing] = useSmoothText(message.content, isStreaming, true);
 
   return (
@@ -188,6 +190,7 @@ interface ChannelTypingRowProps {
   answering: ChannelMember[];
   retrying: ChannelMember[];
   unavailable: ChannelMember[];
+  chatId: string;
   reasons: Record<string, string>;
 }
 
@@ -198,8 +201,10 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
   answering,
   retrying,
   unavailable,
+  chatId,
   reasons,
 }: ChannelTypingRowProps) {
+  const modelMap = useModelMap({ machineId: useChatMachineId(chatId) });
   const text = [
     typing.length > 0 && memberStatus(typing, 'is typing', 'are typing'),
     thinking.length > 0 && memberStatus(thinking, 'is thinking…', 'are thinking…'),
@@ -222,7 +227,7 @@ const ChannelTypingRow = memo(function ChannelTypingRow({
               (member) => (
                 <ProviderIcon
                   key={member.id}
-                  agentKind={getAgentKindForModelId(member.model_id)}
+                  agentKind={resolveAgentKind(modelMap, member.model_id)}
                   className={styles['author-icon']}
                 />
               ),
@@ -280,10 +285,11 @@ function ChannelApproval({ channelId, permission, member }: ChannelApprovalProps
 }
 
 function MemberHeader({ member, meta }: { member: ChannelMember | undefined; meta: string }) {
+  const modelMap = useModelMap({ machineId: useChatMachineId(member?.chat_id) });
   return (
     <div className={styles.author}>
       <ProviderIcon
-        agentKind={getAgentKindForModelId(member?.model_id)}
+        agentKind={resolveAgentKind(modelMap, member?.model_id)}
         className={styles['author-icon']}
       />
       <span className={styles['author-name']}>{member?.display_name ?? 'agent'}</span>
@@ -331,13 +337,14 @@ function ChannelQuestion({ elicitation, member }: ChannelQuestionProps) {
 }
 
 function ChannelEmptyState({ channel }: { channel: Channel }) {
+  const modelMap = useModelMap({ machineId: useChatMachineId(channel.anchor_chat_id) });
   return (
     <div className={styles.empty}>
       <div className={styles['empty-icons']}>
         {channel.members.map((member) => (
           <span key={member.id} className={styles['empty-icon-circle']}>
             <ProviderIcon
-              agentKind={getAgentKindForModelId(member.model_id)}
+              agentKind={resolveAgentKind(modelMap, member.model_id)}
               className={styles['empty-icon']}
             />
           </span>
@@ -581,6 +588,7 @@ export function ChannelView({ channel }: { channel: Channel }) {
                       answering={answeringMembers}
                       retrying={retryingMembers}
                       unavailable={unavailableMembers}
+                      chatId={channel.anchor_chat_id}
                       reasons={memberReasons}
                     />
                   </ConversationColumn>

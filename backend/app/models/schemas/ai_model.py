@@ -14,3 +14,6 @@ class AIModelResponse(BaseModel):
     thinking_modes: list[str] = []
     # The agent CLI implements ACP session/fork, so its chats can be forked.
     supports_fork: bool = False
+    supports_persona: bool = False
+    supports_fast_mode: bool = False
+    supports_usage_updates: bool = False

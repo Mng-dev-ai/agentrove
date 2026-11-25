@@ -12,6 +12,7 @@ import {
   usePinChannelMutation,
   useRenameChannelMutation,
 } from '@/hooks/queries/useChannelQueries';
+import { useMachinesModelMaps } from '@/hooks/queries/useModelQueries';
 import { permissionNotifyEvent, useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { getMachineClient } from '@/lib/api';
@@ -66,6 +67,7 @@ export function SidebarChannels({
     isLoading: isLoadingChannels,
     load,
   } = useMachinesChannels(isAuthenticated);
+  const modelMaps = useMachinesModelMaps(isAuthenticated);
   const liveActivity = useChannelStore((state) => state.activity);
   const completedChannelIds = useChannelStore((state) => state.completedChannelIds);
   const filteredChannels = machineChannels.filter(({ channel, machineId }) => {
@@ -73,7 +75,9 @@ export function SidebarChannels({
     if (
       filters.agentKind &&
       !channel.members.some(
-        (member) => getAgentKindForModelId(member.model_id) === filters.agentKind,
+        (member) =>
+          (modelMaps.get(machineId)?.get(member.model_id)?.agent_kind ??
+            getAgentKindForModelId(member.model_id)) === filters.agentKind,
       )
     ) {
       return false;
