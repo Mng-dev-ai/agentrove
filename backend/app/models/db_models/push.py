@@ -15,6 +15,12 @@ class PushDevice(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(
         GUID(), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    paired_device_id: Mapped[uuid.UUID | None] = mapped_column(
+        GUID(),
+        ForeignKey("paired_devices.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
     token: Mapped[str] = mapped_column(String(200), nullable=False, unique=True)
     sandbox: Mapped[bool] = mapped_column(Boolean, nullable=False)
 

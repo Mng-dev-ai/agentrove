@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 from uuid import UUID, uuid4
 
 import pytest
@@ -10,7 +11,7 @@ from app.models.db_models.push import PushDevice
 from app.models.db_models.user import UserSettings
 from app.services.push import PushService
 
-from tests.conftest import FakeApns, LoginClient, UserFactory
+from tests.conftest import EmailCapture, FakeApns, LoginClient, UserFactory
 from tests.helpers import (
     DEVICE_TOKEN,
     create_authenticated_workspace,
@@ -78,6 +79,116 @@ async def test_push_device_follows_the_latest_account_and_unregister_is_scoped(
         f"/api/v1/push/devices/{DEVICE_TOKEN}", headers=second_headers
     )
     assert removed.status_code == 204
+    assert await db_session.scalar(select(PushDevice.id)) is None
+
+
+async def pair_phone(client: AsyncClient, headers: dict[str, str], token: str) -> str:
+    pairing = await client.post("/api/v1/auth/pairing", headers=headers)
+    paired = (
+        await client.post(
+            "/api/v1/auth/pair",
+            json={"secret": pairing.json()["secret"], "device_name": "Phone"},
+        )
+    ).json()
+    await register_device(
+        client, {"Authorization": f"Bearer {paired['access_token']}"}, token
+    )
+    return str(paired["device_id"])
+
+
+async def test_revoking_a_paired_device_removes_only_its_push_registration(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    apns: FakeApns,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    lost_id = await pair_phone(client, headers, "aa")
+    await pair_phone(client, headers, "bb")
+    await post_message(client, headers, chat.id, "Queued")
+    assert len(await deliveries(db_session)) == 2
+
+    revoked = await client.delete(f"/api/v1/auth/devices/{lost_id}", headers=headers)
+
+    assert revoked.status_code == 204
+    assert (await db_session.scalars(select(PushDevice.token))).all() == ["bb"]
+    await post_message(client, headers, chat.id, "After")
+    assert await PushService().send_due() == {"sent": 2}
+    assert {request.url.path for request in apns.requests} == {"/3/device/bb"}
+    assert len(await deliveries(db_session)) == 2
+
+
+async def test_password_reset_removes_every_push_registration(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    apns: FakeApns,
+    email_capture: EmailCapture,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    await register_device(client, headers)
+    await pair_phone(client, headers, "aa")
+    await post_message(client, headers, chat.id, "Queued")
+    assert len(await deliveries(db_session)) == 2
+    await client.post("/api/v1/auth/forgot-password", json={"email": user.email})
+    [sent] = email_capture.password_reset
+
+    reset = await client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": sent["token"], "password": "newpassword123"},
+    )
+
+    assert reset.status_code == 200
+    assert (await db_session.scalars(select(PushDevice.id))).all() == []
+    tokens = await login(email=user.email, password="newpassword123")
+    await post_message(
+        client, {"Authorization": f"Bearer {tokens['access_token']}"}, chat.id
+    )
+    assert await deliveries(db_session) == []
+    assert await PushService().send_due() == {}
+    assert apns.requests == []
+
+
+async def test_registration_served_after_a_password_reset_is_rejected(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    email_capture: EmailCapture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, _workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    await client.post("/api/v1/auth/forgot-password", json={"email": user.email})
+    [sent] = email_capture.password_reset
+    register_device_after_auth = PushService.register_device
+
+    async def reset_then_register(*args: Any) -> bool:
+        reset = await client.post(
+            "/api/v1/auth/reset-password",
+            json={"token": sent["token"], "password": "newpassword123"},
+        )
+        assert reset.status_code == 200
+        return await register_device_after_auth(*args)
+
+    monkeypatch.setattr(PushService, "register_device", reset_then_register)
+
+    late = await client.post(
+        "/api/v1/push/devices",
+        json={"token": DEVICE_TOKEN, "sandbox": True},
+        headers=headers,
+    )
+
+    assert late.status_code == 401
     assert await db_session.scalar(select(PushDevice.id)) is None
 
 

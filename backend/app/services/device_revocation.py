@@ -5,6 +5,7 @@ from sqlalchemy import delete, func, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
+from app.models.db_models.push import PushDevice
 from app.models.db_models.refresh_token import RefreshToken
 from app.services.channels.engine import channel_engine
 from app.services.device_session import DeviceSession
@@ -30,6 +31,9 @@ class DeviceRevocationService:
         await db.execute(
             delete(RefreshToken).where(RefreshToken.device_id == device_id)
         )
+        await db.execute(
+            delete(PushDevice).where(PushDevice.paired_device_id == device_id)
+        )
         await db.commit()
         await DeviceRevocationService.end_sessions(frozenset({device_id}))
         return True
@@ -49,6 +53,7 @@ class DeviceRevocationService:
             )
         )
         await db.execute(delete(PairingSecret).where(PairingSecret.user_id == user_id))
+        await db.execute(delete(PushDevice).where(PushDevice.user_id == user_id))
         revoked = await RefreshTokenService().revoke_all_tokens(user_id, db)
         await DeviceRevocationService.end_sessions(device_ids)
         return revoked
