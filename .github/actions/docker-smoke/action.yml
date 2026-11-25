@@ -1,0 +1,47 @@
+name: Docker build and CLI smoke test
+description: Builds backend and sandbox images for linux/amd64 without pushing and runs every bundled agent CLI inside them.
+
+runs:
+  using: composite
+  steps:
+    - uses: docker/setup-buildx-action@v3
+
+    - name: Build backend image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: backend/Dockerfile
+        platforms: linux/amd64
+        push: false
+        load: true
+        tags: agentrove-backend:smoke
+        cache-from: type=gha,scope=smoke-backend
+        cache-to: type=gha,mode=max,scope=smoke-backend
+
+    - name: Smoke-test backend CLIs
+      shell: bash
+      run: |
+        docker run --rm --user appuser --entrypoint bash \
+          -v "$GITHUB_ACTION_PATH/smoke-clis.sh:/tmp/smoke-clis.sh:ro" \
+          agentrove-backend:smoke /tmp/smoke-clis.sh
+        docker image rm agentrove-backend:smoke
+
+    - name: Build sandbox image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: sandbox/docker/Dockerfile
+        platforms: linux/amd64
+        push: false
+        load: true
+        tags: agentrove-sandbox:smoke
+        cache-from: type=gha,scope=smoke-sandbox
+        cache-to: type=gha,mode=max,scope=smoke-sandbox
+
+    - name: Smoke-test sandbox CLIs
+      shell: bash
+      run: |
+        docker run --rm \
+          -v "$GITHUB_ACTION_PATH/smoke-clis.sh:/tmp/smoke-clis.sh:ro" \
+          agentrove-sandbox:smoke bash /tmp/smoke-clis.sh
+        docker image rm agentrove-sandbox:smoke

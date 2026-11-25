@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Pins every ACP provider CLI in the Dockerfiles and desktop build to its latest release.
+# Pins every ACP provider CLI (Claude Code, claude-agent-acp, codex-acp, Codex, Copilot,
+# OpenCode, Cursor, Antigravity, Grok) in the Dockerfiles and desktop build to its latest release.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -43,4 +44,11 @@ sed -i -E "s#^(\s*)v=[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9a-f]+;#\1v=${cursor};#" "$
 
 antigravity=$(curl -fsSL https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json \
   | jq -er '.agents[] | select(.id == "antigravity-acp") | .version')
-sed -i -E "s#^(\s*)version=[0-9]+\.[0-9]+\.[0-9]+;#\1version=${antigravity};#" "${DOCKERFILES[@]}"
+sed -i -E "s#^(\s*)antigravity_version=[0-9]+\.[0-9]+\.[0-9]+;#\1antigravity_version=${antigravity};#" "${DOCKERFILES[@]}"
+
+grok=$(curl -fsSL https://x.ai/cli/stable)
+if ! [[ $grok =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "x.ai/cli/stable returned a non-semver version: ${grok:0:80}" >&2
+  exit 1
+fi
+sed -i -E "s#^(\s*)grok_version=[0-9]+\.[0-9]+\.[0-9]+;#\1grok_version=${grok};#" "${DOCKERFILES[@]}"

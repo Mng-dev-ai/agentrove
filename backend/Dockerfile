@@ -70,25 +70,25 @@ RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.4.1 && \
 # Download the static binary directly: install.sh symlinks into /usr/local/bin
 # then our old `cp -L` treats src/dest as the same file and exits 1.
 RUN set -eux; \
-    version="$(curl -fsSL https://x.ai/cli/stable)"; \
+    grok_version=1.0.92; \
     arch="$(uname -m)"; \
     case "$arch" in \
       x86_64|amd64) arch=x86_64 ;; \
       aarch64|arm64) arch=aarch64 ;; \
       *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://x.ai/cli/grok-${version}-linux-${arch}" -o /usr/local/bin/grok; \
+    curl -fsSL "https://x.ai/cli/grok-${grok_version}-linux-${arch}" -o /usr/local/bin/grok; \
     chmod +x /usr/local/bin/grok
 
 RUN set -eux; \
-    version=1.5.2; \
+    antigravity_version=1.5.2; \
     case "$(uname -m)" in \
       x86_64|amd64) arch=x86_64 ;; \
       aarch64|arm64) arch=arm64 ;; \
       *) exit 1 ;; \
     esac; \
     mkdir -p /opt/antigravity; \
-    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${version}-linux-${arch}.zip" \
+    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${antigravity_version}-linux-${arch}.zip" \
       -o /tmp/antigravity.zip; \
     unzip /tmp/antigravity.zip -d /opt/antigravity; \
     rm /tmp/antigravity.zip; \
