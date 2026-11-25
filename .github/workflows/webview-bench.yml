@@ -15,14 +15,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - group: baseline
-            scenarios: launch_shell launch_chat open_1k open_5k diff switch scroll_5k
+          - group: launch
+            scenarios: launch_shell launch_chat open_1k open_5k
+          - group: interact
+            scenarios: diff switch scroll_5k
           - group: attribution
             scenarios: cells_5k_plain cells_5k_wrapped cells_5k_trailoff
     env:
       API_PORT: '18741'
       WEB_PORT: '18742'
-      BENCH_RUNS: '1'
+      BENCH_RUNS: '8'
 
     steps:
       - name: Checkout
