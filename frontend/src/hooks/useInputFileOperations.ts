@@ -1,13 +1,16 @@
 import { useState, useCallback } from 'react';
 import { logger } from '@/utils/logger';
 import { convertDataUrlToUploadedFile, filterChatAttachmentFiles } from '@/utils/file';
+import { useUploadLimits } from '@/hooks/queries/useMachineQueries';
 
 interface UseInputFileOperationsProps {
+  machineId: string;
   attachedFiles?: File[] | null;
   onAttach?: (files: File[]) => void;
 }
 
 export const useInputFileOperations = ({
+  machineId,
   attachedFiles,
   onAttach,
 }: UseInputFileOperationsProps) => {
@@ -15,7 +18,11 @@ export const useInputFileOperations = ({
   const [showDrawingModal, setShowDrawingModal] = useState(false);
   const [editingImageIndex, setEditingImageIndex] = useState<number | null>(null);
 
-  const filterValidFiles = useCallback((files: File[]) => filterChatAttachmentFiles(files), []);
+  const uploadLimits = useUploadLimits(machineId);
+  const filterValidFiles = useCallback(
+    (files: File[]) => filterChatAttachmentFiles(files, uploadLimits),
+    [uploadLimits],
+  );
 
   const handleFileSelect = useCallback(
     (files: File[]) => {

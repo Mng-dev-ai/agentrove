@@ -4,6 +4,7 @@ import { DropIndicator } from './DropIndicator';
 import { InputAttachments } from './InputAttachments';
 
 interface ComposerAttachmentSlotsProps {
+  machineId: string;
   isDragging: boolean;
   files: File[];
   previewUrls: string[];
@@ -19,6 +20,7 @@ interface ComposerAttachmentSlotsProps {
 }
 
 export function ComposerAttachmentSlots({
+  machineId,
   isDragging,
   files,
   previewUrls,
@@ -47,6 +49,7 @@ export function ComposerAttachmentSlots({
         onEditImage={onEditImage}
       />
       <FileUploadDialog
+        machineId={machineId}
         isOpen={showFileUpload}
         onClose={onCloseFileUpload}
         onFileSelect={onFileSelect}

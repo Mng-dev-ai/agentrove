@@ -16,10 +16,6 @@ export const MAX_DIFF_LENGTH = 150_000;
 
 export const MAX_MESSAGE_SIZE_BYTES = 100000;
 
-export const MAX_UPLOAD_SIZE_BYTES = {
-  CHAT_ATTACHMENT: 5 * 1024 * 1024,
-} as const;
-
 export const DROPDOWN_WIDTH = 128;
 export const DROPDOWN_HEIGHT = 90;
 export const DROPDOWN_MARGIN = 8;

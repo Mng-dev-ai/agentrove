@@ -1,9 +1,10 @@
 import type { FileStructure } from '@/types/file-system.types';
 import type { FileMetadata } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
+import type { UploadLimits } from '@/types/machine.types';
 import toast from 'react-hot-toast';
-import { isSupportedUploadedFile } from '@/utils/fileTypes';
-import { MAX_UPLOAD_SIZE_BYTES } from '@/config/constants';
+import { resolveUploadMimeType } from '@/utils/fileTypes';
+import { formatBytes } from '@/utils/format';
 import {
   isApiAttachmentUrl,
   isBrowserObjectUrl,
@@ -168,27 +169,25 @@ export function detectLanguage(path: string): string {
 
 export function filterChatAttachmentFiles(
   files: File[],
+  limits: UploadLimits,
   { toastOnError = true }: { toastOnError?: boolean } = {},
 ): File[] {
-  const supportedFiles: File[] = [];
-  const unsupportedFiles: File[] = [];
-
-  for (const file of files) {
-    if (isSupportedUploadedFile(file)) {
-      supportedFiles.push(file);
-    } else {
-      unsupportedFiles.push(file);
-    }
-  }
-
   const validFiles: File[] = [];
+  const unsupportedFiles: File[] = [];
   const oversizedFiles: File[] = [];
 
-  for (const file of supportedFiles) {
-    if (file.size > MAX_UPLOAD_SIZE_BYTES.CHAT_ATTACHMENT) {
+  for (const file of files) {
+    const type = resolveUploadMimeType(file, limits.allowedFileTypes);
+    if (type === null) {
+      unsupportedFiles.push(file);
+    } else if (file.size > limits.maxUploadSize) {
       oversizedFiles.push(file);
     } else {
-      validFiles.push(file);
+      validFiles.push(
+        type === file.type
+          ? file
+          : new File([file], file.name, { type, lastModified: file.lastModified }),
+      );
     }
   }
 
@@ -201,11 +200,11 @@ export function filterChatAttachmentFiles(
   }
 
   if (toastOnError && oversizedFiles.length > 0) {
-    const maxSizeMB = MAX_UPLOAD_SIZE_BYTES.CHAT_ATTACHMENT / (1024 * 1024);
+    const maxSize = formatBytes(limits.maxUploadSize);
     if (oversizedFiles.length === 1) {
-      toast.error(`File "${oversizedFiles[0].name}" exceeds ${maxSizeMB}MB limit`);
+      toast.error(`File "${oversizedFiles[0].name}" exceeds ${maxSize} limit`);
     } else {
-      toast.error(`${oversizedFiles.length} files exceed ${maxSizeMB}MB limit`);
+      toast.error(`${oversizedFiles.length} files exceed ${maxSize} limit`);
     }
   }
 

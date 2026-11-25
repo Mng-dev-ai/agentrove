@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { chatService } from '@/services/chatService';
+import { instanceService } from '@/services/instanceService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { listLoadState } from '@/hooks/queries/listLoad';
 import { settingsQuery } from '@/hooks/queries/useSettingsQueries';
@@ -13,7 +14,8 @@ import {
   useMachineStore,
   useOnlineRemoteMachineIds,
 } from '@/store/machineStore';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
+import { LOCAL_MACHINE_ID, type UploadLimits } from '@/types/machine.types';
+import { DEFAULT_UPLOAD_LIMITS, uploadLimitsFromInstance } from '@/utils/fileTypes';
 import type { Workspace } from '@/types/workspace.types';
 import type { UserSettings } from '@/types/user.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
@@ -86,6 +88,18 @@ export const useMachinesSettingsList = <K extends SettingsListKey>(key: K, empty
   const { items, load } = useQueries({ queries: remoteIds.map(settingsQuery), combine });
   const machineName = (id: string) => machineNames.get(id) ?? 'Machine';
   return { machineOptions, machineName, machineId, filter, items, load };
+};
+
+export const useUploadLimits = (machineId: string): UploadLimits => {
+  const online = useMachineOnline(machineId);
+  const { data } = useQuery({
+    queryKey: queryKeys.machine.instance(machineId),
+    queryFn: () => instanceService.getInstance(machineId),
+    select: uploadLimitsFromInstance,
+    enabled: online,
+    staleTime: 30_000,
+  });
+  return data ?? DEFAULT_UPLOAD_LIMITS;
 };
 
 export const useMachineActiveStreamsQuery = (machineId: string, enabled: boolean) => {

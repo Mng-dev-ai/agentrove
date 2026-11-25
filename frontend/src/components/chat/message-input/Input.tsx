@@ -72,6 +72,7 @@ function InputLayout({ stacked }: { stacked?: boolean }) {
       attachments={
         <>
           <ComposerAttachmentSlots
+            machineId={state.machineId}
             isDragging={state.isDragging}
             files={state.showPreview && state.attachedFiles ? state.attachedFiles : []}
             previewUrls={state.previewUrls}

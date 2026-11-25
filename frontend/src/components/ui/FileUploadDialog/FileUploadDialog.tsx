@@ -13,19 +13,23 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './FileUploadDialog.module.scss';
 
 interface FileUploadDialogProps {
+  machineId: string;
   isOpen: boolean;
   onClose: () => void;
   onFileSelect: (files: File[]) => void;
 }
 
 export const FileUploadDialog = memo(function FileUploadDialog({
+  machineId,
   isOpen,
   onClose,
   onFileSelect,
 }: FileUploadDialogProps) {
   const isMobile = useIsMobile();
   const addMoreInputRef = useRef<HTMLInputElement>(null);
-  const { files, previewUrls, addFiles, removeFile, clearFiles } = useFileHandling({});
+  const { files, previewUrls, addFiles, removeFile, clearFiles } = useFileHandling({
+    machineId,
+  });
 
   const { isDragging, dragHandlers } = useDragAndDrop({
     onFilesDrop: (droppedFiles) => addFiles(droppedFiles),

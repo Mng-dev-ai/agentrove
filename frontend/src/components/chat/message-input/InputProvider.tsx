@@ -115,7 +115,7 @@ export function InputProvider({
     dragHandlers,
     resetDragState,
     handlePaste,
-  } = useInputAttachments({ attachedFiles, onAttach });
+  } = useInputAttachments({ machineId: modelMachineId, attachedFiles, onAttach });
 
   const { isEnhancing, handleEnhancePrompt } = useInputEnhance({
     setMessage,

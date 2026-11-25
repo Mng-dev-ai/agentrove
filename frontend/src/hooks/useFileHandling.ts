@@ -2,13 +2,20 @@ import { useState, useEffect, useCallback, useLayoutEffect } from 'react';
 import { logger } from '@/utils/logger';
 import { isUploadedImageFile } from '@/utils/fileTypes';
 import { filterChatAttachmentFiles } from '@/utils/file';
+import { useUploadLimits } from '@/hooks/queries/useMachineQueries';
 
 interface UseFileHandlingOptions {
+  machineId: string;
   initialFiles?: File[] | null;
   onChange?: (files: File[]) => void;
 }
 
-export function useFileHandling({ initialFiles = null, onChange }: UseFileHandlingOptions = {}) {
+export function useFileHandling({
+  machineId,
+  initialFiles = null,
+  onChange,
+}: UseFileHandlingOptions) {
+  const uploadLimits = useUploadLimits(machineId);
   const [files, setFiles] = useState<File[]>(initialFiles ?? []);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
 
@@ -43,7 +50,7 @@ export function useFileHandling({ initialFiles = null, onChange }: UseFileHandli
 
   const addFiles = useCallback(
     (newFiles: File[]) => {
-      const validFiles = filterChatAttachmentFiles(newFiles);
+      const validFiles = filterChatAttachmentFiles(newFiles, uploadLimits);
 
       if (validFiles.length > 0) {
         setFiles((current) => {
@@ -54,17 +61,17 @@ export function useFileHandling({ initialFiles = null, onChange }: UseFileHandli
       }
       return validFiles.length;
     },
-    [onChange],
+    [onChange, uploadLimits],
   );
 
   const setFileList = useCallback(
     (newFiles: File[]) => {
-      const validFiles = filterChatAttachmentFiles(newFiles);
+      const validFiles = filterChatAttachmentFiles(newFiles, uploadLimits);
       setFiles(validFiles);
       onChange?.(validFiles);
       return validFiles.length;
     },
-    [onChange],
+    [onChange, uploadLimits],
   );
 
   const removeFile = useCallback(
@@ -88,7 +95,7 @@ export function useFileHandling({ initialFiles = null, onChange }: UseFileHandli
 
   const replaceFile = useCallback(
     (index: number, newFile: File) => {
-      const [validFile] = filterChatAttachmentFiles([newFile]);
+      const [validFile] = filterChatAttachmentFiles([newFile], uploadLimits);
       if (!validFile) {
         return;
       }
@@ -102,7 +109,7 @@ export function useFileHandling({ initialFiles = null, onChange }: UseFileHandli
         return current;
       });
     },
-    [onChange],
+    [onChange, uploadLimits],
   );
 
   return {
