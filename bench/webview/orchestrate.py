@@ -335,8 +335,8 @@ class Orchestrator:
     def run(self) -> None:
         for host in ("wkwebview", "electron"):
             self.run_one(host, "launch_shell", -1)
-        for scenario in self.args.scenarios:
-            for run in range(self.args.runs):
+        for run in range(self.args.runs):
+            for scenario in self.args.scenarios:
                 order = ("wkwebview", "electron")
                 for host in order if run % 2 == 0 else order[::-1]:
                     self.run_one(host, scenario, run)

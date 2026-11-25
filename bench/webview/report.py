@@ -244,7 +244,7 @@ def trail_off(rows: list[dict[str, Any]]) -> list[str]:
         "Wrapped Element.prototype.querySelector returns null for "
         '`[data-message-id="` selectors on the transcript scroller after the first '
         "two in one synchronous span (reset by a microtask). Trail-off runs page "
-        "20 to 320 without scrolling in between, then run the two 320 cells.",
+        "from 20 to 320 with no cells in between, then scroll the two 320 cells.",
         "",
         "| Host | Mounted before | page ms plain | page ms wrapped "
         "| page ms trail off | gBCR calls wrapped | gBCR calls trail off "
