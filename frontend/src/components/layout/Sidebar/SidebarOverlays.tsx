@@ -114,9 +114,7 @@ export function SidebarOverlays({
         onSave={workspace.handleSaveWorkspaceRename}
         currentTitle={workspace.workspaceToRename?.workspace.name || ''}
         subject="workspace"
-        isLoading={
-          workspace.updateWorkspace.isPending || workspace.machineUpdateWorkspace.isPending
-        }
+        isLoading={workspace.updateWorkspace.isPending}
       />
     </>
   );

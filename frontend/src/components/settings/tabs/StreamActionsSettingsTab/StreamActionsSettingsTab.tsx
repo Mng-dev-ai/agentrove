@@ -7,11 +7,10 @@ import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import {
-  useMachineSettingsQuery,
   type MachineSettingsItem,
   useMachinesSettingsList,
-  useUpdateMachineSettingsMutation,
 } from '@/hooks/queries/useMachineQueries';
+import { useSettingsQuery, useUpdateSettingsMutation } from '@/hooks/queries/useSettingsQueries';
 import { ValidationError } from '@/services/base/ServiceError';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createDefaultStreamActionForm, validateStreamActionForm } from '@/utils/settings';
@@ -65,7 +64,7 @@ export function StreamActionsSettingsTab() {
     load: remoteLoad,
   } = useMachinesSettingsList('stream_actions', 'No stream actions match these filters');
   const queryClient = useQueryClient();
-  const remoteMutation = useUpdateMachineSettingsMutation({
+  const remoteMutation = useUpdateSettingsMutation({
     scope: { id: 'machine-stream-actions' },
     onError: (_error, { machineId }) =>
       queryClient.invalidateQueries({ queryKey: queryKeys.machine.settings(machineId) }),
@@ -76,10 +75,10 @@ export function StreamActionsSettingsTab() {
   const [form, setForm] = useState<StreamActionForm>(() => createDefaultForm(LOCAL_MACHINE_ID));
   const [formError, setFormError] = useState<string | null>(null);
   const isRemoteForm = form.machineId !== LOCAL_MACHINE_ID;
-  const { data: remoteFormSettings } = useMachineSettingsQuery(
-    form.machineId,
-    isDialogOpen && isRemoteForm,
-  );
+  const { data: remoteFormSettings } = useSettingsQuery({
+    machineId: form.machineId,
+    enabled: isDialogOpen && isRemoteForm,
+  });
   const formPersonas = (isRemoteForm ? remoteFormSettings : localSettings)?.personas ?? [];
 
   const handleFormChange = useCallback(

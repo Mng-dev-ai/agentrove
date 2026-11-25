@@ -9,7 +9,7 @@ import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { useSettingsContext } from '@/hooks/useSettingsContext';
 import { useMachineFilter } from '@/hooks/useMachineFilter';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
-import { useMachineSettingsQuery } from '@/hooks/queries/useMachineQueries';
+import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import {
   useAutomationsAcrossMachines,
@@ -156,10 +156,10 @@ export function AutomationsSettingsTab() {
   const formMachineId = editingItem?.machineId ?? form.machineId;
   const modelMap = useModelMap({ machineId: formMachineId });
   const { data: formModels = [] } = useModelsQuery({ machineId: formMachineId });
-  const { data: formMachineSettings } = useMachineSettingsQuery(
-    formMachineId,
-    isDialogOpen && formMachineId !== LOCAL_MACHINE_ID,
-  );
+  const { data: formMachineSettings } = useSettingsQuery({
+    machineId: formMachineId,
+    enabled: isDialogOpen && formMachineId !== LOCAL_MACHINE_ID,
+  });
   const formPersonas =
     (formMachineId === LOCAL_MACHINE_ID ? localSettings.personas : formMachineSettings?.personas) ??
     [];

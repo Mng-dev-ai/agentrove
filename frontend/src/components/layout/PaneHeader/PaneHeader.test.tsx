@@ -62,11 +62,6 @@ vi.mock('@/hooks/queries/useWorkspaceQueries', async (importOriginal) => ({
   useDeleteWorkspaceMutation: mutation,
   useUpdateWorkspaceMutation: mutation,
 }));
-vi.mock('@/hooks/queries/useMachineQueries', async (importOriginal) => ({
-  ...(await importOriginal<object>()),
-  useMachineUpdateWorkspaceMutation: mutation,
-  useMachineDeleteWorkspaceMutation: mutation,
-}));
 
 let pathname = '';
 

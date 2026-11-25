@@ -1,10 +1,7 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { UseQueryOptions } from '@tanstack/react-query';
 import { workspaceService } from '@/services/workspaceService';
 import type {
   Workspace,
-  WorkspaceResources,
   CreateWorkspaceRequest,
   UpdateWorkspaceRequest,
 } from '@/types/workspace.types';
@@ -12,41 +9,57 @@ import type { PaginatedResponse } from '@/types/api.types';
 import type { Chat } from '@/types/chat.types';
 import type { Channel } from '@/types/channel.types';
 import { useChannelStore } from '@/store/channelStore';
-import { chatMachineId } from '@/store/machineOrigin';
+import { useMachineOnline } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
+interface MachineQueryOptions {
+  enabled?: boolean;
+  machineId?: string;
+}
+
+const EMPTY_WORKSPACES: Workspace[] = [];
+
+const workspacesKey = (machineId: string) =>
+  machineId === LOCAL_MACHINE_ID ? queryKeys.workspaces : queryKeys.machine.workspaces(machineId);
+
+const selectWorkspaces = (data: PaginatedResponse<Workspace>) => data.items;
+
+export const workspacesQuery = (machineId: string) => ({
+  queryKey: workspacesKey(machineId),
+  queryFn: () => workspaceService.listWorkspaces(machineId),
+  select: selectWorkspaces,
+  staleTime: 30_000,
+});
+
+export const useWorkspacesQuery = (options?: MachineQueryOptions) => {
+  const machineId = options?.machineId ?? LOCAL_MACHINE_ID;
+  const online = useMachineOnline(machineId);
+  return useQuery({
+    ...workspacesQuery(machineId),
+    enabled: (options?.enabled ?? true) && online,
+  });
+};
+
+export const useWorkspacesList = (options?: MachineQueryOptions): Workspace[] =>
+  useWorkspacesQuery(options).data ?? EMPTY_WORKSPACES;
+
 export const useWorkspaceResourcesQuery = (
   workspaceId: string | undefined,
-  chatId?: string,
-  options?: Partial<UseQueryOptions<WorkspaceResources>>,
+  options?: MachineQueryOptions,
 ) => {
+  const machineId = options?.machineId ?? LOCAL_MACHINE_ID;
+  const online = useMachineOnline(machineId);
   return useQuery({
-    queryKey: queryKeys.workspaceResources(workspaceId, chatId),
-    queryFn: () => workspaceService.getWorkspaceResources(chatMachineId(chatId), workspaceId!),
-    enabled: !!workspaceId,
+    queryKey:
+      machineId === LOCAL_MACHINE_ID
+        ? queryKeys.workspaceResources(workspaceId)
+        : queryKeys.machine.workspaceResources(machineId, workspaceId),
+    queryFn: () => workspaceService.getWorkspaceResources(machineId, workspaceId!),
+    enabled: (options?.enabled ?? true) && online && !!workspaceId,
     staleTime: 30_000,
-    ...options,
   });
-};
-
-export const useWorkspacesQuery = (
-  options?: Partial<UseQueryOptions<PaginatedResponse<Workspace>>>,
-) => {
-  return useQuery({
-    queryKey: queryKeys.workspaces,
-    queryFn: () => workspaceService.listWorkspaces(LOCAL_MACHINE_ID),
-    ...options,
-  });
-};
-
-// Stable [] when data is missing — avoids new-ref churn for downstream deps.
-export const useWorkspacesList = (
-  options?: Partial<UseQueryOptions<PaginatedResponse<Workspace>>>,
-): Workspace[] => {
-  const { data } = useWorkspacesQuery(options);
-  return useMemo(() => data?.items ?? [], [data?.items]);
 };
 
 export const useCreateWorkspaceMutation = createMutation<Workspace, Error, CreateWorkspaceRequest>(
@@ -59,20 +72,30 @@ export const useCreateWorkspaceMutation = createMutation<Workspace, Error, Creat
 export const useUpdateWorkspaceMutation = createMutation<
   Workspace,
   Error,
-  { workspaceId: string; data: UpdateWorkspaceRequest }
+  { machineId: string; workspaceId: string; data: UpdateWorkspaceRequest }
 >(
-  ({ workspaceId, data }) => workspaceService.updateWorkspace(LOCAL_MACHINE_ID, workspaceId, data),
-  (queryClient) => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+  ({ machineId, workspaceId, data }) =>
+    workspaceService.updateWorkspace(machineId, workspaceId, data),
+  (queryClient, _data, { machineId }) => {
+    queryClient.invalidateQueries({ queryKey: workspacesKey(machineId) });
     // Search results embed workspace_name, so a rename leaves a stale label
     // visible until the search query naturally refetches.
-    queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
+    queryClient.invalidateQueries({
+      queryKey:
+        machineId === LOCAL_MACHINE_ID
+          ? queryKeys.chatsSearchAll
+          : queryKeys.machine.chatsSearchAll(machineId),
+    });
   },
 );
 
-export const useDeleteWorkspaceMutation = createMutation<void, Error, string>(
-  (workspaceId) => workspaceService.deleteWorkspace(LOCAL_MACHINE_ID, workspaceId),
-  async (queryClient, _data, workspaceId) => {
+export const useDeleteWorkspaceMutation = createMutation<
+  void,
+  Error,
+  { machineId: string; workspaceId: string }
+>(
+  ({ machineId, workspaceId }) => workspaceService.deleteWorkspace(machineId, workspaceId),
+  async (queryClient, _data, { machineId, workspaceId }) => {
     const allCachedChats = queryClient.getQueriesData<Chat>({ queryKey: ['chat'] });
     for (const [, chat] of allCachedChats) {
       if (chat?.workspace_id === workspaceId) {
@@ -92,8 +115,11 @@ export const useDeleteWorkspaceMutation = createMutation<void, Error, string>(
     }
 
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces }),
-      queryClient.invalidateQueries({ queryKey: [queryKeys.chats] }),
+      queryClient.invalidateQueries({ queryKey: workspacesKey(machineId) }),
+      queryClient.invalidateQueries({
+        queryKey:
+          machineId === LOCAL_MACHINE_ID ? [queryKeys.chats] : queryKeys.machine.chats(machineId),
+      }),
       queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll }),
     ]);
   },

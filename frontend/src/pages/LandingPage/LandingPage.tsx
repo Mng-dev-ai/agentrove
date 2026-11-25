@@ -11,10 +11,6 @@ import { WorkspaceSelector } from '@/components/chat/workspace-selector/Workspac
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
 import { BranchWorktreeSelector } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
 import { MachineWorkspaceSelector } from '@/components/chat/workspace-selector/MachineWorkspaceSelector';
-import {
-  useMachineWorkspacesQuery,
-  useMachineWorkspaceResourcesQuery,
-} from '@/hooks/queries/useMachineQueries';
 import { useChatStore } from '@/store/chatStore';
 import { useUIStore } from '@/store/uiStore';
 import { useModelStore } from '@/store/modelStore';
@@ -37,7 +33,7 @@ import { useCreateChatMutation } from '@/hooks/queries/useChatQueries';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useFilesMetadataQuery } from '@/hooks/queries/useSandboxQueries';
 import { useModelSelection, useModelMap } from '@/hooks/queries/useModelQueries';
-import { useSettingsForMachineQuery } from '@/hooks/queries/useSettingsQueries';
+import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -189,30 +185,24 @@ export function LandingPage() {
   }
 
   // Slash commands are per-instance — the target machine's list before a chat exists.
-  const { data: workspaceResources } = useWorkspaceResourcesQuery(
+  const { data: resolvedWorkspaceResources } = useWorkspaceResourcesQuery(
     selectedWorkspaceId ?? undefined,
-    undefined,
-    {
-      enabled: isAuthenticated && !!selectedWorkspaceId && !isRemote,
-    },
+    { machineId: targetMachineId, enabled: isAuthenticated },
   );
-  const { data: machineWorkspaceResources } = useMachineWorkspaceResourcesQuery(
-    targetMachineId,
-    selectedWorkspaceId ?? undefined,
-    isAuthenticated && isRemote,
-  );
-  const resolvedWorkspaceResources = isRemote ? machineWorkspaceResources : workspaceResources;
 
   // Personas are per-instance — the target machine's list so create resolves against it.
-  const { data: settings } = useSettingsForMachineQuery(targetMachineId, isAuthenticated);
+  const { data: settings } = useSettingsQuery({
+    machineId: targetMachineId,
+    enabled: isAuthenticated,
+  });
   const resolvedPersonas = settings?.personas;
 
   // Sandbox for editor/@file/branch on the machine that owns the workspace.
-  const { data: machineWorkspaces } = useMachineWorkspacesQuery(
-    targetMachineId,
-    isAuthenticated && isRemote,
-  );
-  const selectedSandboxId = (isRemote ? machineWorkspaces : workspaces)?.find(
+  const targetWorkspaces = useWorkspacesList({
+    machineId: targetMachineId,
+    enabled: isAuthenticated,
+  });
+  const selectedSandboxId = targetWorkspaces.find(
     (ws) => ws.id === selectedWorkspaceId,
   )?.sandbox_id;
 

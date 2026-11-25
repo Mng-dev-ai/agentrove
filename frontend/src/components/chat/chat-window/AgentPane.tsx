@@ -7,6 +7,7 @@ import { useChatData } from '@/hooks/useChatData';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
+import { useChatMachineId } from '@/store/machineOrigin';
 import { PaneSessionPanel } from '@/components/chat/session-panel/PaneSessionPanel';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useUIStore } from '@/store/uiStore';
@@ -24,10 +25,9 @@ interface AgentPaneProps {
 export const AgentPane = memo(function AgentPane({ chatId, agentTile }: AgentPaneProps) {
   const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
   const { fileStructure } = useSandboxFiles(currentChat, chatId);
-  const { data: workspaceResources } = useWorkspaceResourcesQuery(
-    currentChat?.workspace_id,
-    chatId,
-  );
+  const { data: workspaceResources } = useWorkspaceResourcesQuery(currentChat?.workspace_id, {
+    machineId: useChatMachineId(chatId),
+  });
   // Personas come from the instance that owns the chat (local or cloud VPS).
   const { data: settings } = useSettingsForChatQuery(chatId);
   const isMobile = useIsMobile();

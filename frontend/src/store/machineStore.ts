@@ -102,6 +102,10 @@ export function useMachineStatus(id: string): MachineStatus {
   return useMachineStore(() => machineStatus(id));
 }
 
+export function useMachineOnline(id: string): boolean {
+  return useMachineStatus(id) === 'online';
+}
+
 export function useMachineName(id: string): string {
   return useMachineStore(() => machineName(id));
 }

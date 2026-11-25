@@ -18,6 +18,7 @@ import { useChatQuery, markChatViewed } from '@/hooks/queries/useChatQueries';
 import { useSandboxFiles } from '@/hooks/useSandboxFiles';
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useSettingsForChatQuery } from '@/hooks/queries/useSettingsQueries';
+import { useChatMachineId } from '@/store/machineOrigin';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { InTilePaneHeader } from '@/components/layout/PaneHeader/PaneHeader';
 import { PaneSessionPanel } from '@/components/chat/session-panel/PaneSessionPanel';
@@ -152,10 +153,9 @@ export function ChatPage() {
   // Remote chats resolve personas against their machine's settings list.
   const { data: settings } = useSettingsForChatQuery(chatId);
 
-  const { data: workspaceResources } = useWorkspaceResourcesQuery(
-    currentChat?.workspace_id,
-    chatId,
-  );
+  const { data: workspaceResources } = useWorkspaceResourcesQuery(currentChat?.workspace_id, {
+    machineId: useChatMachineId(chatId),
+  });
 
   useEffect(() => {
     useChatStore.getState().setCurrentChat(currentChat || null);

@@ -29,8 +29,7 @@ import { BranchWorktreeDropdown } from '@/components/chat/worktree-selector/Bran
 import { useDropdown } from '@/hooks/useDropdown';
 import { usePanelFit } from '@/hooks/usePanelFit';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
-import { useSettingsForMachineQuery } from '@/hooks/queries/useSettingsQueries';
-import { useMachineWorkspacesQuery } from '@/hooks/queries/useMachineQueries';
+import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useCreateChannelMutation } from '@/hooks/queries/useChannelQueries';
@@ -320,11 +319,12 @@ export function CreateChannelDialog({
     machineId: targetMachineId,
   });
   const isRemote = targetMachineId !== LOCAL_MACHINE_ID;
-  const { data: settings } = useSettingsForMachineQuery(targetMachineId, isAuthenticated);
+  const { data: settings } = useSettingsQuery({
+    machineId: targetMachineId,
+    enabled: isAuthenticated,
+  });
   const personas = settings?.personas ?? [];
-  const localWorkspaces = useWorkspacesList({ enabled: isAuthenticated });
-  const { data: machineWorkspaces = [] } = useMachineWorkspacesQuery(targetMachineId, isRemote);
-  const workspaces = isRemote ? machineWorkspaces : localWorkspaces;
+  const workspaces = useWorkspacesList({ machineId: targetMachineId, enabled: isAuthenticated });
 
   const [name, setName] = useState('');
   const [workspaceIdByMachine, setWorkspaceIdByMachine] = useState<Record<string, string | null>>({
