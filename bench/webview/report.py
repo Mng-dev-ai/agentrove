@@ -311,6 +311,38 @@ def trail_off(rows: list[dict[str, Any]]) -> list[str]:
     return lines + [""]
 
 
+def trail_probe(rows: list[dict[str, Any]]) -> list[str]:
+    lines = [
+        "### Trail correctness probe (cells_5k, 320 mounted, after the cells)",
+        "",
+        "Positions: the active tick equals the last turn row whose top is within "
+        "40% of the scroller height (computed in page script). Clicks: ticks at "
+        "10%, 50% and the last turn land the scroller 12 px above that row "
+        "(clamped), within 4 px.",
+        "",
+        "| Host | Variant | runs | position pass | position fail | click pass "
+        "| click fail | errors |",
+        "|---|---|---:|---:|---:|---:|---:|---|",
+    ]
+    for host in HOSTS:
+        for variant in VARIANTS:
+            probes = [
+                r["details"]["trail_probe"]
+                for r in cell_rows(rows, variant)
+                if r["host"] == host and "trail_probe" in r["details"]
+            ]
+            pos = [p for t in probes for p in t["positions"]]
+            clicks = [c for t in probes for c in t["clicks"]]
+            errs = sorted({t["error"] for t in probes if t.get("error")})
+            lines.append(
+                f"| {host} | {variant} | {len(probes)} "
+                f"| {sum(p['ok'] for p in pos)} | {sum(not p['ok'] for p in pos)} "
+                f"| {sum(c['ok'] for c in clicks)} "
+                f"| {sum(not c['ok'] for c in clicks)} | {'; '.join(errs) or '–'} |"
+            )
+    return lines + [""]
+
+
 def memory_marks(rows: list[dict[str, Any]]) -> list[str]:
     runs = [
         r
@@ -442,6 +474,7 @@ def markdown(
     lines += cell_table(rows)
     lines += memory_marks(rows)
     lines += trail_off(rows)
+    lines += trail_probe(rows)
     return "\n".join(lines) + "\n"
 
 

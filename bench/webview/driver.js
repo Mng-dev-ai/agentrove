@@ -14,6 +14,14 @@
   const SPEEDS = { human: 60, fast: 460 };
   const TRAIL_PASS_PER_SPAN = 2;
   const ROW_SELECTOR_PREFIX = '[data-message-id="';
+  const PROBE_POSITIONS = 24;
+  const PROBE_STRIDE = 7;
+  const PROBE_TOP_PX = 400;
+  const PROBE_ACTIVE_FRACTION = 0.4;
+  const PROBE_JUMP_OFFSET_PX = 12;
+  const PROBE_TOLERANCE_PX = 4;
+  const PROBE_STILL_FRAMES = 10;
+  const PROBE_SETTLE_MS = 4000;
   const errors = [];
   const dom = { scroller: null, span: 0, nulled: 0, calls: {} };
 
@@ -338,6 +346,82 @@
     return true;
   };
 
+  const trailTicks = () => [...document.querySelectorAll('button[aria-label^="Jump to message: "]')];
+  const activeTick = (ticks) => ticks.findIndex((b) => b.querySelector('[class*="tick--active"]'));
+  const turnRows = (el) => {
+    const groups = new Set();
+    const firsts = [];
+    for (const row of el.querySelectorAll('[data-message-id]')) {
+      if (!groups.has(row.parentElement)) {
+        groups.add(row.parentElement);
+        firsts.push(row);
+      }
+    }
+    return firsts;
+  };
+  const expectedTurn = (el, rows) => {
+    const top = el.getBoundingClientRect().top;
+    const threshold = el.clientHeight * PROBE_ACTIVE_FRACTION;
+    let idx = 0;
+    rows.forEach((row, i) => {
+      if (row.getBoundingClientRect().top - top <= threshold) idx = i;
+    });
+    return idx;
+  };
+  const settleScroll = async (el) => {
+    const t0 = performance.now();
+    let last = el.scrollTop;
+    let still = 0;
+    while (still < PROBE_STILL_FRAMES && performance.now() - t0 < PROBE_SETTLE_MS) {
+      await nextFrame();
+      still = el.scrollTop === last ? still + 1 : 0;
+      last = el.scrollTop;
+    }
+  };
+
+  const trailProbe = async (el) => {
+    const out = { positions: [], clicks: [], pass: 0, fail: 0 };
+    const count = messageCount();
+    const ticks = trailTicks();
+    const firsts = turnRows(el);
+    const leading = firsts.length - ticks.length;
+    out.turns = ticks.length;
+    out.leading_groups = leading;
+    if (ticks.length < 2 || leading < 0 || leading > 1) {
+      out.fail += 1;
+      out.error = `ticks ${ticks.length} vs turn groups ${firsts.length}`;
+      return out;
+    }
+    const max = el.scrollHeight - el.clientHeight;
+    for (let i = 0; i < PROBE_POSITIONS; i += 1) {
+      const k = (i * PROBE_STRIDE) % PROBE_POSITIONS;
+      el.scrollTop = PROBE_TOP_PX + ((max - PROBE_TOP_PX) * k) / (PROBE_POSITIONS - 1);
+      await settleScroll(el);
+      await sleep(50);
+      const rows = turnRows(el).slice(leading);
+      const expected = expectedTurn(el, rows);
+      const actual = activeTick(trailTicks());
+      const ok = expected === actual && messageCount() === count;
+      out[ok ? 'pass' : 'fail'] += 1;
+      out.positions.push({ scroll_top: el.scrollTop, expected, actual, ok });
+    }
+    for (const idx of [Math.floor(ticks.length / 10), Math.floor(ticks.length / 2), ticks.length - 1]) {
+      el.scrollTop = idx < ticks.length / 2 ? max : PROBE_TOP_PX;
+      await settleScroll(el);
+      const row = turnRows(el).slice(leading)[idx];
+      trailTicks()[idx].click();
+      await settleScroll(el);
+      const rel = row.getBoundingClientRect().top - el.getBoundingClientRect().top;
+      const limit = el.scrollHeight - el.clientHeight;
+      const target = Math.min(limit, Math.max(0, el.scrollTop + rel - PROBE_JUMP_OFFSET_PX));
+      const off = el.scrollTop - target;
+      const ok = row.isConnected && Math.abs(off) <= PROBE_TOLERANCE_PX && messageCount() === count;
+      out[ok ? 'pass' : 'fail'] += 1;
+      out.clicks.push({ turn: idx, scroll_top: el.scrollTop, target, off_px: off, ok });
+    }
+    return out;
+  };
+
   const cells5k = async () => {
     await waitFor('chat_5k', () => chatReady('chat_5k'));
     await idleCheck('idle');
@@ -359,6 +443,7 @@
     }
     state.details.pages = pages;
     state.details.cells = cells;
+    state.details.trail_probe = await trailProbe(el);
     state.details.trail_nulled = dom.nulled;
     return true;
   };
