@@ -14,8 +14,9 @@ from sqlalchemy.orm import InstrumentedAttribute
 
 from app.core.config import get_settings
 from app.db.session import SessionLocal
+from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.push import PushDelivery, PushDevice
-from app.models.db_models.user import UserSettings
+from app.models.db_models.user import User, UserSettings
 from app.services.db import SessionFactoryType
 
 logger = logging.getLogger(__name__)
@@ -52,11 +53,16 @@ class PushService:
 
     @staticmethod
     async def register_device(
-        db: AsyncSession, user_id: UUID, token: str, sandbox: bool
+        db: AsyncSession,
+        user_id: UUID,
+        paired_device_id: UUID | None,
+        token: str,
+        sandbox: bool,
     ) -> None:
         device = await db.scalar(select(PushDevice).where(PushDevice.token == token))
         now = datetime.now(timezone.utc)
         if device is not None and device.user_id == user_id:
+            device.paired_device_id = paired_device_id
             device.sandbox = sandbox
             device.updated_at = now
         else:
@@ -67,7 +73,11 @@ class PushService:
                 await db.flush()
             db.add(
                 PushDevice(
-                    user_id=user_id, token=token, sandbox=sandbox, updated_at=now
+                    user_id=user_id,
+                    paired_device_id=paired_device_id,
+                    token=token,
+                    sandbox=sandbox,
+                    updated_at=now,
                 )
             )
         await db.commit()
@@ -221,7 +231,16 @@ class PushService:
                     return
                 device_ids = (
                     await db.scalars(
-                        select(PushDevice.id).where(PushDevice.user_id == user_id)
+                        select(PushDevice.id)
+                        .join(User, User.id == PushDevice.user_id)
+                        .outerjoin(
+                            PairedDevice, PairedDevice.id == PushDevice.paired_device_id
+                        )
+                        .where(
+                            PushDevice.user_id == user_id,
+                            User.is_active,
+                            PairedDevice.revoked_at.is_(None),
+                        )
                     )
                 ).all()
                 if not device_ids:
@@ -305,21 +324,30 @@ class PushService:
         await db.commit()
         if claim.rowcount != 1:
             return 0
-        # Re-read after the claim: logout or an account switch deletes the device
-        # (and its deliveries), and the user may have turned notifications off.
+        # Re-read after the claim: logout, an account switch or a revocation deletes
+        # the device (and its deliveries), the user may have turned notifications
+        # off, and a registration can commit after its paired device was revoked.
         row = (
             await db.execute(
-                select(PushDelivery, PushDevice, UserSettings.notifications_enabled)
+                select(
+                    PushDelivery,
+                    PushDevice,
+                    UserSettings.notifications_enabled,
+                    User.is_active,
+                    PairedDevice.revoked_at,
+                )
                 .join(PushDevice, PushDevice.id == PushDelivery.device_id)
+                .join(User, User.id == PushDevice.user_id)
                 .outerjoin(UserSettings, UserSettings.user_id == PushDevice.user_id)
+                .outerjoin(PairedDevice, PairedDevice.id == PushDevice.paired_device_id)
                 .where(PushDelivery.id == delivery_id)
                 .execution_options(populate_existing=True)
             )
         ).one_or_none()
         if row is None:
             return 0
-        delivery, device, notifications_enabled = row
-        if notifications_enabled is False:
+        delivery, device, notifications_enabled, is_active, revoked_at = row
+        if notifications_enabled is False or not is_active or revoked_at is not None:
             await self._finish(db, delivery, lease)
             return 0
 

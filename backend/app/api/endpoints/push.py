@@ -16,7 +16,13 @@ async def register_push_device(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    await PushService.register_device(db, current_user.id, device.token, device.sandbox)
+    await PushService.register_device(
+        db,
+        current_user.id,
+        next(iter(current_user.device_ids), None),
+        device.token,
+        device.sandbox,
+    )
 
 
 @router.delete("/devices/{token}", status_code=status.HTTP_204_NO_CONTENT)

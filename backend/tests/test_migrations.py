@@ -33,6 +33,7 @@ def downgrade() -> None:
     pass
 """
 COLUMN_VALUES = {("channel_messages", "status"): "completed"}
+CLEARED_TABLES = {"push_devices", "push_deliveries"}
 NEW_TABLES = {"instance", "paired_devices", "pairing_secrets"}
 ADDED_TO_BASE_TABLES = {
     "refresh_tokens": {
@@ -58,6 +59,25 @@ ADDED_TO_BASE_TABLES = {
         ("column", "pinned_at", "DATETIME", 0, None, 0),
     },
     "channel_members": {("column", "removed_at", "DATETIME", 0, None, 0)},
+    "push_devices": {
+        ("column", "paired_device_id", "CHAR(32)", 0, None, 0),
+        (
+            "foreign_key",
+            "paired_devices",
+            "paired_device_id",
+            "id",
+            "NO ACTION",
+            "CASCADE",
+        ),
+        (
+            "index",
+            "ix_push_devices_paired_device_id",
+            0,
+            "c",
+            0,
+            ("paired_device_id",),
+        ),
+    },
     "user_settings": {
         ("column", "settings_version", "INTEGER", 1, "'0'", 0),
         ("column", "notify_permission_requests", "BOOLEAN", 1, "'true'", 0),
@@ -182,7 +202,7 @@ def test_upgrade_and_downgrade_keep_every_row(migration_engine: sa.Engine) -> No
     command.upgrade(config, "head")
     assert {
         table: _row_counts(migration_engine)[table] for table in base_counts
-    } == base_counts
+    } == base_counts | dict.fromkeys(CLEARED_TABLES, 0)
     head_schema = _schema(migration_engine)
     assert set(head_schema) - set(base_schema) == NEW_TABLES
     assert {table: head_schema[table] for table in base_schema} == {
@@ -198,7 +218,7 @@ def test_upgrade_and_downgrade_keep_every_row(migration_engine: sa.Engine) -> No
     command.upgrade(config, "head")
     assert {
         table: _row_counts(migration_engine)[table] for table in base_counts
-    } == base_counts
+    } == base_counts | dict.fromkeys(CLEARED_TABLES, 0)
     assert _schema(migration_engine) == head_schema
 
 
@@ -220,7 +240,7 @@ def test_preexisting_orphan_does_not_block_upgrade(migration_engine: sa.Engine) 
 
     assert {
         table: _row_counts(migration_engine)[table] for table in base_counts
-    } == base_counts
+    } == base_counts | dict.fromkeys(CLEARED_TABLES, 0)
 
 
 def test_migration_that_orphans_rows_is_rolled_back(
