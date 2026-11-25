@@ -10,10 +10,10 @@ import { ModelSelector } from './ModelSelector';
 
 const models: Model[] = [
   {
-    model_id: 'opencode:opencode/minimax-m3.1-flash-free',
-    name: 'MiniMax M3.1 Flash',
+    model_id: 'opencode:opencode/minimax-m3',
+    name: 'MiniMax M3',
     agent_kind: 'opencode',
-    context_window: 1_000_000,
+    context_window: 512_000,
     thinking_modes: [],
   },
   {

@@ -11,6 +11,8 @@ TEST_DIR = Path(tempfile.mkdtemp(prefix="agentrove-tests-"))
 # A checkout keeps mcp-server/ beside backend/; the API image and desktop bundle
 # copy it into the backend root, where app.main finds it.
 sys.path.append(str(Path(__file__).resolve().parents[2] / "mcp-server"))
+# scripts/ holds the OpenCode catalog generator that test_opencode_catalog_sync runs.
+sys.path.append(str(Path(__file__).resolve().parents[2] / "scripts"))
 
 os.environ["SECRET_KEY"] = "test-secret-key-with-at-least-32-chars"
 os.environ["SESSION_SECRET_KEY"] = "test-session-key-with-at-least-32-chars"
