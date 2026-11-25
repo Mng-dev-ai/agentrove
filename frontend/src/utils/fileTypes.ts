@@ -1,8 +1,6 @@
 import type { FileStructure } from '@/types/file-system.types';
 import type { InstanceInfo, UploadLimits } from '@/types/machine.types';
 
-type UploadedFileType = 'image' | 'pdf' | 'xlsx';
-
 const PDF_MIME_TYPE = 'application/pdf';
 const XLSX_MIME_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const UPLOADED_IMAGE_MIME_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -28,6 +26,8 @@ const FILE_TYPE_EXTENSIONS: Record<string, string[]> = {
   powerpoint: ['.ppt', '.pptx'],
   pdf: ['.pdf'],
 };
+
+type UploadedFileType = 'image' | 'pdf' | 'xlsx';
 
 const checkMimeType = (file: File, mimeType: string | string[], extension?: string): boolean => {
   const types = Array.isArray(mimeType) ? mimeType : [mimeType];
