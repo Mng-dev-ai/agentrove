@@ -33,7 +33,12 @@ class AgentroveClient:
         return await self._http.request(method, path, headers=headers, **kwargs)
 
     async def request(
-        self, method: str, path: str, *, expected: tuple[int, ...] = (200,), **kwargs: Any
+        self,
+        method: str,
+        path: str,
+        *,
+        expected: tuple[int, ...] = (200,),
+        **kwargs: Any,
     ) -> httpx.Response:
         try:
             resp = await self._send(method, path, **kwargs)
@@ -121,7 +126,9 @@ class AgentroveClient:
             body: dict[str, Any] = {"personas": change(settings.get("personas") or [])}
             if "settings_version" in settings:
                 body["expected_version"] = settings["settings_version"]
-            resp = await self.request("PATCH", "/settings/", json=body, expected=(200, 409))
+            resp = await self.request(
+                "PATCH", "/settings/", json=body, expected=(200, 409)
+            )
             if resp.status_code == 200:
                 return
         raise AgentroveError("Personas were changed concurrently; try again.")
@@ -143,7 +150,9 @@ class AgentroveClient:
         return [persona if p["name"] == persona["name"] else p for p in personas]
 
     @staticmethod
-    def _remove_persona(name: str, personas: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    def _remove_persona(
+        name: str, personas: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
         remaining = [p for p in personas if p["name"] != name]
         if len(remaining) == len(personas):
             raise AgentroveError(f"No persona named {name!r} exists.")
@@ -202,7 +211,13 @@ class AgentroveClient:
         report_to_parent: bool = False,
     ) -> dict[str, Any]:
         data = self._turn_form(
-            model_id, permission_mode, thinking_mode, worktree, base_branch, fast_mode, persona
+            model_id,
+            permission_mode,
+            thinking_mode,
+            worktree,
+            base_branch,
+            fast_mode,
+            persona,
         )
         data.update(prompt=prompt, chat_id=chat_id, report_to_parent=report_to_parent)
         resp = await self.request("POST", "/chat/chat", data=data, expected=(200, 409))
@@ -225,9 +240,17 @@ class AgentroveClient:
         report_to_parent: bool = False,
     ) -> dict[str, Any]:
         data = self._turn_form(
-            model_id, permission_mode, thinking_mode, worktree, base_branch, fast_mode, persona
+            model_id,
+            permission_mode,
+            thinking_mode,
+            worktree,
+            base_branch,
+            fast_mode,
+            persona,
         )
-        data.update(content=prompt, send_now=send_now, report_to_parent=report_to_parent)
+        data.update(
+            content=prompt, send_now=send_now, report_to_parent=report_to_parent
+        )
         resp = await self.request(
             "POST", f"/chat/chats/{chat_id}/queue", data=data, expected=(201,)
         )
@@ -260,7 +283,9 @@ class AgentroveClient:
 
     async def attach_file(self, chat_id: str, path: str) -> dict[str, Any]:
         file_path = Path(path)
-        content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        content_type = (
+            mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+        )
         try:
             with file_path.open("rb") as file:
                 resp = await self.request(
@@ -308,7 +333,9 @@ class AgentroveClient:
         params: dict[str, Any] = {"limit": limit}
         if cursor:
             params["cursor"] = cursor
-        resp = await self.request("GET", f"/chat/chats/{chat_id}/messages", params=params)
+        resp = await self.request(
+            "GET", f"/chat/chats/{chat_id}/messages", params=params
+        )
         return resp.json()
 
     async def get_context_usage(self, chat_id: str) -> dict[str, Any] | None:
@@ -329,7 +356,9 @@ class AgentroveClient:
         resp = await self.request("GET", f"/channels/{channel_id}")
         return resp.json()
 
-    async def get_channel_messages(self, channel_id: str, after_seq: int) -> list[dict[str, Any]]:
+    async def get_channel_messages(
+        self, channel_id: str, after_seq: int
+    ) -> list[dict[str, Any]]:
         resp = await self.request(
             "GET", f"/channels/{channel_id}/messages", params={"after_seq": after_seq}
         )
@@ -339,7 +368,9 @@ class AgentroveClient:
         resp = await self.request("POST", "/channels", json=body, expected=(201,))
         return resp.json()
 
-    async def post_channel_message(self, channel_id: str, content: str) -> dict[str, Any]:
+    async def post_channel_message(
+        self, channel_id: str, content: str
+    ) -> dict[str, Any]:
         resp = await self.request(
             "POST",
             f"/channels/{channel_id}/messages",
@@ -378,7 +409,9 @@ class AgentroveClient:
         resp = await self.request("POST", "/memories", json=body, expected=(201,))
         return resp.json()
 
-    async def update_memory(self, memory_id: str, body: dict[str, Any]) -> dict[str, Any]:
+    async def update_memory(
+        self, memory_id: str, body: dict[str, Any]
+    ) -> dict[str, Any]:
         resp = await self.request("PATCH", f"/memories/{memory_id}", json=body)
         return resp.json()
 

@@ -418,7 +418,9 @@ async def search_chats(
                 {
                     "message_id": m["message_id"],
                     "role": m["role"],
-                    "snippet": m["snippet_before"] + m["snippet_match"] + m["snippet_after"],
+                    "snippet": m["snippet_before"]
+                    + m["snippet_match"]
+                    + m["snippet_after"],
                     "created_at": m["created_at"],
                 }
                 for m in r["matches"]
@@ -563,7 +565,10 @@ async def send_message(
         resolved_workspace = await client.resolve_workspace_id(workspace_id)
         chat_title = (title or prompt[:60]).strip() or "New chat"
         chat = await client.create_chat(
-            chat_title, resolved_workspace, resolved_model, parent_chat_id=parent_chat_id
+            chat_title,
+            resolved_workspace,
+            resolved_model,
+            parent_chat_id=parent_chat_id,
         )
         chat_id = chat["id"]
     try:
@@ -707,7 +712,9 @@ async def respond_to_request(
     if option_id is not None and action is None:
         detail = await client.respond_to_permission(chat_id, request_id, option_id)
     elif action is not None and option_id is None:
-        detail = await client.respond_to_elicitation(chat_id, request_id, action, content)
+        detail = await client.respond_to_elicitation(
+            chat_id, request_id, action, content
+        )
     else:
         raise AgentroveError(
             "Pass option_id to answer a permission request or action to answer a question."
@@ -874,10 +881,7 @@ async def stop_channel(channel_id: str) -> dict[str, Any]:
     """
     client, chat_id = _session()
     channel = await client.get_channel(channel_id)
-    if any(
-        member["chat_id"] == chat_id
-        for member in channel["members"]
-    ):
+    if any(member["chat_id"] == chat_id for member in channel["members"]):
         raise AgentroveError(
             "Cannot stop a channel this chat is a member of from within its own turn."
         )
