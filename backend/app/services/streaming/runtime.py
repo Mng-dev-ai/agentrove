@@ -7,15 +7,16 @@ import posixpath
 import time
 from contextlib import asynccontextmanager, suppress
 from dataclasses import replace
+from datetime import datetime
 from collections.abc import AsyncIterator, Awaitable, Callable
 from functools import partial
 from typing import Any
 from uuid import UUID, uuid4
 
 from acp.exceptions import RequestError
-from sqlalchemy import select, update
+from sqlalchemy import Update, select, update
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import InstrumentedAttribute, selectinload
 
 from app.catalog import MODELS
 from app.constants import (
@@ -28,7 +29,7 @@ from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.queue import QueuedMessage
-from app.models.types import AgentKind
+from app.models.types import AgentKind, PermissionMode
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -88,6 +89,29 @@ class ChatStreamRuntime:
     _starting_chat_ids: dict[str, asyncio.Event] = {}
     _restoring_chat_ids: dict[str, asyncio.Event] = {}
     _completed_turn_chat_ids: set[str] = set()
+
+    @staticmethod
+    def record_turn_settings(
+        chat_id: UUID,
+        *,
+        model_id: str,
+        permission_mode: PermissionMode,
+        thinking_mode: str | None,
+        persona_name: str,
+        updated_at: datetime | InstrumentedAttribute[datetime],
+    ) -> Update:
+        # A tier the model rejects fails the turn; keep the last runnable
+        # settings so turns that inherit them don't repeat the failure.
+        adapter = AGENT_ADAPTERS[MODELS[model_id].agent_kind]
+        if not adapter.accepts_thinking_mode(model_id, thinking_mode):
+            return update(Chat).where(Chat.id == chat_id).values(updated_at=updated_at)
+        return Chat.record_turn_settings(
+            chat_id,
+            model_id=model_id,
+            permission_mode=permission_mode,
+            thinking_mode=thinking_mode,
+            persona_name=persona_name,
+        ).values(updated_at=updated_at)
 
     @classmethod
     @asynccontextmanager
@@ -817,13 +841,14 @@ class ChatStreamRuntime:
             )
             async with session_factory() as db:
                 await db.execute(
-                    Chat.record_turn_settings(
+                    cls.record_turn_settings(
                         chat.id,
                         model_id=request.model_id,
                         permission_mode=request.permission_mode,
                         thinking_mode=request.thinking_mode,
                         persona_name=request.selected_persona_name,
-                    ).values(updated_at=Chat.updated_at)
+                        updated_at=Chat.updated_at,
+                    )
                 )
                 if request.report_parent_id is not None:
                     await subthread_wake.owe_report(db, chat.id, request.device_ids)

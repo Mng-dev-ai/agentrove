@@ -18,12 +18,10 @@ from sqlalchemy import Enum as SQLAlchemyEnum
 from sqlalchemy import JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.catalog import MODELS
 from app.db.base_class import Base
 from app.db.migration_helpers import uuid_server_default
 from app.db.types import GUID, UTCDateTime, UUIDSet, enum_values
 from app.models.types import PermissionMode
-from app.services.acp.adapters import AGENT_ADAPTERS
 
 from .enums import AttachmentType, MessageRole, MessageStreamStatus
 
@@ -121,17 +119,15 @@ class Chat(Base):
         thinking_mode: str | None,
         persona_name: str,
     ) -> Update:
-        statement = update(cls).where(cls.id == chat_id)
-        # A tier the model rejects fails the turn; keep the last runnable
-        # settings so turns that inherit them don't repeat the failure.
-        adapter = AGENT_ADAPTERS[MODELS[model_id].agent_kind]
-        if not adapter.accepts_thinking_mode(model_id, thinking_mode):
-            return statement
-        return statement.values(
-            last_model_id=model_id,
-            last_permission_mode=permission_mode,
-            last_thinking_mode=thinking_mode,
-            last_persona_name=persona_name,
+        return (
+            update(cls)
+            .where(cls.id == chat_id)
+            .values(
+                last_model_id=model_id,
+                last_permission_mode=permission_mode,
+                last_thinking_mode=thinking_mode,
+                last_persona_name=persona_name,
+            )
         )
 
     @property
