@@ -9,6 +9,7 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 - `mcp-server/`: the Agentrove MCP server (`server.py`) and its HTTP client for the backend (`client.py`). It sits beside `backend/`, not inside it; the API image copies it to `/app/mcp-server/` and tests add it to `sys.path` (`backend/tests/bootstrap.py`).
 - `frontend/`: React + Vite + TypeScript app, also the Tauri desktop shell (`frontend/src-tauri`, Rust).
 - `desktop/run_build.mjs`: builds the desktop backend sidecar (`frontend/backend-sidecar`) that Tauri bundles.
+- `backend/app/catalog/opencode.py` is generated: change it only by editing `scripts/opencode_catalog_overrides.toml` (provider allow-list, display-name overrides, keep-list, legacy flags) and running `python3 scripts/sync_opencode_catalog.py [models.dev snapshot.json]` with ruff 0.15.0 on `PATH`. The daily bump workflow runs it too.
 - `sandbox/`: sandbox Docker image; `scripts/`: `install-hooks.sh` (sets `core.hooksPath=.githooks`; the pre-commit hook runs lint-staged in `frontend/` and `pre-commit` on staged backend files).
 
 ## Backend
@@ -49,7 +50,7 @@ Backend (`.github/workflows/backend-checks.yml`, Python 3.12, runs when `backend
 - Lint tools only, no project deps: `pip install ruff==0.15.0 mypy types-redis deptry pip-audit`. A venv with project deps gives dozens of unrelated mypy errors; use a throwaway venv with just these.
 - `ruff check . ../mcp-server`, `ruff format --check . ../mcp-server`, `mypy app/`, `mypy --config-file pyproject.toml ../mcp-server`, `deptry . --requirements-files requirements.txt`. `pip-audit -r requirements.lock` is non-blocking.
 - Direct deps live in `backend/requirements-core.txt` (shared with the desktop sidecar); `backend/requirements.txt` includes it with `-r` (deptry follows the include) and adds the server-only packages. `desktop/requirements.lock` is compiled from the core list constrained by `backend/requirements.lock`; CI recompiles it with `uv==0.13.10` and fails on `git diff --exit-code desktop/requirements.lock`. Both compile commands, run from the repo root, are in the lock headers.
-- Tests: `uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist`, then `COVERAGE_CORE=sysmon pytest tests -n auto --cov=app --cov-fail-under=85`.
+- Tests: `uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist ruff==0.15.0`, then `COVERAGE_CORE=sysmon pytest tests -n auto --cov=app --cov-fail-under=85`.
 
 Docker Smoke (`.github/workflows/docker-smoke.yml`, runs when either Dockerfile, `scripts/bump-acp-providers.sh` or `.github/actions/docker-smoke/` change): builds `backend/Dockerfile` and `sandbox/docker/Dockerfile` for linux/amd64 without pushing, then runs `--version` of every bundled agent CLI in each image (`.github/actions/docker-smoke/`). The daily bump workflow runs the same action before opening its PR, because `pull_request` runs on its `github.token` PRs wait for manual approval; the PR job is skipped on `bot/bump-acp-providers`.
 

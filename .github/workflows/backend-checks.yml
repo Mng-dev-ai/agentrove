@@ -94,7 +94,7 @@ jobs:
       # The lockfile matches the API image; mcp==1.19.0 doesn't import under the
       # newest pydantic that requirements.txt would resolve.
       - name: Install test dependencies
-        run: uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist
+        run: uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist ruff==0.15.0
 
       - name: Run backend tests
         # sysmon core: the default C tracer drops lines executed through

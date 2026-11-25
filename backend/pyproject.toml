@@ -105,6 +105,8 @@ DEP001 = [
     "pytest_asyncio",
     # mcp-server/server.py, put on sys.path by app/main.py.
     "server",
+    # scripts/sync_opencode_catalog.py, put on sys.path by tests/bootstrap.py.
+    "sync_opencode_catalog",
 ]
 DEP002 = [
     "aiosqlite",
