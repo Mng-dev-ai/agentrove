@@ -43,8 +43,7 @@ export function SidebarRow({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {/* Pad for timestamp/dropdown so long titles truncate before them. */}
-      <div className={clsx(styles['title-col'], isTimestampStatus && styles['title-col--wide'])}>
+      <div className={styles['title-col']}>
         <div className={styles['title-row']}>
           {leading}
           {title}
@@ -56,10 +55,8 @@ export function SidebarRow({
       <span
         className={clsx(
           styles.timestamp,
-          isRevealed &&
-            (isTimestampStatus
-              ? styles['timestamp--beside-dropdown']
-              : styles['timestamp--hidden']),
+          isTimestampStatus && styles['timestamp--status'],
+          !isTimestampStatus && isRevealed && styles['timestamp--hidden'],
         )}
       >
         {timestamp}

@@ -161,8 +161,8 @@
 .badge {
   @include type.type-meta(500);
   position: absolute;
-  top: calc(var(--space-0-5) * -1);
-  right: calc(var(--space-0-5) * -1);
+  top: 0;
+  right: 0;
   min-width: var(--space-3-5);
   border-radius: var(--radius-full);
   background-color: colors.status-color('info', 500);

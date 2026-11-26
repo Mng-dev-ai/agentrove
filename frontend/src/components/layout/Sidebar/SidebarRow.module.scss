@@ -13,7 +13,7 @@
   gap: var(--space-2);
   border-radius: var(--radius-lg);
   padding-inline: var(--space-2);
-  padding-block: var(--space-1);
+  padding-block: var(--space-1-5);
   color: var(--theme-text-secondary);
 
   // Taller rows on touch keep a ~40px thumb target
@@ -44,26 +44,11 @@
   }
 }
 
-// Right padding reserves room for the timestamp/dropdown so long titles truncate
-// before reaching them.
 .title-col {
   display: flex;
   min-width: 0;
   flex: 1;
   flex-direction: column;
-  padding-right: var(--space-10);
-
-  @include responsive.media('touch') {
-    padding-right: var(--space-16);
-  }
-
-  &--wide {
-    padding-right: var(--space-18);
-
-    @include responsive.media('touch') {
-      padding-right: var(--space-24);
-    }
-  }
 }
 
 .title-row {
@@ -94,11 +79,12 @@
   }
 }
 
+// Sized to its content, so a short time leaves the rest of the row to the title.
+// The dropdown overlays it on reveal.
 .timestamp {
   @include type.type-meta;
-  position: absolute;
-  right: var(--space-2);
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   font-variant-numeric: tabular-nums;
   color: var(--theme-text-quaternary);
@@ -109,13 +95,14 @@
     opacity: 0;
   }
 
-  &--beside-dropdown {
-    right: var(--space-7);
+  // Status counts never yield to the dropdown: they keep its room free instead
+  &--status {
+    margin-right: var(--space-5);
   }
 
   // Clear of the always-visible dropdown's 40px hit area
   @include responsive.media('touch') {
-    right: var(--space-10);
+    margin-right: var(--space-8);
     opacity: 1;
   }
 }
