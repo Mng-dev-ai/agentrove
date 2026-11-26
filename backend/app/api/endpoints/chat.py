@@ -93,7 +93,7 @@ from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.turn_settings import MissingTurnModelError, resolve_turn_settings
+from app.services.turn_settings import resolve_turn_settings
 from app.utils.cache import CacheError, cache_connection
 from app.utils.parsing import parse_stream_cursors
 
@@ -174,7 +174,7 @@ async def send_message(
     prompt: str = Form(...),
     chat_id: str = Form(...),
     user_message_id: UUID | None = Form(None),
-    model_id: str | None = Form(None),
+    model_id: str = Form(...),
     permission_mode: PermissionMode = Form("bypassPermissions"),
     thinking_mode: str | None = Form(None),
     worktree: bool = Form(False),
@@ -189,11 +189,11 @@ async def send_message(
 ) -> dict[str, Any]:
     files = attached_files or []
     try:
-        model_id, thinking_mode, selected_persona_name = resolve_turn_settings(
+        thinking_mode, persona_name = resolve_turn_settings(
             await chat_service.get_chat(UUID(chat_id), current_user)
             if inherit_turn_settings
             else None,
-            model_id=model_id,
+            model_id,
             thinking_mode=thinking_mode,
             persona_name=selected_persona_name,
         )
@@ -208,7 +208,7 @@ async def send_message(
             worktree=worktree,
             base_branch=base_branch,
             fast_mode=fast_mode,
-            selected_persona_name=selected_persona_name,
+            selected_persona_name=persona_name,
             report_to_parent=report_to_parent,
         )
         result = await chat_service.initiate_chat_completion(
@@ -224,7 +224,7 @@ async def send_message(
             "checkpoint_id": result["checkpoint_id"],
             "worktree_cwd": result["worktree_cwd"],
         }
-    except (ValidationError, MissingTurnModelError) as e:
+    except ValidationError as e:
         raise RequestValidationError(e.errors()) from e
     except ChatException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
@@ -825,7 +825,7 @@ async def queue_message(
     chat_id: UUID,
     content: str = Form(...),
     send_now: bool = Form(False),
-    model_id: str | None = Form(None),
+    model_id: str = Form(...),
     permission_mode: PermissionMode = Form("bypassPermissions"),
     thinking_mode: str | None = Form(None),
     worktree: bool = Form(False),
@@ -840,18 +840,18 @@ async def queue_message(
     queue_service: QueueService = Depends(get_queue_service),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> QueueAddResponse:
-    try:
-        model_id, thinking_mode, selected_persona_name = resolve_turn_settings(
-            chat if inherit_turn_settings else None,
-            model_id=model_id,
-            thinking_mode=thinking_mode,
-            persona_name=selected_persona_name,
+    if report_to_parent and chat.parent_chat_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="report_to_parent requires a sub-thread",
         )
-        if report_to_parent and chat.parent_chat_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="report_to_parent requires a sub-thread",
-            )
+    thinking_mode, persona_name = resolve_turn_settings(
+        chat if inherit_turn_settings else None,
+        model_id,
+        thinking_mode=thinking_mode,
+        persona_name=selected_persona_name,
+    )
+    try:
         queued_message = QueuedMessageBase(
             content=content,
             model_id=model_id,
@@ -860,11 +860,11 @@ async def queue_message(
             worktree=worktree,
             base_branch=base_branch,
             fast_mode=fast_mode,
-            selected_persona_name=selected_persona_name,
+            selected_persona_name=persona_name,
             report_to_parent=report_to_parent,
             device_ids=current_user.device_ids,
         )
-    except (ValidationError, MissingTurnModelError) as e:
+    except ValidationError as e:
         raise RequestValidationError(e.errors()) from e
 
     attachments: list[MessageAttachmentDict] | None = None

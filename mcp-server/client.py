@@ -219,7 +219,6 @@ class AgentroveClient:
         fast_mode: bool = False,
         persona: str | None = None,
         report_to_parent: bool = False,
-        inherit_turn_settings: bool = False,
     ) -> dict[str, Any]:
         data = self._turn_form(
             model_id,
@@ -229,7 +228,6 @@ class AgentroveClient:
             base_branch,
             fast_mode,
             persona,
-            inherit_turn_settings,
         )
         data.update(prompt=prompt, chat_id=chat_id, report_to_parent=report_to_parent)
         resp = await self.request("POST", "/chat/chat", data=data, expected=(200, 409))
@@ -251,7 +249,6 @@ class AgentroveClient:
         fast_mode: bool = False,
         persona: str | None = None,
         report_to_parent: bool = False,
-        inherit_turn_settings: bool = False,
     ) -> dict[str, Any]:
         data = self._turn_form(
             model_id,
@@ -261,7 +258,6 @@ class AgentroveClient:
             base_branch,
             fast_mode,
             persona,
-            inherit_turn_settings,
         )
         data.update(
             content=prompt, send_now=send_now, report_to_parent=report_to_parent
@@ -279,7 +275,6 @@ class AgentroveClient:
         base_branch: str | None,
         fast_mode: bool,
         persona: str | None,
-        inherit_turn_settings: bool,
     ) -> dict[str, Any]:
         # Form endpoints (no files); httpx bools "true"/"false" parse in FastAPI.
         data: dict[str, Any] = {
@@ -287,7 +282,8 @@ class AgentroveClient:
             "permission_mode": permission_mode,
             "worktree": worktree,
             "fast_mode": fast_mode,
-            "inherit_turn_settings": inherit_turn_settings,
+            # A no-op on a chat create_chat just made: nothing to inherit yet.
+            "inherit_turn_settings": True,
         }
         if thinking_mode:
             data["thinking_mode"] = thinking_mode

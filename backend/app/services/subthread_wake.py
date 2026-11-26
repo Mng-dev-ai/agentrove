@@ -20,7 +20,7 @@ from app.services.acp.adapters import UNSPECIFIED_PERMISSION_MODE
 from app.services.pairing import PairingService
 from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
-from app.services.turn_settings import MissingTurnModelError, resolve_turn_settings
+from app.services.turn_settings import resolve_turn_settings
 from app.services.user import UserService
 
 logger = logging.getLogger(__name__)
@@ -394,12 +394,10 @@ class SubThreadWake:
 
     @staticmethod
     def _wake_request(parent: Chat, prompt: str) -> ChatRequest | None:
-        try:
-            model_id, thinking_mode, persona_name = resolve_turn_settings(parent)
-        except MissingTurnModelError:
+        model_id = parent.last_model_id
+        if model_id is None or model_id not in MODELS:
             return None
-        if model_id not in MODELS:
-            return None
+        thinking_mode, persona_name = resolve_turn_settings(parent, model_id)
         return ChatRequest(
             prompt=prompt,
             chat_id=parent.id,

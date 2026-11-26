@@ -44,6 +44,7 @@ from app.models.types import AgentKind, PermissionMode
 from app.services.channels import engine as channel_engine_module
 from app.services.channels import publisher as channel_publisher_module
 from app.services.acp import client as acp_client_module
+from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
     CHANNEL_MCP_PERMISSION_MODES,
@@ -3398,43 +3399,55 @@ async def test_turn_routes_inherit_settings_only_when_asked(
     monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
-    first = await send_message(
-        client,
-        headers,
-        chat_id=chat["id"],
-        model_id="sonnet",
-        prompt="hi",
-        thinking_mode="low",
-    )
-    await wait_for_message(
-        client, headers, chat_id=chat["id"], message_id=first.json()["message_id"]
-    )
     detail_url = f"/api/v1/chat/chats/{chat['id']}"
+    chat_turn = {"prompt": "again", "chat_id": chat["id"]}
+    first = await client.post(
+        "/api/v1/chat/chat",
+        data={
+            **chat_turn,
+            "model_id": "sonnet",
+            "thinking_mode": "low",
+            "selected_persona_name": "Bugbot",
+        },
+        headers=headers,
+    )
+    assert first.status_code == 200, first.text
 
     for url, data in (
-        ("/api/v1/chat/chat", {"prompt": "again", "chat_id": chat["id"]}),
+        ("/api/v1/chat/chat", chat_turn),
         (f"{detail_url}/queue", {"content": "again"}),
     ):
-        missing = await client.post(url, data=data, headers=headers)
-        assert missing.status_code == 422, missing.text
-        assert missing.json()["detail"][0]["loc"] == ["body", "model_id"]
+        await wait_for_latest_assistant(client, headers, chat["id"])
+        for flag in ("false", "true"):
+            missing = await client.post(
+                url, data={**data, "inherit_turn_settings": flag}, headers=headers
+            )
+            assert missing.status_code == 422, missing.text
+            assert missing.json()["detail"][0]["loc"] == ["body", "model_id"]
 
         inherited = await client.post(
-            url, data={**data, "inherit_turn_settings": "true"}, headers=headers
+            url,
+            data={**data, "model_id": "sonnet", "inherit_turn_settings": "true"},
+            headers=headers,
         )
         assert inherited.is_success, inherited.text
         await wait_for_latest_assistant(client, headers, chat["id"])
         body = (await client.get(detail_url, headers=headers)).json()
-        assert (body["last_model_id"], body["last_thinking_mode"]) == ("sonnet", "low")
+        assert (body["last_thinking_mode"], body["last_persona_name"]) == (
+            "low",
+            "Bugbot",
+        )
 
-    plain = await send_message(
-        client, headers, chat_id=chat["id"], model_id="sonnet", prompt="plain"
+    plain = await client.post(
+        "/api/v1/chat/chat", data={**chat_turn, "model_id": "sonnet"}, headers=headers
     )
-    await wait_for_message(
-        client, headers, chat_id=chat["id"], message_id=plain.json()["message_id"]
-    )
+    assert plain.status_code == 200, plain.text
+    await wait_for_latest_assistant(client, headers, chat["id"])
     body = (await client.get(detail_url, headers=headers)).json()
-    assert body["last_thinking_mode"] is None
+    assert (body["last_thinking_mode"], body["last_persona_name"]) == (
+        None,
+        DEFAULT_PERSONA_NAME,
+    )
 
 
 @pytest.mark.parametrize("revoke", ["device", "password_reset"])
