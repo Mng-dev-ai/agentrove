@@ -60,7 +60,9 @@ from app.services.streaming.types import (
     PROMPT_SUGGESTIONS_RE,
     ChatStreamRequest,
     StreamEnvelope,
+    StreamEnvelopeKind,
     StreamEvent,
+    StreamEventType,
     ToolImage,
     ToolPayload,
 )
@@ -282,9 +284,8 @@ class ChatStreamRuntime:
     async def _process_stream_event(
         self, stream_result: StreamResult, event: StreamEvent
     ) -> None:
-        event_dict: dict[str, Any] = dict(event)
-        kind = str(event_dict.get("type") or "system")
-        payload: dict[str, Any] = {k: v for k, v in event_dict.items() if k != "type"}
+        kind: StreamEventType = event.get("type") or "system"
+        payload: dict[str, Any] = {k: v for k, v in event.items() if k != "type"}
 
         if kind == "system":
             session_data: dict[str, Any] = payload.get("data") or {}
@@ -513,7 +514,7 @@ class ChatStreamRuntime:
 
     async def emit_event(
         self,
-        kind: str,
+        kind: StreamEnvelopeKind,
         payload: dict[str, Any],
         *,
         apply_snapshot: bool = True,
@@ -620,7 +621,9 @@ class ChatStreamRuntime:
         for event in self._acp_session.handler.take_unread_events():
             await self._process_stream_event(stream_result, event)
 
-    async def _emit_terminal_signal(self, kind: str, payload: dict[str, Any]) -> None:
+    async def _emit_terminal_signal(
+        self, kind: StreamEnvelopeKind, payload: dict[str, Any]
+    ) -> None:
         task = asyncio.create_task(self.emit_event(kind, payload, apply_snapshot=False))
         try:
             await asyncio.shield(task)

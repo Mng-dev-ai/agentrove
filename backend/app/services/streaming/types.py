@@ -32,6 +32,29 @@ StreamEventType = Literal[
     "usage",
     "plan",
 ]
+StreamEnvelopeKind = Literal[
+    "stream_started",
+    "assistant_text",
+    "assistant_thinking",
+    "tool_started",
+    "tool_completed",
+    "tool_failed",
+    "user_text",
+    "user_steering",
+    "system",
+    "permission_request",
+    "permission_resolved",
+    "permission_dismissed",
+    "elicitation_request",
+    "elicitation_dismissed",
+    "elicitation_resolved",
+    "prompt_suggestions",
+    "plan",
+    "complete",
+    "cancelled",
+    "error",
+    "queue_processing",
+]
 MAX_AUDIT_STRING_LENGTH = 4096
 # Extract trailing XML prompt suggestions for a structured event (strip from visible text).
 PROMPT_SUGGESTIONS_RE = re.compile(
@@ -40,7 +63,7 @@ PROMPT_SUGGESTIONS_RE = re.compile(
 )
 MERGEABLE_DELTA_KEYS = {"assistant_text": "text", "assistant_thinking": "thinking"}
 # Snapshot-contributing events (text/tools/etc.) — batched; control events persist immediately.
-SNAPSHOT_EVENT_KINDS = frozenset(
+SNAPSHOT_EVENT_KINDS: frozenset[StreamEnvelopeKind] = frozenset(
     {
         "assistant_text",
         "user_steering",
@@ -63,7 +86,7 @@ SENSITIVE_KEY_PARTS = (
 )
 
 
-EventSink = Callable[[str, dict[str, Any]], Awaitable[None]]
+EventSink = Callable[[StreamEnvelopeKind, dict[str, Any]], Awaitable[None]]
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -195,7 +218,7 @@ class StreamEnvelope:
         message_id: UUID,
         stream_id: UUID,
         seq: int,
-        kind: str,
+        kind: StreamEnvelopeKind,
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         return {
@@ -214,7 +237,7 @@ class StreamEnvelope:
         message_id: UUID,
         stream_id: UUID,
         seq: int,
-        kind: str,
+        kind: StreamEnvelopeKind,
         payload: dict[str, Any] | None = None,
     ) -> str:
         return json.dumps(
@@ -269,10 +292,10 @@ class StreamEnvelope:
         stream_status: MessageStreamStatus,
         duration_ms: int | None,
         error_message: str | None,
-    ) -> tuple[str, dict[str, Any]]:
+    ) -> tuple[StreamEnvelopeKind, dict[str, Any]]:
         if stream_status == MessageStreamStatus.FAILED:
             return "error", {"error": error_message or "Stream ended unexpectedly"}
-        kind = (
+        kind: StreamEnvelopeKind = (
             "cancelled"
             if stream_status == MessageStreamStatus.INTERRUPTED
             else "complete"

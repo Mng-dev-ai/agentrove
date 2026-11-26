@@ -62,6 +62,7 @@ from app.services.streaming.types import (
     ChannelMemberTurn,
     ChatStreamRequest,
     StreamEnvelope,
+    StreamEnvelopeKind,
 )
 from app.services.subthread_wake import subthread_wake
 from app.services.user import UserService
@@ -1051,7 +1052,7 @@ class ChatService(BaseDbService[Chat]):
         message_id: UUID,
         stream_id: UUID,
         seq: int,
-        kind: str,
+        kind: StreamEnvelopeKind,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
         # SSE envelope shape; live path builds the same {id, event, data} from pre-serialized JSON.

@@ -1,35 +1,116 @@
-import type { MessageAttachment } from './chat.types';
+import type {
+  ContextUsage,
+  ElicitationSchema,
+  Message,
+  MessageAttachment,
+  PermissionOption,
+  PlanEntry,
+} from './chat.types';
+import type { ToolEventPayload } from './tools.types';
 
 export type StreamState = 'idle' | 'loading' | 'streaming';
-export type StreamKind =
-  | 'stream_started'
-  | 'assistant_text'
-  | 'user_steering'
-  | 'assistant_thinking'
-  | 'tool_started'
-  | 'tool_completed'
-  | 'tool_failed'
-  | 'system'
-  | 'permission_request'
-  | 'permission_dismissed'
-  | 'elicitation_request'
-  | 'elicitation_dismissed'
-  | 'prompt_suggestions'
-  | 'plan'
-  | 'snapshot'
-  | 'complete'
-  | 'error'
-  | 'cancelled'
-  | 'queue_processing';
 
-export interface StreamEnvelope {
+interface StreamEnvelopeBase<K extends string, P> {
   chatId: string;
   messageId: string;
   streamId: string;
   seq: number;
-  kind: StreamKind;
-  payload: Record<string, unknown>;
+  kind: K;
+  payload: P;
 }
+
+// `system` has two wire shapes. ACP session info and the turn's worktree nest
+// under `data`; context usage sits at the top level beside `chat_id`.
+interface SystemDataPayload {
+  data: {
+    session_id?: string;
+    worktree_cwd?: string;
+    chat_id?: string;
+    context_usage?: ContextUsage;
+  };
+  chat_id?: undefined;
+  context_usage?: undefined;
+}
+
+interface SystemContextUsagePayload {
+  context_usage: ContextUsage;
+  chat_id: string;
+  data?: undefined;
+}
+
+interface RequestIdPayload {
+  request_id: string;
+}
+
+interface TerminalPayload {
+  status: NonNullable<Message['stream_status']>;
+  duration_ms: number | null;
+}
+
+// Mirrors StreamEnvelopeKind in backend/app/services/streaming/types.py;
+// frontend/src/test/streamEnvelopes.json holds both sides to the same shapes.
+export type StreamEnvelope =
+  | StreamEnvelopeBase<'stream_started', { status: 'started'; message_id: string }>
+  | StreamEnvelopeBase<'assistant_text' | 'user_text', { text: string }>
+  | StreamEnvelopeBase<'assistant_thinking', { thinking: string }>
+  | StreamEnvelopeBase<
+      'tool_started' | 'tool_completed' | 'tool_failed',
+      { tool: ToolEventPayload }
+    >
+  | StreamEnvelopeBase<
+      'user_steering',
+      {
+        queued_message_id: string;
+        text: string;
+        attachments: MessageAttachment[];
+        app_notice?: boolean;
+      }
+    >
+  | StreamEnvelopeBase<'system', SystemDataPayload | SystemContextUsagePayload>
+  | StreamEnvelopeBase<
+      'permission_request',
+      RequestIdPayload & {
+        tool_name: string;
+        tool_input: Record<string, unknown>;
+        data: { options: PermissionOption[] };
+      }
+    >
+  | StreamEnvelopeBase<
+      | 'permission_resolved'
+      | 'permission_dismissed'
+      | 'elicitation_resolved'
+      | 'elicitation_dismissed',
+      RequestIdPayload
+    >
+  | StreamEnvelopeBase<
+      'elicitation_request',
+      RequestIdPayload & {
+        data: {
+          message: string;
+          tool_call_id: string | null;
+          requested_schema: ElicitationSchema;
+        };
+      }
+    >
+  | StreamEnvelopeBase<'prompt_suggestions', { suggestions: string[] }>
+  | StreamEnvelopeBase<'plan', { data: { entries: PlanEntry[] } }>
+  | StreamEnvelopeBase<'complete' | 'cancelled', TerminalPayload>
+  | StreamEnvelopeBase<'error', { error: string }>
+  | StreamEnvelopeBase<
+      'queue_processing',
+      {
+        queued_message_id: string;
+        user_message_id: string;
+        assistant_message_id: string;
+        checkpoint_id: string | null;
+        content: string;
+        model_id: string;
+        attachments: MessageAttachment[] | null;
+        prior_duration_ms: number | null;
+      }
+    >;
+
+export type StreamKind = StreamEnvelope['kind'];
 
 export interface QueueProcessingData {
   queuedMessageId: string;
@@ -38,7 +119,7 @@ export interface QueueProcessingData {
   checkpointId: string | null;
   content: string;
   modelId: string;
-  attachments?: MessageAttachment[];
+  attachments: MessageAttachment[] | null;
   // Handoff suppresses prior complete; duration rides here for "Worked for X".
   priorMessageId: string;
   priorDurationMs: number | null;

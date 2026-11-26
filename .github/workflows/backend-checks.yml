@@ -10,6 +10,7 @@ on:
       - 'mcp-server/**'
       - 'desktop/requirements*'
       - 'frontend/src/test/agentPermissionModes.json'
+      - 'frontend/src/test/streamEnvelopes.json'
       - '.github/workflows/backend-checks.yml'
   pull_request:
     branches: [main]
@@ -20,6 +21,7 @@ on:
       - 'mcp-server/**'
       - 'desktop/requirements*'
       - 'frontend/src/test/agentPermissionModes.json'
+      - 'frontend/src/test/streamEnvelopes.json'
       - '.github/workflows/backend-checks.yml'
 
 jobs:

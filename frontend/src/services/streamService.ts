@@ -13,7 +13,6 @@ import {
   type ChannelEnvelope,
 } from '@/types/channel.types';
 import type { ChatRequest } from '@/types/chat.types';
-import type { ToolEventPayload } from '@/types/tools.types';
 import type {
   ActiveStream,
   ApiStreamResponse,
@@ -135,23 +134,7 @@ class StreamService {
   private maybeHandleQueueEvent(envelope: StreamEnvelope, chatId: string): void {
     if (envelope.kind !== 'queue_processing') return;
 
-    const payload = envelope.payload as {
-      queued_message_id?: string;
-      user_message_id?: string;
-      assistant_message_id?: string;
-      checkpoint_id?: string | null;
-      content?: string;
-      model_id: string;
-      prior_duration_ms?: number | null;
-      attachments?: Array<{
-        id: string;
-        message_id: string;
-        file_url: string;
-        file_type: 'image' | 'pdf' | 'xlsx';
-        filename?: string;
-        created_at: string;
-      }>;
-    };
+    const { payload } = envelope;
 
     if (!payload?.queued_message_id || !payload?.assistant_message_id) return;
 
@@ -263,9 +246,7 @@ class StreamService {
     }
 
     if (parsed.kind === 'user_steering') {
-      useMessageQueueStore
-        .getState()
-        .removeLocalOnly(chatId, parsed.payload.queued_message_id as string);
+      useMessageQueueStore.getState().removeLocalOnly(chatId, parsed.payload.queued_message_id);
     }
 
     // Handoff is owned by maybeHandleQueueEvent — onEnvelope would clear its pending id.
@@ -285,8 +266,7 @@ class StreamService {
       parsed.payload.tool &&
       typeof parsed.payload.tool === 'object'
     ) {
-      const tool = parsed.payload.tool as ToolEventPayload;
-      const toolTitle = tool.title || tool.name;
+      const toolTitle = parsed.payload.tool.title || parsed.payload.tool.name;
       if (toolTitle) {
         useStreamStore.getState().setLastToolTitle(chatId, toolTitle);
       }

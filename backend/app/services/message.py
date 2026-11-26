@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from collections.abc import Sequence
 from typing import Any, cast
 from uuid import UUID, uuid4
 
@@ -302,7 +303,7 @@ class MessageService(BaseDbService[Message]):
         chat_id: UUID,
         message_id: UUID,
         stream_id: UUID,
-        events: list[tuple[str, dict[str, Any], dict[str, Any] | None]],
+        events: Sequence[tuple[str, dict[str, Any], dict[str, Any] | None]],
     ) -> int:
         # Bulk variant: one UPDATE bumps Chat.last_event_seq by N and the
         # contiguous range is assigned to the inserts — cuts write amplification

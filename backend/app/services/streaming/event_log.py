@@ -14,6 +14,7 @@ from app.services.message import MessageService
 from app.services.streaming.types import (
     SNAPSHOT_EVENT_KINDS,
     StreamEnvelope,
+    StreamEnvelopeKind,
     StreamSnapshotAccumulator,
 )
 from app.utils.cache import CacheError, CacheStore
@@ -46,10 +47,16 @@ class StreamEventLog:
         self._pending_since_flush: int = 0
         self._last_flush_at: float = time.monotonic()
         self._last_checkpoint_at: float = self._last_flush_at
-        self._event_buffer: list[tuple[str, dict[str, Any], dict[str, Any] | None]] = []
+        self._event_buffer: list[
+            tuple[StreamEnvelopeKind, dict[str, Any], dict[str, Any] | None]
+        ] = []
 
     async def append(
-        self, kind: str, payload: dict[str, Any], *, apply_snapshot: bool
+        self,
+        kind: StreamEnvelopeKind,
+        payload: dict[str, Any],
+        *,
+        apply_snapshot: bool,
     ) -> int | None:
         audit = {"payload": StreamEnvelope.sanitize_payload(payload)}
         if apply_snapshot and kind in SNAPSHOT_EVENT_KINDS:
@@ -82,7 +89,9 @@ class StreamEventLog:
         # too before declaring the stream empty.
         return self._last_seq > seq or bool(self._event_buffer)
 
-    async def publish(self, seq: int, kind: str, payload: dict[str, Any]) -> None:
+    async def publish(
+        self, seq: int, kind: StreamEnvelopeKind, payload: dict[str, Any]
+    ) -> None:
         await self._publish_to_redis([self._serialize_envelope(seq, kind, payload)])
 
     async def _flush_event_buffer(self) -> None:
@@ -105,7 +114,9 @@ class StreamEventLog:
         ]
         await self._publish_to_redis(redis_events)
 
-    def _serialize_envelope(self, seq: int, kind: str, payload: dict[str, Any]) -> str:
+    def _serialize_envelope(
+        self, seq: int, kind: StreamEnvelopeKind, payload: dict[str, Any]
+    ) -> str:
         return StreamEnvelope.serialize(
             chat_id=self._chat_id,
             message_id=UUID(self._assistant_message_id),

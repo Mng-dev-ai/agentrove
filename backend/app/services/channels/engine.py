@@ -42,7 +42,7 @@ from app.services.push import PushService
 from app.services.queue import ChannelQueueService
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.streaming.types import ChannelMemberTurn
+from app.services.streaming.types import ChannelMemberTurn, StreamEnvelopeKind
 from app.services.user import UserService
 from app.utils.cache import CacheError, cache_connection
 
@@ -883,7 +883,11 @@ class ChannelEngine(BaseDbService[Channel]):
             await asyncio.gather(*tasks, return_exceptions=True)
 
     async def handle_event(
-        self, state: ChannelState, turn: MemberTurn, kind: str, payload: dict[str, Any]
+        self,
+        state: ChannelState,
+        turn: MemberTurn,
+        kind: StreamEnvelopeKind,
+        payload: dict[str, Any],
     ) -> None:
         # Provider output confirms delivery; bootstrap failures must not consume the introduction.
         if turn.introducing and kind in (
