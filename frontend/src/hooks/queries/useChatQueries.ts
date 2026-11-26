@@ -20,8 +20,9 @@ import { retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useMachineStore } from '@/store/machineStore';
 import { chatMachineId } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
-import { forgetChat, forgetChatsForMachines } from '@/store/forgetChat';
+import { forgetChat, forgetChatsForMachine } from '@/store/forgetChat';
 import type { ComposerSelection } from '@/store/uiStore';
+import type { Channel } from '@/types/channel.types';
 import type { Chat, ChatSearchResponse, ContextUsage, CreateChatRequest } from '@/types/chat.types';
 import type { PaginatedChats } from '@/types/api.types';
 import { logger } from '@/utils/logger';
@@ -443,6 +444,9 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
     queryClient.removeQueries({ queryKey: queryKeys.chat(chatId) });
     queryClient.removeQueries({ queryKey: queryKeys.messages(chatId) });
     queryClient.removeQueries({ queryKey: queryKeys.contextUsage(chatId) });
+    for (const sub of queryClient.getQueryData<Chat[]>(queryKeys.subThreads(chatId)) ?? []) {
+      forgetChat(sub.id);
+    }
     queryClient.removeQueries({ queryKey: queryKeys.subThreads(chatId) });
     queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
@@ -475,34 +479,21 @@ export const useDeleteAllChatsMutation = () => {
             queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(id) });
             queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(id) });
           }
+          // Only the server knows which chats the wipe kept as channel members, so a
+          // machine whose channel list fails to load keeps its state.
+          let survivingChannels: Channel[];
+          try {
+            survivingChannels = await queryClient.fetchQuery({
+              queryKey: queryKeys.channels(id),
+              queryFn: () => channelService.listChannels(id),
+              staleTime: 0,
+            });
+          } catch {
+            return;
+          }
+          forgetChatsForMachine(id, survivingChannels);
         }),
       );
-      // The wipe keeps channels and their member chats, and only the server knows which
-      // chats those are; a machine whose channel list fails to load keeps its state.
-      const wiped = machineIds.filter((_, index) => results[index].status === 'fulfilled');
-      const channelLists = await Promise.allSettled(
-        wiped.map((id) =>
-          queryClient.fetchQuery({
-            queryKey: queryKeys.channels(id),
-            queryFn: () => channelService.listChannels(id),
-            staleTime: 0,
-          }),
-        ),
-      );
-      const wipedMachineIds = new Set<string>();
-      const survivingIds = new Set<string>();
-      channelLists.forEach((channelList, index) => {
-        if (channelList.status !== 'fulfilled') return;
-        wipedMachineIds.add(wiped[index]);
-        for (const channel of channelList.value) {
-          survivingIds.add(channel.id);
-          survivingIds.add(channel.anchor_chat_id);
-          for (const member of [...channel.members, ...(channel.former_members ?? [])]) {
-            survivingIds.add(member.chat_id);
-          }
-        }
-      });
-      forgetChatsForMachines(wipedMachineIds, survivingIds);
       const failed = results.find(
         (result): result is PromiseRejectedResult => result.status === 'rejected',
       );

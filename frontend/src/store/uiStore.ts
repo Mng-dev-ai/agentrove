@@ -640,6 +640,15 @@ export const useUIStore = create<UIStoreState>()(
       },
 
       cleanupChats: (isForgotten) => {
+        const { currentWorkspaceChatId, splitChatIds } = get();
+        // Reset detaches the live layout so a later load can't re-stash the deleted chat.
+        if (currentWorkspaceChatId && isForgotten(currentWorkspaceChatId)) {
+          get().resetWorkspace();
+        } else {
+          for (const chatId of splitChatIds) {
+            if (isForgotten(chatId)) get().closeSplitChat(chatId);
+          }
+        }
         const state = get();
         set({
           editorByChat: Object.fromEntries(
@@ -650,10 +659,6 @@ export const useUIStore = create<UIStoreState>()(
           ),
           chatTabs: state.chatTabs.filter((id) => !isForgotten(id)),
           splitSessionPanelChatIds: state.splitSessionPanelChatIds.filter((id) => !isForgotten(id)),
-          // Null live pointer so ChatPage unmount stash can't resurrect the deleted chat.
-          ...(state.currentWorkspaceChatId && isForgotten(state.currentWorkspaceChatId)
-            ? { currentWorkspaceChatId: null }
-            : {}),
         });
         clearTerminalStorage(isForgotten);
       },

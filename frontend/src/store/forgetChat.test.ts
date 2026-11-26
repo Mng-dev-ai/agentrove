@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_CHAT_SETTINGS_KEY, useChatSettingsStore } from '@/store/chatSettingsStore';
-import { forgetChat, forgetChatsForMachines } from '@/store/forgetChat';
+import { forgetChat, forgetChatsForMachine } from '@/store/forgetChat';
 import {
   assignChatsToMachine,
   chatMachineId,
@@ -79,6 +79,7 @@ beforeEach(() => {
     layoutsByChat: {},
     chatTabs: [],
     splitSessionPanelChatIds: [],
+    splitChatIds: [],
     currentWorkspaceChatId: null,
   });
 });
@@ -113,7 +114,7 @@ describe('forgetChat', () => {
     recordRemovedMachine(REMOTE_ID, { instanceId: 'instance-1' });
 
     forgetChat('chat-orphan-gone');
-    forgetChatsForMachines(new Set([LOCAL_MACHINE_ID]), new Set());
+    forgetChatsForMachine(LOCAL_MACHINE_ID, []);
 
     expectChatState('chat-local', false);
     const settings = useChatSettingsStore.getState();
@@ -130,7 +131,7 @@ describe('forgetChat', () => {
   });
 });
 
-describe('forgetChatsForMachines', () => {
+describe('forgetChatsForMachine', () => {
   it('forgets only the chats of machines whose wipe succeeded', () => {
     for (const chatId of ['chat-unmapped', 'chat-local', 'chat-member', 'chat-remote']) {
       seedChat(chatId);
@@ -142,14 +143,19 @@ describe('forgetChatsForMachines', () => {
       currentWorkspaceChatId: 'chat-remote',
       layoutsByChat: { 'chat-remote': remoteLayout, 'chat-local': remoteLayout },
     });
+    useUIStore.getState().openChatInSplit('chat-local');
+    useUIStore.getState().openChatInSplit('chat-member');
 
-    forgetChatsForMachines(new Set([LOCAL_MACHINE_ID]), new Set(['chat-member']));
+    forgetChatsForMachine(LOCAL_MACHINE_ID, [
+      { id: 'channel-1', anchor_chat_id: 'chat-member', members: [{ chat_id: 'chat-member' }] },
+    ]);
 
     expectChatState('chat-unmapped', false);
     expectChatState('chat-local', false);
     expectChatState('chat-member', true);
     expectChatState('chat-remote', true);
     expect(useUIStore.getState().currentWorkspaceChatId).toBe('chat-remote');
+    expect(useUIStore.getState().splitChatIds).toEqual(['chat-member']);
     expect(Object.keys(useUIStore.getState().layoutsByChat)).toEqual(['chat-remote']);
     expect(chatMachineId('chat-remote')).toBe(REMOTE_ID);
     expect(persisted('machine-chat-origins')).not.toContain('chat-local');

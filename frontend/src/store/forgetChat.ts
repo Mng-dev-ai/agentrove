@@ -11,14 +11,18 @@ import { useUIStore } from '@/store/uiStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { LANDING_TERMINAL_SCOPE_PREFIX } from '@/utils/terminal';
 
+interface SurvivingChannel {
+  id: string;
+  anchor_chat_id: string;
+  members: { chat_id: string }[];
+  former_members?: { chat_id: string }[];
+}
+
 function forgetChats(isForgotten: (chatId: string) => boolean): void {
   useUIStore.getState().cleanupChats(isForgotten);
   useChatSettingsStore.getState().cleanupChats(isForgotten);
   useModelStore.getState().cleanupChats(isForgotten);
-  const queue = useMessageQueueStore.getState();
-  for (const chatId of queue.queues.keys()) {
-    if (isForgotten(chatId)) queue.cleanupChat(chatId);
-  }
+  useMessageQueueStore.getState().cleanupChats(isForgotten);
   // Last: a machine-scoped isForgotten reads the origins this removes.
   forgetChatOrigins(isForgotten);
 }
@@ -36,10 +40,17 @@ export function forgetChat(chatId: string): void {
   forgetChats((id) => id === chatId);
 }
 
-// A machine wipe keeps channels and their member chats; the caller lists those survivors.
-export function forgetChatsForMachines(
-  wipedMachineIds: ReadonlySet<string>,
-  survivingIds: ReadonlySet<string>,
+// A machine wipe keeps channels and their member chats.
+export function forgetChatsForMachine(
+  machineId: string,
+  survivingChannels: SurvivingChannel[],
 ): void {
-  forgetChats((id) => !survivingIds.has(id) && wipedMachineIds.has(ownerMachineId(id)));
+  const survivingIds = new Set(
+    survivingChannels.flatMap((channel) => [
+      channel.id,
+      channel.anchor_chat_id,
+      ...[...channel.members, ...(channel.former_members ?? [])].map((member) => member.chat_id),
+    ]),
+  );
+  forgetChats((id) => !survivingIds.has(id) && ownerMachineId(id) === machineId);
 }

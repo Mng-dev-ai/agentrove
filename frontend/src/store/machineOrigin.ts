@@ -9,8 +9,9 @@ const REMOVED_MACHINES_KEY = 'machine-removed-identities';
 
 const listeners = new Set<() => void>();
 
-function parse(raw: string | null): Map<string, string> {
+function load(key: string): Map<string, string> {
   try {
+    const raw = localStorage.getItem(key);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return new Map();
     return new Map(
@@ -18,14 +19,6 @@ function parse(raw: string | null): Map<string, string> {
         (entry): entry is [string, string] => typeof entry[1] === 'string',
       ),
     );
-  } catch {
-    return new Map();
-  }
-}
-
-function load(key: string): Map<string, string> {
-  try {
-    return parse(localStorage.getItem(key));
   } catch {
     return new Map();
   }
@@ -94,13 +87,6 @@ function update(key: OriginKey, change: (map: Map<string, string>) => boolean): 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key !== null && !(event.key in maps)) return;
-    // withUnsaved would merge this tab's copy of a chat another tab forgot back in.
-    if (event.key === CHATS_KEY && event.newValue !== null) {
-      const kept = parse(event.newValue);
-      for (const id of parse(event.oldValue).keys()) {
-        if (!kept.has(id)) maps[CHATS_KEY].delete(id);
-      }
-    }
     for (const key of Object.keys(maps) as OriginKey[]) maps[key] = withUnsaved(key);
     notify();
   });

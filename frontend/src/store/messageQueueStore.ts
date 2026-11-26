@@ -33,7 +33,7 @@ interface MessageQueueState<AddArgs extends unknown[]> {
   sendNow: (chatId: string, messageId: string) => Promise<boolean>;
   fetchQueue: (chatId: string) => Promise<void>;
   removeLocalOnly: (chatId: string, messageId: string) => void;
-  cleanupChat: (chatId: string) => void;
+  cleanupChats: (isForgotten: (chatId: string) => boolean) => void;
 }
 
 // Optimistic queue: temp IDs swap in-place on sync; a failed add removes the item and rethrows.
@@ -229,12 +229,10 @@ const createQueueStore = <AddArgs extends unknown[]>(api: QueueApi<AddArgs>) =>
       return get().queues.get(chatId) ?? EMPTY_QUEUE;
     },
 
-    cleanupChat: (chatId: string) => {
-      set((state) => {
-        const nextQueues = new Map(state.queues);
-        nextQueues.delete(chatId);
-        return { queues: nextQueues };
-      });
+    cleanupChats: (isForgotten) => {
+      set((state) => ({
+        queues: new Map([...state.queues].filter(([chatId]) => !isForgotten(chatId))),
+      }));
     },
 
     // Server messages win; unsynced locals without a server counterpart are kept.
