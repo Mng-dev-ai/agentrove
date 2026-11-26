@@ -17,8 +17,6 @@ from httpx import AsyncClient
 from sqlalchemy import event as sa_event
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.endpoints import chat as chat_endpoint
-from app.core import deps
 from app.catalog import MODELS
 from app.constants import REDIS_KEY_CHAT_QUEUE, REDIS_KEY_USER_STREAMS_LIVE
 from app.db.session import SessionLocal, engine
@@ -32,7 +30,6 @@ from app.services.exceptions import ChatException
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.session_registry import session_registry
-from app.services import chat as chat_service_module
 from app.services.chat import ChatService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.host_provider import LocalHostProvider
@@ -245,15 +242,8 @@ def acp_factory(monkeypatch: pytest.MonkeyPatch) -> FakeAcpSessionFactory:
 
 
 @pytest.fixture
-def streaming_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
-    cache = EndpointCache()
-    # cache_connection is import-by-value — patch each call site, not utils.cache.
-    monkeypatch.setattr(chat_endpoint, "cache_connection", cache.connect)
-    monkeypatch.setattr(deps, "cache_connection", cache.connect)
-    monkeypatch.setattr(chat_service_module, "cache_connection", cache.connect)
-    monkeypatch.setattr(runtime_module, "cache_connection", cache.connect)
-    monkeypatch.setattr(recovery_module, "cache_connection", cache.connect)
-    return cache
+def streaming_cache(endpoint_cache: EndpointCache) -> EndpointCache:
+    return endpoint_cache
 
 
 def find_background_task(chat_id: UUID) -> "asyncio.Task[str]":
@@ -1442,9 +1432,6 @@ async def test_send_now_returns_404_for_unknown_queued_message(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    # Not used directly — routes get_queue_service to the in-memory cache so
-    # the test doesn't require a live Redis (503 instead of 404 without it).
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login

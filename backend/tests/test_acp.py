@@ -29,7 +29,6 @@ from sqlalchemy.orm import selectinload
 
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 import app.main as main_module
-from app.core import deps
 from app.core.config import Settings, get_settings
 from app.core.security import authenticate_websocket_user, create_mcp_access_token
 from app.db.session import SessionLocal
@@ -42,7 +41,6 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.types import AgentKind, PermissionMode
 from app.services.channels import engine as channel_engine_module
-from app.services.channels import publisher as channel_publisher_module
 from app.services.acp import client as acp_client_module
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
@@ -66,7 +64,6 @@ from app.services.sandbox_providers import SandboxProviderType
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.host_provider import LocalHostProvider
 from app.services.session_registry import SessionRegistry
-from app.services.streaming import recovery as recovery_module
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES
@@ -209,19 +206,8 @@ def pin_ambient_settings() -> Iterator[None]:
 
 
 @pytest.fixture
-def acp_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
-    # Redis isn't available in tests — every module that touches cache_connection
-    # for the chat-streaming path needs the in-memory fake wired in.
-    from app.api.endpoints import chat as chat_endpoint
-    from app.services import chat as chat_service_module
-    from app.services.streaming import runtime as runtime_module
-
-    cache = EndpointCache()
-    monkeypatch.setattr(chat_endpoint, "cache_connection", cache.connect)
-    monkeypatch.setattr(chat_service_module, "cache_connection", cache.connect)
-    monkeypatch.setattr(runtime_module, "cache_connection", cache.connect)
-    monkeypatch.setattr(recovery_module, "cache_connection", cache.connect)
-    return cache
+def acp_cache(endpoint_cache: EndpointCache) -> EndpointCache:
+    return endpoint_cache
 
 
 @pytest_asyncio.fixture
@@ -1848,8 +1834,6 @@ async def test_channel_member_question_waits_for_the_owner(
     resolution: str,
     expected_response: dict[str, Any],
 ) -> None:
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     channel = await client.post(
@@ -1933,8 +1917,6 @@ async def test_unanswered_channel_member_question_is_declined_on_timeout(
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     monkeypatch.setattr(acp_client_module, "CHANNEL_ELICITATION_TIMEOUT_SECONDS", 0)
     headers, workspace = auth_workspace
@@ -2861,8 +2843,6 @@ async def test_channel_turn_acts_for_the_devices_behind_its_prompt(
     revoked: str,
     expected: dict[str, tuple[list[str], int]],
 ) -> None:
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.5)
     headers, workspace = auth_workspace
     devices = {name: await pair_device(client, headers, name) for name in ("A", "B")}
@@ -2932,8 +2912,6 @@ async def test_channel_member_gets_its_chat_and_memory_only_with_agentrove_tools
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     spawned: list[AcpSessionConfig] = []
     create = AcpSession.create
@@ -3504,7 +3482,6 @@ async def test_wake_ignores_the_devices_of_the_parents_last_turn(
     monkeypatch: pytest.MonkeyPatch,
     revoke_parent_device: bool,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
     headers, workspace = auth_workspace
     pairing = await client.post("/api/v1/auth/pairing", headers=headers)
@@ -3578,7 +3555,6 @@ async def test_wake_acts_for_the_reporting_childs_devices(
     monkeypatch: pytest.MonkeyPatch,
     revoke_before_wake: bool,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
@@ -3651,7 +3627,6 @@ async def test_report_acts_for_the_devices_of_the_turn_that_filed_it(
     revoked: str,
     wakes: bool,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 3600)
     wake = SubThreadWake()
     monkeypatch.setattr(runtime_module, "subthread_wake", wake)
@@ -3803,12 +3778,10 @@ async def test_edited_chat_queue_item_acts_for_the_devices_behind_what_survives(
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
-    monkeypatch: pytest.MonkeyPatch,
     attach: bool,
     content: str,
     queuer_kept: bool,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -3846,9 +3819,6 @@ async def test_edited_channel_queue_item_keeps_acting_for_the_device_that_queued
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
@@ -3904,9 +3874,7 @@ async def test_chat_send_now_acts_for_the_clicking_device(
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
     acp_cache: EndpointCache,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -3952,9 +3920,6 @@ async def test_channel_send_now_acts_for_the_clicking_device(
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
@@ -4009,9 +3974,6 @@ async def test_channel_send_now_keeps_the_clicking_device_when_posting_fails(
     acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")

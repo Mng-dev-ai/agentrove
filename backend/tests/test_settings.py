@@ -3,7 +3,6 @@ from httpx import AsyncClient
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.endpoints import settings as settings_endpoint
 from app.core.security import create_mcp_access_token
 from app.models.db_models.user import User, UserSettings
 from app.utils.cache import MemoryStore
@@ -16,10 +15,8 @@ pytestmark = pytest.mark.anyio
 
 
 @pytest.fixture
-def settings_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
-    cache = EndpointCache()
-    monkeypatch.setattr(settings_endpoint, "cache_connection", cache.connect)
-    return cache
+def settings_cache(endpoint_cache: EndpointCache) -> EndpointCache:
+    return endpoint_cache
 
 
 @pytest.fixture

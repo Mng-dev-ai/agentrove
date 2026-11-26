@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
 from app.catalog import MODELS
-from app.core import deps
 from app.core.security import create_mcp_access_token
 from app.models.db_models.channel import (
     Channel,
@@ -276,11 +275,8 @@ async def channel_state(
 
 
 @pytest.fixture
-def channel_queue(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
-    cache = EndpointCache()
-    monkeypatch.setattr(deps, "cache_connection", cache.connect)
-    monkeypatch.setattr(channel_engine_module, "cache_connection", cache.connect)
-    return cache
+def channel_queue(endpoint_cache: EndpointCache) -> EndpointCache:
+    return endpoint_cache
 
 
 @pytest.fixture
@@ -1833,12 +1829,10 @@ async def test_member_elicitation_response_allows_only_the_owner(
 async def test_member_context_usage_is_readable_only_by_the_owner(
     client: AsyncClient,
     db_session: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
     owner: tuple[dict[str, str], User, Workspace],
     other_owner: tuple[dict[str, str], User, Workspace],
     channel_state: ChannelState,
 ) -> None:
-    monkeypatch.setattr(chat_endpoint, "cache_connection", EndpointCache().connect)
     chat_id = channel_state.channel.members[0].chat_id
     await db_session.execute(
         update(Chat).where(Chat.id == chat_id).values(context_token_usage=1234)
