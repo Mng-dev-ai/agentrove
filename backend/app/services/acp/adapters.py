@@ -70,9 +70,10 @@ CHANNEL_MCP_PERMISSION_MODES: dict[AgentKind, frozenset[PermissionMode]] = {
 }
 
 
-# Agents that support persona system-prompt replacement over ACP (Cursor/Copilot ignore it).
+# Agents that deliver a persona over ACP, by replacing or appending to their base prompt.
 PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
     {
+        AgentKind.ANTIGRAVITY,
         AgentKind.CLAUDE,
         AgentKind.CODEX,
         AgentKind.GROK,

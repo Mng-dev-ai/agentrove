@@ -113,7 +113,7 @@ def build_system_prompt_for_chat(
     sub_thread: bool = False,
 ) -> str:
     persona_content = ""
-    # Persona only for adapters that can replace the base prompt over ACP.
+    # Persona only for adapters that can deliver it over ACP.
     if (
         agent_kind in PERSONAS_SUPPORTED_AGENTS
         and selected_persona_name != DEFAULT_PERSONA_NAME
