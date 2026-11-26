@@ -42,9 +42,12 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
 
       const prunePromises = orphans.map(async (streamMeta) => {
         try {
-          // Also records pending approvals/questions: an unopened chat has no other
-          // feed for them, and the sidebar's Needs-you state reads those stores.
-          const status = await syncChatStatus(streamMeta.chatId, () => !cancelled);
+          // Also records pending approvals/questions: an unopened chat has no other feed
+          // for them. A foreground stream attaching mid-probe owns them from then on.
+          const status = await syncChatStatus(
+            streamMeta.chatId,
+            () => !cancelled && !useStreamStore.getState().getStreamByChat(streamMeta.chatId),
+          );
           if (cancelled) return;
 
           if (!status?.has_active_task) {

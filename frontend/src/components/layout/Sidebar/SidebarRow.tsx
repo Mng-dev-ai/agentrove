@@ -13,8 +13,9 @@ interface SidebarRowProps {
   title: ReactNode;
   subtitle?: ReactNode;
   timestamp: ReactNode;
-  // Room for a trailing slot wider than a relative time, so titles truncate before it
-  isTimestampWide?: boolean;
+  // The trailing slot carries status (wider than a time): it stays visible, beside
+  // the dropdown, instead of yielding to it
+  isTimestampStatus?: boolean;
   dropdownLabel: string;
   onDropdownClick: (e: MouseEvent<HTMLButtonElement>) => void;
   onMouseEnter: () => void;
@@ -29,7 +30,7 @@ export function SidebarRow({
   title,
   subtitle,
   timestamp,
-  isTimestampWide = false,
+  isTimestampStatus = false,
   dropdownLabel,
   onDropdownClick,
   onMouseEnter,
@@ -43,7 +44,7 @@ export function SidebarRow({
       onMouseLeave={onMouseLeave}
     >
       {/* Pad for timestamp/dropdown so long titles truncate before them. */}
-      <div className={clsx(styles['title-col'], isTimestampWide && styles['title-col--wide'])}>
+      <div className={clsx(styles['title-col'], isTimestampStatus && styles['title-col--wide'])}>
         <div className={styles['title-row']}>
           {leading}
           {title}
@@ -52,7 +53,15 @@ export function SidebarRow({
       </div>
 
       {/* Timestamp; hides on hover for the dropdown. Status is on the leading icon. */}
-      <span className={clsx(styles.timestamp, isRevealed && styles['timestamp--hidden'])}>
+      <span
+        className={clsx(
+          styles.timestamp,
+          isRevealed &&
+            (isTimestampStatus
+              ? styles['timestamp--beside-dropdown']
+              : styles['timestamp--hidden']),
+        )}
+      >
         {timestamp}
       </span>
 

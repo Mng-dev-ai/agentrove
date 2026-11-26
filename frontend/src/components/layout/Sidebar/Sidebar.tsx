@@ -171,24 +171,12 @@ export function Sidebar({
     visiblePinnedChats.length + visibleRecentChats.length,
     pagingCanMatch ? filters : null,
   );
-  // Chats blocked on the user lift into a "Needs you" group above Pinned, so an
-  // approval or question isn't buried in Recents. They leave their usual section
-  // while blocked and drop back once answered.
-  const { needsYouChats, listedPinnedChats, listedRecentChats } = useMemo(
-    () => ({
-      needsYouChats: [...visiblePinnedChats, ...visibleRecentChats].filter((chat) =>
-        blockedChatIdSet.has(chat.id),
-      ),
-      listedPinnedChats: visiblePinnedChats.filter((chat) => !blockedChatIdSet.has(chat.id)),
-      listedRecentChats: visibleRecentChats.filter((chat) => !blockedChatIdSet.has(chat.id)),
-    }),
-    [visiblePinnedChats, visibleRecentChats, blockedChatIdSet],
-  );
 
-  // The machine most listed chats run on: rows elsewhere get an inline machine tag
+  // The machine most loaded chats run on, unaffected by filters: rows elsewhere get
+  // an inline machine tag
   const primaryMachineId = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const chat of [...visiblePinnedChats, ...visibleRecentChats]) {
+    for (const chat of sidebarChats) {
       const machineId = chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID;
       counts.set(machineId, (counts.get(machineId) ?? 0) + 1);
     }
@@ -197,7 +185,7 @@ export function Sidebar({
       if (count > (counts.get(primary) ?? 0)) primary = machineId;
     }
     return primary;
-  }, [visiblePinnedChats, visibleRecentChats, chatOrigins]);
+  }, [sidebarChats, chatOrigins]);
   const machineBadge = useCallback(
     (machineId: string): MachineBadge | undefined => {
       if (machineId === LOCAL_MACHINE_ID) {
@@ -223,12 +211,12 @@ export function Sidebar({
     () =>
       buildRecentChatSections({
         groupBy,
-        visibleRecentChats: listedRecentChats,
+        visibleRecentChats,
         workspaceBadgeById,
         streamingChatIdSet,
         completedChatIds,
       }),
-    [groupBy, listedRecentChats, workspaceBadgeById, streamingChatIdSet, completedChatIds],
+    [groupBy, visibleRecentChats, workspaceBadgeById, streamingChatIdSet, completedChatIds],
   );
 
   // Opening a chat (or watching it finish while open) counts as seeing the
@@ -283,49 +271,50 @@ export function Sidebar({
           onChangeView={setActivityView}
         />
 
-        {activityView ? (
-          <SidebarActivityList
-            scrollContainerRef={scrollContainerRef}
-            view={activityView}
-            chats={chatsByKind[activityView]}
-            rowProps={rowProps}
-            onClose={() => setActivityView(null)}
-          />
-        ) : (
-          <SidebarChatList
-            scrollContainerRef={scrollContainerRef}
-            channels={
-              <SidebarChannels
-                workspaces={workspaces}
-                workspaceId={selectedChatWorkspaceId ?? undefined}
-                filters={filters}
-                machineBadge={machineBadge}
-                selectedChannelId={selectedChannelId}
-                scrollContainerRef={scrollContainerRef}
-              />
-            }
-            isLoadingChats={isLoadingChats}
-            threadsLoad={threadsLoad}
-            pinnedLoad={pinnedLoad}
-            recentsLoad={recentsLoad}
-            hasAnyContent={hasAnyContent}
-            needsYouChats={needsYouChats}
-            pinnedChats={listedPinnedChats}
-            recentChats={listedRecentChats}
-            hasVisibleContent={hasVisibleContent}
-            recentChatSections={recentChatSections}
-            rowProps={rowProps}
-            filters={filters}
-            onChangeFilters={(next) => useUIStore.getState().setSidebarFilters(next)}
-            workspaceBadgeById={workspaceBadgeById}
-            machineOptions={machineOptions}
-            hasMore={showMore.hasMore}
-            isFetchingMore={showMore.isFetchingMore}
-            onLoadMore={showMore.loadMore}
-            canShowLess={showMore.canShowLess}
-            onShowLess={showMore.showLess}
-          />
-        )}
+        {/* One container for both views: the dropdowns' scroll-to-dismiss listeners
+            attach to it once on mount. */}
+        <div ref={scrollContainerRef} className={styles.scroll}>
+          {activityView ? (
+            <SidebarActivityList
+              view={activityView}
+              chats={chatsByKind[activityView]}
+              rowProps={rowProps}
+              onClose={() => setActivityView(null)}
+            />
+          ) : (
+            <SidebarChatList
+              channels={
+                <SidebarChannels
+                  workspaces={workspaces}
+                  workspaceId={selectedChatWorkspaceId ?? undefined}
+                  filters={filters}
+                  machineBadge={machineBadge}
+                  selectedChannelId={selectedChannelId}
+                  scrollContainerRef={scrollContainerRef}
+                />
+              }
+              isLoadingChats={isLoadingChats}
+              threadsLoad={threadsLoad}
+              pinnedLoad={pinnedLoad}
+              recentsLoad={recentsLoad}
+              hasAnyContent={hasAnyContent}
+              pinnedChats={visiblePinnedChats}
+              recentChats={visibleRecentChats}
+              hasVisibleContent={hasVisibleContent}
+              recentChatSections={recentChatSections}
+              rowProps={rowProps}
+              filters={filters}
+              onChangeFilters={(next) => useUIStore.getState().setSidebarFilters(next)}
+              workspaceBadgeById={workspaceBadgeById}
+              machineOptions={machineOptions}
+              hasMore={showMore.hasMore}
+              isFetchingMore={showMore.isFetchingMore}
+              onLoadMore={showMore.loadMore}
+              canShowLess={showMore.canShowLess}
+              onShowLess={showMore.showLess}
+            />
+          )}
+        </div>
 
         {/* Always render footer so settings/logout work even if the user query fails. */}
         <div className={styles.footer}>

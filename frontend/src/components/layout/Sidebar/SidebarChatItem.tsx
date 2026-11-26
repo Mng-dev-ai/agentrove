@@ -19,7 +19,7 @@ import styles from './SidebarChatItem.module.scss';
 export interface MachineBadge {
   name: string;
   offline: boolean;
-  // The machine most listed rows run on; its rows carry no inline tag.
+  // The machine most loaded chats run on; its rows carry no inline tag.
   isPrimary: boolean;
 }
 
@@ -315,7 +315,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           getRelativeTime(chat.updated_at)
         )
       }
-      isTimestampWide={childActivity != null}
+      isTimestampStatus={childActivity != null}
       dropdownLabel="Chat options"
       onDropdownClick={(e) => onDropdownClick(e, chat)}
     />

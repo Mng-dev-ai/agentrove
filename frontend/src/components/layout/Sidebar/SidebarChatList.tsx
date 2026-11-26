@@ -1,4 +1,4 @@
-import { type ReactNode, type Ref } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { clearSidebarFilters, type SidebarFilters } from '@/store/sidebarFilters';
@@ -14,14 +14,12 @@ import type { SidebarChatSection } from './sidebarGrouping';
 import styles from './SidebarChatList.module.scss';
 
 interface SidebarChatListProps {
-  scrollContainerRef: Ref<HTMLDivElement>;
   channels: ReactNode;
   isLoadingChats: boolean;
   threadsLoad: ListLoadState;
   pinnedLoad: ListLoadState;
   recentsLoad: ListLoadState;
   hasAnyContent: boolean;
-  needsYouChats: Chat[];
   pinnedChats: Chat[];
   recentChats: Chat[];
   hasVisibleContent: boolean;
@@ -39,14 +37,12 @@ interface SidebarChatListProps {
 }
 
 export function SidebarChatList({
-  scrollContainerRef,
   channels,
   isLoadingChats,
   threadsLoad,
   pinnedLoad,
   recentsLoad,
   hasAnyContent,
-  needsYouChats,
   pinnedChats,
   recentChats,
   hasVisibleContent,
@@ -69,7 +65,7 @@ export function SidebarChatList({
   const isOpenChat = (chat: Chat) =>
     chat.id === rowProps.selectedChatId || rowProps.splitChatIds.includes(chat.id);
   return (
-    <div ref={scrollContainerRef} className={styles.scroll}>
+    <>
       {channels}
       {!hasAnyContent ? (
         threadsLoad.loadFailed ? (
@@ -85,16 +81,6 @@ export function SidebarChatList({
         )
       ) : (
         <div>
-          {needsYouChats.length > 0 && (
-            // Not collapsible: hiding what's blocked on you defeats the group.
-            <div className={styles.section}>
-              <SidebarSectionHeader title="Needs you" />
-              {needsYouChats.map((chat) => (
-                <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
-              ))}
-            </div>
-          )}
-
           {pinnedChats.length === 0 && pinnedLoad.loadFailed && (
             <div className={styles.section}>
               <SidebarSectionHeader title="Pinned" />
@@ -191,6 +177,6 @@ export function SidebarChatList({
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -2,12 +2,6 @@
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
-.scroll {
-  flex: 1;
-  overflow-y: auto;
-  padding-inline: var(--space-4);
-}
-
 .empty {
   @include type.type-meta;
   padding-bottom: var(--space-2);

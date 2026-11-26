@@ -58,10 +58,10 @@
   }
 
   &--wide {
-    padding-right: var(--space-14);
+    padding-right: var(--space-18);
 
     @include responsive.media('touch') {
-      padding-right: var(--space-20);
+      padding-right: var(--space-24);
     }
   }
 }
@@ -107,6 +107,10 @@
 
   &--hidden {
     opacity: 0;
+  }
+
+  &--beside-dropdown {
+    right: var(--space-7);
   }
 
   // Clear of the always-visible dropdown's 40px hit area

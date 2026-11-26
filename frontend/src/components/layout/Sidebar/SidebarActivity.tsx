@@ -1,4 +1,3 @@
-import type { Ref } from 'react';
 import clsx from 'clsx';
 import { X } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
@@ -68,7 +67,6 @@ function ActivityRow({ chat, rowProps }: { chat: Chat; rowProps: ChatRowProps })
 }
 
 interface SidebarActivityListProps {
-  scrollContainerRef: Ref<HTMLDivElement>;
   view: SidebarActivityKind;
   chats: Chat[];
   rowProps: ChatRowProps;
@@ -77,15 +75,9 @@ interface SidebarActivityListProps {
 
 // Execution view: every active thread in one flat list, so nothing hides behind a
 // collapsed parent or below the fold.
-export function SidebarActivityList({
-  scrollContainerRef,
-  view,
-  chats,
-  rowProps,
-  onClose,
-}: SidebarActivityListProps) {
+export function SidebarActivityList({ view, chats, rowProps, onClose }: SidebarActivityListProps) {
   return (
-    <div ref={scrollContainerRef} className={listStyles.scroll}>
+    <>
       <div className={styles.header}>
         <span>
           {ACTIVITY_LABEL[view]} · {chats.length}
@@ -105,6 +97,6 @@ export function SidebarActivityList({
       ) : (
         chats.map((chat) => <ActivityRow key={chat.id} chat={chat} rowProps={rowProps} />)
       )}
-    </div>
+    </>
   );
 }
