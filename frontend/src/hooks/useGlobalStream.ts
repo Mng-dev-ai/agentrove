@@ -1,7 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { logger } from '@/utils/logger';
 import { useStreamStore } from '@/store/streamStore';
-import { chatService } from '@/services/chatService';
+import { syncChatStatus } from '@/services/chatStatusSync';
+import { useElicitationStore } from '@/store/elicitationStore';
+import { usePermissionStore } from '@/store/permissionStore';
 import { pruneIfStillOrphan } from '@/utils/activeStreams';
 
 interface UseGlobalStreamOptions {
@@ -10,6 +12,13 @@ interface UseGlobalStreamOptions {
 }
 
 const STREAM_PRUNE_INTERVAL_MS = 5000;
+
+function isChatBlocked(chatId: string): boolean {
+  return (
+    usePermissionStore.getState().pendingRequests.has(chatId) ||
+    useElicitationStore.getState().pendingRequests.has(chatId)
+  );
+}
 
 // Interval reconcile: background sub-threads register metadata without an EventSource,
 // so removeStream never fires for them — prune settled orphans so indicators clear.
@@ -20,6 +29,7 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
 
   useEffect(() => {
     if (!enabled) return;
+    let cancelled = false;
 
     const pruneStaleStreams = async () => {
       const store = useStreamStore.getState();
@@ -32,14 +42,22 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
 
       const prunePromises = orphans.map(async (streamMeta) => {
         try {
-          const status = await chatService.checkChatStatus(streamMeta.chatId);
+          // Also records pending approvals/questions: an unopened chat has no other feed
+          // for them. A foreground stream attaching mid-probe owns them from then on.
+          const status = await syncChatStatus(
+            streamMeta.chatId,
+            () => !cancelled && !useStreamStore.getState().getStreamByChat(streamMeta.chatId),
+          );
+          if (cancelled) return;
 
           if (!status?.has_active_task) {
             pruneIfStillOrphan(streamMeta.chatId, true);
           }
         } catch (error) {
           logger.error('Stream prune check failed', 'useGlobalStream', error);
-          pruneIfStillOrphan(streamMeta.chatId, false);
+          // A blocked chat stays tracked: only a later successful probe can clear
+          // approvals answered elsewhere.
+          if (!isChatBlocked(streamMeta.chatId)) pruneIfStillOrphan(streamMeta.chatId, false);
         }
       });
 
@@ -55,6 +73,7 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
     const intervalId = setInterval(pruneStaleStreams, STREAM_PRUNE_INTERVAL_MS);
 
     return () => {
+      cancelled = true;
       clearTimeout(initialTimeout);
       clearInterval(intervalId);
     };

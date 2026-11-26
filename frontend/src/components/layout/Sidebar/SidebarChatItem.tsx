@@ -1,5 +1,5 @@
-import { memo, useEffect, useRef } from 'react';
-import { ChevronRight, CornerDownRight, Server } from 'lucide-react';
+import { Fragment, memo, useEffect, useRef } from 'react';
+import { ChevronRight, CornerDownRight } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { chatStatusTone, CHAT_STATUS_LABEL, type ChatStatusTone } from '@/utils/message';
@@ -13,6 +13,8 @@ import { getRelativeTime } from '@/utils/date';
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
+import { describeMachine } from './sidebarHelpers';
+import type { ChildActivity } from './useSidebarActivity';
 import styles from './SidebarChatItem.module.scss';
 
 export interface MachineBadge {
@@ -30,8 +32,7 @@ interface SidebarChatItemProps {
   isChatBlocked: boolean;
   isChatCompleted: boolean;
   workspaceBadge?: WorkspaceBadge;
-  machineName?: string;
-  machineOffline?: boolean;
+  machineBadge?: MachineBadge;
   onSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   canOpenInSplit?: boolean;
@@ -40,52 +41,62 @@ interface SidebarChatItemProps {
   onMouseLeave: () => void;
   onToggleSubThreads?: (chatId: string) => void;
   isSubThreadsExpanded?: boolean;
+  // Running/blocked sub-threads, surfaced while the parent is collapsed
+  childActivity?: ChildActivity;
+  // Set in the flat activity list, where sub-threads appear without their parent row
+  parentTitle?: string;
 }
 
-interface SidebarRowBadgesProps {
-  machineName?: string;
-  machineOffline?: boolean;
-  workspaceName?: string;
-  isIndented: boolean;
-  // Spelled-out status so the colored dot never carries meaning alone. Unread is
-  // left out: the bold title already says it.
-  status?: ChatStatusTone | null;
+function describeChildActivity({ running, needsYou }: ChildActivity): string {
+  return [needsYou > 0 && `${needsYou} needs you`, running > 0 && `${running} running`]
+    .filter(Boolean)
+    .join(' · ');
 }
 
-export function SidebarRowBadges({
-  machineName,
-  machineOffline = false,
-  workspaceName,
-  isIndented,
-  status,
-}: SidebarRowBadgesProps) {
-  const statusWord = status && status !== 'unread' ? CHAT_STATUS_LABEL[status] : null;
-  if (!workspaceName && !machineName && !statusWord) return null;
+function ChildActivityCounts({ activity }: { activity: ChildActivity }) {
   return (
     <span
-      className={clsx(styles['workspace-badge'], isIndented && styles['workspace-badge--indented'])}
+      className={styles['child-activity']}
+      aria-label={`Sub-threads: ${describeChildActivity(activity)}`}
     >
-      {statusWord && (
-        <span className={clsx(styles['status-word'], styles[`status-word--${status}`])}>
-          {statusWord}
+      {activity.needsYou > 0 && (
+        <span className={styles['child-count']}>
+          <ChatStatusDot tone="blocked" />
+          {activity.needsYou}
         </span>
       )}
-      {statusWord && (machineName || workspaceName) && <span aria-hidden>·</span>}
-      {machineName && (
-        <span
-          className={clsx(
-            styles['machine-badge'],
-            machineOffline && styles['machine-badge--offline'],
-          )}
-        >
-          <Server className={styles['machine-icon']} />
-          <span className={styles['workspace-name']}>
-            {machineOffline ? `${machineName} · Machine offline` : machineName}
-          </span>
+      {activity.running > 0 && (
+        <span className={clsx(styles['child-count'], styles['child-count--running'])}>
+          <AsciiSpinner />
+          {activity.running}
         </span>
       )}
-      {machineName && workspaceName && <span aria-hidden>·</span>}
-      {workspaceName && <span className={styles['workspace-name']}>{workspaceName}</span>}
+    </span>
+  );
+}
+
+interface SidebarRowPreviewProps {
+  title: string;
+  detail: string;
+  facts: [label: string, value: string | undefined][];
+}
+
+export function SidebarRowPreview({ title, detail, facts }: SidebarRowPreviewProps) {
+  const shownFacts = facts.filter(([, value]) => value);
+  return (
+    <span className={styles.preview}>
+      <span className={styles['preview-title']}>{title}</span>
+      <span className={styles['preview-detail']}>{detail}</span>
+      {shownFacts.length > 0 && (
+        <span className={styles['preview-facts']}>
+          {shownFacts.map(([label, value]) => (
+            <Fragment key={label}>
+              <span className={styles['preview-label']}>{label}</span>
+              <span>{value}</span>
+            </Fragment>
+          ))}
+        </span>
+      )}
     </span>
   );
 }
@@ -100,8 +111,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   isChatBlocked,
   isChatCompleted,
   workspaceBadge,
-  machineName,
-  machineOffline = false,
+  machineBadge,
   onSelect,
   onOpenInSplit,
   canOpenInSplit = false,
@@ -110,6 +120,8 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   onMouseLeave,
   onToggleSubThreads,
   isSubThreadsExpanded,
+  childActivity,
+  parentTitle,
 }: SidebarChatItemProps) {
   // onToggleSubThreads is only set when sub_thread_count > 0
   const hasSubThreads = onToggleSubThreads != null;
@@ -134,12 +146,15 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   // other status renders its tone directly.
   const statusTone: ChatStatusTone | null = showSpinner ? null : status;
   const statusLabel = status ? CHAT_STATUS_LABEL[status] : null;
-  // Mirrors the leading-slot render below — the workspace line indents to stay flush with the title
   const hasLeadingSlot = hasSubThreads || agentKind != null || status != null;
   const statusSlot = hasLeadingSlot ? (
-    // Running swaps to a spinner; blocked/done/unread show a colored dot on the
-    // icon corner (or centered when there's no provider icon to anchor it).
-    <span className={styles['status-slot']}>
+    // Running swaps to a spinner; blocked/done/unread show a colored dot on the icon
+    // corner. The status word is in the hover preview and the accessible name.
+    <span
+      className={styles['status-slot']}
+      role={statusLabel ? 'img' : undefined}
+      aria-label={statusLabel ?? undefined}
+    >
       {showSpinner ? (
         <AsciiSpinner className={styles['item-spinner']} />
       ) : agentKind ? (
@@ -166,14 +181,6 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   // status dot on it (running shows as an amber dot, since there's no spinner here)
   // so the persistent status never vanishes while sub-threads are open.
   const showCaret = isHovered || isSubThreadsExpanded;
-  const restingStatus = statusLabel ? (
-    // Wordless dot/spinner carries status; the word lives in a tooltip
-    <FloatingTooltip content={statusLabel} className={styles['status-tooltip']}>
-      {statusSlot}
-    </FloatingTooltip>
-  ) : (
-    statusSlot
-  );
   // The caret stays mounted so a tap never lands on a swapped element; CSS hides it at
   // rest on hover-capable devices and shows it at rest on touch.
   const leadingIcon = hasSubThreads ? (
@@ -181,7 +188,13 @@ export const SidebarChatItem = memo(function SidebarChatItem({
       <Button
         onClick={() => onToggleSubThreads(chat.id)}
         aria-expanded={isSubThreadsExpanded}
-        aria-label={`${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`}
+        // The caret covers the labelled status icon, so it carries the status word too
+        aria-label={[
+          `${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`,
+          statusLabel,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         variant="unstyled"
         className={clsx(styles['caret-btn'], !showCaret && styles['caret-btn--resting'])}
       >
@@ -198,30 +211,49 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           )}
         </span>
       </Button>
-      {!showCaret && <span className={styles['resting-status']}>{restingStatus}</span>}
+      {!showCaret && <span className={styles['resting-status']}>{statusSlot}</span>}
     </>
   ) : (
-    restingStatus
+    statusSlot
+  );
+  const preview = (
+    <SidebarRowPreview
+      title={stripMarkdownTitle(chat.title)}
+      detail={[
+        `Updated ${getRelativeTime(chat.updated_at)}`,
+        statusLabel,
+        onOpenInSplit && canOpenInSplit ? 'Shift-click to open in split' : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')}
+      facts={[
+        ['Machine', describeMachine(machineBadge)],
+        ['Workspace', workspaceBadge?.name],
+        [
+          'Sub-threads',
+          chat.sub_thread_count > 0
+            ? [String(chat.sub_thread_count), childActivity && describeChildActivity(childActivity)]
+                .filter(Boolean)
+                .join(' · ')
+            : undefined,
+        ],
+        ['Parent', parentTitle],
+      ]}
+    />
   );
   return (
-    <SidebarRow
-      ref={rowRef}
-      isActive={isActive}
-      isRevealed={isHovered || isActive || isDropdownOpen}
-      onMouseEnter={() => onMouseEnter(chat.id)}
-      onMouseLeave={onMouseLeave}
-      // Single leading slot keeps titles flush (caret vs icon+status).
-      leading={leadingIcon}
-      title={
-        // Tooltip on title only — icon has its own status tooltip.
-        <FloatingTooltip
-          content={
-            onOpenInSplit && canOpenInSplit
-              ? `${chat.title} (Shift-click to open in split)`
-              : chat.title
-          }
-          className={styles['title-tooltip']}
-        >
+    // The preview opens beside the whole row, past the sidebar edge, so the rows
+    // below stay readable.
+    <FloatingTooltip content={preview} placement="right">
+      <SidebarRow
+        ref={rowRef}
+        isActive={isActive}
+        isRevealed={isHovered || isActive || isDropdownOpen}
+        onMouseEnter={() => onMouseEnter(chat.id)}
+        onMouseLeave={onMouseLeave}
+        // Single leading slot keeps titles flush (caret vs icon+status).
+        leading={leadingIcon}
+        title={
           <SidebarRowTitle
             label={stripMarkdownTitle(chat.title)}
             isEmphasized={isActive || isUnread}
@@ -240,20 +272,26 @@ export const SidebarChatItem = memo(function SidebarChatItem({
               !showCaret && <CornerDownRight className={styles['subthread-hint']} />
             }
           />
-        </FloatingTooltip>
-      }
-      subtitle={
-        <SidebarRowBadges
-          machineName={machineName}
-          machineOffline={machineOffline}
-          workspaceName={workspaceBadge?.name}
-          isIndented={hasLeadingSlot}
-          status={status}
-        />
-      }
-      timestamp={getRelativeTime(chat.updated_at)}
-      dropdownLabel="Chat options"
-      onDropdownClick={(e) => onDropdownClick(e, chat)}
-    />
+        }
+        subtitle={
+          parentTitle && (
+            <span className={styles['parent-context']}>
+              <CornerDownRight className={styles['parent-context-icon']} />
+              <span className={styles['parent-context-title']}>{parentTitle}</span>
+            </span>
+          )
+        }
+        timestamp={
+          childActivity ? (
+            <ChildActivityCounts activity={childActivity} />
+          ) : (
+            getRelativeTime(chat.updated_at)
+          )
+        }
+        isTimestampStatus={childActivity != null}
+        dropdownLabel="Chat options"
+        onDropdownClick={(e) => onDropdownClick(e, chat)}
+      />
+    </FloatingTooltip>
   );
 });

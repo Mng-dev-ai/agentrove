@@ -31,6 +31,12 @@
   }
 }
 
+.scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-inline: var(--space-4);
+}
+
 // User profile pinned at the bottom — always rendered so settings/logout stay
 // reachable even while the user query is loading or failed.
 .footer {

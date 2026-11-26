@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { usePermissionStore } from '@/store/permissionStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useGlobalStream } from './useGlobalStream';
 
@@ -10,6 +11,7 @@ vi.mock('@/services/chatService', () => ({ chatService: { checkChatStatus } }));
 vi.mock('@/utils/logger', () => ({ logger: { error: vi.fn() } }));
 
 const INITIAL_PRUNE_MS = 500;
+const PRUNE_INTERVAL_MS = 5000;
 
 const track = (chatId: string) =>
   useStreamStore.getState().addStreamMetadata({ chatId, messageId: `${chatId}-msg`, startTime: 0 });
@@ -26,6 +28,7 @@ beforeEach(() => {
     activeStreamMetadata: [],
     completedChatIds: new Set(),
   });
+  usePermissionStore.setState({ pendingRequests: new Map() });
 });
 
 afterEach(() => {
@@ -93,5 +96,36 @@ describe('useGlobalStream', () => {
 
     expect(trackedChats()).toEqual([]);
     expect(completed().size).toBe(0);
+  });
+
+  it('records the pending approval of a background turn so the sidebar shows it as blocked', async () => {
+    track('waiting');
+    const request = { request_id: 'r1', tool_name: 'Bash', tool_input: {}, options: [], seq: 1 };
+    checkChatStatus.mockResolvedValue({ has_active_task: true, pending_permissions: [request] });
+
+    renderHook(() => useGlobalStream());
+    await vi.advanceTimersByTimeAsync(INITIAL_PRUNE_MS);
+
+    expect(usePermissionStore.getState().pendingRequests.get('waiting')).toEqual([request]);
+    expect(trackedChats()).toEqual(['waiting']);
+  });
+
+  it('keeps polling a blocked chat through a failed probe so a resolved approval still clears', async () => {
+    track('waiting');
+    const request = { request_id: 'r1', tool_name: 'Bash', tool_input: {}, options: [], seq: 1 };
+    checkChatStatus.mockResolvedValueOnce({
+      has_active_task: true,
+      pending_permissions: [request],
+    });
+    checkChatStatus.mockRejectedValueOnce(new Error('offline'));
+    checkChatStatus.mockResolvedValueOnce({ has_active_task: true, pending_permissions: [] });
+
+    renderHook(() => useGlobalStream());
+    await vi.advanceTimersByTimeAsync(INITIAL_PRUNE_MS);
+    await vi.advanceTimersByTimeAsync(PRUNE_INTERVAL_MS);
+    expect(trackedChats()).toEqual(['waiting']);
+
+    await vi.advanceTimersByTimeAsync(PRUNE_INTERVAL_MS);
+    expect(usePermissionStore.getState().pendingRequests.has('waiting')).toBe(false);
   });
 });

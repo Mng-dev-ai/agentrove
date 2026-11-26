@@ -1,4 +1,4 @@
-import { type ReactNode, type Ref } from 'react';
+import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { clearSidebarFilters, type SidebarFilters } from '@/store/sidebarFilters';
@@ -14,14 +14,12 @@ import type { SidebarChatSection } from './sidebarGrouping';
 import styles from './SidebarChatList.module.scss';
 
 interface SidebarChatListProps {
-  scrollContainerRef: Ref<HTMLDivElement>;
   channels: ReactNode;
   isLoadingChats: boolean;
   threadsLoad: ListLoadState;
   pinnedLoad: ListLoadState;
   recentsLoad: ListLoadState;
   hasAnyContent: boolean;
-  needsYouChats: Chat[];
   pinnedChats: Chat[];
   recentChats: Chat[];
   hasVisibleContent: boolean;
@@ -39,14 +37,12 @@ interface SidebarChatListProps {
 }
 
 export function SidebarChatList({
-  scrollContainerRef,
   channels,
   isLoadingChats,
   threadsLoad,
   pinnedLoad,
   recentsLoad,
   hasAnyContent,
-  needsYouChats,
   pinnedChats,
   recentChats,
   hasVisibleContent,
@@ -65,14 +61,11 @@ export function SidebarChatList({
   const collapsedSections = useUIStore((state) => state.collapsedSidebarSections);
   const isPinnedCollapsed = collapsedSections.includes('pinned');
   const isRecentsCollapsed = collapsedSections.includes('recents');
-  // Workspace group labels already name the workspace; pinned chats have no such header
   // A collapsed section still shows its open chats, so the current selection never disappears
   const isOpenChat = (chat: Chat) =>
     chat.id === rowProps.selectedChatId || rowProps.splitChatIds.includes(chat.id);
-  const recentRowProps =
-    filters.groupBy === 'workspace' ? { ...rowProps, showWorkspaceBadges: false } : rowProps;
   return (
-    <div ref={scrollContainerRef} className={styles.scroll}>
+    <>
       {channels}
       {!hasAnyContent ? (
         threadsLoad.loadFailed ? (
@@ -88,16 +81,6 @@ export function SidebarChatList({
         )
       ) : (
         <div>
-          {needsYouChats.length > 0 && (
-            // Not collapsible: hiding what's blocked on you defeats the group.
-            <div className={styles.section}>
-              <SidebarSectionHeader title="Needs you" />
-              {needsYouChats.map((chat) => (
-                <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
-              ))}
-            </div>
-          )}
-
           {pinnedChats.length === 0 && pinnedLoad.loadFailed && (
             <div className={styles.section}>
               <SidebarSectionHeader title="Pinned" />
@@ -131,9 +114,7 @@ export function SidebarChatList({
             {isRecentsCollapsed ? (
               recentChats
                 .filter(isOpenChat)
-                .map((chat) => (
-                  <SidebarChatRow key={chat.id} chat={chat} rowProps={recentRowProps} />
-                ))
+                .map((chat) => <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />)
             ) : recentChats.length === 0 && recentsLoad.loadFailed ? (
               <LoadErrorState variant="inline" message="Couldn't load threads" load={recentsLoad} />
             ) : recentChats.length > 0 ? (
@@ -142,7 +123,7 @@ export function SidebarChatList({
                   <div key={section.key} className={section.label ? styles.section : undefined}>
                     {section.label && <div className={styles['group-label']}>{section.label}</div>}
                     {section.chats.map((chat) => (
-                      <SidebarChatRow key={chat.id} chat={chat} rowProps={recentRowProps} />
+                      <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
                     ))}
                   </div>
                 ))}
@@ -196,6 +177,6 @@ export function SidebarChatList({
           )}
         </div>
       )}
-    </div>
+    </>
   );
 }
