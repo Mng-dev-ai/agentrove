@@ -1610,14 +1610,19 @@ async def test_checkpoint_round_trips_under_index_config(
     write_files(repo, {f"new{i}.py": f"{i}\n" for i in range(5)})
     (repo / "run.sh").chmod(0o755)
     (repo / "link").symlink_to("t1.py")
+    os.utime(repo / "t2.py", (0, 0))
     before = tree_snapshot(repo)
-    git_dir_before = git_dir_snapshot(repo)
+    git_dir_before = sorted(git_dir_snapshot(repo))
     service = host_git_service(repo)
 
+    diff = await service.get_diff("sandbox-1")
+    git_dir_after_diff = sorted(git_dir_snapshot(repo))
     checkpoint = await service.create_checkpoint("sandbox-1")
 
+    assert diff.diff.count("diff --git") == 8
+    assert git_dir_after_diff == git_dir_before
     assert checkpoint is not None
-    assert git_dir_snapshot(repo) == git_dir_before
+    assert sorted(git_dir_snapshot(repo)) == git_dir_before
     assert git(repo, "status", "--porcelain").count("??") == 7
     for name in ("run.sh", "link", "new0.py"):
         (repo / name).unlink()

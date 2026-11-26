@@ -184,11 +184,13 @@ GIT_DIFF_BRANCH_TEMPLATE = Template(
 )
 
 # Exits non-zero unless every untracked file got an entry in the index copy.
-# Optional locks and the sparse index are off so git writes nothing but that copy.
+# Optional locks, the sparse index and the split index are off so that git does
+# not write objects or shared-index files into the real git dir.
 GIT_UNTRACKED_INDEX_CMD = (
     " tmp=$(mktemp 2>/dev/null) || exit 1; trap 'rm -f \"$tmp\"' EXIT;"
-    " n=${GIT_CONFIG_COUNT:-0}; export GIT_OPTIONAL_LOCKS=0 GIT_CONFIG_COUNT=$((n+1))"
-    " GIT_CONFIG_KEY_$n=index.sparse GIT_CONFIG_VALUE_$n=false;"
+    " n=${GIT_CONFIG_COUNT:-0}; export GIT_OPTIONAL_LOCKS=0 GIT_CONFIG_COUNT=$((n+2))"
+    " GIT_CONFIG_KEY_$n=index.sparse GIT_CONFIG_VALUE_$n=false"
+    " GIT_CONFIG_KEY_$((n+1))=core.splitIndex GIT_CONFIG_VALUE_$((n+1))=false;"
     " idx=$(git rev-parse --git-path index);"
     ' if [ -e "$idx" ]; then cp -p "$idx" "$tmp" 2>/dev/null || exit 1;'
     ' else rm -f "$tmp"; fi;'
@@ -201,7 +203,7 @@ GIT_UNTRACKED_INDEX_CMD = (
     ' sh "$blob" |'
     " git update-index -z --add --replace --no-split-index --index-info &&"
     " rest=$(git ls-files --others --exclude-standard) &&"
-    """ ! printf '%s' "$rest" | LC_ALL=C grep -qv '/$') >/dev/null 2>&1"""
+    """ ! printf '%s' "$rest" | LC_ALL=C grep -qv '/"\\{0,1\\}$') >/dev/null 2>&1"""
 )
 GIT_DIFF_ALL_FAST_TEMPLATE = Template(
     " head=$$(git rev-parse --verify -q HEAD || git hash-object -t tree /dev/null);"
