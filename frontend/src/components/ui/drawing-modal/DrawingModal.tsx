@@ -176,25 +176,6 @@ export const DrawingModal = memo(function DrawingModal({
     return canvasRef.current.toDataURL('image/png');
   }, []);
 
-  const getCanvasStyle = useCallback(() => {
-    if (!imageRef.current) return { width: '100%', height: 'auto' };
-
-    const img = imageRef.current;
-    const aspectRatio = img.width / img.height;
-
-    return {
-      width: '100%',
-      height: 'auto',
-      aspectRatio: `${aspectRatio}`,
-      maxHeight: '70vh',
-      ...(CSS.supports &&
-        !CSS.supports('aspect-ratio', '1') && {
-          paddingBottom: `${(1 / aspectRatio) * 100}%`,
-          position: 'relative' as const,
-        }),
-    };
-  }, []);
-
   const handleSave = () => {
     try {
       const dataUrl = getImageData();
@@ -235,7 +216,7 @@ export const DrawingModal = memo(function DrawingModal({
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
             className={clsx(styles.canvas, !canvasReady && styles['canvas--hidden'])}
-            style={{ touchAction: 'none', ...getCanvasStyle() }}
+            style={{ touchAction: 'none' }}
             aria-label="Drawing canvas"
           />
           {!canvasReady && (
