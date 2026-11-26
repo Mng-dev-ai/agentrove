@@ -112,11 +112,6 @@ class RaisingCacheConnection:
 
 
 @pytest.fixture
-def chat_cache(endpoint_cache: EndpointCache) -> EndpointCache:
-    return endpoint_cache
-
-
-@pytest.fixture
 async def live_turns(
     monkeypatch: pytest.MonkeyPatch,
 ) -> AsyncIterator[Callable[[UUID], None]]:
@@ -1404,7 +1399,7 @@ async def test_context_usage_falls_back_to_database_when_cache_is_malformed(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    chat_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1420,7 +1415,7 @@ async def test_context_usage_falls_back_to_database_when_cache_is_malformed(
     )
 
     cache_key = REDIS_KEY_CHAT_CONTEXT_USAGE.format(chat_id=str(chat.id))
-    await chat_cache.store.set(cache_key, '{"tokens_used": "broken"}')
+    await endpoint_cache.store.set(cache_key, '{"tokens_used": "broken"}')
 
     response = await client.get(
         f"/api/v1/chat/chats/{chat.id}/context-usage", headers=headers
@@ -1442,7 +1437,6 @@ async def test_context_usage_for_chat_without_assistant_message(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    chat_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login

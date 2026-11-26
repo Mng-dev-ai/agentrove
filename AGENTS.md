@@ -18,7 +18,7 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 - One uvicorn worker (`backend/entrypoint.sh`). SQLite's busy wait polls and is not FIFO, so lock waits can reorder requests.
 - Client timeouts are shorter than the busy timeout: paired-machine requests 15s (unpair 5s) in `frontend/src-tauri/src/machine.rs` and `frontend/src/services/machineVault.ts`; web token refresh 45s (`frontend/src/lib/api.ts`). A request the client abandoned can still be served later and out of order. Account for this in auth and DB-write changes.
 - Code style: ruff line length 88, py312, mypy `disallow_untyped_defs` (`backend/pyproject.toml`). Use the Alembic setup in `backend/migrations/`; `backend/tests/test_migrations.py` covers it.
-- Tests use `backend/tests/conftest.py` fixtures (temp-file SQLite via `bootstrap.py`, `fake_acp_agent.py` for ACP). Coverage gate is 85%.
+- Tests use `backend/tests/conftest.py` fixtures (temp-file SQLite via `bootstrap.py`, `fake_acp_agent.py` for ACP). The autouse `endpoint_cache` fixture patches `app.utils.cache._open_cache_store`, the single place to swap the cache in tests; patch a module's own `cache_connection` only to inject a failure into that module. Coverage gate is 85%.
 
 ## MCP server
 
@@ -49,7 +49,7 @@ Backend (`.github/workflows/backend-checks.yml`, Python 3.12, runs when `backend
 - Lint tools only, no project deps: `pip install ruff==0.15.0 mypy types-redis deptry pip-audit`. A venv with project deps gives dozens of unrelated mypy errors; use a throwaway venv with just these.
 - `ruff check . ../mcp-server`, `ruff format --check . ../mcp-server`, `mypy app/`, `mypy --config-file pyproject.toml ../mcp-server`, `deptry . --requirements-files requirements.txt`. `pip-audit -r requirements.lock` is non-blocking.
 - Direct deps live in `backend/requirements-core.txt` (shared with the desktop sidecar); `backend/requirements.txt` includes it with `-r` (deptry follows the include) and adds the server-only packages. `desktop/requirements.lock` is compiled from the core list constrained by `backend/requirements.lock`; CI recompiles it with `uv==0.13.10` and fails on `git diff --exit-code desktop/requirements.lock`. Both compile commands, run from the repo root, are in the lock headers.
-- Tests: `uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist ruff==0.15.0`, then `COVERAGE_CORE=sysmon pytest tests -n auto --cov=app --cov-fail-under=85`.
+- Tests: `uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist ruff==0.15.0`, then `COVERAGE_CORE=sysmon pytest tests -n auto --cov=app --cov-fail-under=85`. The job has a Redis service and sets `TEST_REDIS_URL=redis://localhost:6379/0`; the Redis leg of `tests/test_cache_contract.py` skips locally without it and fails in CI without it.
 
 Docker Smoke (`.github/workflows/docker-smoke.yml`, runs when either Dockerfile, `scripts/bump-acp-providers.sh` or `.github/actions/docker-smoke/` change): builds `backend/Dockerfile` and `sandbox/docker/Dockerfile` for linux/amd64 without pushing, then runs `--version` of every bundled agent CLI in each image (`.github/actions/docker-smoke/`). The daily bump workflow runs the same action before opening its PR, because `pull_request` runs on its `github.token` PRs wait for manual approval; the PR job is skipped on `bot/bump-acp-providers`.
 

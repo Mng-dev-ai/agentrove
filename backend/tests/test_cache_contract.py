@@ -30,6 +30,7 @@ async def store(
     monkeypatch.setattr(cache_module.settings, "DESKTOP_MODE", False)
     monkeypatch.setattr(cache_module.settings, "REDIS_URL", redis_url)
     async with _open_cache_store() as redis_store:
+        assert not isinstance(redis_store, MemoryStore)
         yield redis_store
 
 
