@@ -14,13 +14,14 @@ import type {
   Query,
   QueryClient,
 } from '@tanstack/react-query';
+import { channelService } from '@/services/channelService';
 import { chatService } from '@/services/chatService';
 import { retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useMachineStore } from '@/store/machineStore';
 import { chatMachineId } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
-import { useMessageQueueStore } from '@/store/messageQueueStore';
-import { useUIStore, type ComposerSelection } from '@/store/uiStore';
+import { forgetChat, forgetChatsForMachines } from '@/store/forgetChat';
+import type { ComposerSelection } from '@/store/uiStore';
 import type { Chat, ChatSearchResponse, ContextUsage, CreateChatRequest } from '@/types/chat.types';
 import type { PaginatedChats } from '@/types/api.types';
 import { logger } from '@/utils/logger';
@@ -431,8 +432,7 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
         queryClient.removeQueries({ queryKey: queryKeys.chat(data.id) });
         queryClient.removeQueries({ queryKey: queryKeys.messages(data.id) });
         queryClient.removeQueries({ queryKey: queryKeys.contextUsage(data.id) });
-        useMessageQueueStore.getState().cleanupChat(data.id);
-        useUIStore.getState().cleanupChat(data.id);
+        forgetChat(data.id);
       }
     }
 
@@ -448,38 +448,61 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
+    // After the last chatMachineId reader: forgetting drops the chat's origin.
     invalidateMachineChats(queryClient, chatId);
-    useMessageQueueStore.getState().cleanupChat(chatId);
-    useUIStore.getState().cleanupChat(chatId);
+    forgetChat(chatId);
   },
 );
 
-// Wipe every online machine; drop successful machines' caches even if another fails.
+// Wipe every online machine; drop successful machines' caches and state even if another fails.
 export const useDeleteAllChatsMutation = () => {
   const queryClient = useQueryClient();
   return useMutation<void, Error, void>({
     mutationFn: async () => {
-      const wipes = [
-        chatService.deleteAllChats(LOCAL_MACHINE_ID).then(() => {
-          // Prefix ['chats'] also clears chatsSearch.
-          queryClient.removeQueries({ queryKey: [queryKeys.chats] });
-          queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-        }),
-      ];
       const { machines, connections } = useMachineStore.getState();
-      for (const { id } of machines) {
-        if (connections[id]?.status !== 'online') continue;
-        wipes.push(
-          chatService.deleteAllChats(id).then(() => {
+      const machineIds = [
+        LOCAL_MACHINE_ID,
+        ...machines.filter(({ id }) => connections[id]?.status === 'online').map(({ id }) => id),
+      ];
+      const results = await Promise.allSettled(
+        machineIds.map(async (id) => {
+          await chatService.deleteAllChats(id);
+          if (id === LOCAL_MACHINE_ID) {
+            // Prefix ['chats'] also clears chatsSearch.
+            queryClient.removeQueries({ queryKey: [queryKeys.chats] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+          } else {
             queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(id) });
             queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(id) });
+          }
+        }),
+      );
+      // The wipe keeps channels and their member chats, and only the server knows which
+      // chats those are; a machine whose channel list fails to load keeps its state.
+      const wiped = machineIds.filter((_, index) => results[index].status === 'fulfilled');
+      const channelLists = await Promise.allSettled(
+        wiped.map((id) =>
+          queryClient.fetchQuery({
+            queryKey: queryKeys.channels(id),
+            queryFn: () => channelService.listChannels(id),
+            staleTime: 0,
           }),
-        );
-      }
-      const results = await Promise.allSettled(wipes);
-      if (results.some((result) => result.status === 'fulfilled')) {
-        useUIStore.getState().cleanupAllChats();
-      }
+        ),
+      );
+      const wipedMachineIds = new Set<string>();
+      const survivingIds = new Set<string>();
+      channelLists.forEach((channelList, index) => {
+        if (channelList.status !== 'fulfilled') return;
+        wipedMachineIds.add(wiped[index]);
+        for (const channel of channelList.value) {
+          survivingIds.add(channel.id);
+          survivingIds.add(channel.anchor_chat_id);
+          for (const member of [...channel.members, ...(channel.former_members ?? [])]) {
+            survivingIds.add(member.chat_id);
+          }
+        }
+      });
+      forgetChatsForMachines(wipedMachineIds, survivingIds);
       const failed = results.find(
         (result): result is PromiseRejectedResult => result.status === 'rejected',
       );

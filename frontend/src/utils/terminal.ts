@@ -3,6 +3,9 @@ import type { ISearchDecorationOptions } from '@xterm/addon-search';
 import type { Palette } from '@/types/ui.types';
 import { CUSTOM_PALETTE_TOKENS, DARK_PALETTES } from '@/utils/theme';
 
+const TERMINAL_KEY_PREFIX = 'terminal:';
+export const LANDING_TERMINAL_SCOPE_PREFIX = 'landing-';
+
 // xterm paints its own canvas, so it can't read surface-secondary CSS vars.
 // Light/dark shades mirrored from globals.css; custom palettes use shared tokens.
 const BASE_SURFACE = {
@@ -64,14 +67,18 @@ export const buildSearchDecorations = (palette: Palette): ISearchDecorationOptio
 };
 
 // Key scheme owned here so Container writes and uiStore delete sweeps can't drift.
-// Scope is a chat id, or `landing-<sandboxId>` for pre-chat terminals (clear-all only).
+// Scope is a chat id, or `landing-<sandboxId>` for pre-chat terminals.
 export const terminalStorageKey = (scope: string, panelKey: string): string =>
-  `terminal:${scope}:${panelKey}`;
+  `${TERMINAL_KEY_PREFIX}${scope}:${panelKey}`;
 
-export function clearTerminalStorage(chatId?: string): void {
-  const prefix = chatId ? `terminal:${chatId}:` : 'terminal:';
+export function clearTerminalStorage(isCleared: (scope: string) => boolean): void {
   for (let i = localStorage.length - 1; i >= 0; i--) {
     const key = localStorage.key(i);
-    if (key?.startsWith(prefix)) localStorage.removeItem(key);
+    if (!key?.startsWith(TERMINAL_KEY_PREFIX)) continue;
+    const scope = key.slice(
+      TERMINAL_KEY_PREFIX.length,
+      key.indexOf(':', TERMINAL_KEY_PREFIX.length),
+    );
+    if (isCleared(scope)) localStorage.removeItem(key);
   }
 }

@@ -223,28 +223,14 @@ describe('loadWorkspaceForChat', () => {
   });
 });
 
-describe('cleanupChat', () => {
+describe('cleanupChats', () => {
   it('drops the chat tab, saved layout, and clears the live pointer when it is current', () => {
     state().loadWorkspaceForChat('c1');
     state().toggleView('editor', false);
-    state().cleanupChat('c1');
+    state().cleanupChats((id) => id === 'c1');
 
     expect(state().chatTabs).not.toContain('c1');
     expect('c1' in state().layoutsByChat).toBe(false);
-    expect(state().currentWorkspaceChatId).toBeNull();
-  });
-});
-
-describe('cleanupAllChats', () => {
-  it('resets the workspace and wipes all per-chat maps', () => {
-    state().loadWorkspaceForChat('c1');
-    state().toggleView('editor', false);
-    state().cleanupAllChats();
-
-    expect(state().chatTabs).toEqual([]);
-    expect(state().layoutsByChat).toEqual({});
-    expect(state().editorByChat).toEqual({});
-    expect(state().visibleLayout).toEqual([['agent:primary']]);
     expect(state().currentWorkspaceChatId).toBeNull();
   });
 });

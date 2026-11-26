@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { ModelSelectionState } from '@/types/ui.types';
 
+export const DEFAULT_MODEL_KEY = '__default__';
+
 export const useModelStore = create<ModelSelectionState>()(
   persist(
     (set, get) => ({
@@ -15,6 +17,14 @@ export const useModelStore = create<ModelSelectionState>()(
           }));
         }
       },
+      cleanupChats: (isForgotten) =>
+        set((state) => ({
+          modelByChat: Object.fromEntries(
+            Object.entries(state.modelByChat).filter(
+              ([chatId]) => chatId === DEFAULT_MODEL_KEY || !isForgotten(chatId),
+            ),
+          ),
+        })),
       toggleFavoriteModel: (modelId: string) => {
         set((state) => {
           const exists = state.favoriteModelIds.includes(modelId);

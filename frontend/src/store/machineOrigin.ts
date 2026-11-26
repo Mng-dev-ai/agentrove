@@ -9,9 +9,8 @@ const REMOVED_MACHINES_KEY = 'machine-removed-identities';
 
 const listeners = new Set<() => void>();
 
-function load(key: string): Map<string, string> {
+function parse(raw: string | null): Map<string, string> {
   try {
-    const raw = localStorage.getItem(key);
     const parsed: unknown = raw ? JSON.parse(raw) : null;
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return new Map();
     return new Map(
@@ -19,6 +18,14 @@ function load(key: string): Map<string, string> {
         (entry): entry is [string, string] => typeof entry[1] === 'string',
       ),
     );
+  } catch {
+    return new Map();
+  }
+}
+
+function load(key: string): Map<string, string> {
+  try {
+    return parse(localStorage.getItem(key));
   } catch {
     return new Map();
   }
@@ -87,6 +94,13 @@ function update(key: OriginKey, change: (map: Map<string, string>) => boolean): 
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key !== null && !(event.key in maps)) return;
+    // withUnsaved would merge this tab's copy of a chat another tab forgot back in.
+    if (event.key === CHATS_KEY && event.newValue !== null) {
+      const kept = parse(event.newValue);
+      for (const id of parse(event.oldValue).keys()) {
+        if (!kept.has(id)) maps[CHATS_KEY].delete(id);
+      }
+    }
     for (const key of Object.keys(maps) as OriginKey[]) maps[key] = withUnsaved(key);
     notify();
   });
@@ -109,6 +123,19 @@ function assign(key: OriginKey, machineId: string, ids: Iterable<string>): boole
 
 export function assignChatsToMachine(machineId: string, chatIds: Iterable<string>): void {
   if (assign(CHATS_KEY, machineId, chatIds)) notify();
+}
+
+export function forgetChatOrigins(isForgotten: (chatId: string) => boolean): void {
+  const changed = update(CHATS_KEY, (origins) => {
+    let changed = false;
+    for (const id of origins.keys()) {
+      if (!isForgotten(id)) continue;
+      origins.delete(id);
+      changed = true;
+    }
+    return changed;
+  });
+  if (changed) notify();
 }
 
 export function assignSandboxesToMachine(machineId: string, sandboxIds: Iterable<string>): void {

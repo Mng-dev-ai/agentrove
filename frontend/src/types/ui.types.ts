@@ -69,6 +69,7 @@ export interface ModelSelectionState {
   modelByChat: Record<string, string>;
   favoriteModelIds: string[];
   selectModel: (chatId: string, modelId: string) => void;
+  cleanupChats: (isForgotten: (chatId: string) => boolean) => void;
   toggleFavoriteModel: (modelId: string) => void;
 }
 
@@ -139,9 +140,8 @@ export interface SplitViewActions {
   activateTab: (tileId: TileId) => void;
   // Sets focusedTile + activeAgentTile so tab and pane clicks stay consistent.
   focusTile: (tileId: TileId) => void;
-  // Drop deleted chat's workspace/editor/terminal state so localStorage doesn't grow forever.
-  cleanupChat: (chatId: string) => void;
-  cleanupAllChats: () => void;
+  // Drop deleted chats' workspace/editor/terminal state so localStorage doesn't grow forever.
+  cleanupChats: (isForgotten: (chatId: string) => boolean) => void;
 }
 
 export interface UIState {

@@ -170,9 +170,7 @@ export const useDeleteChannelMutation = createMutation<void, Error, string>(
     useChannelStore.getState().releaseChannel(channelId);
     useChannelQueueStore.getState().cleanupChat(channelId);
     // Layout is keyed by channel; editor tabs and terminals by the anchor chat.
-    const ui = useUIStore.getState();
-    ui.cleanupChat(channelId);
-    if (anchorChatId) ui.cleanupChat(anchorChatId);
+    useUIStore.getState().cleanupChats((id) => id === channelId || id === anchorChatId);
     return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
   },
 );
