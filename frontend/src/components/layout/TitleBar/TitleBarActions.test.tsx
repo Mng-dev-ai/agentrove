@@ -3,7 +3,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { SidebarActions } from './SidebarActions';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { TitleBarActions } from './TitleBarActions';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { inboxService } from '@/services/inboxService';
 import { useAuthStore } from '@/store/authStore';
@@ -17,18 +18,22 @@ async function renderActions(unreadCount: number) {
     has_more: false,
     unread_count: unreadCount,
   });
-  const onOpenInbox = vi.fn();
   const client = new QueryClient();
   render(
     <QueryClientProvider client={client}>
-      <SidebarActions onNewChat={vi.fn()} onOpenSearch={vi.fn()} onOpenInbox={onOpenInbox} />
+      <MemoryRouter>
+        <TitleBarActions />
+        <Routes>
+          <Route path="/" element={null} />
+          <Route path="/inbox" element={<p>Inbox page</p>} />
+        </Routes>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   await waitFor(() => expect(client.getQueryState(queryKeys.inbox)?.status).toBe('success'));
-  return { onOpenInbox };
 }
 
-describe('SidebarActions inbox row', () => {
+describe('TitleBarActions inbox button', () => {
   beforeEach(() => useAuthStore.setState({ isAuthenticated: true }));
 
   it.each([
@@ -44,9 +49,9 @@ describe('SidebarActions inbox row', () => {
     expect(screen.queryByLabelText(/unread/)).toBeNull();
   });
 
-  it('opens the inbox when the row is clicked', async () => {
-    const { onOpenInbox } = await renderActions(1);
+  it('opens the inbox when clicked', async () => {
+    await renderActions(1);
     fireEvent.click(screen.getByRole('button', { name: /^Inbox/ }));
-    expect(onOpenInbox).toHaveBeenCalledOnce();
+    expect(screen.getByText('Inbox page')).toBeTruthy();
   });
 });

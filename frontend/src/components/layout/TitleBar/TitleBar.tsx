@@ -1,11 +1,9 @@
 import { useCallback } from 'react';
-import { Plus, Search } from 'lucide-react';
-import { useMatch, useNavigate } from 'react-router-dom';
+import { useMatch } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { ToggleButton } from '@/components/ui/ToggleButton/ToggleButton';
-import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ViewSwitcher } from '@/components/layout/ViewSwitcher/ViewSwitcher';
 import { ChatTabs } from '@/components/layout/ChatTabs/ChatTabs';
 import { useWorkingSetTabs } from '@/hooks/useWorkingSetTabs';
@@ -14,6 +12,7 @@ import { PaneHeaderBand } from '@/components/layout/PaneHeader/PaneHeader';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import clsx from 'clsx';
 import { IS_MAC_PLATFORM, isDesktopApp } from '@/utils/platform';
+import { TitleBarActions } from './TitleBarActions';
 import styles from './TitleBar.module.scss';
 
 async function getTauriWindow() {
@@ -115,7 +114,6 @@ export function DesktopDragRegion() {
 }
 
 export function TitleBar() {
-  const navigate = useNavigate();
   const isChatPage = useMatch('/chat/:chatId');
   const isChannelPage = useMatch('/channels/:channelId');
   const isLandingPage = useMatch('/');
@@ -167,35 +165,7 @@ export function TitleBar() {
             position="left"
             ariaLabel="Toggle sidebar"
           />
-          {/* Search/new chat only when sidebar is closed (it already has both). */}
-          {!sidebarOpen && (
-            <>
-              <FloatingTooltip content="Search">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={styles['icon-button']}
-                  onClick={() => useUIStore.getState().setCommandMenuOpen(true)}
-                  aria-label="Search"
-                >
-                  <Search className={styles['icon-button-glyph']} />
-                </Button>
-              </FloatingTooltip>
-              <FloatingTooltip content="New chat">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={styles['icon-button']}
-                  onClick={() => navigate('/')}
-                  aria-label="New chat"
-                >
-                  <Plus className={styles['icon-button-glyph']} />
-                </Button>
-              </FloatingTooltip>
-            </>
-          )}
+          <TitleBarActions />
         </div>
       )}
 
