@@ -7,7 +7,7 @@ import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import type { Chat } from '@/types/chat.types';
 import { stripMarkdownTitle } from '@/utils/format';
 import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
-import type { SidebarActivityKind } from './useSidebarActivity';
+import type { SidebarActivityKind } from '@/store/sidebarFilters';
 import listStyles from './SidebarChatList.module.scss';
 import styles from './SidebarActivity.module.scss';
 
