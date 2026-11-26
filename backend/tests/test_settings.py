@@ -3,7 +3,6 @@ from httpx import AsyncClient
 from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.endpoints import settings as settings_endpoint
 from app.core.security import create_mcp_access_token
 from app.models.db_models.user import User, UserSettings
 from app.utils.cache import MemoryStore
@@ -13,13 +12,6 @@ from tests.helpers import EndpointCache
 
 
 pytestmark = pytest.mark.anyio
-
-
-@pytest.fixture
-def settings_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
-    cache = EndpointCache()
-    monkeypatch.setattr(settings_endpoint, "cache_connection", cache.connect)
-    return cache
 
 
 @pytest.fixture
@@ -48,7 +40,6 @@ async def test_get_settings_returns_current_user_settings(
     client: AsyncClient,
     user: User,
     headers: dict[str, str],
-    settings_cache: EndpointCache,
 ) -> None:
     response = await client.get("/api/v1/settings/", headers=headers)
 
@@ -70,7 +61,6 @@ async def test_get_settings_returns_current_user_settings(
 async def test_patch_settings_updates_persistence_and_invalidates_cache(
     client: AsyncClient,
     headers: dict[str, str],
-    settings_cache: EndpointCache,
 ) -> None:
     payload = {
         "github_personal_access_token": "ghp_testtoken",
@@ -112,7 +102,7 @@ async def test_github_token_is_encrypted_at_rest(
     user: User,
     headers: dict[str, str],
     db_session: AsyncSession,
-    settings_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
 ) -> None:
     response = await client.patch(
         "/api/v1/settings/",
@@ -123,7 +113,7 @@ async def test_github_token_is_encrypted_at_rest(
     assert response.status_code == 200
     stored = await read_stored_github_token(db_session, user)
     assert "ghp_secret_value" not in stored
-    settings_cache.store = MemoryStore()
+    endpoint_cache.store = MemoryStore()
     get_response = await client.get("/api/v1/settings/", headers=headers)
     assert get_response.json()["github_personal_access_token"] == "ghp_secret_value"
 
@@ -131,7 +121,6 @@ async def test_github_token_is_encrypted_at_rest(
 async def test_patch_settings_leaves_omitted_fields_untouched(
     client: AsyncClient,
     headers: dict[str, str],
-    settings_cache: EndpointCache,
 ) -> None:
     # Fields with schema defaults (notifications_enabled=True) must not be
     # reset when a client PATCHes an unrelated field.
@@ -160,7 +149,6 @@ async def test_patch_settings_leaves_omitted_fields_untouched(
 async def test_patch_settings_normalizes_string_json_lists(
     client: AsyncClient,
     headers: dict[str, str],
-    settings_cache: EndpointCache,
 ) -> None:
     response = await client.patch(
         "/api/v1/settings/",
@@ -207,7 +195,6 @@ async def test_settings_return_404_when_settings_row_missing(
     user: User,
     headers: dict[str, str],
     db_session: AsyncSession,
-    settings_cache: EndpointCache,
 ) -> None:
     await db_session.execute(
         delete(UserSettings).where(UserSettings.user_id == user.id)
@@ -230,7 +217,6 @@ async def test_get_settings_returns_legacy_plaintext_github_token(
     user: User,
     headers: dict[str, str],
     db_session: AsyncSession,
-    settings_cache: EndpointCache,
 ) -> None:
     # Rows written before encryption hold plaintext; they must stay readable.
     await db_session.execute(
@@ -252,7 +238,6 @@ async def test_agent_token_reads_and_writes_personas_only(
     client: AsyncClient,
     user: User,
     headers: dict[str, str],
-    settings_cache: EndpointCache,
 ) -> None:
     token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
     agent_headers = {"Authorization": f"Bearer {token}"}
@@ -295,7 +280,6 @@ async def test_agent_token_reads_and_writes_personas_only(
 async def test_patch_settings_checks_expected_version(
     client: AsyncClient,
     headers: dict[str, str],
-    settings_cache: EndpointCache,
 ) -> None:
     initial = await client.get("/api/v1/settings/", headers=headers)
     assert initial.json()["settings_version"] == 0

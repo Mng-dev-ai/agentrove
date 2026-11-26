@@ -9,7 +9,6 @@ from httpx import AsyncClient, Response
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.endpoints import chat as chat_endpoint
 from app.catalog import MODELS
 from app.constants import REDIS_KEY_CHAT_CONTEXT_USAGE
 from app.core.deps import get_agent_service, get_queue_service
@@ -110,13 +109,6 @@ class RaisingCacheConnection:
 
     async def __aexit__(self, *exc_info: object) -> None:
         return None
-
-
-@pytest.fixture
-def chat_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
-    cache = EndpointCache()
-    monkeypatch.setattr(chat_endpoint, "cache_connection", cache.connect)
-    return cache
 
 
 @pytest.fixture
@@ -1407,7 +1399,7 @@ async def test_context_usage_falls_back_to_database_when_cache_is_malformed(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    chat_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1423,7 +1415,7 @@ async def test_context_usage_falls_back_to_database_when_cache_is_malformed(
     )
 
     cache_key = REDIS_KEY_CHAT_CONTEXT_USAGE.format(chat_id=str(chat.id))
-    await chat_cache.store.set(cache_key, '{"tokens_used": "broken"}')
+    await endpoint_cache.store.set(cache_key, '{"tokens_used": "broken"}')
 
     response = await client.get(
         f"/api/v1/chat/chats/{chat.id}/context-usage", headers=headers
@@ -1445,7 +1437,6 @@ async def test_context_usage_for_chat_without_assistant_message(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    chat_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login

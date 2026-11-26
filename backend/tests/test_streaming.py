@@ -17,8 +17,6 @@ from httpx import AsyncClient
 from sqlalchemy import event as sa_event
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.endpoints import chat as chat_endpoint
-from app.core import deps
 from app.catalog import MODELS
 from app.constants import REDIS_KEY_CHAT_QUEUE, REDIS_KEY_USER_STREAMS_LIVE
 from app.db.session import SessionLocal, engine
@@ -32,7 +30,6 @@ from app.services.exceptions import ChatException
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.session_registry import session_registry
-from app.services import chat as chat_service_module
 from app.services.chat import ChatService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.host_provider import LocalHostProvider
@@ -244,18 +241,6 @@ def acp_factory(monkeypatch: pytest.MonkeyPatch) -> FakeAcpSessionFactory:
     return factory
 
 
-@pytest.fixture
-def streaming_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
-    cache = EndpointCache()
-    # cache_connection is import-by-value — patch each call site, not utils.cache.
-    monkeypatch.setattr(chat_endpoint, "cache_connection", cache.connect)
-    monkeypatch.setattr(deps, "cache_connection", cache.connect)
-    monkeypatch.setattr(chat_service_module, "cache_connection", cache.connect)
-    monkeypatch.setattr(runtime_module, "cache_connection", cache.connect)
-    monkeypatch.setattr(recovery_module, "cache_connection", cache.connect)
-    return cache
-
-
 def find_background_task(chat_id: UUID) -> "asyncio.Task[str]":
     for task, chat_id_str in ChatStreamRuntime._background_task_chat_ids.items():
         if chat_id_str == str(chat_id) and not task.done():
@@ -370,7 +355,6 @@ async def test_send_message_streams_full_turn_and_persists_final_snapshot(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -452,7 +436,6 @@ async def test_send_message_new_chat_generates_title_in_background(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -490,7 +473,6 @@ async def test_pinned_memories_reach_only_the_first_prompt_of_a_new_session(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -547,7 +529,6 @@ async def test_send_message_extracts_and_strips_prompt_suggestions(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -587,7 +568,6 @@ async def test_permission_request_respond_allows_and_denies_then_stream_complete
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -679,7 +659,6 @@ async def test_cancel_stream_marks_message_interrupted(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -728,7 +707,6 @@ async def test_cancel_while_idle_does_not_interrupt_the_next_turn(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     # A stale Stop click must not leave a pending cancel behind for the next
     # turn to consume at bootstrap.
@@ -783,7 +761,6 @@ async def test_cancel_during_turn_start_interrupts_before_agent_is_prompted(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
     fake_sandbox_provider: FakeProviderFactory,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
@@ -836,7 +813,6 @@ async def test_stream_failure_marks_message_failed_and_emits_bootstrap_error(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -871,7 +847,7 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
     stored_before_devices: bool,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
@@ -894,10 +870,10 @@ async def test_queued_message_is_processed_automatically_after_stream_completes(
     assert queue_response.status_code == 201
     if stored_before_devices:
         key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat.id)
-        stored = json.loads(await streaming_cache.store.get(key) or "[]")
+        stored = json.loads(await endpoint_cache.store.get(key) or "[]")
         for item in stored:
             del item["device_ids"]
-        await streaming_cache.store.set(key, json.dumps(stored))
+        await endpoint_cache.store.set(key, json.dumps(stored))
     listed = await client.get(f"/api/v1/chat/chats/{chat.id}/queue", headers=headers)
     assert [item["content"] for item in listed.json()] == ["Follow-up prompt"]
 
@@ -950,7 +926,7 @@ async def test_message_queued_after_the_turns_queue_check_runs_after_the_turn(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
@@ -1001,7 +977,7 @@ async def test_message_queued_after_the_turns_queue_check_runs_after_the_turn(
     )
     key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat.id)
     deadline = time.monotonic() + 5
-    while not await streaming_cache.store.get(key):
+    while not await endpoint_cache.store.get(key):
         assert time.monotonic() < deadline
         await asyncio.sleep(0.01)
     release_turn.set()
@@ -1042,7 +1018,7 @@ async def test_late_queued_message_taken_by_the_turns_chain_returns_started(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
@@ -1087,7 +1063,7 @@ async def test_late_queued_message_taken_by_the_turns_chain_returns_started(
     )
     key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat.id)
     deadline = time.monotonic() + 5
-    while not await streaming_cache.store.get(key):
+    while not await endpoint_cache.store.get(key):
         assert time.monotonic() < deadline
         await asyncio.sleep(0.01)
     message_queued.set()
@@ -1116,7 +1092,6 @@ async def test_send_now_after_the_turns_queue_check_starts_after_the_turn(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
@@ -1215,7 +1190,6 @@ async def test_send_now_cancels_active_generation_and_starts_queued_message(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1286,7 +1260,6 @@ async def test_send_now_steers_active_turn_inline(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1351,7 +1324,6 @@ async def test_child_result_steers_only_a_turn_acting_for_its_devices(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
     child_on_device: bool,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
@@ -1396,7 +1368,6 @@ async def test_send_now_starts_immediately_when_chat_is_idle(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1442,9 +1413,6 @@ async def test_send_now_returns_404_for_unknown_queued_message(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    # Not used directly — routes get_queue_service to the in-memory cache so
-    # the test doesn't require a live Redis (503 instead of 404 without it).
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1464,7 +1432,6 @@ async def test_active_streams_and_status_reflect_running_turn_for_owner_only(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1521,7 +1488,6 @@ async def test_stream_with_no_events_raises_and_marks_message_failed(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1548,7 +1514,6 @@ async def test_mid_stream_system_event_updates_chat_session_id(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1582,7 +1547,6 @@ async def test_send_message_with_worktree_runs_agent_in_new_worktree(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
     fake_sandbox_provider: FakeProviderFactory,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
@@ -1640,7 +1604,6 @@ async def test_sub_thread_worktree_turn_branches_off_the_inherited_worktree(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -1737,7 +1700,7 @@ async def test_stream_sse_replays_backlog_then_delivers_live_events(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
     live_server_url: str,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
@@ -1792,7 +1755,7 @@ async def test_stream_sse_replays_backlog_then_delivers_live_events(
                 payload={},
             )
             live_channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=user.id)
-            assert await streaming_cache.store.publish(live_channel, live_envelope) == 1
+            assert await endpoint_cache.store.publish(live_channel, live_envelope) == 1
 
             # Feed stays open; read one live event, don't drain to close.
             async for line in lines:
@@ -1804,7 +1767,7 @@ async def test_stream_sse_replays_backlog_then_delivers_live_events(
 
         # A closed tab must drop its live subscription, or every reconnect
         # leaks a subscriber that buffers events forever.
-        while await streaming_cache.store.publish(live_channel, live_envelope):
+        while await endpoint_cache.store.publish(live_channel, live_envelope):
             await asyncio.sleep(0.01)
 
 
@@ -1812,7 +1775,6 @@ async def test_sse_endpoints_release_db_connection_while_streaming(
     db_session: AsyncSession,
     create_user: UserFactory,
     login: LoginClient,
-    streaming_cache: EndpointCache,
     live_server_url: str,
 ) -> None:
     # Regression: SSE must release get_db before stream or tabs pin the pool.
@@ -1857,7 +1819,6 @@ async def test_second_send_while_streaming_is_rejected_with_409(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
 ) -> None:
     headers, user, workspace = await create_authenticated_workspace(
         db_session, create_user, login
@@ -1896,7 +1857,6 @@ async def test_mid_turn_snapshot_plus_event_tail_rebuilds_full_output(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A client reconnecting mid-turn renders the persisted snapshot, then
@@ -1956,7 +1916,6 @@ async def test_shutdown_cancels_running_turns_and_marks_them_interrupted(
     create_user: UserFactory,
     login: LoginClient,
     acp_factory: FakeAcpSessionFactory,
-    streaming_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # Zero grace period: shutdown cancels at once instead of waiting it out.
