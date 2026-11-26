@@ -20,12 +20,6 @@ export class ServiceError extends Error {
 
     return new ServiceError('An unknown error occurred', 'UNKNOWN_ERROR', error);
   }
-
-  static isRetryable(error: ServiceError): boolean {
-    if (!error.status) return false;
-
-    return error.status === 500 || error.status === 503 || error.status === 504;
-  }
 }
 
 export class AuthenticationError extends ServiceError {
@@ -54,4 +48,8 @@ export class NetworkError extends ServiceError {
     super(message, 'NETWORK_ERROR');
     this.name = 'NetworkError';
   }
+}
+
+export function isTransientStatus(status: number): boolean {
+  return status === 500 || status === 503 || status === 504;
 }

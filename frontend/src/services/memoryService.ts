@@ -3,15 +3,12 @@ import { buildQueryString, ensureResponse, serviceCall } from '@/services/base/B
 import type { Memory, MemoryCreateRequest, MemoryUpdateRequest } from '@/types/memory.types';
 
 async function listMemories(workspaceId: string | null, machineId: string): Promise<Memory[]> {
-  return serviceCall(
-    async () => {
-      const response = await getMachineClient(machineId).get<Memory[]>(
-        `/memories${buildQueryString({ workspace_id: workspaceId })}`,
-      );
-      return ensureResponse(response, 'Failed to load memories');
-    },
-    { maxRetries: 1 },
-  );
+  return serviceCall(async () => {
+    const response = await getMachineClient(machineId).get<Memory[]>(
+      `/memories${buildQueryString({ workspace_id: workspaceId })}`,
+    );
+    return ensureResponse(response, 'Failed to load memories');
+  });
 }
 
 async function createMemory(data: MemoryCreateRequest, machineId: string): Promise<Memory> {

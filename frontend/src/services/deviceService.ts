@@ -3,13 +3,10 @@ import { ensureResponse, withAuth } from '@/services/base/BaseService';
 import type { PairedDevice, PairingLink } from '@/types/machine.types';
 
 async function listDevices(): Promise<PairedDevice[]> {
-  return withAuth(
-    async () => {
-      const response = await apiClient.get<PairedDevice[]>('/auth/devices');
-      return ensureResponse(response, 'Failed to load devices');
-    },
-    { maxRetries: 1 },
-  );
+  return withAuth(async () => {
+    const response = await apiClient.get<PairedDevice[]>('/auth/devices');
+    return ensureResponse(response, 'Failed to load devices');
+  });
 }
 
 async function revokeDevice(deviceId: string): Promise<void> {

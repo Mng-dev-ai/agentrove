@@ -14,9 +14,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   VERIFY_USER_TOKEN_EXPIRED: 'Verification link has expired',
 };
 
-const DEFAULT_MAX_RETRIES = 3;
-const DEFAULT_RETRY_DELAY = 1000;
-
 function formatErrorMessage(error: string | undefined): string {
   if (!error) {
     return 'An unexpected error occurred';
@@ -34,8 +31,6 @@ function formatErrorMessage(error: string | undefined): string {
 }
 
 interface ServiceCallOptions {
-  maxRetries?: number;
-  retryDelay?: number;
   signal?: AbortSignal;
 }
 
@@ -43,33 +38,15 @@ export async function serviceCall<T>(
   fn: () => Promise<T>,
   options: ServiceCallOptions = {},
 ): Promise<T> {
-  const { maxRetries = DEFAULT_MAX_RETRIES, retryDelay = DEFAULT_RETRY_DELAY, signal } = options;
-  let lastError: ServiceError | undefined;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      if (signal?.aborted) {
-        throw new ServiceError('Request aborted', 'ABORTED');
-      }
-
-      return await fn();
-    } catch (error) {
-      lastError = handleServiceError(error);
-
-      if (lastError instanceof AuthenticationError) {
-        throw lastError;
-      }
-
-      const shouldRetry = ServiceError.isRetryable(lastError) && attempt < maxRetries;
-      if (!shouldRetry) {
-        throw lastError;
-      }
-
-      await delay(retryDelay * Math.pow(2, attempt));
+  try {
+    if (options.signal?.aborted) {
+      throw new ServiceError('Request aborted', 'ABORTED');
     }
-  }
 
-  throw lastError || new ServiceError('Max retries exceeded');
+    return await fn();
+  } catch (error) {
+    throw handleServiceError(error);
+  }
 }
 
 export async function withAuth<T>(
@@ -145,8 +122,4 @@ export function buildQueryString(
 
 function handleAuthError(): void {
   invalidateSessionAndRedirect();
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }
