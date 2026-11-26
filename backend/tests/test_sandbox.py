@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import os
 import shlex
 import subprocess
 import zipfile
@@ -1477,6 +1478,75 @@ async def test_checkpoint_keeps_untracked_files_beside_nested_repos(
     assert "diff --git a/notes.txt b/notes.txt" in checkpoint.pre_run_diff
     assert checkpoint.pre_run_diff.count("diff --git") == 1
     (repo / "notes.txt").unlink()
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+
+    assert result.success is True
+    assert tree_snapshot(repo) == before
+
+
+async def test_checkpoint_round_trips_untracked_file_with_non_utf8_name(
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    write_files(repo, {"aaa.txt": "a\n", "zzz.txt": "z\n"})
+    try:
+        (repo / os.fsdecode(b"bad\xffname.txt")).write_text("bad\n")
+    except OSError:
+        pytest.skip("filesystem rejects non-UTF-8 file names")
+    before = tree_snapshot(repo)
+    service = host_git_service(repo)
+
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    assert checkpoint is not None
+    assert checkpoint.pre_run_diff.count("diff --git") == 3
+    write_files(repo, {"agent.py": "agent\n"})
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+
+    assert result.success is True
+    assert tree_snapshot(repo) == before
+
+
+@pytest.mark.parametrize("sparse_index", [False, True])
+async def test_sparse_checkout_keeps_untracked_files_outside_the_cone(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox, sparse_index: bool
+) -> None:
+    repo = init_repo(
+        tmp_path / "repo", {"in/a.py": "a\n", "out/b.py": "b\n", "root.py": "r\n"}
+    )
+    index_flag = "--sparse-index" if sparse_index else "--no-sparse-index"
+    try:
+        git(repo, "sparse-checkout", "init", "--cone", index_flag)
+        git(repo, "sparse-checkout", "set", "in")
+    except subprocess.CalledProcessError:
+        pytest.skip("git lacks cone-mode sparse-checkout with a sparse index")
+    write_files(repo, {"in/new.py": "n\n", "out/new.py": "n\n", "extra/new.py": "n\n"})
+    before = tree_snapshot(repo)
+    api = await open_host_sandbox(repo)
+    service = host_git_service(repo)
+
+    body = (await api.get("git/diff")).json()
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    headers = [line for line in body["diff"].splitlines() if line[:4] == "diff"]
+    assert headers == [
+        "diff --git a/extra/new.py b/extra/new.py",
+        "diff --git a/in/new.py b/in/new.py",
+        "diff --git a/out/new.py b/out/new.py",
+    ]
+    assert checkpoint is not None
+    write_files(repo, {"in/a.py": "agent\n", "agent.py": "agent\n"})
+    (repo / "out" / "new.py").unlink()
     result = await service.restore_checkpoint_all(
         "sandbox-1",
         base_head=checkpoint.base_head,

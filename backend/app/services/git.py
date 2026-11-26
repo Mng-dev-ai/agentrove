@@ -21,6 +21,7 @@ from app.models.schemas.sandbox import (
 )
 from app.services.exceptions import SandboxException
 from app.services.sandbox import SandboxService
+from app.services.sandbox_providers.types import CommandResult
 from app.utils.sandbox import BRANCH_NAME_RE, git_cd_prefix, is_valid_base_ref
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 GITHUB_REMOTE_RE = re.compile(
     r"(?:https?://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?$"
 )
+DIFF_CAPTURE_ATTEMPTS = 3
 GIT_IS_REPO_CMD = "git rev-parse --is-inside-work-tree 2>/dev/null"
 GIT_CURRENT_BRANCH_CMD = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
 # Paths AgentRove or agent CLIs drop into checkouts: .worktrees/ holds chat
@@ -156,8 +158,9 @@ GIT_WORKTREE_REMOVE_TEMPLATE = Template(
 # for the repo's object format (the stock pre-commit-hook idiom).
 GIT_DIFF_ALL_TEMPLATE = Template(
     ' GIT_INDEX_FILE="$$tmp" git diff$ctx HEAD 2>/dev/null'
-    ' || GIT_INDEX_FILE="$$tmp" git diff$ctx'
-    " $$(git hash-object -t tree /dev/null) 2>/dev/null"
+    " || { git rev-parse -q --verify HEAD >/dev/null 2>&1 && exit 1;"
+    ' GIT_INDEX_FILE="$$tmp" git diff$ctx'
+    " $$(git hash-object -t tree /dev/null) 2>/dev/null; }"
 )
 GIT_DETECT_BASE_CMD = (
     "base=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/||');"
@@ -205,38 +208,40 @@ GIT_DIFF_BRANCH_TEMPLATE = Template(
     ' git diff$ctx "$$merge_base" HEAD 2>/dev/null'
 )
 
-# Untracked files are marked intent-to-add in a throwaway index copy so one
-# `git diff` covers them without touching the real index. The add takes the
-# `ls-files --others` list rather than `-A`: `git add -A -N` aborts on a nested
-# repo with no commit, dropping every untracked file, and records one that has
-# commits as a gitlink. ls-files prints nested repos as `dir/`, which the grep
-# drops; the sh filter drops unreadable files, which would abort the diff for
-# every file. Bail if mktemp or the copy fails (an empty GIT_INDEX_FILE would
-# hit the real index, an empty copy would diff every tracked file as deleted);
-# with no index yet, drop the copy so git starts empty instead of rejecting a
-# zero-byte file. `$ita` is the add's exit status.
-GIT_INTENT_TO_ADD_INDEX_CMD = (
-    " tmp=$(mktemp) || exit 1; trap 'rm -f \"$tmp\"' EXIT;"
+# Untracked files get plain entries in a throwaway index copy so one
+# `git diff` covers them without touching the real index. The entries come
+# from the `ls-files --others` list through `update-index --index-info`, which
+# never reads the working tree: `git add -N` (with `-A` or a path list) aborts
+# for every file on a nested repo with no commit, a path outside the sparse
+# checkout or a file deleted since the listing, and crashes on a sparse index.
+# The sh loop skips nested repos (listed as `dir/`) and unreadable files, which
+# would abort the diff for every file. Bail if mktemp or the copy fails (an
+# empty GIT_INDEX_FILE would hit the real index, an empty copy would diff every
+# tracked file as deleted); with no index yet, drop the copy so git starts
+# empty instead of rejecting a zero-byte file.
+GIT_UNTRACKED_INDEX_CMD = (
+    " tmp=$(mktemp 2>/dev/null) || exit 1; trap 'rm -f \"$tmp\"' EXIT;"
     " idx=$(git rev-parse --git-path index);"
-    ' if [ -e "$idx" ]; then cp -p "$idx" "$tmp" || exit 1; else rm -f "$tmp"; fi;'
+    ' if [ -e "$idx" ]; then cp -p "$idx" "$tmp" 2>/dev/null || exit 1;'
+    ' else rm -f "$tmp"; fi;'
     ' (cd "$(git rev-parse --show-toplevel)" && export GIT_INDEX_FILE="$tmp" &&'
-    " git ls-files --others --exclude-standard -z | grep -zv '/$' |"
-    """ xargs -0 sh -c 'for f; do if [ -L "$f" ] || [ -r "$f" ]; then"""
-    """ printf "%s\\0" "$f"; fi; done' sh |"""
-    " git --literal-pathspecs add -N --pathspec-from-file=- --pathspec-file-nul"
-    " >/dev/null 2>&1); ita=$?;"
+    " blob=$(git hash-object -t blob /dev/null) &&"
+    " git ls-files --others --exclude-standard -z |"
+    " xargs -0 sh -c 'blob=$1; shift; for f; do case $f in */) continue;; esac;"
+    """ if [ -L "$f" ] || [ -r "$f" ]; then"""
+    """ printf "100644 %s\\t%s\\0" "$blob" "$f"; fi; done' sh "$blob" |"""
+    " git update-index -z --add --replace --index-info) >/dev/null 2>&1"
+    " || exit 1;"
 )
 # Default context (no -U flag): restore resets --hard to base_head before
 # applying, and changed-files builds its temp index from exactly base_head, so
 # the patch base is always byte-identical — full-file context would only bloat
 # every checkpoint row stored in the DB.
 # No unborn-HEAD fallback (unlike GIT_DIFF_ALL_TEMPLATE): the checkpoint probe
-# already required a resolvable HEAD before this diff runs. Restore deletes
-# whatever the patch doesn't carry, so a failed add exits instead of emitting a
-# diff without the untracked files.
+# already required a resolvable HEAD before this diff runs.
 GIT_CHECKPOINT_DIFF_CMD = (
-    GIT_INTENT_TO_ADD_INDEX_CMD + ' [ "$ita" -eq 0 ] || exit 1;'
-    ' GIT_INDEX_FILE="$tmp" git diff --binary HEAD 2>/dev/null'
+    GIT_UNTRACKED_INDEX_CMD
+    + ' GIT_INDEX_FILE="$tmp" git diff --binary HEAD 2>/dev/null'
 )
 GIT_MERGE_BASE_CMD = (
     ' merge_base=$(git merge-base "$base" HEAD 2>/dev/null || echo "$base");'
@@ -248,7 +253,7 @@ GIT_DIFF_STATS_CMD = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     'cd "$(git rev-parse --show-toplevel)"; '
     "head=$(git rev-parse --verify -q HEAD || git hash-object -t tree /dev/null);"
-    + GIT_INTENT_TO_ADD_INDEX_CMD
+    + GIT_UNTRACKED_INDEX_CMD
     + " printf '__HEAD__\\n'; git rev-parse --verify -q HEAD 2>/dev/null;"
     " printf '__UNCOMMITTED__\\n';"
     ' GIT_INDEX_FILE="$tmp" git diff --numstat "$head" 2>/dev/null;'
@@ -356,6 +361,14 @@ class GitService:
         if not is_valid_base_ref(base_ref):
             raise SandboxException("Invalid base branch name")
 
+    async def _capture_diff(self, sandbox_id: str, command: str) -> CommandResult:
+        # `git diff` aborts when a file is deleted while it reads the tree.
+        for _ in range(DIFF_CAPTURE_ATTEMPTS):
+            result = await self.sandbox_service.execute_command(sandbox_id, command)
+            if result.exit_code in (0, 2):
+                break
+        return result
+
     async def get_diff(
         self,
         sandbox_id: str,
@@ -384,23 +397,21 @@ class GitService:
                 GIT_DETECT_BASE_CMD
                 + ' if [ -z "$base" ]; then exit 2; fi;'
                 + GIT_MERGE_BASE_CMD
-                + GIT_INTENT_TO_ADD_INDEX_CMD
+                + GIT_UNTRACKED_INDEX_CMD
                 + GIT_DIFF_TOTAL_TEMPLATE.substitute(flags=ctx)
             )
         else:
-            cmd = GIT_INTENT_TO_ADD_INDEX_CMD + GIT_DIFF_ALL_TEMPLATE.substitute(
-                ctx=ctx
-            )
+            cmd = GIT_UNTRACKED_INDEX_CMD + GIT_DIFF_ALL_TEMPLATE.substitute(ctx=ctx)
 
-        result = await self.sandbox_service.execute_command(
-            sandbox_id, f"{git_prefix}{cmd}"
-        )
-        if mode != "all" and result.exit_code == 2:
+        result = await self._capture_diff(sandbox_id, f"{git_prefix}{cmd}")
+        if result.exit_code != 0:
             return GitDiffResponse(
                 diff="",
                 has_changes=False,
                 is_git_repo=True,
-                error="Could not determine base branch",
+                error="Could not determine base branch"
+                if mode != "all" and result.exit_code == 2
+                else "Could not read the working tree changes",
             )
         diff_output = result.stdout
         return GitDiffResponse(
@@ -690,9 +701,8 @@ class GitService:
         if marker == "clean":
             return Checkpoint(base_head=head, head_ref=head_ref, pre_run_diff="")
 
-        result = await self.sandbox_service.execute_command(
-            sandbox_id,
-            f"{git_prefix}{GIT_CD_REPO_ROOT}{GIT_CHECKPOINT_DIFF_CMD}",
+        result = await self._capture_diff(
+            sandbox_id, f"{git_prefix}{GIT_CD_REPO_ROOT}{GIT_CHECKPOINT_DIFF_CMD}"
         )
         if result.exit_code != 0:
             return None
