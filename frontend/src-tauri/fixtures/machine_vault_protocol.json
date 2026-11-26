@@ -618,6 +618,35 @@
               },
               "response": {
                 "status": 200,
+                "text": "null"
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
                 "json": {
                   "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
                   "token_type": "bearer",
@@ -1337,6 +1366,31 @@
               "response": {
                 "status": 200,
                 "text": "not json"
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "text": "null"
               }
             }
           ],
