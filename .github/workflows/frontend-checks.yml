@@ -115,7 +115,7 @@ jobs:
         run: |
           cd frontend
           grep -Eq 'startsWith\("MAC"\),[A-Za-z_$][A-Za-z0-9_$]*=!0,' dist-mobile/assets/*.js \
-            || { echo "::error::dist-mobile was built without VITE_PLATFORM=mobile"; exit 1; }
+            || { echo "::error::No folded IS_MOBILE_BUILD=!0 in dist-mobile: VITE_PLATFORM=mobile was not set, or IS_MAC_PLATFORM and IS_MOBILE_BUILD in src/utils/platform.ts are no longer adjacent in the minified output"; exit 1; }
 
   smoke:
     name: Bundle Smoke Test
