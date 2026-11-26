@@ -434,6 +434,27 @@ async def test_send_message_rejects_invalid_base_branch_before_starting_turn(
     assert messages.json()["items"] == []
 
 
+async def test_send_message_rejects_malformed_chat_id(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, _, _ = await create_authenticated_workspace(db_session, create_user, login)
+
+    response = await client.post(
+        "/api/v1/chat/chat",
+        data={
+            "prompt": "Ship this",
+            "chat_id": "not-a-uuid",
+            "model_id": TEST_MODEL_ID,
+        },
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+
+
 async def test_send_message_to_another_users_chat_is_rejected(
     client: AsyncClient,
     db_session: AsyncSession,
