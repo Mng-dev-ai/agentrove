@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import type { Chat } from '@/types/chat.types';
+import { resolveChatAgentKind, type Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
 import { useShowMoreUntilMatch, useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useUIStore } from '@/store/uiStore';
+import { useModelStore } from '@/store/modelStore';
+import { useMachinesModelMaps } from '@/hooks/queries/useModelQueries';
 import { useStreamStore } from '@/store/streamStore';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useIsMobile } from '@/hooks/useIsMobile';
@@ -132,18 +134,25 @@ export function Sidebar({
   // fetch time, hydrated at module load) — the workspace badge map lags behind the
   // per-machine workspaces queries and would misclassify remote chats meanwhile.
   const chatOrigins = useChatOrigins();
+  const modelByChat = useModelStore((state) => state.modelByChat);
+  const modelMaps = useMachinesModelMaps(isAuthenticated);
   const connections = useMachineStore((state) => state.connections);
   const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
   const chatMatchesFilters = useCallback(
     (chat: Chat) => {
       if (filters.workspaceId && chat.workspace_id !== filters.workspaceId) return false;
-      if (filters.agentKind && chat.session_agent_kind !== filters.agentKind) return false;
+      const machineId = chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID;
       if (
-        filters.source !== 'all' &&
-        (chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID) !== filters.source
+        filters.agentKind &&
+        resolveChatAgentKind(
+          modelMaps.get(machineId) ?? new Map(),
+          chat.session_agent_kind,
+          modelByChat[chat.id] ?? chat.last_model_id,
+        ) !== filters.agentKind
       ) {
         return false;
       }
+      if (filters.source !== 'all' && machineId !== filters.source) return false;
       if (filters.statuses.length === 0) return true;
       return (
         (filters.statuses.includes('unread') && chat.unread) ||
@@ -152,7 +161,15 @@ export function Sidebar({
         (filters.statuses.includes('needs-you') && blockedChatIdSet.has(chat.id))
       );
     },
-    [filters, streamingChatIdSet, completedChatIds, blockedChatIdSet, chatOrigins],
+    [
+      filters,
+      streamingChatIdSet,
+      completedChatIds,
+      blockedChatIdSet,
+      chatOrigins,
+      modelMaps,
+      modelByChat,
+    ],
   );
   const visiblePinnedChats = useMemo(
     () => (hasActiveFilters ? pinnedChats.filter(chatMatchesFilters) : pinnedChats),
