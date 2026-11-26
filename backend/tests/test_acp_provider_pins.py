@@ -51,6 +51,10 @@ def test_dockerfile_reads_every_pin_from_the_manifest(dockerfile: str) -> None:
     text = (REPO_ROOT / dockerfile).read_text()
 
     assert "COPY scripts/acp-providers.env /opt/acp-providers.env\n" in text
+    for key in PIN_PREFIXES:
+        assert text.count(key) == text.count(f"${{{key}:?}}"), (
+            f"{dockerfile} sets {key} instead of only reading it"
+        )
     assert_pins_come_from_manifest(dockerfile, tuple(PIN_PREFIXES), "${{{key}:?}}")
 
 

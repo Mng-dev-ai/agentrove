@@ -7,3 +7,4 @@ Dockerfile.* text eol=lf
 
 # Other container-related files
 docker-compose*.yml text eol=lf
+scripts/acp-providers.env text eol=lf
