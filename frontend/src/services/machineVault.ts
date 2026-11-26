@@ -105,15 +105,16 @@ async function send(
   init: { method: string; body?: unknown; bearer?: string },
   timeoutMs: number,
 ): Promise<Response> {
+  let response: Response;
   try {
-    return await fetch(url, {
+    response = await fetch(url, {
       method: init.method,
       headers: {
         ...(init.body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(init.bearer ? { Authorization: `Bearer ${init.bearer}` } : {}),
       },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
-      redirect: 'error',
+      redirect: 'manual',
       credentials: 'omit',
       cache: 'no-store',
       signal: AbortSignal.timeout(timeoutMs),
@@ -121,6 +122,10 @@ async function send(
   } catch {
     throw new MachineVaultError('unreachable', 'The machine could not be reached');
   }
+  if (response.type === 'opaqueredirect') {
+    throw new MachineVaultError('http', 'The machine responded with a redirect');
+  }
+  return response;
 }
 
 function grantFrom(accessToken: unknown): MachineAccessGrant {
@@ -143,7 +148,7 @@ async function rotate(
   origin: string,
   refreshToken: string,
   timeoutMs: number,
-): Promise<{ grant: MachineAccessGrant; refreshToken: string }> {
+): Promise<{ accessToken: string; refreshToken: string }> {
   const response = await send(
     `${origin}/api/v1/auth/jwt/refresh`,
     { method: 'POST', body: { refresh_token: refreshToken } },
@@ -156,10 +161,10 @@ async function rotate(
     throw new MachineVaultError('http', `The machine responded with HTTP ${response.status}`);
   }
   const body = await readJson(response);
-  if (typeof body.refresh_token !== 'string') {
+  if (typeof body.access_token !== 'string' || typeof body.refresh_token !== 'string') {
     throw new MachineVaultError('bad_response', 'The machine returned an unexpected response');
   }
-  return { grant: grantFrom(body.access_token), refreshToken: body.refresh_token };
+  return { accessToken: body.access_token, refreshToken: body.refresh_token };
 }
 
 async function revokeDevice(machineId: string, deviceId: string): Promise<boolean> {
@@ -168,8 +173,7 @@ async function revokeDevice(machineId: string, deviceId: string): Promise<boolea
   const { origin } = session;
   let accessToken: string;
   try {
-    accessToken = (await rotate(origin, session.refreshToken, UNPAIR_TIMEOUT_MS)).grant
-      .access_token;
+    accessToken = (await rotate(origin, session.refreshToken, UNPAIR_TIMEOUT_MS)).accessToken;
   } catch (error) {
     return error instanceof MachineVaultError && error.code === 'session_revoked';
   }
@@ -228,8 +232,9 @@ const browserVault: MachineVault = {
       }
       try {
         const rotated = await rotate(session.origin, session.refreshToken, REQUEST_TIMEOUT_MS);
+        const grant = grantFrom(rotated.accessToken);
         memorySessions.set(machineId, { ...session, refreshToken: rotated.refreshToken });
-        return rotated.grant;
+        return grant;
       } catch (error) {
         if (error instanceof MachineVaultError && error.code === 'session_revoked') {
           memorySessions.delete(machineId);
