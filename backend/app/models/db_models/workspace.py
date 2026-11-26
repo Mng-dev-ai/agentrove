@@ -6,6 +6,7 @@ from sqlalchemy import ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base_class import Base
+from app.db.migration_helpers import uuid_server_default
 from app.db.types import GUID, UTCDateTime
 from app.services.sandbox_providers.types import SandboxProviderType
 
@@ -17,6 +18,7 @@ class Workspace(Base):
         GUID(),
         primary_key=True,
         default=uuid.uuid4,
+        server_default=uuid_server_default(),
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     user_id: Mapped[UUID] = mapped_column(
