@@ -806,12 +806,17 @@ mod tests {
     struct SlowTransport {
         in_flight: Mutex<usize>,
         max_in_flight: Mutex<usize>,
+        sent_refresh_tokens: Mutex<Vec<Value>>,
     }
 
     impl Transport for SlowTransport {
         type Reply = FakeReply;
 
-        async fn send(&self, _request: Request) -> Result<FakeReply, MachineError> {
+        async fn send(&self, request: Request) -> Result<FakeReply, MachineError> {
+            self.sent_refresh_tokens
+                .lock()
+                .unwrap()
+                .push(request.json.unwrap()["refresh_token"].take());
             {
                 let mut in_flight = self.in_flight.lock().unwrap();
                 *in_flight += 1;
@@ -936,6 +941,10 @@ mod tests {
 
         assert!(first.is_ok() && second.is_ok());
         assert_eq!(*transport.max_in_flight.lock().unwrap(), 1);
+        assert_eq!(
+            *transport.sent_refresh_tokens.lock().unwrap(),
+            ["refresh", "rotated"]
+        );
     }
 
     #[tokio::test]
