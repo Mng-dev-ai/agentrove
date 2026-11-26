@@ -137,11 +137,16 @@ function grantFrom(accessToken: unknown): MachineAccessGrant {
 }
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
+  let body: unknown;
   try {
-    return (await response.json()) as Record<string, unknown>;
+    body = await response.json();
   } catch {
     throw new MachineVaultError('bad_response', 'The machine returned an unexpected response');
   }
+  if (typeof body !== 'object' || body === null) {
+    throw new MachineVaultError('bad_response', 'The machine returned an unexpected response');
+  }
+  return body as Record<string, unknown>;
 }
 
 async function rotate(
