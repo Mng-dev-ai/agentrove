@@ -8,7 +8,7 @@ import time
 from collections.abc import Iterator
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, get_args
 from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
@@ -40,11 +40,16 @@ from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
-from app.models.types import AgentKind
+from app.models.types import AgentKind, PermissionMode
 from app.services.channels import engine as channel_engine_module
 from app.services.channels import publisher as channel_publisher_module
 from app.services.acp import client as acp_client_module
-from app.services.acp.adapters import AGENT_ADAPTERS
+from app.services.acp.adapters import (
+    AGENT_ADAPTERS,
+    CHANNEL_MCP_PERMISSION_MODES,
+    UNATTENDED_PERMISSION_MODE,
+    UNSPECIFIED_PERMISSION_MODE,
+)
 from app.services.automation import AutomationService
 from app.services.chat import ChatService
 from app.services import subthread_wake as wake_module
@@ -110,6 +115,14 @@ from tests.helpers import (
 pytestmark = pytest.mark.anyio
 
 FAKE_AGENT_SCRIPT = Path(__file__).resolve().parent / "fake_acp_agent.py"
+# The frontend's Vitest holds its own mode table to the same file.
+FRONTEND_PERMISSION_MODES = (
+    Path(__file__).resolve().parents[2]
+    / "frontend"
+    / "src"
+    / "test"
+    / "agentPermissionModes.json"
+)
 BINARY_NAMES = [
     "agy-acp-server",
     "claude-agent-acp",
@@ -3183,6 +3196,38 @@ async def test_create_automation_tool_sends_resolved_channel_members(
     ]
 
 
+async def test_mcp_tools_send_the_unattended_mode_the_models_route_serves(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _headers, workspace = auth_workspace
+    monkeypatch.setitem(UNATTENDED_PERMISSION_MODE, AgentKind.CLAUDE, "acceptEdits")
+    route_sandbox_client_to_app(monkeypatch, client)
+    authorization = await docker_chat_authorization(db_session, workspace, monkeypatch)
+    async with main_module.mcp_endpoint.run():
+        created = await mcp_call_tool(
+            client,
+            authorization,
+            "create_automation",
+            name="Digest",
+            prompt="Review yesterday's changes",
+            cron_expression="0 9 * * *",
+            model_id="sonnet",
+            channel_members=[{"model_id": "sonnet", "display_name": "reviewer"}],
+        )
+    workspace.sandbox_provider = "host"
+    await db_session.commit()
+
+    assert not created.get("isError"), created
+    [automation] = (await db_session.scalars(select(Automation))).all()
+    assert automation.permission_mode == "acceptEdits"
+    assert [m["permission_mode"] for m in automation.channel_members or []] == [
+        "acceptEdits"
+    ]
+
+
 async def test_create_automation_tool_refuses_a_backend_without_new_channels(
     client: httpx.AsyncClient,
     db_session: AsyncSession,
@@ -4758,3 +4803,26 @@ def test_grok_adapter_shapes_the_question_response() -> None:
         "answers": {"Which database?": "SQLite"},
     }
     assert grok.question_response(None) == {"outcome": "skip_interview"}
+
+
+def test_permission_mode_tables_hold_each_agents_own_modes() -> None:
+    assert AGENT_ADAPTERS.keys() == set(AgentKind)
+    for table in (UNSPECIFIED_PERMISSION_MODE, UNATTENDED_PERMISSION_MODE):
+        assert table.keys() == set(AgentKind)
+        for kind, mode in table.items():
+            assert mode in AGENT_ADAPTERS[kind].session_modes
+    assert CHANNEL_MCP_PERMISSION_MODES.keys() == set(AgentKind)
+    for kind, modes in CHANNEL_MCP_PERMISSION_MODES.items():
+        assert modes <= AGENT_ADAPTERS[kind].session_modes
+
+
+def test_adapter_session_modes_are_the_permission_modes_both_sides_declare() -> None:
+    by_kind = {
+        kind.value: sorted(adapter.session_modes)
+        for kind, adapter in AGENT_ADAPTERS.items()
+    }
+
+    assert {mode for modes in by_kind.values() for mode in modes} == set(
+        get_args(PermissionMode)
+    )
+    assert json.loads(FRONTEND_PERMISSION_MODES.read_text()) == by_kind

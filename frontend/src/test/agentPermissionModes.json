@@ -1,0 +1,9 @@
+{
+  "antigravity": ["auto_edit", "default", "yolo"],
+  "claude": ["acceptEdits", "bypassPermissions", "default", "plan"],
+  "codex": ["auto", "full-access", "read-only"],
+  "copilot": ["agent", "autopilot", "plan"],
+  "cursor": ["agent", "ask", "plan"],
+  "grok": ["always-approve", "auto", "plan"],
+  "opencode": ["build", "plan"]
+}

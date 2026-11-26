@@ -9,6 +9,7 @@ from app.services.acp.adapters import (
     AGENT_ADAPTERS,
     PERSONAS_SUPPORTED_AGENTS,
     THINKING_MODE_ORDER,
+    UNATTENDED_PERMISSION_MODE,
 )
 
 router = APIRouter()
@@ -48,6 +49,7 @@ async def list_models(
             supports_usage_updates=(
                 AGENT_ADAPTERS[info.agent_kind].supports_usage_updates
             ),
+            unattended_permission_mode=UNATTENDED_PERMISSION_MODE[info.agent_kind],
         )
         for mid, info in MODELS.items()
         if kind is None or info.agent_kind == kind
