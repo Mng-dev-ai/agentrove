@@ -39,57 +39,48 @@ export function SidebarChannelItem({
     completed: isCompleted,
     unread: isUnread,
   });
-  const icon = (
-    <span className={styles['status-slot']}>
-      {status === 'running' ? (
-        <AsciiSpinner className={styles.spinner} />
-      ) : (
-        <Hash className={styles.icon} />
-      )}
-      {status && status !== 'running' && (
-        <ChatStatusDot
-          tone={status}
-          className={styles['status-corner']}
-          ringClassName={styles['status-ring']}
-        />
-      )}
-    </span>
+  const statusLabel = status ? CHAT_STATUS_LABEL[status] : undefined;
+  const preview = (
+    <SidebarRowPreview
+      title={channel.name}
+      detail={[`Updated ${getRelativeTime(channel.updated_at)}`, statusLabel]
+        .filter(Boolean)
+        .join(' · ')}
+      facts={[
+        ['Machine', machineBadge?.name],
+        ['Members', channel.members.map((member) => member.display_name).join(', ')],
+      ]}
+    />
   );
 
   return (
-    <SidebarRow
-      isActive={isActive}
-      isRevealed={isHovered || isActive || isDropdownOpen}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      leading={
-        status ? (
-          <FloatingTooltip content={CHAT_STATUS_LABEL[status]} className={styles['status-tooltip']}>
-            {icon}
-          </FloatingTooltip>
-        ) : (
-          icon
-        )
-      }
-      title={
-        <FloatingTooltip
-          content={
-            <SidebarRowPreview
-              title={channel.name}
-              detail={[
-                `Updated ${getRelativeTime(channel.updated_at)}`,
-                status && CHAT_STATUS_LABEL[status],
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-              facts={[
-                ['Machine', machineBadge?.name],
-                ['Members', channel.members.map((member) => member.display_name).join(', ')],
-              ]}
-            />
-          }
-          className={styles['title-tooltip']}
-        >
+    <FloatingTooltip content={preview} placement="right">
+      <SidebarRow
+        isActive={isActive}
+        isRevealed={isHovered || isActive || isDropdownOpen}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        leading={
+          <span
+            className={styles['status-slot']}
+            role={statusLabel ? 'img' : undefined}
+            aria-label={statusLabel}
+          >
+            {status === 'running' ? (
+              <AsciiSpinner className={styles.spinner} />
+            ) : (
+              <Hash className={styles.icon} />
+            )}
+            {status && status !== 'running' && (
+              <ChatStatusDot
+                tone={status}
+                className={styles['status-corner']}
+                ringClassName={styles['status-ring']}
+              />
+            )}
+          </span>
+        }
+        title={
           <SidebarRowTitle
             label={channel.name}
             isEmphasized={isActive || isUnread}
@@ -97,11 +88,11 @@ export function SidebarChannelItem({
             onClick={() => onSelect(channel.id)}
             trailing={<SidebarMachineTag machineBadge={machineBadge} />}
           />
-        </FloatingTooltip>
-      }
-      timestamp={getRelativeTime(channel.updated_at)}
-      dropdownLabel="Channel options"
-      onDropdownClick={(e) => onDropdownClick(e, channel)}
-    />
+        }
+        timestamp={getRelativeTime(channel.updated_at)}
+        dropdownLabel="Channel options"
+        onDropdownClick={(e) => onDropdownClick(e, channel)}
+      />
+    </FloatingTooltip>
   );
 }

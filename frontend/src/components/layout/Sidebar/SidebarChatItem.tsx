@@ -168,9 +168,13 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   const statusLabel = status ? CHAT_STATUS_LABEL[status] : null;
   const hasLeadingSlot = hasSubThreads || agentKind != null || status != null;
   const statusSlot = hasLeadingSlot ? (
-    // Running swaps to a spinner; blocked/done/unread show a colored dot on the
-    // icon corner (or centered when there's no provider icon to anchor it).
-    <span className={styles['status-slot']}>
+    // Running swaps to a spinner; blocked/done/unread show a colored dot on the icon
+    // corner. The status word is in the hover preview and the accessible name.
+    <span
+      className={styles['status-slot']}
+      role={statusLabel ? 'img' : undefined}
+      aria-label={statusLabel ?? undefined}
+    >
       {showSpinner ? (
         <AsciiSpinner className={styles['item-spinner']} />
       ) : agentKind ? (
@@ -197,14 +201,6 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   // status dot on it (running shows as an amber dot, since there's no spinner here)
   // so the persistent status never vanishes while sub-threads are open.
   const showCaret = isHovered || isSubThreadsExpanded;
-  const restingStatus = statusLabel ? (
-    // Wordless dot/spinner carries status; the word lives in a tooltip
-    <FloatingTooltip content={statusLabel} className={styles['status-tooltip']}>
-      {statusSlot}
-    </FloatingTooltip>
-  ) : (
-    statusSlot
-  );
   // The caret stays mounted so a tap never lands on a swapped element; CSS hides it at
   // rest on hover-capable devices and shows it at rest on touch.
   const leadingIcon = hasSubThreads ? (
@@ -229,53 +225,49 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           )}
         </span>
       </Button>
-      {!showCaret && <span className={styles['resting-status']}>{restingStatus}</span>}
+      {!showCaret && <span className={styles['resting-status']}>{statusSlot}</span>}
     </>
   ) : (
-    restingStatus
+    statusSlot
+  );
+  const preview = (
+    <SidebarRowPreview
+      title={stripMarkdownTitle(chat.title)}
+      detail={[
+        `Updated ${getRelativeTime(chat.updated_at)}`,
+        statusLabel,
+        onOpenInSplit && canOpenInSplit ? 'Shift-click to open in split' : null,
+      ]
+        .filter(Boolean)
+        .join(' · ')}
+      facts={[
+        ['Machine', machineBadge?.name],
+        ['Workspace', workspaceBadge?.name],
+        [
+          'Sub-threads',
+          chat.sub_thread_count > 0
+            ? [String(chat.sub_thread_count), childActivity && describeChildActivity(childActivity)]
+                .filter(Boolean)
+                .join(' · ')
+            : undefined,
+        ],
+        ['Parent', parentTitle],
+      ]}
+    />
   );
   return (
-    <SidebarRow
-      ref={rowRef}
-      isActive={isActive}
-      isRevealed={isHovered || isActive || isDropdownOpen}
-      onMouseEnter={() => onMouseEnter(chat.id)}
-      onMouseLeave={onMouseLeave}
-      // Single leading slot keeps titles flush (caret vs icon+status).
-      leading={leadingIcon}
-      title={
-        // Tooltip on title only — icon has its own status tooltip.
-        <FloatingTooltip
-          content={
-            <SidebarRowPreview
-              title={stripMarkdownTitle(chat.title)}
-              detail={[
-                `Updated ${getRelativeTime(chat.updated_at)}`,
-                statusLabel,
-                onOpenInSplit && canOpenInSplit ? 'Shift-click to open in split' : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-              facts={[
-                ['Machine', machineBadge?.name],
-                ['Workspace', workspaceBadge?.name],
-                [
-                  'Sub-threads',
-                  chat.sub_thread_count > 0
-                    ? [
-                        String(chat.sub_thread_count),
-                        childActivity && describeChildActivity(childActivity),
-                      ]
-                        .filter(Boolean)
-                        .join(' · ')
-                    : undefined,
-                ],
-                ['Parent', parentTitle],
-              ]}
-            />
-          }
-          className={styles['title-tooltip']}
-        >
+    // The preview opens beside the whole row, past the sidebar edge, so the rows
+    // below stay readable.
+    <FloatingTooltip content={preview} placement="right">
+      <SidebarRow
+        ref={rowRef}
+        isActive={isActive}
+        isRevealed={isHovered || isActive || isDropdownOpen}
+        onMouseEnter={() => onMouseEnter(chat.id)}
+        onMouseLeave={onMouseLeave}
+        // Single leading slot keeps titles flush (caret vs icon+status).
+        leading={leadingIcon}
+        title={
           <SidebarRowTitle
             label={stripMarkdownTitle(chat.title)}
             isEmphasized={isActive || isUnread}
@@ -298,26 +290,26 @@ export const SidebarChatItem = memo(function SidebarChatItem({
               </>
             }
           />
-        </FloatingTooltip>
-      }
-      subtitle={
-        parentTitle && (
-          <span className={styles['parent-context']}>
-            <CornerDownRight className={styles['parent-context-icon']} />
-            <span className={styles['parent-context-title']}>{parentTitle}</span>
-          </span>
-        )
-      }
-      timestamp={
-        childActivity ? (
-          <ChildActivityCounts activity={childActivity} />
-        ) : (
-          getRelativeTime(chat.updated_at)
-        )
-      }
-      isTimestampStatus={childActivity != null}
-      dropdownLabel="Chat options"
-      onDropdownClick={(e) => onDropdownClick(e, chat)}
-    />
+        }
+        subtitle={
+          parentTitle && (
+            <span className={styles['parent-context']}>
+              <CornerDownRight className={styles['parent-context-icon']} />
+              <span className={styles['parent-context-title']}>{parentTitle}</span>
+            </span>
+          )
+        }
+        timestamp={
+          childActivity ? (
+            <ChildActivityCounts activity={childActivity} />
+          ) : (
+            getRelativeTime(chat.updated_at)
+          )
+        }
+        isTimestampStatus={childActivity != null}
+        dropdownLabel="Chat options"
+        onDropdownClick={(e) => onDropdownClick(e, chat)}
+      />
+    </FloatingTooltip>
   );
 });

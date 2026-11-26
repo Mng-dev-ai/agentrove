@@ -29,6 +29,8 @@ interface FloatingTooltipProps {
   className?: string;
   // Renders the trigger as a span so it can sit inside running text (e.g. a <p>).
   inline?: boolean;
+  // 'right' opens beside the trigger, top-aligned, so it doesn't cover the rows below
+  placement?: 'below' | 'right';
 }
 
 // Fixed-position title replacement — unlike CSS Tooltip, won't clip inside overflow lists.
@@ -37,6 +39,7 @@ export function FloatingTooltip({
   children,
   className,
   inline = false,
+  placement = 'below',
 }: FloatingTooltipProps) {
   const [position, setPosition] = useState<TooltipPosition | null>(null);
   // Covers show delay + visible so scroll can cancel a pending show, not just an open tip.
@@ -52,12 +55,21 @@ export function FloatingTooltip({
       // Measure at show time, not pointer-enter — the list may scroll during the delay
       const rect = triggerRef.current?.getBoundingClientRect();
       if (rect && triggerRef.current?.matches(':hover')) {
-        setPosition({
-          top: rect.bottom + TOOLTIP_GAP,
-          left: rect.left,
-          triggerTop: rect.top,
-          triggerBottom: rect.bottom,
-        });
+        setPosition(
+          placement === 'right'
+            ? {
+                top: rect.top,
+                left: rect.right + TOOLTIP_GAP,
+                triggerTop: rect.top,
+                triggerBottom: rect.bottom,
+              }
+            : {
+                top: rect.bottom + TOOLTIP_GAP,
+                left: rect.left,
+                triggerTop: rect.top,
+                triggerBottom: rect.bottom,
+              },
+        );
       }
     }, SHOW_DELAY_MS);
   };
@@ -77,9 +89,10 @@ export function FloatingTooltip({
     const fitsBelow =
       position.triggerBottom + TOOLTIP_GAP + height <= window.innerHeight - VIEWPORT_PADDING;
     const openAbove = !fitsBelow && fitsAbove;
-    const desiredTop = openAbove
+    const belowTop = openAbove
       ? position.triggerTop - TOOLTIP_GAP - height
       : position.triggerBottom + TOOLTIP_GAP;
+    const desiredTop = placement === 'right' ? position.triggerTop : belowTop;
     const top = Math.max(
       VIEWPORT_PADDING,
       Math.min(desiredTop, window.innerHeight - VIEWPORT_PADDING - height),
@@ -92,7 +105,7 @@ export function FloatingTooltip({
     if (top !== position.top || left !== position.left) {
       setPosition({ ...position, top, left });
     }
-  }, [position]);
+  }, [position, placement]);
 
   // pointerleave alone is unreliable: WKWebView (Tauri) can drop it on fast
   // window exits, native title-bar transitions, and focus changes.

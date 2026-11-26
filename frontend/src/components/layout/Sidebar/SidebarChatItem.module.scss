@@ -3,19 +3,6 @@
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
-// Positioning slots passed to FloatingTooltip wrappers (own our own layout)
-.status-tooltip {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-}
-
-.title-tooltip {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-}
-
 .status-slot {
   position: relative;
   display: flex;

@@ -1,11 +1,5 @@
 @use '@/styles/globals/typography' as type;
 
-.status-tooltip {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-}
-
 .status-slot {
   position: relative;
   display: flex;
@@ -36,10 +30,4 @@
   width: var(--space-3-5);
   flex-shrink: 0;
   color: var(--theme-text-tertiary);
-}
-
-.title-tooltip {
-  display: flex;
-  min-width: 0;
-  flex: 1;
 }
