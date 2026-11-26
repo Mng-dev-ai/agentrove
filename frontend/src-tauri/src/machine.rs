@@ -50,7 +50,7 @@ impl MachineError {
     }
 
     fn request(error: reqwest::Error) -> Self {
-        if is_tls_error(&error) {
+        if is_certificate_rejection(&error) {
             Self::new("tls", "The machine's TLS certificate was rejected")
         } else if error.is_timeout() || error.is_connect() {
             Self::new("unreachable", "The machine could not be reached")
@@ -74,10 +74,13 @@ impl MachineError {
     }
 }
 
-fn is_tls_error(error: &reqwest::Error) -> bool {
+fn is_certificate_rejection(error: &reqwest::Error) -> bool {
     let mut source: Option<&(dyn std::error::Error + 'static)> = Some(error);
     while let Some(current) = source {
-        if current.is::<rustls::Error>() {
+        if matches!(
+            current.downcast_ref::<rustls::Error>(),
+            Some(rustls::Error::InvalidCertificate(_))
+        ) {
             return true;
         }
         // io::Error::source() skips the wrapped error itself, and hyper-rustls nests the
@@ -635,14 +638,19 @@ pub async fn machine_probe(url: String) -> Result<(), MachineError> {
 mod tests {
     use std::collections::VecDeque;
     use std::io::{Read, Write};
-    use std::net::TcpListener;
+    use std::net::{TcpListener, TcpStream};
+    use std::thread::JoinHandle;
 
+    use rustls::pki_types::{CertificateDer, PrivatePkcs8KeyDer};
     use serde_json::{json, Value};
 
     use super::*;
 
     const PROTOCOL_FIXTURE: &str = include_str!("../fixtures/machine_vault_protocol.json");
     const ORIGIN: &str = "https://machine.example:8443";
+    const UNTRUSTED_TLS_CERT: &[u8] =
+        include_bytes!("../fixtures/test_only_untrusted_tls_cert.der");
+    const UNTRUSTED_TLS_KEY: &[u8] = include_bytes!("../fixtures/test_only_untrusted_tls_key.der");
 
     #[derive(Deserialize)]
     struct Fixture {
@@ -1065,23 +1073,48 @@ mod tests {
         assert_eq!(transport.sent(), []);
     }
 
-    #[tokio::test]
-    async fn real_transport_failures_are_classified_as_tls_or_unreachable() {
+    fn serve_once(respond: fn(TcpStream)) -> (String, JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!(
             "https://127.0.0.1:{}",
             listener.local_addr().unwrap().port()
         );
-        let server = std::thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            let _ = stream.read(&mut [0; 1024]);
-            let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\n\r\n");
-        });
+        let server = std::thread::spawn(move || respond(listener.accept().unwrap().0));
+        (url, server)
+    }
 
+    fn present_untrusted_certificate(mut stream: TcpStream) {
+        let provider = Arc::new(rustls::crypto::ring::default_provider());
+        let config = rustls::ServerConfig::builder_with_provider(provider)
+            .with_safe_default_protocol_versions()
+            .unwrap()
+            .with_no_client_auth()
+            .with_single_cert(
+                vec![CertificateDer::from(UNTRUSTED_TLS_CERT)],
+                PrivatePkcs8KeyDer::from(UNTRUSTED_TLS_KEY).into(),
+            )
+            .unwrap();
+        let mut connection = rustls::ServerConnection::new(Arc::new(config)).unwrap();
+        while connection.is_handshaking() && connection.complete_io(&mut stream).is_ok() {}
+    }
+
+    fn answer_in_plain_http(mut stream: TcpStream) {
+        let _ = stream.read(&mut [0; 1024]);
+        let _ = stream.write_all(b"HTTP/1.1 400 Bad Request\r\n\r\n");
+    }
+
+    #[tokio::test]
+    async fn real_transport_failures_are_tls_only_when_the_certificate_is_rejected() {
+        let (url, server) = serve_once(present_untrusted_certificate);
         let error = probe(&HttpTransport, &url).await.err().unwrap();
         assert_eq!(error.code, "tls");
-
         server.join().unwrap();
+
+        let (url, server) = serve_once(answer_in_plain_http);
+        let error = probe(&HttpTransport, &url).await.err().unwrap();
+        assert_eq!(error.code, "unreachable");
+        server.join().unwrap();
+
         let error = probe(&HttpTransport, &url).await.err().unwrap();
         assert_eq!(error.code, "unreachable");
     }
