@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fixture from '../../src-tauri/fixtures/machine_vault_protocol.json';
 
+vi.mock('@/utils/platform', () => ({ isDesktopApp: () => false }));
+
 type VaultModule = typeof import('@/services/machineVault');
 
 interface SentRequest {
