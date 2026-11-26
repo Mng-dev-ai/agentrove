@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { logger } from '@/utils/logger';
 import { useStreamStore } from '@/store/streamStore';
-import { chatService } from '@/services/chatService';
+import { syncChatStatus } from '@/services/chatStatusSync';
 import { pruneIfStillOrphan } from '@/utils/activeStreams';
 
 interface UseGlobalStreamOptions {
@@ -20,6 +20,7 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
 
   useEffect(() => {
     if (!enabled) return;
+    let cancelled = false;
 
     const pruneStaleStreams = async () => {
       const store = useStreamStore.getState();
@@ -32,7 +33,10 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
 
       const prunePromises = orphans.map(async (streamMeta) => {
         try {
-          const status = await chatService.checkChatStatus(streamMeta.chatId);
+          // Also records pending approvals/questions: an unopened chat has no other
+          // feed for them, and the sidebar's Needs-you state reads those stores.
+          const status = await syncChatStatus(streamMeta.chatId, () => !cancelled);
+          if (cancelled) return;
 
           if (!status?.has_active_task) {
             pruneIfStillOrphan(streamMeta.chatId, true);
@@ -55,6 +59,7 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
     const intervalId = setInterval(pruneStaleStreams, STREAM_PRUNE_INTERVAL_MS);
 
     return () => {
+      cancelled = true;
       clearTimeout(initialTimeout);
       clearInterval(intervalId);
     };
