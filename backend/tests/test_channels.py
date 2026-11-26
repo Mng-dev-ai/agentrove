@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.endpoints import chat as chat_endpoint
 from app.catalog import MODELS
 from app.core.security import create_mcp_access_token
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, begin_immediate
 from app.models.db_models.channel import (
     Channel,
     ChannelDelivery,
@@ -47,6 +47,7 @@ from app.services.streaming.types import ChannelMemberTurn, EventSink
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
+    RACE_WINDOW_SECONDS,
     FakeProviderFactory,
     create_authenticated_workspace,
     create_chat_row,
@@ -2580,3 +2581,28 @@ async def test_workspace_delete_takes_a_channel_created_after_its_channel_sweep(
     assert response.status_code == 204
     assert await db_session.scalar(select(Channel.id)) is None
     assert await db_session.scalar(select(Chat.id)) is None
+
+
+async def test_channel_create_waits_for_a_workspace_delete_committing_under_it(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+) -> None:
+    headers, _user, workspace = owner
+    async with SessionLocal() as writer:
+        await begin_immediate(writer)
+        await writer.execute(
+            update(Workspace)
+            .where(Workspace.id == workspace.id)
+            .values(deleted_at=datetime.now(timezone.utc))
+        )
+        creating = asyncio.create_task(
+            client.post("/api/v1/channels", json=channel_data, headers=headers)
+        )
+        await asyncio.sleep(RACE_WINDOW_SECONDS)
+        await writer.commit()
+    response = await creating
+
+    assert response.status_code == 404
+    assert await db_session.scalar(select(Channel.id)) is None
