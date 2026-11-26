@@ -1,0 +1,58 @@
+{
+  "broadcastWords": ["all", "everyone"],
+  "names": {
+    "valid": [
+      "alice",
+      "A",
+      "9lives",
+      "a.b_c-d",
+      "dot.",
+      "abcdefghijklmnopqrstuvwxyz012345",
+      " padded "
+    ],
+    "invalid": [
+      "",
+      "   ",
+      "bad name",
+      "name!",
+      "-leading",
+      ".leading",
+      "_leading",
+      "abcdefghijklmnopqrstuvwxyz0123456",
+      "all",
+      "ALL",
+      "everyone",
+      "Everyone"
+    ]
+  },
+  "members": ["al", "alice", "Rev", "dot."],
+  "mentions": [
+    { "text": "@ALICE and @rev", "addressed": ["alice", "Rev"], "pills": ["@ALICE", "@rev"] },
+    {
+      "text": "thanks @alice, then @Rev. @al: go; @alice; @Rev! @al?",
+      "addressed": ["al", "alice", "Rev"],
+      "pills": ["@alice", "@Rev", "@al", "@alice", "@Rev", "@al"]
+    },
+    { "text": "@alice?!.", "addressed": ["alice"], "pills": ["@alice"] },
+    { "text": "@al and @alice", "addressed": ["al", "alice"], "pills": ["@al", "@alice"] },
+    { "text": "@dot. and @dot.,", "addressed": ["dot."], "pills": ["@dot.", "@dot."] },
+    { "text": "@dot", "addressed": [], "pills": [] },
+    { "text": "@all", "addressed": null, "pills": ["@all"] },
+    { "text": "hey @Everyone!", "addressed": null, "pills": ["@Everyone"] },
+    {
+      "text": "@alice and @EVERYONE, @ALL.",
+      "addressed": null,
+      "pills": ["@alice", "@EVERYONE", "@ALL"]
+    },
+    { "text": "mail bob@alice.dev", "addressed": [], "pills": [] },
+    { "text": "mid-word x@alice", "addressed": [], "pills": [] },
+    { "text": "@stranger and @alicia", "addressed": [], "pills": [] },
+    { "text": "see @. and @... or @: and @?!", "addressed": [], "pills": [] },
+    { "text": "`@alice`", "addressed": [], "pills": [] },
+    { "text": "`foo @alice`", "addressed": [], "pills": [] },
+    { "text": "`foo @alice bar`", "addressed": ["alice"], "pills": [] },
+    { "text": "`ping @everyone now`", "addressed": null, "pills": [] },
+    { "text": "```\n@alice\nfoo @Rev\n```", "addressed": ["alice", "Rev"], "pills": [] },
+    { "text": "```\n@all\n```", "addressed": null, "pills": [] }
+  ]
+}

@@ -20,7 +20,7 @@ const MEMBER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$/;
 const BROADCAST_MENTIONS = new Set(['all', 'everyone']);
 
 export function channelMentionHandles(members: ChannelMember[]): string[] {
-  return [...members.map((member) => member.display_name), 'all'];
+  return [...members.map((member) => member.display_name), ...BROADCAST_MENTIONS];
 }
 
 export interface MemberDraft {
@@ -98,7 +98,7 @@ export function resolveMemberNames(
 ): MemberName[] {
   return members.map((member) => {
     if (member.customName) {
-      const name = member.customName;
+      const name = member.customName.trim();
       if (!MEMBER_NAME_PATTERN.test(name)) {
         return {
           name,
