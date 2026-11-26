@@ -3725,6 +3725,69 @@ async def test_report_acts_for_the_devices_of_the_turn_that_filed_it(
     assert did_of(minted_mcp_tokens(fake_agent)[-1]) == [devices["A"]["device_id"]]
 
 
+async def test_queued_report_turn_starts_and_owes_the_queuing_device(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 3600)
+    wake = SubThreadWake()
+    monkeypatch.setattr(runtime_module, "subthread_wake", wake)
+    headers, workspace = auth_workspace
+    paired = await pair_device(client, headers, "Laptop")
+    parent = await create_chat(client, headers, workspace, model_id="sonnet")
+    child = await create_chat(client, headers, workspace, model_id="sonnet")
+    await db_session.execute(
+        update(Chat)
+        .where(Chat.id == UUID(child["id"]))
+        .values(parent_chat_id=UUID(parent["id"]))
+    )
+    await db_session.commit()
+    running = await send_message(
+        client,
+        headers,
+        chat_id=child["id"],
+        model_id="sonnet",
+        prompt=f"{MARKER_PERMISSION} edit it",
+    )
+    permission = await wait_for_message_event(
+        client,
+        headers,
+        message_id=running.json()["message_id"],
+        event_type="permission_request",
+    )
+    queued = await client.post(
+        f"/api/v1/chat/chats/{child['id']}/queue",
+        data={
+            "content": "report back",
+            "model_id": "sonnet",
+            "report_to_parent": "true",
+        },
+        headers={"Authorization": f"Bearer {paired['access_token']}"},
+    )
+    assert queued.status_code == 201, queued.text
+
+    request_id = permission["render_payload"]["request_id"]
+    respond = await client.post(
+        f"/api/v1/chat/chats/{child['id']}/permissions/{request_id}/respond",
+        data={"option_id": "reject-once"},
+        headers=headers,
+    )
+    assert respond.status_code == 200, respond.text
+    deadline = time.monotonic() + 10
+    while len(fake_agent.main_turn_prompts()) < 2 and time.monotonic() < deadline:
+        await asyncio.sleep(0.05)
+    for task in wake._tasks:
+        task.cancel()
+
+    assert "report back" in fake_agent.main_turn_prompts()[-1]["text"]
+    assert await db_session.scalar(
+        select(Chat.owed_report_device_ids).where(Chat.id == UUID(child["id"]))
+    ) == {UUID(paired["device_id"])}
+
+
 @pytest.mark.parametrize(
     ("edit", "saver_kept"),
     [

@@ -1,3 +1,4 @@
+import asyncio
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -20,22 +21,26 @@ from app.core.security import (
     authenticate_websocket_user,
     create_mcp_access_token,
     create_scoped_mcp_token,
+    get_password_hash,
 )
 from app.core.user_manager import (
     AGENT_ROUTES,
     AccessTokenStrategy,
     password_fingerprint,
 )
+from app.db.session import SessionLocal, begin_immediate
 from app.models.db_models.chat import Message
 from app.models.db_models.enums import MessageRole
 from app.models.db_models.paired_device import PairedDevice, PairingSecret
 from app.models.db_models.refresh_token import RefreshToken
+from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.services.email import EmailService, email_service
 from app.services.refresh_token import RefreshTokenService
 
 from tests.conftest import EmailCapture, LoginClient, SettingsOverride, UserFactory
 from tests.helpers import (
+    RACE_WINDOW_SECONDS,
     create_authenticated_workspace,
     create_chat_row,
     count_refresh_tokens,
@@ -252,6 +257,40 @@ async def test_register_rejects_once_a_user_exists(
     assert first.status_code == 201
     assert second.status_code == 403
     assert second.json()["detail"] == "Registration is closed"
+    assert await get_user_by_email(db_session, "intruder@example.com") is None
+
+
+async def test_register_waits_for_a_first_user_committing_under_it(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    email_capture: EmailCapture,
+) -> None:
+    async with SessionLocal() as writer:
+        await begin_immediate(writer)
+        writer.add(
+            User(
+                email="owner@example.com",
+                username="owner",
+                hashed_password=get_password_hash("password123"),
+            )
+        )
+        await writer.flush()
+        registering = asyncio.create_task(
+            client.post(
+                "/api/v1/auth/register",
+                json={
+                    "email": "intruder@example.com",
+                    "username": "intruder",
+                    "password": "password123",
+                },
+            )
+        )
+        await asyncio.sleep(RACE_WINDOW_SECONDS)
+        await writer.commit()
+    response = await registering
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Registration is closed"
     assert await get_user_by_email(db_session, "intruder@example.com") is None
 
 

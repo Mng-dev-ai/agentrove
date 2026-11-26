@@ -3,21 +3,33 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
+from app.models.schemas.chat import ChatCreate
+from app.services.chat import ChatService
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.host_provider import LocalHostProvider
+from app.services.session_registry import session_registry
+from app.services.user import UserService
 
 from tests.conftest import LoginClient, UserFactory
-from tests.helpers import get_user_by_email, get_user_settings
+from tests.helpers import (
+    RACE_WINDOW_SECONDS,
+    CommitGate,
+    get_user_by_email,
+    get_user_settings,
+)
 
 
 pytestmark = pytest.mark.anyio
@@ -341,6 +353,45 @@ async def test_delete_workspace_soft_deletes_chats_and_revokes_sandbox_access(
     await db_session.refresh(message)
     assert chat.deleted_at is not None
     assert message.deleted_at is not None
+
+
+async def test_delete_workspace_takes_a_chat_created_while_it_runs(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, workspace = await owner_with_workspace(client, create_user, login)
+    user = await get_user_by_email(db_session, "workspace@example.com")
+    assert user is not None
+    terminate = AsyncMock()
+    monkeypatch.setattr(session_registry, "terminate", terminate)
+    gate = CommitGate()
+    creating = asyncio.create_task(
+        ChatService(UserService(SessionLocal), session_factory=gate).create_chat(
+            user,
+            ChatCreate(
+                title="Late Chat",
+                model_id="test-model",
+                workspace_id=UUID(workspace["id"]),
+            ),
+        )
+    )
+    await gate.reached.wait()
+
+    deleting = asyncio.create_task(
+        client.delete(f"/api/v1/workspaces/{workspace['id']}", headers=headers)
+    )
+    await asyncio.sleep(RACE_WINDOW_SECONDS)
+    gate.release.set()
+    chat = await creating
+    response = await deleting
+    await wait_for_workspace_teardown()
+
+    assert response.status_code == 204
+    terminate.assert_called_once_with(str(chat.id))
+    assert await db_session.scalar(select(Chat.deleted_at).where(Chat.id == chat.id))
 
 
 async def test_delete_local_workspace_removes_chat_worktrees_but_keeps_repo(

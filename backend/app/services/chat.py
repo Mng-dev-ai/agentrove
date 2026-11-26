@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import Row, func, or_, select, text, update, true
+from sqlalchemy import Row, func, or_, select, update, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -301,8 +301,7 @@ class ChatService(BaseDbService[Chat]):
         user: User,
         chat_data: ChatCreate,
     ) -> Chat:
-        async with self.session_factory() as db:
-            await db.execute(text("BEGIN IMMEDIATE"))
+        async with self.write_session() as db:
             workspace_id = chat_data.workspace_id
             worktree_cwd: str | None = None
 
@@ -352,11 +351,10 @@ class ChatService(BaseDbService[Chat]):
         as_sub_thread: bool = False,
         title: str | None = None,
     ) -> Chat:
-        async with self.session_factory() as db:
-            # Write lock before reading the source: deleting it, or removing
-            # the worktree it shares, checks for live references under the same
-            # lock, so neither can land between this read and the insert.
-            await db.execute(text("BEGIN IMMEDIATE"))
+        # Write lock before reading the source: deleting it, or removing the
+        # worktree it shares, checks for live references under the same lock, so
+        # neither can land between this read and the insert.
+        async with self.write_session() as db:
             source = await self._live_chat(db, chat_id, user)
             model_id = source.last_model_id
             model = MODELS.get(model_id or "")
@@ -450,9 +448,8 @@ class ChatService(BaseDbService[Chat]):
     async def promote_chat(self, chat_id: UUID, user: User) -> Chat:
         async with (
             ChatStreamRuntime.chat_start_slot(str(chat_id)) as reserved,
-            self.session_factory() as db,
+            self.write_session() as db,
         ):
-            await db.execute(text("BEGIN IMMEDIATE"))
             chat = await self._live_chat(db, chat_id, user)
             if chat.parent_chat_id is None:
                 raise ChatException(
@@ -762,8 +759,7 @@ class ChatService(BaseDbService[Chat]):
             asyncio.create_task(session_registry.terminate(queue_id))
 
     async def delete_chat(self, chat_id: UUID, user: User) -> None:
-        async with self.session_factory() as db:
-            await db.execute(text("BEGIN IMMEDIATE"))
+        async with self.write_session() as db:
             result = await db.execute(
                 select(Chat)
                 .options(selectinload(Chat.workspace))
@@ -829,8 +825,7 @@ class ChatService(BaseDbService[Chat]):
                     )
 
     async def delete_all_chats(self, user: User) -> int:
-        async with self.session_factory() as db:
-            await db.execute(text("BEGIN IMMEDIATE"))
+        async with self.write_session() as db:
             chat_query = select(Chat.id, Chat.workspace_id, Chat.worktree_cwd).filter(
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),

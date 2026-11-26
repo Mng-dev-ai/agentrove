@@ -16,12 +16,12 @@ from fastapi_users.authentication import (
 from fastapi_users.db import SQLAlchemyUserDatabase
 from fastapi_users.jwt import decode_jwt, generate_jwt
 from pydantic import TypeAdapter, ValidationError
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.session import get_db
+from app.db.session import begin_immediate, get_db
 from app.models.db_models.user import AgentScope, User, UserSettings
 from app.models.schemas.auth import UserCreate
 from app.services.pairing import PairingService
@@ -96,7 +96,7 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     async def register(self, user_create: UserCreate) -> User:
         if not settings.REGISTRATION_OPEN:
             session = self.user_db.session
-            await session.execute(text("BEGIN IMMEDIATE"))
+            await begin_immediate(session)
             if await session.scalar(select(User.id).limit(1)) is not None:
                 raise RegistrationClosed
         return cast(User, await self.create(user_create, safe=True))

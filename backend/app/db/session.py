@@ -1,5 +1,6 @@
 from collections.abc import AsyncIterator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -34,3 +35,9 @@ SessionLocal = async_sessionmaker(
 async def get_db() -> AsyncIterator[AsyncSession]:
     async with SessionLocal() as db:
         yield db
+
+
+async def begin_immediate(db: AsyncSession) -> None:
+    # pysqlite sends no BEGIN before a SELECT, so reads ahead of a session's
+    # first write hold no lock: this takes SQLite's write lock up front.
+    await db.execute(text("BEGIN IMMEDIATE"))

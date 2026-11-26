@@ -2,7 +2,8 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
+from functools import partial
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 import pytest
@@ -10,6 +11,7 @@ from httpx import AsyncClient, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat
 from app.models.db_models.push import PushDelivery
 from app.models.db_models.refresh_token import RefreshToken
@@ -33,6 +35,9 @@ if TYPE_CHECKING:
     from tests.conftest import LoginClient, UserFactory
 
 DEVICE_TOKEN = "abc123"
+# Long enough for a racing task to finish its lock-free reads and block on the
+# write lock a test is holding.
+RACE_WINDOW_SECONDS = 0.2
 
 
 class FakeSandboxProvider(SandboxProvider):
@@ -215,6 +220,25 @@ class EndpointCache:
     @asynccontextmanager
     async def connect(self) -> AsyncIterator[CacheStore]:
         yield self.store
+
+
+class CommitGate:
+    # A session factory whose sessions stop just before commit, write lock
+    # still held, until released.
+    def __init__(self) -> None:
+        self.reached = asyncio.Event()
+        self.release = asyncio.Event()
+
+    @asynccontextmanager
+    async def __call__(self) -> AsyncIterator[AsyncSession]:
+        async with SessionLocal() as db:
+            db.commit = partial(self._held_commit, db.commit)
+            yield db
+
+    async def _held_commit(self, commit: Any) -> None:
+        self.reached.set()
+        await self.release.wait()
+        await commit()
 
 
 async def create_authenticated_workspace(

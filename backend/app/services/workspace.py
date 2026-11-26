@@ -268,7 +268,7 @@ class WorkspaceService(BaseDbService[Workspace]):
         workspace = await self.get_workspace(workspace_id, user)
         for channel in await channel_service.list_channels(user, workspace_id):
             await channel_service.delete(channel)
-        async with self._session_factory() as db:
+        async with self.write_session() as db:
             workspace = await db.merge(workspace)
             now = datetime.now(timezone.utc)
             workspace.deleted_at = now
@@ -308,6 +308,11 @@ class WorkspaceService(BaseDbService[Workspace]):
 
             await db.commit()
             await ChatService.release_deleted_chats(chat_ids)
+
+            # A channel created since the first sweep committed before the
+            # soft-delete; it needs the sandbox, so it goes before the teardown.
+            for channel in await channel_service.list_channels(user, workspace_id):
+                await channel_service.delete(channel)
 
             if workspace.sandbox_id:
                 provider = SandboxProvider.create_provider(
