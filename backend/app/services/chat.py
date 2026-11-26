@@ -742,6 +742,24 @@ class ChatService(BaseDbService[Chat]):
         model = MODELS.get(last_msg.model_id or "") if last_msg else None
         return model.context_window if model else None
 
+    @staticmethod
+    async def soft_delete_messages(
+        db: AsyncSession, chat_ids: list[UUID], now: datetime
+    ) -> None:
+        await db.execute(
+            update(Message)
+            .where(Message.chat_id.in_(chat_ids), Message.deleted_at.is_(None))
+            .values(deleted_at=now)
+        )
+
+    @staticmethod
+    async def release_deleted_chats(chat_ids: list[UUID]) -> None:
+        # Call only after the delete has committed: nothing here rolls back.
+        queue_ids = [str(chat_id) for chat_id in chat_ids]
+        await QueueService.clear_queues(queue_ids)
+        for queue_id in queue_ids:
+            asyncio.create_task(session_registry.terminate(queue_id))
+
     async def delete_chat(self, chat_id: UUID, user: User) -> None:
         async with self.session_factory() as db:
             await db.execute(text("BEGIN IMMEDIATE"))
@@ -781,27 +799,15 @@ class ChatService(BaseDbService[Chat]):
             sub_threads = sub_thread_result.all()
             sub_thread_ids = [row[0] for row in sub_threads]
 
+            deleted_ids = [chat_id, *sub_thread_ids]
+
             if sub_thread_ids:
                 await db.execute(
                     update(Chat)
                     .where(Chat.id.in_(sub_thread_ids))
                     .values(deleted_at=now, updated_at=now)
                 )
-                await db.execute(
-                    update(Message)
-                    .where(
-                        Message.chat_id.in_(sub_thread_ids),
-                        Message.deleted_at.is_(None),
-                    )
-                    .values(deleted_at=now)
-                )
-
-            messages_update = (
-                update(Message)
-                .where(Message.chat_id == chat_id, Message.deleted_at.is_(None))
-                .values(deleted_at=now)
-            )
-            await db.execute(messages_update)
+            await self.soft_delete_messages(db, deleted_ids, now)
 
             await db.flush()
             worktrees = await AgentService.unreferenced_worktrees(
@@ -812,13 +818,7 @@ class ChatService(BaseDbService[Chat]):
                 ],
             )
             await db.commit()
-            await QueueService.clear_queues(
-                [str(cid) for cid in (chat_id, *sub_thread_ids)]
-            )
-
-            asyncio.create_task(session_registry.terminate(str(chat_id)))
-            for sub_id in sub_thread_ids:
-                asyncio.create_task(session_registry.terminate(str(sub_id)))
+            await self.release_deleted_chats(deleted_ids)
 
             if sandbox_id:
                 git_service = GitService(sandbox)
@@ -837,7 +837,7 @@ class ChatService(BaseDbService[Chat]):
             )
             result = await db.execute(chat_query)
             chat_rows = result.all()
-            chat_ids = [str(row[0]) for row in chat_rows]
+            chat_ids = [row[0] for row in chat_rows]
 
             now = datetime.now(timezone.utc)
 
@@ -883,10 +883,7 @@ class ChatService(BaseDbService[Chat]):
                 workspaces = list(ws_result.scalars().all())
 
             await db.commit()
-            await QueueService.clear_queues(chat_ids)
-
-            for cid in chat_ids:
-                asyncio.create_task(session_registry.terminate(cid))
+            await self.release_deleted_chats(chat_ids)
 
             for ws in workspaces:
                 if ws.sandbox_id:

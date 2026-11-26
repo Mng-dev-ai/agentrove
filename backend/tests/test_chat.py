@@ -1,5 +1,6 @@
 import asyncio
 from collections.abc import AsyncIterator, Callable
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -851,6 +852,29 @@ async def test_delete_all_chats_only_deletes_current_user_chats(
     assert owner_detail.status_code == 404
     assert other_list.status_code == 200
     assert [item["id"] for item in other_list.json()["items"]] == [str(other_chat.id)]
+
+
+async def test_delete_all_chats_tombstones_messages_of_already_deleted_chats(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(SandboxProvider, "create_provider", FakeProviderFactory())
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace)
+    message = await create_message_row(db_session, chat, content="Left behind")
+    chat.deleted_at = datetime.now(timezone.utc)
+    await db_session.commit()
+
+    response = await client.delete("/api/v1/chat/chats/all", headers=headers)
+
+    assert response.status_code == 204
+    await db_session.refresh(message)
+    assert message.deleted_at is not None
 
 
 async def test_sub_threads_are_listed_and_nested_sub_threads_are_rejected(
