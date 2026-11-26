@@ -30,18 +30,9 @@ GITHUB_REMOTE_RE = re.compile(
 )
 GIT_IS_REPO_CMD = "git rev-parse --is-inside-work-tree 2>/dev/null"
 GIT_CURRENT_BRANCH_CMD = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
-# Paths AgentRove or agent CLIs drop into checkouts: .worktrees/ holds chat
-# worktrees; Claude Code writes settings.local.json (and ignores it only via the
-# agent HOME's global excludes, which backend git doesn't read); the Antigravity
-# harness materializes its system skills relative to the session cwd. The repo's
-# info/exclude hides them from status, ls-files, rg and `git clean` under any
-# HOME, without touching tracked files. Written best-effort: a failed write must
-# never block the command it prefixes, yet it stays in the caller's `&&` chain
-# so a failed `cd` still aborts. A missing final newline is added before
-# appending so the user's last rule isn't merged with ours. `--git-path`
-# resolves through the common git dir, so the entries land in the file git
-# actually reads even when the workspace is itself a linked worktree
-# (`--absolute-git-dir` would point at the per-worktree admin dir).
+# Backend git doesn't read the agent HOME's global excludes that hide these paths.
+# Best-effort, but inside the caller's `&&` chain so a failed `cd` still aborts.
+# `--git-path` gives the common dir's info/exclude, which linked worktrees read.
 GIT_ENSURE_EXCLUDES_CMD = (
     '{ excl="$(git rev-parse --git-path info/exclude)" && '
     'mkdir -p "${excl%/*}" && for p in '
@@ -50,9 +41,7 @@ GIT_ENSURE_EXCLUDES_CMD = (
     'grep -qxF "$p" "$excl" || { [ -z "$(tail -c1 "$excl")" ] || echo; '
     'echo "$p"; } >> "$excl"; done || true; } 2>/dev/null && '
 )
-# One round-trip so a clean tree (the common case) avoids the diff capture.
-# Runs at the start of every turn that takes a checkpoint (channel-member turns
-# don't), before the agent can drop artifacts and before the tree is captured.
+# Runs before the tree is captured so agent artifacts are already excluded.
 GIT_CHECKPOINT_PROBE_CMD = (
     GIT_ENSURE_EXCLUDES_CMD + "git rev-parse HEAD 2>/dev/null && "
     'echo "$(git symbolic-ref -q HEAD)" && '
@@ -63,12 +52,9 @@ GIT_PUSH_CMD = "git push -u origin HEAD"
 GIT_PULL_CMD = "git pull"
 GIT_REMOTE_URL_CMD = "git remote get-url origin 2>/dev/null"
 GIT_DISCOVERY_ENV = "export GIT_DISCOVERY_ACROSS_FILESYSTEM=1 && "
-# Detached HEAD (e.g. checking out a tag/SHA) — revert to the previous branch
-# so the UI always has a named branch to display.
+# Detached HEAD: return to the previous branch so the UI has a named one.
 GIT_CHECKOUT_PREV_CMD = "git checkout - 2>/dev/null"
 
-# Segmented with explicit markers so one exec result can be parsed
-# deterministically without depending on `git branch` output formatting.
 GIT_LIST_BRANCHES_CMD = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     "git rev-parse --abbrev-ref HEAD 2>/dev/null; "
@@ -86,19 +72,13 @@ GIT_CHECKOUT_FROM_REMOTE_TEMPLATE = Template(
     "git checkout -b '$branch' 'origin/$branch' 2>&1"
 )
 GIT_COMMIT_TEMPLATE = Template("git add -A && git commit -m $msg")
-# $base expands to either "" or " '<base_branch>'" so a single template covers
-# both the "create from current HEAD" and "create from base" call shapes.
+# $base is "" or " '<base_branch>'".
 GIT_CREATE_BRANCH_TEMPLATE = Template("git checkout -b '$name'$base 2>&1")
 GIT_CREATE_BRANCH_FROM_REMOTE_TEMPLATE = Template(
     "git checkout -b '$name' 'origin/$base' 2>&1"
 )
 
-# Idempotent: a previous attempt may have created the worktree but failed to
-# persist it; the dir-exists check lets us skip `git worktree add` instead of
-# failing on a duplicate branch or path.
-# create_worktree prefixes GIT_ENSURE_EXCLUDES_CMD so .worktrees/ is hidden from
-# the parent checkout (phantom changed paths, duplicated search results,
-# file-tree noise) even for chats that never take a checkpoint.
+# The dir-exists check lets a retried create skip a duplicate `worktree add`.
 _WORKTREE_ADD_PREAMBLE = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     "if [ -e '$worktree_dir/.git' ]; then echo 'exists'; exit 0; fi; "
@@ -141,30 +121,17 @@ GIT_WORKTREE_ADD_FROM_REMOTE_BASE_TEMPLATE = Template(
     _WORKTREE_ADD_PREAMBLE + "start_point='origin/$base_ref'; " + _WORKTREE_ADD_COMMAND
 )
 
-# Chat deletion is best-effort cleanup: `remove` without --force refuses when
-# the worktree has uncommitted changes and `-d` refuses when the branch is
-# unmerged, so dirty trees and unmerged work are never destroyed.
+# No --force and `-d`, so dirty trees and unmerged branches are never destroyed.
 GIT_WORKTREE_REMOVE_TEMPLATE = Template(
     "git worktree remove '$worktree_dir' 2>&1 && git branch -d '$branch_name' 2>&1"
 )
 
-# "all" mode: try `git diff HEAD` first (combined staged+unstaged in one pass);
-# falls back to diffing against the empty tree when HEAD doesn't exist (unborn
-# branch) — same combined view, whereas running `--cached` and the plain diff
-# back-to-back emits a staged-then-modified file twice and downstream parsing
-# keys files by path. `hash-object -t tree /dev/null` yields the empty-tree id
-# for the repo's object format (the stock pre-commit-hook idiom).
+# The four per-file templates run when the single diff further down exits non-zero.
 GIT_DIFF_ALL_TEMPLATE = Template(
     "git diff$ctx HEAD 2>/dev/null"
     " || git diff$ctx $$(git hash-object -t tree /dev/null) 2>/dev/null;"
     "$untracked"
 )
-# Default context (no -U flag): restore resets --hard to base_head before
-# applying, and changed-files builds its temp index from exactly base_head, so
-# the patch base is always byte-identical — full-file context would only bloat
-# every checkpoint row stored in the DB.
-# No unborn-HEAD fallback (unlike GIT_DIFF_ALL_TEMPLATE): the checkpoint probe
-# already required a resolvable HEAD before this diff runs.
 GIT_CHECKPOINT_DIFF_ALL_TEMPLATE = Template(
     "git diff --binary HEAD 2>/dev/null;$untracked"
 )
@@ -186,8 +153,7 @@ GIT_DETECT_BASE_CMD = (
     ' [ -z "$base" ] && for b in main master develop trunk; do'
     " git rev-parse --verify $b >/dev/null 2>&1 && base=$b && break; done;"
 )
-# Prompts are disabled, SSH runs non-interactively, and HTTP stalls hit git's
-# low-speed abort; `timeout` is added when present (stock macOS lacks it).
+# `timeout` only when present: stock macOS lacks it.
 GIT_FETCH_BASE_CMD = (
     ' case "$base" in origin/*)'
     " t=; command -v timeout >/dev/null 2>&1 && t='timeout 15';"
@@ -198,9 +164,7 @@ GIT_FETCH_BASE_CMD = (
     " esac;"
 )
 
-# Skips when any worktree of the repo attempted a fetch in the last minute
-# (FETCH_HEAD is per-worktree, so the stamp lives in the common dir); prints
-# `fetched` only when a fetch ran and succeeded. `find -mmin` works on GNU and BSD.
+# The stamp lives in the common dir because FETCH_HEAD is per-worktree.
 GIT_FETCH_BASE_THROTTLED_CMD = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     'cd "$(git rev-parse --show-toplevel)"; '
@@ -211,11 +175,7 @@ GIT_FETCH_BASE_THROTTLED_CMD = (
     + " fi; true"
 )
 
-# Diff HEAD against the merge-base with the default branch. Default branch is
-# detected via the remote HEAD symref, falling back to main/master/develop/
-# trunk. Exits 2 when no base can be determined so the caller can surface a
-# distinct error. `$$` escapes literal `$` (shell vars and command subs) so
-# `string.Template` only substitutes the `$ctx`/`$detect_base` placeholders.
+# Exits 2 when no base branch is found.
 GIT_DIFF_BRANCH_TEMPLATE = Template(
     "$detect_base"
     ' if [ -z "$$base" ]; then exit 2; fi;'
@@ -223,14 +183,35 @@ GIT_DIFF_BRANCH_TEMPLATE = Template(
     ' git diff$ctx "$$merge_base" HEAD 2>/dev/null'
 )
 
-# Untracked files are marked intent-to-add in a throwaway index copy so one
-# `git diff` counts them without touching the real index. Bail if mktemp fails
-# (an empty GIT_INDEX_FILE would hit the real index); with no index yet, drop
-# the copy so git starts empty instead of rejecting a zero-byte file.
-GIT_INTENT_TO_ADD_INDEX_CMD = (
-    " tmp=$(mktemp) || exit 1; trap 'rm -f \"$tmp\"' EXIT;"
-    ' cp -p "$(git rev-parse --git-path index)" "$tmp" 2>/dev/null || rm -f "$tmp";'
-    ' GIT_INDEX_FILE="$tmp" git add -A -N >/dev/null 2>&1;'
+# Exits non-zero unless every untracked file got an entry in the index copy.
+# Optional locks, the sparse index and the split index are off so that git does
+# not write objects or shared-index files into the real git dir.
+GIT_UNTRACKED_INDEX_CMD = (
+    " tmp=$(mktemp 2>/dev/null) || exit 1; trap 'rm -f \"$tmp\"' EXIT;"
+    " n=${GIT_CONFIG_COUNT:-0}; export GIT_OPTIONAL_LOCKS=0 GIT_CONFIG_COUNT=$((n+2))"
+    " GIT_CONFIG_KEY_$n=index.sparse GIT_CONFIG_VALUE_$n=false"
+    " GIT_CONFIG_KEY_$((n+1))=core.splitIndex GIT_CONFIG_VALUE_$((n+1))=false;"
+    " idx=$(git rev-parse --git-path index);"
+    ' if [ -e "$idx" ]; then cp -p "$idx" "$tmp" 2>/dev/null || exit 1;'
+    ' else rm -f "$tmp"; fi;'
+    ' (cd "$(git rev-parse --show-toplevel)" && export GIT_INDEX_FILE="$tmp" &&'
+    " blob=$(git hash-object -t blob /dev/null) &&"
+    " git ls-files --others --exclude-standard -z |"
+    " xargs -0 sh -c 'blob=$1; shift; for f; do case $f in */) continue;; esac;"
+    """ if [ -L "$f" ]; then m=120000; elif [ -x "$f" ]; then m=100755;"""
+    """ else m=100644; fi; printf "%s %s\\t%s\\0" "$m" "$blob" "$f"; done'"""
+    ' sh "$blob" |'
+    " git update-index -z --add --replace --no-split-index --index-info &&"
+    " rest=$(git ls-files --others --exclude-standard) &&"
+    """ ! printf '%s' "$rest" | LC_ALL=C grep -qv '/"\\{0,1\\}$') >/dev/null 2>&1"""
+)
+GIT_DIFF_ALL_FAST_TEMPLATE = Template(
+    " head=$$(git rev-parse --verify -q HEAD || git hash-object -t tree /dev/null);"
+    ' GIT_INDEX_FILE="$$tmp" git diff$ctx "$$head" 2>/dev/null'
+)
+GIT_CHECKPOINT_DIFF_FAST_CMD = (
+    GIT_UNTRACKED_INDEX_CMD
+    + ' || exit 1; GIT_INDEX_FILE="$tmp" git diff --binary HEAD 2>/dev/null'
 )
 GIT_MERGE_BASE_CMD = (
     ' merge_base=$(git merge-base "$base" HEAD 2>/dev/null || echo "$base");'
@@ -242,8 +223,8 @@ GIT_DIFF_STATS_CMD = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     'cd "$(git rev-parse --show-toplevel)"; '
     "head=$(git rev-parse --verify -q HEAD || git hash-object -t tree /dev/null);"
-    + GIT_INTENT_TO_ADD_INDEX_CMD
-    + " printf '__HEAD__\\n'; git rev-parse --verify -q HEAD 2>/dev/null;"
+    + GIT_UNTRACKED_INDEX_CMD
+    + "; printf '__HEAD__\\n'; git rev-parse --verify -q HEAD 2>/dev/null;"
     " printf '__UNCOMMITTED__\\n';"
     ' GIT_INDEX_FILE="$tmp" git diff --numstat "$head" 2>/dev/null;'
     " printf '__BRANCH__\\n'; "
@@ -256,34 +237,24 @@ GIT_DIFF_STATS_CMD = (
     + " fi; true"
 )
 
-# Exit 2 distinguishes "not a repo" from "path not in HEAD" — `git show`
-# alone fails identically for both, and the editor renders them differently.
+# Exit 2 tells "not a repo" from "path not in HEAD"; `git show` fails alike.
 GIT_SHOW_HEAD_TEMPLATE = Template(
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     "git show $spec 2>/dev/null"
 )
 
-# `--no-renames` keeps every record a plain `XY <path>` pair (renames split
-# into D + A), `-z` avoids quoting so paths with spaces parse cleanly, and
-# `--untracked-files=all` lists files inside untracked dirs (default collapses
-# them to `?? dir/`, which would never match a file path). Porcelain paths are
-# always repo-root-relative; `--show-prefix` (cwd relative to the repo root,
-# first line) lets the parser re-base them to cwd for the response contract.
+# `--untracked-files=all`: the default collapses untracked dirs to `dir/`.
+# Paths are root-relative; `--show-prefix` lets the parser re-base them to cwd.
 GIT_STATUS_PORCELAIN_CMD = (
     "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 2; "
     "git rev-parse --show-prefix; "
     "git status --porcelain --no-renames --untracked-files=all -z 2>/dev/null"
 )
 
-# Diff pathspecs are repo-root-relative and `git clean -fd` only cleans below
-# the current directory, so restore commands hop to the repo root before
-# running to keep pathspecs resolving and clean sweeps workspace-wide.
+# Pathspecs are root-relative and `git clean -fd` only cleans below the cwd.
 GIT_CD_REPO_ROOT = 'cd "$(git rev-parse --show-toplevel)" && '
 
-# `git reset --hard` (not `git checkout HEAD -- .`) is required so newly-added
-# files drop out of the index and become untracked for `git clean` to sweep.
-# Initial repo has no HEAD to reset to, so we empty the index directly and let
-# `git clean` do the same job. Gitignored files (.env, etc.) are preserved.
+# `reset --hard`, not `checkout HEAD -- .`, so added files leave the index for clean.
 RESTORE_ALL_CMD = (
     GIT_CD_REPO_ROOT + "if git rev-parse --verify HEAD >/dev/null 2>&1; then "
     "git reset --hard HEAD && git clean -fd; "
@@ -293,16 +264,12 @@ RESTORE_ALL_CMD = (
     "fi"
 )
 
-# Rename: restore the original path, drop the new one. Cleanup of `new` is
-# gated on the checkout of `old` with `&&` — not `;` — so a failed checkout
-# (old_path not in HEAD) doesn't silently turn a committed rename into a
-# fresh deletion.
+# `&&`, not `;`: a failed checkout of the old path must not delete the new one.
 RESTORE_RENAME_TEMPLATE = Template(
     "git checkout HEAD -- $op && { git reset -- $fp >/dev/null 2>&1; rm -f -- $fp; }"
 )
 
-# Branch on HEAD membership: `git checkout HEAD --` fails for paths not in
-# HEAD, so untracked/new-staged files need an unstage + rm instead.
+# `git checkout HEAD --` fails for paths not in HEAD.
 RESTORE_FILE_TEMPLATE = Template(
     "if git cat-file -e HEAD:$fp 2>/dev/null; then "
     "git checkout HEAD -- $fp; "
@@ -365,10 +332,8 @@ class GitService:
         if check.exit_code != 0:
             return GitDiffResponse(diff="", has_changes=False, is_git_repo=False)
 
-        # Large context window so the patch includes the entire file,
-        # enabling full-file diff view
+        # Whole-file context for the full-file diff view.
         ctx = " -U99999" if full_context else ""
-        untracked_diff = GIT_UNTRACKED_DIFF_TEMPLATE.substitute(ctx=ctx)
 
         if mode == "branch":
             cmd = GIT_DIFF_BRANCH_TEMPLATE.substitute(
@@ -379,15 +344,27 @@ class GitService:
                 GIT_DETECT_BASE_CMD
                 + ' if [ -z "$base" ]; then exit 2; fi;'
                 + GIT_MERGE_BASE_CMD
-                + GIT_INTENT_TO_ADD_INDEX_CMD
+                + GIT_UNTRACKED_INDEX_CMD
+                + ";"
                 + GIT_DIFF_TOTAL_TEMPLATE.substitute(flags=ctx)
             )
         else:
-            cmd = GIT_DIFF_ALL_TEMPLATE.substitute(ctx=ctx, untracked=untracked_diff)
+            cmd = (
+                GIT_UNTRACKED_INDEX_CMD
+                + " || exit 1;"
+                + GIT_DIFF_ALL_FAST_TEMPLATE.substitute(ctx=ctx)
+            )
 
         result = await self.sandbox_service.execute_command(
             sandbox_id, f"{git_prefix}{cmd}"
         )
+        if mode == "all" and result.exit_code != 0:
+            cmd = GIT_DIFF_ALL_TEMPLATE.substitute(
+                ctx=ctx, untracked=GIT_UNTRACKED_DIFF_TEMPLATE.substitute(ctx=ctx)
+            )
+            result = await self.sandbox_service.execute_command(
+                sandbox_id, f"{git_prefix}{cmd}"
+            )
         if mode != "all" and result.exit_code == 2:
             return GitDiffResponse(
                 diff="",
@@ -462,8 +439,7 @@ class GitService:
         path: str,
         cwd: str | None = None,
     ) -> GitFileBaselineResponse:
-        # `HEAD:./<path>` resolves relative to the directory git runs in, so
-        # cwd-relative editor paths work even when the repo root sits above cwd.
+        # `HEAD:./path` resolves against the cwd, which may sit below the repo root.
         self._validate_relative_path(path)
         git_prefix = self.git_command_prefix(cwd)
         cmd = GIT_SHOW_HEAD_TEMPLATE.substitute(spec=shlex.quote(f"HEAD:./{path}"))
@@ -472,8 +448,7 @@ class GitService:
         )
         if result.exit_code == 2:
             return GitFileBaselineResponse(path=path, content="", is_git_repo=False)
-        # Any other failure means the path isn't in HEAD (new/untracked file or
-        # unborn branch) — an empty baseline renders the whole file as added.
+        # Any other failure: the path isn't in HEAD, so the file renders as added.
         content = result.stdout if result.exit_code == 0 else ""
         return GitFileBaselineResponse(path=path, content=content, is_git_repo=True)
 
@@ -482,18 +457,13 @@ class GitService:
         sandbox_id: str,
         cwd: str | None = None,
     ) -> GitChangedPathsResponse:
-        # Cheap existence check for change indicators — the diff endpoints stay
-        # the source of the actual content.
         git_prefix = self.git_command_prefix(cwd)
         result = await self.sandbox_service.execute_command(
             sandbox_id, f"{git_prefix}{GIT_STATUS_PORCELAIN_CMD}"
         )
         if result.exit_code == 2:
             return GitChangedPathsResponse(paths=[], is_git_repo=False)
-        # First line is cwd's path inside the repo ("" at the repo root); the
-        # rest are -z records of `XY <path>` — strip the status chars + space,
-        # then re-base repo-root paths to cwd, dropping files outside it (the
-        # editor tree can't display them anyway).
+        # First line is the cwd's prefix inside the repo; files outside it are dropped.
         prefix, _, status_out = result.stdout.partition("\n")
         paths = []
         for entry in status_out.split("\0"):
@@ -512,9 +482,7 @@ class GitService:
         sandbox_id: str,
         cwd: str | None = None,
     ) -> GitBranchesResponse:
-        # Branch selectors call this frequently while the user moves around the
-        # workspace, so keep the request to one sandbox exec and avoid secret
-        # injection, which is only needed for auth-sensitive git commands.
+        # Called often and needs no auth, so no secret injection.
         git_prefix = self.git_command_prefix(cwd)
         result = await self.sandbox_service.provider.execute_command(
             sandbox_id,
@@ -539,9 +507,7 @@ class GitService:
             if name:
                 local_branches.add(name)
 
-        # Include remote-only branches so the UI can offer checkout targets the
-        # user has not created locally yet, but skip the origin/HEAD symref
-        # because it is just the remote default-branch pointer.
+        # origin/HEAD is only the remote's default-branch pointer.
         all_branches = set(local_branches)
         for line in lines[remote_marker + 1 :]:
             name = line.strip()
@@ -665,8 +631,6 @@ class GitService:
         sandbox_id: str,
         cwd: str | None = None,
     ) -> Checkpoint | None:
-        # Single probe avoids a separate diff round-trip when the tree is clean
-        # — the common case for the first turn of a fresh chat.
         git_prefix = self.git_command_prefix(cwd)
         probe = await self.sandbox_service.execute_command(
             sandbox_id,
@@ -683,13 +647,18 @@ class GitService:
         if marker == "clean":
             return Checkpoint(base_head=head, head_ref=head_ref, pre_run_diff="")
 
-        cmd = GIT_CHECKPOINT_DIFF_ALL_TEMPLATE.substitute(
-            untracked=GIT_CHECKPOINT_UNTRACKED_DIFF_TEMPLATE
-        )
         result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{git_prefix}{GIT_CD_REPO_ROOT}{cmd}",
+            f"{git_prefix}{GIT_CD_REPO_ROOT}{GIT_CHECKPOINT_DIFF_FAST_CMD}",
         )
+        if result.exit_code != 0:
+            cmd = GIT_CHECKPOINT_DIFF_ALL_TEMPLATE.substitute(
+                untracked=GIT_CHECKPOINT_UNTRACKED_DIFF_TEMPLATE
+            )
+            result = await self.sandbox_service.execute_command(
+                sandbox_id,
+                f"{git_prefix}{GIT_CD_REPO_ROOT}{cmd}",
+            )
         return Checkpoint(base_head=head, head_ref=head_ref, pre_run_diff=result.stdout)
 
     async def restore_checkpoint_all(
@@ -801,8 +770,6 @@ class GitService:
             raise SandboxException("No git remote origin found", status_code=404)
 
         remote_url = result.stdout.strip()
-        # Only parse GitHub remotes — other forges (GitLab, Gitea, etc.) are
-        # not supported
         match = GITHUB_REMOTE_RE.match(remote_url)
         if not match:
             raise SandboxException(
@@ -816,9 +783,6 @@ class GitService:
 
     @staticmethod
     def chat_worktree_path(chat_id: str) -> str:
-        # Worktrees are keyed by the creating chat's short id, so comparing a
-        # chat's worktree_cwd against this tells its own worktree from one it
-        # shares with the chat it was started from.
         return posixpath.join(".worktrees", chat_id[:8])
 
     async def create_worktree(
@@ -830,10 +794,7 @@ class GitService:
         base_ref: str | None = None,
         user_id: str = "",
     ) -> str:
-        # The caller only opts into this path when it explicitly requested
-        # worktree isolation, so setup failures must surface instead of
-        # silently reusing the shared workspace. Returned cwd stays
-        # workspace-relative so it slots straight into chat.worktree_cwd.
+        # Worktree isolation was requested explicitly, so setup failures must surface.
         short_id = chat_id[:8]
         rel_base_worktrees = posixpath.join(base_cwd, ".worktrees")
         rel_worktree = posixpath.join(base_cwd, self.chat_worktree_path(chat_id))
@@ -854,9 +815,8 @@ class GitService:
                 base_ref=base_ref,
             )
         cmd = git_prefix + command
-        # Local git operation — no user secrets needed, so bypass
-        # SandboxService.execute_command and call the provider directly.
-        # user_id gives checkout hooks the same HOME as the chat's agent.
+        # No user secrets needed, so the provider is called directly; user_id gives
+        # checkout hooks the agent's HOME.
         result = await self.sandbox_service.provider.execute_command(
             sandbox_id,
             cmd,
@@ -885,10 +845,7 @@ class GitService:
         raise SandboxException(error_output)
 
     async def remove_worktree(self, sandbox_id: str, worktree_cwd: str) -> None:
-        # Best-effort: a refusal (dirty worktree, unmerged branch, sandbox
-        # already torn down) just leaves the worktree behind, hidden from the
-        # parent checkout by the info/exclude entry. Runs fire-and-forget from
-        # chat deletion, so failures are logged instead of raised.
+        # Best-effort, fire-and-forget from chat deletion: failures are logged.
         short_id = posixpath.basename(worktree_cwd)
         cmd = GIT_DISCOVERY_ENV + GIT_WORKTREE_REMOVE_TEMPLATE.substitute(
             worktree_dir=worktree_cwd,
@@ -935,9 +892,6 @@ class GitService:
 
     @staticmethod
     def _validate_relative_path(path: str) -> None:
-        # Defense-in-depth against shell interpolation escape even after the
-        # `--` separator: reject absolutes (escape cwd), `..` (escape repo),
-        # `-` prefix (option injection), and newlines/NULs (command chaining).
         if (
             not path
             or path.startswith("/")

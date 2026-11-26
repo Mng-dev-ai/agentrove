@@ -1,6 +1,7 @@
 import base64
 import io
 import json
+import os
 import shlex
 import subprocess
 import zipfile
@@ -86,6 +87,26 @@ def init_repo(
 
 def rev(repo: Path, ref: str = "HEAD") -> str:
     return git(repo, "rev-parse", ref).strip()
+
+
+def tree_snapshot(repo: Path) -> dict[str, tuple[str, bytes | str, bool]]:
+    snapshot: dict[str, tuple[str, bytes | str, bool]] = {}
+    for path in sorted(repo.rglob("*")):
+        rel = path.relative_to(repo).as_posix()
+        if ".git" in rel.split("/") or (path.is_dir() and not path.is_symlink()):
+            continue
+        if path.is_symlink():
+            snapshot[rel] = ("link", str(path.readlink()), False)
+        else:
+            executable = bool(path.stat().st_mode & 0o100)
+            snapshot[rel] = ("file", path.read_bytes(), executable)
+    return snapshot
+
+
+def git_dir_snapshot(repo: Path) -> dict[str, tuple[str, bytes | str, bool]]:
+    snapshot = tree_snapshot(repo / ".git")
+    del snapshot["info/exclude"]
+    return snapshot
 
 
 def clone_with_origin(
@@ -769,6 +790,33 @@ async def test_git_diff_unborn_head_emits_each_file_once(
     assert body["diff"].count("diff --git") == 2
 
 
+async def test_git_diff_all_mode_covers_untracked_files_without_touching_the_index(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n", "pkg/x.py": "x\n"})
+    write_files(init_repo(repo / "unborn"), {"wip.py": "wip\n"})
+    write_files(
+        repo,
+        {"app.py": "v2\n", "pkg/new file.py": "one\ntwo\n", "notes.txt": "u\n"},
+    )
+    index_before = (repo / ".git" / "index").read_bytes()
+    api = await open_host_sandbox(repo)
+
+    body = (await api.get("git/diff")).json()
+    full = (await api.get("git/diff", full_context="true")).json()
+    below_root = (await api.get("git/diff", cwd="pkg")).json()
+
+    headers = [line for line in body["diff"].splitlines() if line[:4] == "diff"]
+    assert headers == [
+        "diff --git a/app.py b/app.py",
+        "diff --git a/notes.txt b/notes.txt",
+        "diff --git a/pkg/new file.py b/pkg/new file.py",
+    ]
+    assert "+one\n+two\n" in full["diff"]
+    assert below_root["diff"] == body["diff"]
+    assert (repo / ".git" / "index").read_bytes() == index_before
+
+
 async def test_git_diff_stats_counts_uncommitted_and_branch(
     tmp_path: Path, open_host_sandbox: OpenHostSandbox
 ) -> None:
@@ -1341,6 +1389,267 @@ async def test_checkpoint_restore_in_workspace_below_repo_root(
     assert (repo / "outside.txt").read_text() == "keep me\n"
     assert (repo / "pkg" / "new.py").is_file()
     assert (repo / "pkg" / "new.py").read_text() == "new\n"
+
+
+async def test_checkpoint_round_trips_every_dirty_tree_shape(tmp_path: Path) -> None:
+    tracked = ("mod", "staged_del", "partial", "unstaged_del", "uncached", "moved")
+    lines = "".join(f"line{i:02d}\n" for i in range(1, 31))
+    repo = init_repo(
+        tmp_path / "repo",
+        {
+            ".gitignore": "ignored.log\nbuild/\n",
+            "tool.sh": "#!/bin/sh\n",
+            **{f"{name}.txt": lines for name in tracked},
+        },
+    )
+    base_head = rev(repo)
+    write_files(
+        repo,
+        {
+            "mod.txt": lines + "dirty\n",
+            "staged_add.txt": "staged\n",
+            "partial.txt": lines.replace("line01", "line01 staged"),
+            "ita.txt": "intent to add\n",
+            "new/deep/dir/nested.txt": "nested\n",
+            "with space.txt": "space\n",
+            "ünï-日本.txt": "unicode\n",
+            'quo"te.txt': "quote\n",
+            ":colon.txt": "pathspec magic\n",
+            "no-newline.txt": "no newline",
+            "empty.txt": "",
+            "run.sh": "#!/bin/sh\n",
+            "ignored.log": "ignored\n",
+            "build/out.txt": "ignored\n",
+        },
+    )
+    git(repo, "add", "staged_add.txt", "partial.txt")
+    git(repo, "add", "-N", "ita.txt")
+    git(repo, "rm", "-q", "staged_del.txt")
+    git(repo, "rm", "-q", "--cached", "uncached.txt")
+    write_files(
+        repo, {"partial.txt": (repo / "partial.txt").read_text() + "unstaged\n"}
+    )
+    (repo / "unstaged_del.txt").unlink()
+    (repo / "moved.txt").rename(repo / "moved_to.txt")
+    (repo / "tool.sh").chmod(0o755)
+    (repo / "run.sh").chmod(0o755)
+    (repo / "blob.bin").write_bytes(bytes(range(256)) * 8)
+    (repo / "link").symlink_to("mod.txt")
+    (repo / "dir-link").symlink_to("new")
+    (repo / "broken-link").symlink_to("/nonexistent")
+    before = tree_snapshot(repo)
+    index_before = (repo / ".git" / "index").read_bytes()
+    status_before = git(repo, "status", "--porcelain")
+    service = host_git_service(repo)
+
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    assert checkpoint is not None
+    assert (repo / ".git" / "index").read_bytes() == index_before
+    assert git(repo, "status", "--porcelain") == status_before
+    assert "ignored.log" not in checkpoint.pre_run_diff
+    assert "build/out.txt" not in checkpoint.pre_run_diff
+    write_files(repo, {"mod.txt": "agent\n", "empty.txt": "agent\n", "agent.py": "a\n"})
+    for name in ("with space.txt", "blob.bin", "link", "dir-link", "run.sh"):
+        (repo / name).unlink()
+    (repo / "tool.sh").chmod(0o644)
+    commit_all(repo, "agent commit")
+    write_files(repo, {"partial.txt": "agent\n", "scratch.txt": "tmp\n"})
+
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+
+    assert result.success is True
+    assert rev(repo) == base_head
+    assert tree_snapshot(repo) == before
+
+
+async def test_checkpoint_keeps_untracked_files_beside_nested_repos(
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    init_repo(repo / "committed", {"lib.py": "lib\n"})
+    write_files(init_repo(repo / "unborn"), {"wip.py": "wip\n"})
+    write_files(repo, {"notes.txt": "untracked\n"})
+    before = tree_snapshot(repo)
+    service = host_git_service(repo)
+
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    assert checkpoint is not None
+    assert "diff --git a/notes.txt b/notes.txt" in checkpoint.pre_run_diff
+    assert checkpoint.pre_run_diff.count("diff --git") == 1
+    (repo / "notes.txt").unlink()
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+
+    assert result.success is True
+    assert tree_snapshot(repo) == before
+
+
+async def test_checkpoint_round_trips_untracked_file_with_non_utf8_name(
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    write_files(repo, {"aaa.txt": "a\n", "zzz.txt": "z\n"})
+    try:
+        (repo / os.fsdecode(b"bad\xffname.txt")).write_text("bad\n")
+    except OSError:
+        pytest.skip("filesystem rejects non-UTF-8 file names")
+    before = tree_snapshot(repo)
+    service = host_git_service(repo)
+
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    assert checkpoint is not None
+    assert checkpoint.pre_run_diff.count("diff --git") == 3
+    write_files(repo, {"agent.py": "agent\n"})
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+
+    assert result.success is True
+    assert tree_snapshot(repo) == before
+
+
+@pytest.mark.parametrize("sparse_index", [False, True])
+async def test_sparse_checkout_keeps_untracked_files_outside_the_cone(
+    tmp_path: Path, open_host_sandbox: OpenHostSandbox, sparse_index: bool
+) -> None:
+    repo = init_repo(
+        tmp_path / "repo", {"in/a.py": "a\n", "out/b.py": "b\n", "root.py": "r\n"}
+    )
+    index_flag = "--sparse-index" if sparse_index else "--no-sparse-index"
+    try:
+        git(repo, "sparse-checkout", "init", "--cone", index_flag)
+        git(repo, "sparse-checkout", "set", "in")
+    except subprocess.CalledProcessError:
+        pytest.skip("git lacks cone-mode sparse-checkout with a sparse index")
+    write_files(repo, {"in/new.py": "n\n", "out/new.py": "n\n", "extra/new.py": "n\n"})
+    before = tree_snapshot(repo)
+    api = await open_host_sandbox(repo)
+    service = host_git_service(repo)
+    await service.create_checkpoint("sandbox-1")
+    git_dir_before = git_dir_snapshot(repo)
+
+    body = (await api.get("git/diff")).json()
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    assert git_dir_snapshot(repo) == git_dir_before
+    headers = [line for line in body["diff"].splitlines() if line[:4] == "diff"]
+    assert headers == [
+        "diff --git a/extra/new.py b/extra/new.py",
+        "diff --git a/in/new.py b/in/new.py",
+        "diff --git a/out/new.py b/out/new.py",
+    ]
+    assert checkpoint is not None
+    write_files(repo, {"in/a.py": "agent\n", "agent.py": "agent\n"})
+    (repo / "out" / "new.py").unlink()
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+
+    assert result.success is True
+    assert tree_snapshot(repo) == before
+
+
+async def test_checkpoint_keeps_untracked_file_git_refuses_to_index(
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    write_files(repo, {"git~1": "refused\n", "notes.txt": "untracked\n"})
+    service = host_git_service(repo)
+
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    assert checkpoint is not None
+    assert "diff --git a/git~1 b/git~1" in checkpoint.pre_run_diff
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+    assert result.success is False
+    assert (repo / "git~1").read_text() == "refused\n"
+    assert (repo / "notes.txt").read_text() == "untracked\n"
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"core.fileMode": "false"},
+        {"core.splitIndex": "true"},
+        {"core.splitIndex": "true", "splitIndex.sharedIndexExpire": "now"},
+    ],
+    ids=["filemode-off", "split-index", "split-index-expire-now"],
+)
+async def test_checkpoint_round_trips_under_index_config(
+    tmp_path: Path, config: dict[str, str]
+) -> None:
+    repo = init_repo(tmp_path / "repo", {f"t{i}.py": f"{i}\n" for i in range(5)})
+    for key, value in config.items():
+        git(repo, "config", key, value)
+    if "core.splitIndex" in config:
+        git(repo, "update-index", "--split-index")
+    write_files(repo, {"t0.py": "dirty\n", "run.sh": "#!/bin/sh\n"})
+    write_files(repo, {f"new{i}.py": f"{i}\n" for i in range(5)})
+    (repo / "run.sh").chmod(0o755)
+    (repo / "link").symlink_to("t1.py")
+    os.utime(repo / "t2.py", (0, 0))
+    before = tree_snapshot(repo)
+    git_dir_before = sorted(git_dir_snapshot(repo))
+    service = host_git_service(repo)
+
+    diff = await service.get_diff("sandbox-1")
+    git_dir_after_diff = sorted(git_dir_snapshot(repo))
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    assert diff.diff.count("diff --git") == 8
+    assert git_dir_after_diff == git_dir_before
+    assert checkpoint is not None
+    assert sorted(git_dir_snapshot(repo)) == git_dir_before
+    assert git(repo, "status", "--porcelain").count("??") == 7
+    for name in ("run.sh", "link", "new0.py"):
+        (repo / name).unlink()
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+
+    assert result.success is True
+    assert tree_snapshot(repo) == before
+
+
+async def test_checkpoint_uses_per_file_diff_when_the_single_diff_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    write_files(repo, {"app.py": "dirty\n", "notes.txt": "untracked\n"})
+    index_before = (repo / ".git" / "index").read_bytes()
+    monkeypatch.setenv("TMPDIR", str(tmp_path / "missing"))
+
+    checkpoint = await host_git_service(repo).create_checkpoint("sandbox-1")
+
+    assert checkpoint is not None
+    assert checkpoint.pre_run_diff.count("diff --git") == 2
+    assert (repo / ".git" / "index").read_bytes() == index_before
 
 
 async def test_checkpoint_edge_cases(tmp_path: Path) -> None:
