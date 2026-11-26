@@ -15,8 +15,8 @@ import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useChannelStore } from '@/store/channelStore';
 import { useChannelQueueStore } from '@/store/messageQueueStore';
 import { useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
-import { channelMachineId } from '@/store/machineOrigin';
-import { useUIStore } from '@/store/uiStore';
+import { forgetChat } from '@/store/forgetChat';
+import { channelMachineId, forgetChannelOrigin } from '@/store/machineOrigin';
 import { logger } from '@/utils/logger';
 import type {
   Channel,
@@ -159,18 +159,26 @@ export const useRemoveChannelMemberMutation = createMutation<
 export const useDeleteChannelMutation = createMutation<void, Error, string>(
   (channelId) => channelService.deleteChannel(channelId),
   (queryClient, _data, channelId) => {
-    const anchorChatId = (
+    const channel =
       queryClient.getQueryData<Channel>(queryKeys.channel(channelId)) ??
       queryClient
         .getQueriesData<Channel[]>({ queryKey: queryKeys.channelsAll })
         .flatMap(([, channels]) => channels ?? [])
-        .find((channel) => channel.id === channelId)
-    )?.anchor_chat_id;
+        .find((cached) => cached.id === channelId);
     queryClient.removeQueries({ queryKey: queryKeys.channel(channelId) });
     useChannelStore.getState().releaseChannel(channelId);
     useChannelQueueStore.getState().cleanupChats((id) => id === channelId);
-    // Layout is keyed by channel; editor tabs and terminals by the anchor chat.
-    useUIStore.getState().cleanupChats((id) => id === channelId || id === anchorChatId);
+    const chatIds = channel
+      ? [
+          channel.anchor_chat_id,
+          ...[...channel.members, ...(channel.former_members ?? [])].map(
+            (member) => member.chat_id,
+          ),
+        ]
+      : [];
+    // The server deletes every chat of the channel; layout is keyed by the channel id.
+    for (const id of [channelId, ...chatIds]) forgetChat(id);
+    forgetChannelOrigin(channelId);
     return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
   },
 );
