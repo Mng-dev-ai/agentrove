@@ -1,7 +1,7 @@
 import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useModelStore } from '@/store/modelStore';
-import { resolveAgentKind, type AgentKind } from '@/types/chat.types';
+import { resolveChatAgentKind, type AgentKind } from '@/types/chat.types';
 
 export function useChatAgentKind(
   chatId: string,
@@ -10,6 +10,5 @@ export function useChatAgentKind(
 ): AgentKind | null {
   const storedModelId = useModelStore((s) => s.modelByChat[chatId]);
   const modelMap = useModelMap({ machineId: useChatMachineId(chatId) });
-  const modelId = storedModelId ?? lastModelId;
-  return sessionAgentKind ?? (modelId ? resolveAgentKind(modelMap, modelId) : null);
+  return resolveChatAgentKind(modelMap, sessionAgentKind, storedModelId ?? lastModelId);
 }
