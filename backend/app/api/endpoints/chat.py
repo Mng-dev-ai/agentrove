@@ -26,7 +26,6 @@ from starlette.datastructures import Headers
 
 from app.catalog import MODELS
 from app.constants import REDIS_KEY_CHAT_CONTEXT_USAGE
-from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.core.config import get_settings
 from app.core.deps import (
     ensure_chat_access,
@@ -94,6 +93,7 @@ from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.turn_settings import resolve_turn_settings
 from app.utils.cache import CacheError, cache_connection
 from app.utils.parsing import parse_stream_cursors
 
@@ -180,14 +180,23 @@ async def send_message(
     worktree: bool = Form(False),
     base_branch: str | None = Form(None),
     fast_mode: bool = Form(False),
-    selected_persona_name: str = Form(DEFAULT_PERSONA_NAME),
+    selected_persona_name: str | None = Form(None),
     report_to_parent: bool = Form(False),
+    inherit_turn_settings: bool = Form(False),
     attached_files: list[UploadFile] | None = File(None),
     chat_service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     files = attached_files or []
     try:
+        thinking_mode, persona_name = resolve_turn_settings(
+            await chat_service.get_chat(UUID(chat_id), current_user)
+            if inherit_turn_settings
+            else None,
+            model_id,
+            thinking_mode=thinking_mode,
+            persona_name=selected_persona_name,
+        )
         request = ChatRequest(
             prompt=prompt,
             chat_id=UUID(chat_id),
@@ -199,7 +208,7 @@ async def send_message(
             worktree=worktree,
             base_branch=base_branch,
             fast_mode=fast_mode,
-            selected_persona_name=selected_persona_name,
+            selected_persona_name=persona_name,
             report_to_parent=report_to_parent,
         )
         result = await chat_service.initiate_chat_completion(
@@ -822,8 +831,9 @@ async def queue_message(
     worktree: bool = Form(False),
     base_branch: str | None = Form(None),
     fast_mode: bool = Form(False),
-    selected_persona_name: str = Form(DEFAULT_PERSONA_NAME),
+    selected_persona_name: str | None = Form(None),
     report_to_parent: bool = Form(False),
+    inherit_turn_settings: bool = Form(False),
     attached_files: list[UploadFile] | None = File(None),
     chat: Chat = Depends(ensure_chat_access),
     current_user: User = Depends(get_current_user),
@@ -835,6 +845,12 @@ async def queue_message(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="report_to_parent requires a sub-thread",
         )
+    thinking_mode, persona_name = resolve_turn_settings(
+        chat if inherit_turn_settings else None,
+        model_id,
+        thinking_mode=thinking_mode,
+        persona_name=selected_persona_name,
+    )
     try:
         queued_message = QueuedMessageBase(
             content=content,
@@ -844,7 +860,7 @@ async def queue_message(
             worktree=worktree,
             base_branch=base_branch,
             fast_mode=fast_mode,
-            selected_persona_name=selected_persona_name,
+            selected_persona_name=persona_name,
             report_to_parent=report_to_parent,
             device_ids=current_user.device_ids,
         )

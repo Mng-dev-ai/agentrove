@@ -20,8 +20,8 @@ const THINKING_MODE_LABELS: Record<string, string> = {
 
 const EMPTY_THINKING_MODES: ThinkingModeOption[] = [];
 
-// "default" sends no effort so OpenCode keeps its own provider default.
-const OPENCODE_DEFAULT_THINKING_MODE: ThinkingModeOption = { value: 'default', label: 'Default' };
+// "default" sends no effort so the agent keeps its own provider default.
+const PROVIDER_DEFAULT_THINKING_MODE: ThinkingModeOption = { value: 'default', label: 'Default' };
 
 const DEFAULT_BY_AGENT: Record<AgentKind, string> = {
   antigravity: 'high',
@@ -44,7 +44,11 @@ export function getThinkingModesForAgent(
     value,
     label: THINKING_MODE_LABELS[value] ?? value,
   }));
-  return agentKind === 'opencode' ? [OPENCODE_DEFAULT_THINKING_MODE, ...modes] : modes;
+  // Compatibility: paired backends that predate the flag accept "default"
+  // exactly for the agents whose composer default it is.
+  const acceptsDefault =
+    model.accepts_default_thinking_mode ?? DEFAULT_BY_AGENT[agentKind] === 'default';
+  return acceptsDefault ? [PROVIDER_DEFAULT_THINKING_MODE, ...modes] : modes;
 }
 
 export function coerceThinkingModeForAgent(

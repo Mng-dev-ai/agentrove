@@ -42,6 +42,7 @@ from app.models.db_models.workspace import Workspace
 from app.models.types import AgentKind, PermissionMode
 from app.services.channels import engine as channel_engine_module
 from app.services.acp import client as acp_client_module
+from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
     CHANNEL_MCP_PERMISSION_MODES,
@@ -3251,13 +3252,19 @@ async def test_mcp_tools_accept_every_backend_thinking_mode_tier(
 @pytest.mark.parametrize(
     "model_id,thinking_mode,follow_up_model_id,expected",
     [
-        ("claude-haiku-5-5", "xhigh", "sonnet", ("sonnet", None)),
+        (
+            "claude-haiku-5-5",
+            "xhigh",
+            "sonnet",
+            ("sonnet", None, "bypassPermissions"),
+        ),
         (
             "opencode:opencode/gpt-5-nano",
             "default",
             None,
-            ("opencode:opencode/gpt-5-nano", "default"),
+            ("opencode:opencode/gpt-5-nano", "default", "build"),
         ),
+        ("gpt-5.4", "low", None, ("gpt-5.4", "low", "full-access")),
     ],
 )
 async def test_mcp_follow_up_inherits_only_a_tier_the_model_accepts(
@@ -3269,7 +3276,7 @@ async def test_mcp_follow_up_inherits_only_a_tier_the_model_accepts(
     model_id: str,
     thinking_mode: str,
     follow_up_model_id: str | None,
-    expected: tuple[str, str | None],
+    expected: tuple[str, str | None, str],
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id=model_id)
@@ -3308,7 +3315,69 @@ async def test_mcp_follow_up_inherits_only_a_tier_the_model_accepts(
     )
     detail = await client.get(f"/api/v1/chat/chats/{chat['id']}", headers=headers)
     body = detail.json()
-    assert (body["last_model_id"], body["last_thinking_mode"]) == expected
+    assert (
+        body["last_model_id"],
+        body["last_thinking_mode"],
+        body["last_permission_mode"],
+    ) == expected
+
+
+async def test_turn_routes_inherit_settings_only_when_asked(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    detail_url = f"/api/v1/chat/chats/{chat['id']}"
+    chat_turn = {"prompt": "again", "chat_id": chat["id"]}
+    first = await client.post(
+        "/api/v1/chat/chat",
+        data={
+            **chat_turn,
+            "model_id": "sonnet",
+            "thinking_mode": "low",
+            "selected_persona_name": "Bugbot",
+        },
+        headers=headers,
+    )
+    assert first.status_code == 200, first.text
+
+    for url, data in (
+        ("/api/v1/chat/chat", chat_turn),
+        (f"{detail_url}/queue", {"content": "again"}),
+    ):
+        await wait_for_latest_assistant(client, headers, chat["id"])
+        for flag in ("false", "true"):
+            missing = await client.post(
+                url, data={**data, "inherit_turn_settings": flag}, headers=headers
+            )
+            assert missing.status_code == 422, missing.text
+            assert missing.json()["detail"][0]["loc"] == ["body", "model_id"]
+
+        inherited = await client.post(
+            url,
+            data={**data, "model_id": "sonnet", "inherit_turn_settings": "true"},
+            headers=headers,
+        )
+        assert inherited.is_success, inherited.text
+        await wait_for_latest_assistant(client, headers, chat["id"])
+        body = (await client.get(detail_url, headers=headers)).json()
+        assert (body["last_thinking_mode"], body["last_persona_name"]) == (
+            "low",
+            "Bugbot",
+        )
+
+    plain = await client.post(
+        "/api/v1/chat/chat", data={**chat_turn, "model_id": "sonnet"}, headers=headers
+    )
+    assert plain.status_code == 200, plain.text
+    await wait_for_latest_assistant(client, headers, chat["id"])
+    body = (await client.get(detail_url, headers=headers)).json()
+    assert (body["last_thinking_mode"], body["last_persona_name"]) == (
+        None,
+        DEFAULT_PERSONA_NAME,
+    )
 
 
 @pytest.mark.parametrize("revoke", ["device", "password_reset"])

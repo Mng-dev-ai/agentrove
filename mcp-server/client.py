@@ -282,6 +282,8 @@ class AgentroveClient:
             "permission_mode": permission_mode,
             "worktree": worktree,
             "fast_mode": fast_mode,
+            # A no-op on a chat create_chat just made: nothing to inherit yet.
+            "inherit_turn_settings": True,
         }
         if thinking_mode:
             data["thinking_mode"] = thinking_mode

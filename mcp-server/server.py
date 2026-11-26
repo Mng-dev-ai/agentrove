@@ -46,20 +46,6 @@ def _channel_summary(channel: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _inheritable_thinking_mode(
-    model: dict[str, Any], thinking_mode: str | None
-) -> str | None:
-    # Mirrors the backend adapters: an explicit tier the model lacks fails the turn.
-    modes = model["thinking_modes"]
-    if (
-        not modes
-        or thinking_mode in modes
-        or (model["agent_kind"] == "opencode" and thinking_mode == "default")
-    ):
-        return thinking_mode
-    return None
-
-
 async def _resolve_members(
     client: AgentroveClient, members: list[ChannelMember]
 ) -> list[dict[str, Any]]:
@@ -557,15 +543,11 @@ async def send_message(
     """
     client, _ = _session()
     if chat_id is not None:
-        # Inherit last turn's model/persona/effort when omitted (not globals).
+        # The backend inherits effort and persona; the model is needed here
+        # to pick its permission mode.
         chat = await client.get_chat(chat_id)
         model_id = model_id or chat.get("last_model_id")
-        persona = persona or chat.get("last_persona_name")
     model = await client.resolve_model(model_id)
-    if chat_id is not None:
-        thinking_mode = thinking_mode or _inheritable_thinking_mode(
-            model, chat.get("last_thinking_mode")
-        )
     resolved_model = model["model_id"]
     permission_mode = model["unattended_permission_mode"]
     if chat_id is None:

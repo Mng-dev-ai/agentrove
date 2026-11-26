@@ -12,6 +12,9 @@ class AIModelResponse(BaseModel):
     legacy: bool = False
     # Effort tiers low→high; empty means no dial (thinking_mode ignored).
     thinking_modes: list[str] = []
+    # thinking_mode "default" is accepted: it sends no effort, so the provider's
+    # own default applies. Says nothing when thinking_modes is empty.
+    accepts_default_thinking_mode: bool = False
     # The agent CLI implements ACP session/fork, so its chats can be forked.
     supports_fork: bool = False
     supports_persona: bool = False
