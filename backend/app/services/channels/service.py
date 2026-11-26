@@ -187,13 +187,22 @@ class ChannelService(BaseDbService[Channel]):
                     db, channel, workspace, item, permission_mode, display_name
                 )
                 channel.all_members.append(member)
-            await db.commit()
-        self.engine.register(channel)
-        try:
-            await self.prepare_worktree(channel)
-        except Exception:
-            await self.delete(channel)
-            raise
+            # Registered before the commit: a committed channel always has a state.
+            self.engine.register(channel)
+            state = self.engine.state(channel)
+            try:
+                await db.commit()
+            except Exception:
+                self.engine.drop(channel)
+                raise
+        async with state.control:
+            if state.deleted:
+                raise HTTPException(404, "Channel not found")
+            try:
+                await self.prepare_worktree(channel)
+            except Exception:
+                await self._delete_locked(state)
+                raise
         return channel
 
     @staticmethod
@@ -602,19 +611,25 @@ class ChannelService(BaseDbService[Channel]):
     async def delete(self, channel: Channel) -> None:
         state = self.engine.state(channel)
         async with state.control:
-            await self.engine.teardown(state)
-            if channel.worktree:
-                chat = await self.anchor_chat(channel)
-                if chat.worktree_cwd:
-                    await GitService(
-                        self.chats.sandbox_for_workspace(chat.workspace)
-                    ).remove_worktree(chat.sandbox_id, chat.worktree_cwd)
-            async with self.session_factory() as db:
-                await db.execute(delete(Chat).where(Chat.channel_id == channel.id))
-                await db.execute(delete(Channel).where(Channel.id == channel.id))
-                await db.commit()
-            await ChannelQueueService.clear_queues([str(channel.id)])
-            self.engine.drop(channel)
+            # Whoever held control before us may already have deleted it.
+            if self.engine.states.get(channel.id) is state:
+                await self._delete_locked(state)
+
+    async def _delete_locked(self, state: ChannelState) -> None:
+        channel = state.channel
+        await self.engine.teardown(state)
+        if channel.worktree:
+            chat = await self.anchor_chat(channel)
+            if chat.worktree_cwd:
+                await GitService(
+                    self.chats.sandbox_for_workspace(chat.workspace)
+                ).remove_worktree(chat.sandbox_id, chat.worktree_cwd)
+        async with self.session_factory() as db:
+            await db.execute(delete(Chat).where(Chat.channel_id == channel.id))
+            await db.execute(delete(Channel).where(Channel.id == channel.id))
+            await db.commit()
+        await ChannelQueueService.clear_queues([str(channel.id)])
+        self.engine.drop(channel)
 
     async def recover(self) -> None:
         messages, orphans, channels = await self.engine.recover_messages()

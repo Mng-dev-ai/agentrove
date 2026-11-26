@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
 from sqlalchemy import delete, func, select, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog import BUILTIN_SLASH_COMMANDS
 from app.core.config import get_settings
@@ -218,35 +219,38 @@ class WorkspaceService(BaseDbService[Workspace]):
 
     async def get_workspace(self, workspace_id: UUID, user: User) -> Workspace:
         async with self._session_factory() as db:
-            result = await db.execute(
-                select(Workspace).filter(
-                    Workspace.id == workspace_id,
-                    Workspace.user_id == user.id,
-                    Workspace.deleted_at.is_(None),
-                )
+            return await self._live_workspace(db, workspace_id, user)
+
+    @staticmethod
+    async def _live_workspace(
+        db: AsyncSession, workspace_id: UUID, user: User
+    ) -> Workspace:
+        result = await db.execute(
+            select(Workspace).filter(
+                Workspace.id == workspace_id,
+                Workspace.user_id == user.id,
+                Workspace.deleted_at.is_(None),
             )
-            workspace: Workspace | None = result.scalar_one_or_none()
-            if not workspace:
-                raise WorkspaceException(
-                    "Workspace not found",
-                    error_code=ErrorCode.WORKSPACE_NOT_FOUND,
-                    details={"workspace_id": str(workspace_id)},
-                    status_code=404,
-                )
-            return workspace
+        )
+        workspace: Workspace | None = result.scalar_one_or_none()
+        if not workspace:
+            raise WorkspaceException(
+                "Workspace not found",
+                error_code=ErrorCode.WORKSPACE_NOT_FOUND,
+                details={"workspace_id": str(workspace_id)},
+                status_code=404,
+            )
+        return workspace
 
     async def update_workspace(
         self, workspace_id: UUID, user: User, data: WorkspaceUpdate
     ) -> Workspace:
-        # db.merge re-attaches the detached instance from get_workspace so
-        # ORM-tracked mutations flush as an UPDATE.
-        workspace = await self.get_workspace(workspace_id, user)
-        async with self._session_factory() as db:
-            managed: Workspace = await db.merge(workspace)
+        async with self.write_session() as db:
+            workspace = await self._live_workspace(db, workspace_id, user)
             if data.name is not None:
-                managed.name = data.name
+                workspace.name = data.name
             await db.commit()
-            return managed
+            return workspace
 
     async def get_workspace_resources(
         self, workspace_id: UUID, user: User
