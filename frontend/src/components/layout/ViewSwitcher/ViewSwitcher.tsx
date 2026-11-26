@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import { useMatch } from 'react-router-dom';
-import { PanelRight } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import {
@@ -8,6 +7,7 @@ import {
   formatShortcut,
   SESSION_PANEL_SHORTCUT,
 } from '@/components/ui/command-menu/commandRegistry';
+import { SessionPanelIcon } from '@/components/ui/icons/viewIcons';
 import { useUIStore } from '@/store/uiStore';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useSessionPanelOpen } from '@/hooks/useSessionPanelOpen';
@@ -88,17 +88,20 @@ export function ViewSwitcher({ agentTile }: { agentTile?: AgentTileId }) {
         );
       })}
       {!isLandingPage && (
-        <FloatingTooltip content={SESSION_PANEL_TOOLTIP}>
-          <Button
-            variant="unstyled"
-            onClick={() => useUIStore.getState().toggleSessionPanel(paneTile)}
-            className={styles['view-button']}
-            aria-label="Toggle session panel"
-            aria-pressed={sessionPanelOpen}
-          >
-            <PanelRight className={styles.icon} />
-          </Button>
-        </FloatingTooltip>
+        <>
+          <div className={styles.divider} />
+          <FloatingTooltip content={SESSION_PANEL_TOOLTIP}>
+            <Button
+              variant="unstyled"
+              onClick={() => useUIStore.getState().toggleSessionPanel(paneTile)}
+              className={styles['view-button']}
+              aria-label="Toggle session panel"
+              aria-pressed={sessionPanelOpen}
+            >
+              <SessionPanelIcon className={styles.icon} />
+            </Button>
+          </FloatingTooltip>
+        </>
       )}
     </div>
   );
