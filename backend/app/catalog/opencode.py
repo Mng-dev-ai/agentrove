@@ -483,6 +483,12 @@ MODELS: dict[str, ModelInfo] = {
         262_144,
         effort_levels=("low", "medium", "xhigh"),
     ),
+    "opencode:opencode/seaglass-alpha-free": ModelInfo(
+        "Seaglass Alpha Free (OpenCode)",
+        AgentKind.OPENCODE,
+        1_048_576,
+        effort_levels=("minimal", "low", "medium", "high", "xhigh", "max"),
+    ),
     "opencode:opencode/tidepool-alpha-free": ModelInfo(
         "Tidepool Alpha Free (OpenCode)",
         AgentKind.OPENCODE,
@@ -694,13 +700,6 @@ MODELS: dict[str, ModelInfo] = {
         1_000_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
-    "opencode:amazon-bedrock/anthropic.claude-opus-4-5-20251101-v1:0": ModelInfo(
-        "Claude Opus 4.5 (Amazon Bedrock)",
-        AgentKind.OPENCODE,
-        200_000,
-        legacy=True,
-        effort_levels=("low", "medium", "high"),
-    ),
     "opencode:amazon-bedrock/anthropic.claude-opus-4-6-v1": ModelInfo(
         "Claude Opus 4.6 (Amazon Bedrock)",
         AgentKind.OPENCODE,
@@ -832,6 +831,18 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:amazon-bedrock/ca.amazon.nova-lite-v1:0": ModelInfo(
         "Nova Lite (CA) (Amazon Bedrock)", AgentKind.OPENCODE, 300_000
     ),
+    "opencode:amazon-bedrock/ca.anthropic.claude-haiku-5-5": ModelInfo(
+        "Claude Haiku 5.5 (Canada) (Amazon Bedrock)",
+        AgentKind.OPENCODE,
+        1_000_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
+    "opencode:amazon-bedrock/ca.anthropic.claude-sonnet-5-5": ModelInfo(
+        "Claude Sonnet 5.5 (Canada) (Amazon Bedrock)",
+        AgentKind.OPENCODE,
+        1_000_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
     "opencode:amazon-bedrock/deepseek.v3.2": ModelInfo(
         "DeepSeek V3.2 (Amazon Bedrock)", AgentKind.OPENCODE, 163_840
     ),
@@ -850,12 +861,6 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:amazon-bedrock/eu.amazon.nova-pro-v1:0": ModelInfo(
         "Nova Pro (EU) (Amazon Bedrock)", AgentKind.OPENCODE, 300_000
     ),
-    "opencode:amazon-bedrock/eu.anthropic.claude-fable-5": ModelInfo(
-        "Claude Fable 5 (EU) (Amazon Bedrock)",
-        AgentKind.OPENCODE,
-        1_000_000,
-        effort_levels=("low", "medium", "high", "xhigh", "max"),
-    ),
     "opencode:amazon-bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0": ModelInfo(
         "Claude Haiku 4.5 (EU) (Amazon Bedrock)",
         AgentKind.OPENCODE,
@@ -867,13 +872,6 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_000_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
-    ),
-    "opencode:amazon-bedrock/eu.anthropic.claude-opus-4-5-20251101-v1:0": ModelInfo(
-        "Claude Opus 4.5 (EU) (Amazon Bedrock)",
-        AgentKind.OPENCODE,
-        200_000,
-        legacy=True,
-        effort_levels=("low", "medium", "high"),
     ),
     "opencode:amazon-bedrock/eu.anthropic.claude-opus-4-6-v1": ModelInfo(
         "Claude Opus 4.6 (EU) (Amazon Bedrock)",
@@ -968,13 +966,6 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_000_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
-    ),
-    "opencode:amazon-bedrock/global.anthropic.claude-opus-4-5-20251101-v1:0": ModelInfo(
-        "Claude Opus 4.5 (Global) (Amazon Bedrock)",
-        AgentKind.OPENCODE,
-        200_000,
-        legacy=True,
-        effort_levels=("low", "medium", "high"),
     ),
     "opencode:amazon-bedrock/global.anthropic.claude-opus-4-6-v1": ModelInfo(
         "Claude Opus 4.6 (Global) (Amazon Bedrock)",
@@ -1154,6 +1145,15 @@ MODELS: dict[str, ModelInfo] = {
         1_000_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
+    "opencode:amazon-bedrock/in.moonshotai.kimi-k3": ModelInfo(
+        "Kimi K3 (India) (Amazon Bedrock)", AgentKind.OPENCODE, 1_048_576
+    ),
+    "opencode:amazon-bedrock/in.moonshotai.kimi-k3.1": ModelInfo(
+        "Kimi K3.1 Pro Highspeed (India) (Amazon Bedrock)",
+        AgentKind.OPENCODE,
+        1_048_576,
+        effort_levels=("none", "low", "medium", "high", "xhigh", "max"),
+    ),
     "opencode:amazon-bedrock/in.openai.gpt-5.6-luna": ModelInfo(
         "GPT-5.6 Luna (India) (Amazon Bedrock)",
         AgentKind.OPENCODE,
@@ -1198,13 +1198,6 @@ MODELS: dict[str, ModelInfo] = {
         legacy=True,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
-    "opencode:amazon-bedrock/jp.anthropic.claude-opus-5": ModelInfo(
-        "Claude Opus 5 (JP) (Amazon Bedrock)",
-        AgentKind.OPENCODE,
-        1_000_000,
-        legacy=True,
-        effort_levels=("low", "medium", "high", "xhigh", "max"),
-    ),
     "opencode:amazon-bedrock/jp.anthropic.claude-opus-5-5": ModelInfo(
         "Claude Opus 5.5 (JP) (Amazon Bedrock)",
         AgentKind.OPENCODE,
@@ -1217,12 +1210,6 @@ MODELS: dict[str, ModelInfo] = {
         1_000_000,
         legacy=True,
         effort_levels=("low", "medium", "high", "max"),
-    ),
-    "opencode:amazon-bedrock/jp.anthropic.claude-sonnet-5": ModelInfo(
-        "Claude Sonnet 5 (JP) (Amazon Bedrock)",
-        AgentKind.OPENCODE,
-        1_000_000,
-        effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
     "opencode:amazon-bedrock/minimax.minimax-m2.5": ModelInfo(
         "MiniMax-M2.5 (Amazon Bedrock)", AgentKind.OPENCODE, 196_608
@@ -1259,14 +1246,14 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:amazon-bedrock/openai.gpt-5.4": ModelInfo(
         "GPT-5.4 (Amazon Bedrock)",
         AgentKind.OPENCODE,
-        1_000_000,
+        1_050_000,
         legacy=True,
         effort_levels=("none", "low", "medium", "high", "xhigh"),
     ),
     "opencode:amazon-bedrock/openai.gpt-5.5": ModelInfo(
         "GPT-5.5 (Amazon Bedrock)",
         AgentKind.OPENCODE,
-        1_000_000,
+        1_050_000,
         effort_levels=("none", "low", "medium", "high", "xhigh"),
     ),
     "opencode:amazon-bedrock/openai.gpt-5.6-luna": ModelInfo(
@@ -1440,13 +1427,6 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_000_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
-    ),
-    "opencode:amazon-bedrock/us.anthropic.claude-opus-4-5-20251101-v1:0": ModelInfo(
-        "Claude Opus 4.5 (US) (Amazon Bedrock)",
-        AgentKind.OPENCODE,
-        200_000,
-        legacy=True,
-        effort_levels=("low", "medium", "high"),
     ),
     "opencode:amazon-bedrock/us.anthropic.claude-opus-4-6-v1": ModelInfo(
         "Claude Opus 4.6 (US) (Amazon Bedrock)",
@@ -1992,13 +1972,6 @@ MODELS: dict[str, ModelInfo] = {
         1_000_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
-    "opencode:google-vertex/claude-opus-4-5@20251101": ModelInfo(
-        "Claude Opus 4.5 (Google Vertex)",
-        AgentKind.OPENCODE,
-        200_000,
-        legacy=True,
-        effort_levels=("low", "medium", "high"),
-    ),
     "opencode:google-vertex/claude-opus-4-6@default": ModelInfo(
         "Claude Opus 4.6 (Google Vertex)",
         AgentKind.OPENCODE,
@@ -2055,9 +2028,6 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:google-vertex/codestral-2": ModelInfo(
         "Codestral 2 (Google Vertex)", AgentKind.OPENCODE, 128_000
-    ),
-    "opencode:google-vertex/gemini-2.5-flash-image": ModelInfo(
-        "Nano Banana (Google Vertex)", AgentKind.OPENCODE, 65_536, legacy=True
     ),
     "opencode:google-vertex/gemini-2.5-flash-tts": ModelInfo(
         "Gemini 2.5 Flash TTS (Google Vertex)", AgentKind.OPENCODE, 32_768
@@ -2119,13 +2089,6 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_048_576,
         effort_levels=("minimal", "low", "medium", "high"),
-    ),
-    "opencode:google-vertex/gemini-3.7-flash": ModelInfo(
-        "Gemini 3.7 Flash (Google Vertex)",
-        AgentKind.OPENCODE,
-        1_048_576,
-        legacy=True,
-        effort_levels=("low", "medium", "high"),
     ),
     "opencode:google-vertex/gemini-3.8-flash": ModelInfo(
         "Gemini 3.8 Flash (Google Vertex)",
@@ -2299,6 +2262,12 @@ MODELS: dict[str, ModelInfo] = {
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
+    "opencode:openai/gpt-6-astra-healthcare": ModelInfo(
+        "GPT-6 Astra Healthcare (Openai)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
     "opencode:openai/gpt-6-luna": ModelInfo(
         "GPT-6 Luna (Openai)",
         AgentKind.OPENCODE,
@@ -2318,6 +2287,12 @@ MODELS: dict[str, ModelInfo] = {
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
+    "opencode:openai/gpt-6.1-sol-healthcare": ModelInfo(
+        "GPT-6.1 Sol Healthcare (Openai)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
     "opencode:openai/gpt-6.1-terra": ModelInfo(
         "GPT-6.1 Terra (Openai)",
         AgentKind.OPENCODE,
@@ -2330,8 +2305,20 @@ MODELS: dict[str, ModelInfo] = {
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
     ),
+    "opencode:openai/gpt-6.2-astra-healthcare": ModelInfo(
+        "GPT-6.2 Astra Healthcare (Openai)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
     "opencode:openai/gpt-6.2-sol": ModelInfo(
         "GPT-6.2 Sol (Openai)",
+        AgentKind.OPENCODE,
+        1_050_000,
+        effort_levels=("low", "medium", "high", "xhigh", "max"),
+    ),
+    "opencode:openai/gpt-6.2-sol-healthcare": ModelInfo(
+        "GPT-6.2 Sol Healthcare (Openai)",
         AgentKind.OPENCODE,
         1_050_000,
         effort_levels=("low", "medium", "high", "xhigh", "max"),
@@ -3766,14 +3753,8 @@ MODELS: dict[str, ModelInfo] = {
         524_288,
         effort_levels=("none", "minimal", "low", "medium", "high", "max"),
     ),
-    "opencode:openrouter/unbiased/pareto-26.10": ModelInfo(
-        "Pareto 26.10 (Openrouter)", AgentKind.OPENCODE, 1_048_576
-    ),
-    "opencode:openrouter/unbiased/pareto-26.10-preview": ModelInfo(
-        "Pareto 26.10 Preview (Openrouter)", AgentKind.OPENCODE, 1_048_576
-    ),
-    "opencode:openrouter/unbiased/pareto-26.9": ModelInfo(
-        "Pareto 26.9 (Openrouter)", AgentKind.OPENCODE, 262_144, legacy=True
+    "opencode:openrouter/tngtech/deepseek-r1t2-chimera": ModelInfo(
+        "DeepSeek R1T2 Chimera (Openrouter)", AgentKind.OPENCODE, 131_072
     ),
     "opencode:openrouter/undi95/remm-slerp-l2-13b": ModelInfo(
         "ReMM SLERP 13B (Openrouter)", AgentKind.OPENCODE, 6144
@@ -4009,9 +3990,6 @@ MODELS: dict[str, ModelInfo] = {
         AgentKind.OPENCODE,
         1_050_000,
         effort_levels=("none", "low", "medium", "high", "xhigh", "max"),
-    ),
-    "opencode:openrouter/~unbiased/pareto-latest": ModelInfo(
-        "Pareto Latest (Openrouter)", AgentKind.OPENCODE, 1_048_576
     ),
     "opencode:openrouter/~x-ai/grok-latest": ModelInfo(
         "Grok Latest (Openrouter)",
@@ -4255,12 +4233,6 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:zai-coding-plan/glm-5.3-flash": ModelInfo(
         "GLM-5.3-Flash (Zai Coding Plan)",
-        AgentKind.OPENCODE,
-        1_000_000,
-        effort_levels=("low", "high", "max"),
-    ),
-    "opencode:zai-coding-plan/glm-5.3-highspeed": ModelInfo(
-        "GLM-5.3 Highspeed (Zai Coding Plan)",
         AgentKind.OPENCODE,
         1_000_000,
         effort_levels=("low", "high", "max"),
