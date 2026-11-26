@@ -14,6 +14,7 @@ import { useLogout } from '@/hooks/useLogout';
 import { UserProfileMenu } from '@/components/layout/UserProfileMenu/UserProfileMenu';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { SidebarActivityBar, SidebarActivityList } from './SidebarActivity';
+import { SidebarChannelMenu } from './SidebarChannelMenu';
 import { SidebarChannels } from './SidebarChannels';
 import { SidebarChatList } from './SidebarChatList';
 import { SidebarOverlays } from './SidebarOverlays';
@@ -316,6 +317,7 @@ export function Sidebar({
         workspaces={workspaces}
         machineWorkspaces={machineWorkspaces}
       />
+      <SidebarChannelMenu selectedChannelId={selectedChannelId} />
     </>
   );
 }
