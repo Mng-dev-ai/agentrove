@@ -27,6 +27,15 @@ export const DEFAULT_PERSONA = 'Default';
 
 type PermissionMode = (typeof PERMISSION_MODES)[number];
 
+function withoutChats<T>(
+  byChat: Record<string, T>,
+  isForgotten: (chatId: string) => boolean,
+): Record<string, T> {
+  return Object.fromEntries(
+    Object.entries(byChat).filter(([key]) => key === DEFAULT_KEY || !isForgotten(key)),
+  );
+}
+
 interface ChatSettingsState {
   permissionModeByChat: Record<string, PermissionMode>;
   thinkingModeByChat: Record<string, string>;
@@ -46,6 +55,7 @@ interface ChatSettingsState {
   setTargetMachine: (machineId: string) => void;
   setPersona: (chatId: string, name: string) => void;
   initChatFromDefaults: (chatId: string) => void;
+  cleanupChats: (isForgotten: (chatId: string) => boolean) => void;
 }
 
 export const useChatSettingsStore = create<ChatSettingsState>()(
@@ -148,6 +158,15 @@ export const useChatSettingsStore = create<ChatSettingsState>()(
         }
         if (Object.keys(updates).length > 0) set(updates);
       },
+      cleanupChats: (isForgotten) =>
+        set((state) => ({
+          permissionModeByChat: withoutChats(state.permissionModeByChat, isForgotten),
+          thinkingModeByChat: withoutChats(state.thinkingModeByChat, isForgotten),
+          worktreeByChat: withoutChats(state.worktreeByChat, isForgotten),
+          worktreeBaseBranchByChat: withoutChats(state.worktreeBaseBranchByChat, isForgotten),
+          fastModeByChat: withoutChats(state.fastModeByChat, isForgotten),
+          personaByChat: withoutChats(state.personaByChat, isForgotten),
+        })),
     }),
     { name: 'chat-settings-storage' },
   ),

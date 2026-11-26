@@ -54,6 +54,7 @@ import { useEditorState } from '@/hooks/useEditorState';
 import { viewLoadingFallback } from '@/components/ui/shared/ViewLoadingFallback/ViewLoadingFallback';
 import { PENDING_NEW_CHAT_KEY, type TileId } from '@/types/ui.types';
 import { tileIdToViewType } from '@/utils/tileHelpers';
+import { LANDING_TERMINAL_SCOPE_PREFIX } from '@/utils/terminal';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useMachinesChannels } from '@/hooks/queries/useChannelQueries';
@@ -540,7 +541,11 @@ export function LandingPage() {
             <Suspense fallback={viewLoadingFallback}>
               <TerminalContainer
                 sandboxId={selectedSandboxId}
-                storageScope={selectedSandboxId ? `landing-${selectedSandboxId}` : undefined}
+                storageScope={
+                  selectedSandboxId
+                    ? `${LANDING_TERMINAL_SCOPE_PREFIX}${selectedSandboxId}`
+                    : undefined
+                }
                 isVisible={isVisible}
                 panelKey={`tile-${tileId}`}
               />

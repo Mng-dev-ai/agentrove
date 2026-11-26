@@ -48,19 +48,12 @@ describe('clearTerminalStorage', () => {
     localStorage.setItem('unrelated:c1', '1');
   });
 
-  it('sweeps only the given chat and leaves other entries', () => {
-    clearTerminalStorage('c1');
+  it('sweeps only the matching scopes and leaves other entries', () => {
+    clearTerminalStorage((scope) => scope === 'c1' || scope === 'landing-sb1');
     expect(localStorage.getItem(terminalStorageKey('c1', 'main'))).toBeNull();
     expect(localStorage.getItem(terminalStorageKey('c1', 'side'))).toBeNull();
-    expect(localStorage.getItem(terminalStorageKey('c2', 'main'))).toBe('1');
-    expect(localStorage.getItem('unrelated:c1')).toBe('1');
-  });
-
-  it('sweeps every terminal entry, including landing scopes, when no chat id is given', () => {
-    clearTerminalStorage();
-    expect(localStorage.getItem(terminalStorageKey('c1', 'main'))).toBeNull();
-    expect(localStorage.getItem(terminalStorageKey('c2', 'main'))).toBeNull();
     expect(localStorage.getItem(terminalStorageKey('landing-sb1', 'main'))).toBeNull();
+    expect(localStorage.getItem(terminalStorageKey('c2', 'main'))).toBe('1');
     expect(localStorage.getItem('unrelated:c1')).toBe('1');
   });
 });

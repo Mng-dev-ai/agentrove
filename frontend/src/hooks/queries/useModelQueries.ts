@@ -3,14 +3,13 @@ import { useCallback, useMemo } from 'react';
 import { modelService } from '@/services/modelService';
 import type { Model } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID, type MachineQueryOptions } from '@/types/machine.types';
-import { useModelStore } from '@/store/modelStore';
+import { DEFAULT_MODEL_KEY, useModelStore } from '@/store/modelStore';
 import { useChatMachineId } from '@/store/machineOrigin';
 import { useMachineOnline, useMachineStore, useRemoteMachineIds } from '@/store/machineStore';
 import { queryKeys } from './queryKeys';
 import { useChatQuery, useInfiniteMessagesQuery } from './useChatQueries';
 
 const EMPTY_MODEL_MAP = new Map<string, Model>();
-const DEFAULT_MODEL_KEY = '__default__';
 
 function modelsQuery(machineId: string) {
   return {

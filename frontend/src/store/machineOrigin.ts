@@ -111,6 +111,19 @@ export function assignChatsToMachine(machineId: string, chatIds: Iterable<string
   if (assign(CHATS_KEY, machineId, chatIds)) notify();
 }
 
+export function forgetChatOrigins(isForgotten: (chatId: string) => boolean): void {
+  const changed = update(CHATS_KEY, (origins) => {
+    let changed = false;
+    for (const id of origins.keys()) {
+      if (!isForgotten(id)) continue;
+      origins.delete(id);
+      changed = true;
+    }
+    return changed;
+  });
+  if (changed) notify();
+}
+
 export function assignSandboxesToMachine(machineId: string, sandboxIds: Iterable<string>): void {
   assign(SANDBOXES_KEY, machineId, sandboxIds);
 }
