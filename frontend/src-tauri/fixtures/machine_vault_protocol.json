@@ -1,0 +1,1948 @@
+{
+  "description": "Shared paired-machine vault protocol cases. Driven by src/services/machineVault.test.ts (browserVault) and by the tests in src-tauri/src/machine.rs. Each step calls one vault operation, lists the HTTP exchanges it must perform in order, and gives the expected result or error code. A case with \"paired\": true runs paired_setup first. Only behaviour both implementations share belongs here; platform-specific behaviour is tested on its own side.",
+  "paired_setup": {
+    "op": "pair",
+    "args": {
+      "machine_id": "machine-1",
+      "url": "https://machine.example:8443",
+      "secret": "pairing-secret",
+      "device_name": "Work Laptop"
+    },
+    "exchanges": [
+      {
+        "request": {
+          "method": "POST",
+          "url": "https://machine.example:8443/api/v1/auth/pair",
+          "timeout_ms": 15000,
+          "json": {
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          }
+        },
+        "response": {
+          "status": 200,
+          "json": {
+            "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+            "refresh_token": "refresh-0",
+            "token_type": "bearer",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+            "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+          }
+        }
+      }
+    ],
+    "expect": {
+      "ok": {
+        "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+        "expires_at": 1900000000,
+        "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+        "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+      }
+    }
+  },
+  "cases": [
+    {
+      "name": "pair returns the grant and stores the session for the URL's origin",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443/settings/machines?from=link#pair=x",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+                  "refresh_token": "refresh-0",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+              "expires_at": 1900000000,
+              "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+              "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+                  "refresh_token": "refresh-9",
+                  "token_type": "bearer"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+              "expires_at": 1900001800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair trims the secret and the device name before sending them",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "  pairing-secret\n",
+            "device_name": "\tWork Laptop  "
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+                  "refresh_token": "refresh-0",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+              "expires_at": 1900000000,
+              "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+              "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair rejects a secret that is not 1 to 512 printable ASCII characters",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "",
+            "device_name": "Work Laptop"
+          },
+          "expect": {
+            "error": "invalid_link"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "   ",
+            "device_name": "Work Laptop"
+          },
+          "expect": {
+            "error": "invalid_link"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing secret",
+            "device_name": "Work Laptop"
+          },
+          "expect": {
+            "error": "invalid_link"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-sécret",
+            "device_name": "Work Laptop"
+          },
+          "expect": {
+            "error": "invalid_link"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "sssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+            "device_name": "Work Laptop"
+          },
+          "expect": {
+            "error": "invalid_link"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair accepts a 512 character secret",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+                  "refresh_token": "refresh-0",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+              "expires_at": 1900000000,
+              "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+              "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair rejects a device name that is blank or longer than 100 characters",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "   "
+          },
+          "expect": {
+            "error": "invalid_input"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn"
+          },
+          "expect": {
+            "error": "invalid_input"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair counts device name length in characters, not bytes or UTF-16 units",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+                  "refresh_token": "refresh-0",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+              "expires_at": 1900000000,
+              "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+              "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair rejects a URL that is not a plain https origin",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "http://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "expect": {
+            "error": "invalid_input"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://user:pass@machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "expect": {
+            "error": "invalid_input"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "machine.example",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "expect": {
+            "error": "invalid_input"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair maps HTTP 400 to invalid_link and stores nothing",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 400,
+                "json": {
+                  "detail": "Invalid or expired pairing link"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "invalid_link"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair maps any other non-2xx status to http and stores nothing",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 429,
+                "json": {
+                  "detail": "Rate limit exceeded"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "http"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 401,
+                "json": {
+                  "detail": "Unauthorized"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "http"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 500,
+                "text": "Internal Server Error"
+              }
+            }
+          ],
+          "expect": {
+            "error": "http"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair maps a 2xx body that is not the pair response to bad_response and stores nothing",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "text": "<html>captive portal</html>"
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+                  "refresh_token": "refresh-0",
+                  "token_type": "bearer",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+                  "refresh_token": "refresh-0",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "refresh_token": "refresh-0",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair maps an access token without a readable exp claim to bad_response and stores nothing",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkZXZpY2UifQ.sig",
+                  "refresh_token": "refresh-0",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "opaque-token",
+                  "refresh_token": "refresh-0",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair maps a transport failure to unreachable and stores nothing",
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "pairing-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "pairing-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "network_error": true
+              }
+            }
+          ],
+          "expect": {
+            "error": "unreachable"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "pair replaces an existing session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "pair",
+          "args": {
+            "machine_id": "machine-1",
+            "url": "https://machine.example:8443",
+            "secret": "second-secret",
+            "device_name": "Work Laptop"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/pair",
+                "timeout_ms": 15000,
+                "json": {
+                  "secret": "second-secret",
+                  "device_name": "Work Laptop"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+                  "refresh_token": "refresh-b",
+                  "token_type": "bearer",
+                  "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                  "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDAwMDB9.sig",
+              "expires_at": 1900000000,
+              "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+              "instance_id": "0f9e8d7c-6b5a-4f3e-8d2c-1b0a9f8e7d6c"
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-b"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+                  "refresh_token": "refresh-9",
+                  "token_type": "bearer"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+              "expires_at": 1900001800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "refresh without a stored session is not_paired and sends nothing",
+      "steps": [
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "sessions are stored per machine id",
+      "paired": true,
+      "steps": [
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-2"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+                  "refresh_token": "refresh-9",
+                  "token_type": "bearer"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+              "expires_at": 1900001800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "refresh returns the new grant and persists the rotated refresh token",
+      "paired": true,
+      "steps": [
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig",
+                  "refresh_token": "refresh-1",
+                  "token_type": "bearer"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig",
+              "expires_at": 1900000900
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-1"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+                  "refresh_token": "refresh-9",
+                  "token_type": "bearer"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+              "expires_at": 1900001800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "refresh maps HTTP 401 to session_revoked and deletes the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 401,
+                "json": {
+                  "detail": "Invalid refresh token"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "session_revoked"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "refresh maps any other non-2xx status to http and keeps the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 403,
+                "json": {
+                  "detail": "Forbidden"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "http"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 502,
+                "text": "Bad Gateway"
+              }
+            }
+          ],
+          "expect": {
+            "error": "http"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+                  "refresh_token": "refresh-9",
+                  "token_type": "bearer"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+              "expires_at": 1900001800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "refresh maps a 2xx body that is not a token pair to bad_response and keeps the stored token",
+      "paired": true,
+      "steps": [
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "text": "not json"
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "refresh_token": "refresh-1"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJkZXZpY2UifQ.sig",
+                  "refresh_token": "refresh-1",
+                  "token_type": "bearer"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "error": "bad_response"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+                  "refresh_token": "refresh-9",
+                  "token_type": "bearer"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+              "expires_at": 1900001800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "refresh maps a transport failure to unreachable and keeps the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "network_error": true
+              }
+            }
+          ],
+          "expect": {
+            "error": "unreachable"
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 15000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+                  "refresh_token": "refresh-9",
+                  "token_type": "bearer"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDE4MDB9.sig",
+              "expires_at": 1900001800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair rotates with the short timeout, deletes the device with the new access token and deletes the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 5000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig",
+                  "refresh_token": "refresh-1",
+                  "token_type": "bearer"
+                }
+              }
+            },
+            {
+              "request": {
+                "method": "DELETE",
+                "url": "https://machine.example:8443/api/v1/auth/devices/5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                "timeout_ms": 5000,
+                "bearer": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig"
+              },
+              "response": {
+                "status": 204
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "revoked": true
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair treats HTTP 404 from the device delete as revoked",
+      "paired": true,
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 5000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig",
+                  "refresh_token": "refresh-1",
+                  "token_type": "bearer"
+                }
+              }
+            },
+            {
+              "request": {
+                "method": "DELETE",
+                "url": "https://machine.example:8443/api/v1/auth/devices/5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                "timeout_ms": 5000,
+                "bearer": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig"
+              },
+              "response": {
+                "status": 404,
+                "json": {
+                  "detail": "Device not found"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "revoked": true
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair treats HTTP 401 during the rotation as revoked and skips the device delete",
+      "paired": true,
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 5000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 401,
+                "json": {
+                  "detail": "Invalid refresh token"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "revoked": true
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair reports not revoked when the rotation fails otherwise, and still deletes the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 5000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 503,
+                "text": "Service Unavailable"
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "revoked": false
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair reports not revoked when the rotation body is malformed, and still deletes the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 5000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "text": "not json"
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "revoked": false
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair reports not revoked when the rotation cannot reach the machine, and still deletes the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 5000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "network_error": true
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "revoked": false
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair reports not revoked when the device delete is rejected, and still deletes the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 5000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig",
+                  "refresh_token": "refresh-1",
+                  "token_type": "bearer"
+                }
+              }
+            },
+            {
+              "request": {
+                "method": "DELETE",
+                "url": "https://machine.example:8443/api/v1/auth/devices/5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                "timeout_ms": 5000,
+                "bearer": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig"
+              },
+              "response": {
+                "status": 401,
+                "json": {
+                  "detail": "Unauthorized"
+                }
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "revoked": false
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair reports not revoked when the device delete fails on the server, and still deletes the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 5000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig",
+                  "refresh_token": "refresh-1",
+                  "token_type": "bearer"
+                }
+              }
+            },
+            {
+              "request": {
+                "method": "DELETE",
+                "url": "https://machine.example:8443/api/v1/auth/devices/5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                "timeout_ms": 5000,
+                "bearer": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig"
+              },
+              "response": {
+                "status": 500,
+                "text": "Internal Server Error"
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "revoked": false
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair reports not revoked when the device delete cannot reach the machine, and still deletes the session",
+      "paired": true,
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "exchanges": [
+            {
+              "request": {
+                "method": "POST",
+                "url": "https://machine.example:8443/api/v1/auth/jwt/refresh",
+                "timeout_ms": 5000,
+                "json": {
+                  "refresh_token": "refresh-0"
+                }
+              },
+              "response": {
+                "status": 200,
+                "json": {
+                  "access_token": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig",
+                  "refresh_token": "refresh-1",
+                  "token_type": "bearer"
+                }
+              }
+            },
+            {
+              "request": {
+                "method": "DELETE",
+                "url": "https://machine.example:8443/api/v1/auth/devices/5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f",
+                "timeout_ms": 5000,
+                "bearer": "eyJhbGciOiJIUzI1NiJ9.eyJleHAiOjE5MDAwMDA5MDB9.sig"
+              },
+              "response": {
+                "network_error": true
+              }
+            }
+          ],
+          "expect": {
+            "ok": {
+              "revoked": false
+            }
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "unpair without a stored session reports not revoked and sends nothing",
+      "steps": [
+        {
+          "op": "unpair",
+          "args": {
+            "machine_id": "machine-1",
+            "device_id": "5b0a6c1e-2f4d-4c8a-9d3e-7a1b2c3d4e5f"
+          },
+          "expect": {
+            "ok": {
+              "revoked": false
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "forget deletes the session without contacting the machine",
+      "paired": true,
+      "steps": [
+        {
+          "op": "forget",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "ok": null
+          }
+        },
+        {
+          "op": "refresh",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "error": "not_paired"
+          }
+        }
+      ]
+    },
+    {
+      "name": "forget without a stored session succeeds",
+      "steps": [
+        {
+          "op": "forget",
+          "args": {
+            "machine_id": "machine-1"
+          },
+          "expect": {
+            "ok": null
+          }
+        }
+      ]
+    }
+  ]
+}

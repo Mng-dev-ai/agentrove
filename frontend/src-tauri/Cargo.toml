@@ -36,6 +36,9 @@ rustls = { version = "0.23", default-features = false, features = ["ring", "std"
 tokio = { version = "1", features = ["sync"] }
 base64 = "0.22"
 
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt"] }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 keyring = { version = "3", features = ["linux-native"] }
 
