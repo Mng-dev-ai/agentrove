@@ -16,11 +16,11 @@ from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole
 from app.models.schemas.chat import ChatRequest
 from app.models.types import PermissionMode
-from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.services.acp.adapters import UNSPECIFIED_PERMISSION_MODE
 from app.services.pairing import PairingService
 from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
+from app.services.turn_settings import resolve_inherited_turn_settings
 from app.services.user import UserService
 
 logger = logging.getLogger(__name__)
@@ -394,7 +394,7 @@ class SubThreadWake:
 
     @staticmethod
     def _wake_request(parent: Chat, prompt: str) -> ChatRequest | None:
-        model_id = parent.last_model_id
+        model_id, thinking_mode, persona_name = resolve_inherited_turn_settings(parent)
         if model_id is None or model_id not in MODELS:
             return None
         return ChatRequest(
@@ -406,8 +406,8 @@ class SubThreadWake:
                 parent.last_permission_mode
                 or UNSPECIFIED_PERMISSION_MODE[MODELS[model_id].agent_kind],
             ),
-            thinking_mode=parent.last_thinking_mode,
-            selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,
+            thinking_mode=thinking_mode,
+            selected_persona_name=persona_name,
         )
 
     @staticmethod

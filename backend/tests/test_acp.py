@@ -3317,13 +3317,19 @@ async def test_mcp_tools_accept_every_backend_thinking_mode_tier(
 @pytest.mark.parametrize(
     "model_id,thinking_mode,follow_up_model_id,expected",
     [
-        ("claude-haiku-5-5", "xhigh", "sonnet", ("sonnet", None)),
+        (
+            "claude-haiku-5-5",
+            "xhigh",
+            "sonnet",
+            ("sonnet", None, "bypassPermissions"),
+        ),
         (
             "opencode:opencode/gpt-5-nano",
             "default",
             None,
-            ("opencode:opencode/gpt-5-nano", "default"),
+            ("opencode:opencode/gpt-5-nano", "default", "build"),
         ),
+        ("gpt-5.4", "low", None, ("gpt-5.4", "low", "full-access")),
     ],
 )
 async def test_mcp_follow_up_inherits_only_a_tier_the_model_accepts(
@@ -3336,7 +3342,7 @@ async def test_mcp_follow_up_inherits_only_a_tier_the_model_accepts(
     model_id: str,
     thinking_mode: str,
     follow_up_model_id: str | None,
-    expected: tuple[str, str | None],
+    expected: tuple[str, str | None, str],
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id=model_id)
@@ -3375,7 +3381,60 @@ async def test_mcp_follow_up_inherits_only_a_tier_the_model_accepts(
     )
     detail = await client.get(f"/api/v1/chat/chats/{chat['id']}", headers=headers)
     body = detail.json()
-    assert (body["last_model_id"], body["last_thinking_mode"]) == expected
+    assert (
+        body["last_model_id"],
+        body["last_thinking_mode"],
+        body["last_permission_mode"],
+    ) == expected
+
+
+async def test_turn_routes_inherit_settings_only_when_asked(
+    client: httpx.AsyncClient,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    acp_cache: EndpointCache,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    first = await send_message(
+        client,
+        headers,
+        chat_id=chat["id"],
+        model_id="sonnet",
+        prompt="hi",
+        thinking_mode="low",
+    )
+    await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=first.json()["message_id"]
+    )
+    detail_url = f"/api/v1/chat/chats/{chat['id']}"
+
+    for url, data in (
+        ("/api/v1/chat/chat", {"prompt": "again", "chat_id": chat["id"]}),
+        (f"{detail_url}/queue", {"content": "again"}),
+    ):
+        missing = await client.post(url, data=data, headers=headers)
+        assert missing.status_code == 422, missing.text
+        assert missing.json()["detail"][0]["loc"] == ["body", "model_id"]
+
+        inherited = await client.post(
+            url, data={**data, "inherit_turn_settings": "true"}, headers=headers
+        )
+        assert inherited.is_success, inherited.text
+        await wait_for_latest_assistant(client, headers, chat["id"])
+        body = (await client.get(detail_url, headers=headers)).json()
+        assert (body["last_model_id"], body["last_thinking_mode"]) == ("sonnet", "low")
+
+    plain = await send_message(
+        client, headers, chat_id=chat["id"], model_id="sonnet", prompt="plain"
+    )
+    await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=plain.json()["message_id"]
+    )
+    body = (await client.get(detail_url, headers=headers)).json()
+    assert body["last_thinking_mode"] is None
 
 
 @pytest.mark.parametrize("revoke", ["device", "password_reset"])

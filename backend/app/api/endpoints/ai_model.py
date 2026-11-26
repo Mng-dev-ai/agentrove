@@ -41,6 +41,9 @@ async def list_models(
                 AGENT_ADAPTERS[info.agent_kind].valid_thinking_modes(mid),
                 key=THINKING_MODE_ORDER.index,
             ),
+            accepts_default_thinking_mode=(
+                AGENT_ADAPTERS[info.agent_kind].accepts_thinking_mode(mid, "default")
+            ),
             supports_fork=AGENT_ADAPTERS[info.agent_kind].supports_fork,
             supports_persona=info.agent_kind in PERSONAS_SUPPORTED_AGENTS,
             supports_fast_mode=(

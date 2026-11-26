@@ -234,6 +234,7 @@ export interface Model {
   context_window: number | null;
   legacy?: boolean;
   thinking_modes: string[];
+  accepts_default_thinking_mode?: boolean;
   supports_fork?: boolean;
   supports_persona?: boolean;
   supports_fast_mode?: boolean;

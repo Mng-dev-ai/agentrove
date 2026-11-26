@@ -63,6 +63,12 @@ async def test_list_models_exposes_agent_capabilities(
         assert item["supports_fast_mode"] is (adapter.fast_mode_config_id is not None)
         assert item["supports_usage_updates"] is adapter.supports_usage_updates
         assert item["unattended_permission_mode"] == UNATTENDED_PERMISSION_MODE[kind]
+        assert item["accepts_default_thinking_mode"] is adapter.accepts_thinking_mode(
+            item["model_id"], "default"
+        )
+    by_id = {item["model_id"]: item for item in body}
+    assert by_id["opencode:opencode/gpt-5-nano"]["accepts_default_thinking_mode"]
+    assert not by_id["sonnet"]["accepts_default_thinking_mode"]
 
 
 async def test_list_models_filters_by_agent_kind(

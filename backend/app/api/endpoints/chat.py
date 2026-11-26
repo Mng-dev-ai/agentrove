@@ -94,6 +94,7 @@ from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.turn_settings import resolve_inherited_turn_settings
 from app.utils.cache import CacheError, cache_connection
 from app.utils.parsing import parse_stream_cursors
 
@@ -169,37 +170,62 @@ async def promote_chat(
     return await chat_service.promote_chat(chat_id, current_user)
 
 
+def _required_model_id(model_id: str | None) -> str:
+    if model_id is None:
+        raise RequestValidationError(
+            [
+                {
+                    "type": "missing",
+                    "loc": ("body", "model_id"),
+                    "msg": "Field required",
+                    "input": None,
+                }
+            ]
+        )
+    return model_id
+
+
 @router.post("/chat", response_model=ChatCompletionResponse)
 async def send_message(
     prompt: str = Form(...),
     chat_id: str = Form(...),
     user_message_id: UUID | None = Form(None),
-    model_id: str = Form(...),
+    model_id: str | None = Form(None),
     permission_mode: PermissionMode = Form("bypassPermissions"),
     thinking_mode: str | None = Form(None),
     worktree: bool = Form(False),
     base_branch: str | None = Form(None),
     fast_mode: bool = Form(False),
-    selected_persona_name: str = Form(DEFAULT_PERSONA_NAME),
+    selected_persona_name: str | None = Form(None),
     report_to_parent: bool = Form(False),
+    inherit_turn_settings: bool = Form(False),
     attached_files: list[UploadFile] | None = File(None),
     chat_service: ChatService = Depends(get_chat_service),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, Any]:
     files = attached_files or []
     try:
+        if inherit_turn_settings:
+            model_id, thinking_mode, selected_persona_name = (
+                resolve_inherited_turn_settings(
+                    await chat_service.get_chat(UUID(chat_id), current_user),
+                    model_id=model_id,
+                    thinking_mode=thinking_mode,
+                    persona_name=selected_persona_name,
+                )
+            )
         request = ChatRequest(
             prompt=prompt,
             chat_id=UUID(chat_id),
             user_message_id=user_message_id,
-            model_id=model_id,
+            model_id=_required_model_id(model_id),
             attached_files=files,
             permission_mode=permission_mode,
             thinking_mode=thinking_mode,
             worktree=worktree,
             base_branch=base_branch,
             fast_mode=fast_mode,
-            selected_persona_name=selected_persona_name,
+            selected_persona_name=selected_persona_name or DEFAULT_PERSONA_NAME,
             report_to_parent=report_to_parent,
         )
         result = await chat_service.initiate_chat_completion(
@@ -816,20 +842,31 @@ async def queue_message(
     chat_id: UUID,
     content: str = Form(...),
     send_now: bool = Form(False),
-    model_id: str = Form(...),
+    model_id: str | None = Form(None),
     permission_mode: PermissionMode = Form("bypassPermissions"),
     thinking_mode: str | None = Form(None),
     worktree: bool = Form(False),
     base_branch: str | None = Form(None),
     fast_mode: bool = Form(False),
-    selected_persona_name: str = Form(DEFAULT_PERSONA_NAME),
+    selected_persona_name: str | None = Form(None),
     report_to_parent: bool = Form(False),
+    inherit_turn_settings: bool = Form(False),
     attached_files: list[UploadFile] | None = File(None),
     chat: Chat = Depends(ensure_chat_access),
     current_user: User = Depends(get_current_user),
     queue_service: QueueService = Depends(get_queue_service),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> QueueAddResponse:
+    if inherit_turn_settings:
+        model_id, thinking_mode, selected_persona_name = (
+            resolve_inherited_turn_settings(
+                chat,
+                model_id=model_id,
+                thinking_mode=thinking_mode,
+                persona_name=selected_persona_name,
+            )
+        )
+    model_id = _required_model_id(model_id)
     if report_to_parent and chat.parent_chat_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -844,7 +881,7 @@ async def queue_message(
             worktree=worktree,
             base_branch=base_branch,
             fast_mode=fast_mode,
-            selected_persona_name=selected_persona_name,
+            selected_persona_name=selected_persona_name or DEFAULT_PERSONA_NAME,
             report_to_parent=report_to_parent,
             device_ids=current_user.device_ids,
         )

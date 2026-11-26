@@ -46,20 +46,6 @@ def _channel_summary(channel: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _inheritable_thinking_mode(
-    model: dict[str, Any], thinking_mode: str | None
-) -> str | None:
-    # Mirrors the backend adapters: an explicit tier the model lacks fails the turn.
-    modes = model["thinking_modes"]
-    if (
-        not modes
-        or thinking_mode in modes
-        or (model["agent_kind"] == "opencode" and thinking_mode == "default")
-    ):
-        return thinking_mode
-    return None
-
-
 async def _resolve_members(
     client: AgentroveClient, members: list[ChannelMember]
 ) -> list[dict[str, Any]]:
@@ -556,16 +542,13 @@ async def send_message(
     still stop to ask a question or request a permission.
     """
     client, _ = _session()
+    follow_up = chat_id is not None
     if chat_id is not None:
-        # Inherit last turn's model/persona/effort when omitted (not globals).
+        # The backend inherits effort and persona; the model is needed here
+        # to pick its permission mode.
         chat = await client.get_chat(chat_id)
         model_id = model_id or chat.get("last_model_id")
-        persona = persona or chat.get("last_persona_name")
     model = await client.resolve_model(model_id)
-    if chat_id is not None:
-        thinking_mode = thinking_mode or _inheritable_thinking_mode(
-            model, chat.get("last_thinking_mode")
-        )
     resolved_model = model["model_id"]
     permission_mode = model["unattended_permission_mode"]
     if chat_id is None:
@@ -590,6 +573,7 @@ async def send_message(
             fast_mode=fast_mode,
             persona=persona,
             report_to_parent=bool(chat.get("parent_chat_id")),
+            inherit_turn_settings=follow_up,
         )
     except ChatBusyError:
         if when_busy is None:
@@ -606,6 +590,7 @@ async def send_message(
             fast_mode=fast_mode,
             persona=persona,
             report_to_parent=bool(chat.get("parent_chat_id")),
+            inherit_turn_settings=follow_up,
         )
         steering = when_busy == "steer" and not queued["send_now_failed"]
         return {
