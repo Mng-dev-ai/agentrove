@@ -32,6 +32,7 @@ class ChannelMessageStore(BaseDbService[ChannelMessage]):
         attachments: list[MessageAttachmentDict] | None = None,
         source_message_id: UUID | None = None,
         tool_call_count: int = 0,
+        has_render_ui: bool = False,
         *,
         device_ids: frozenset[UUID],
     ) -> ChannelMessage:
@@ -59,6 +60,7 @@ class ChannelMessageStore(BaseDbService[ChannelMessage]):
                 device_ids=device_ids,
                 source_message_id=source_message_id,
                 tool_call_count=tool_call_count,
+                has_render_ui=has_render_ui,
                 content=content,
                 status="streaming" if member_id else "completed",
                 audience=None
@@ -153,6 +155,7 @@ class ChannelMessageStore(BaseDbService[ChannelMessage]):
                 status=status,
                 version=message.version,
                 tool_call_count=message.tool_call_count,
+                has_render_ui=message.has_render_ui,
                 duration_ms=message.duration_ms,
                 audience=message.audience,
             )

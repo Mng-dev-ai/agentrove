@@ -31,6 +31,7 @@ class MemberTurn:
     batch: list[ChannelMessage]
     source_message_id: UUID | None = None
     tool_call_ids: set[str] = field(default_factory=set)
+    has_render_ui: bool = False
     text: str = ""
     reset_segment: bool = False
     last_flush_at: float = 0

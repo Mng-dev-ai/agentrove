@@ -51,6 +51,7 @@ DEBOUNCE_SECONDS = 2.5
 QUEUE_RETRY_SECONDS = 5
 REASON_LIMIT = 300
 MAX_ATTEMPTS = 5
+RENDER_UI_TOOL = "mcp__agentrove__render_ui"
 
 INTRODUCTION = (
     "You are {name}, a member of a group chat channel with the user and {others}. "
@@ -594,6 +595,7 @@ class ChannelEngine(BaseDbService[Channel]):
         else:
             async with self.session_factory() as db:
                 turn.message.tool_call_count = len(turn.tool_call_ids)
+                turn.message.has_render_ui = turn.has_render_ui
                 await self.messages.write_message(
                     db,
                     turn.message,
@@ -611,6 +613,7 @@ class ChannelEngine(BaseDbService[Channel]):
             turn.member.id,
             source_message_id=turn.source_message_id,
             tool_call_count=len(turn.tool_call_ids),
+            has_render_ui=turn.has_render_ui,
             device_ids=turn.device_ids,
         )
         async with self.session_factory() as db:
@@ -693,6 +696,7 @@ class ChannelEngine(BaseDbService[Channel]):
                 )
             if message is not None:
                 message.tool_call_count = len(turn.tool_call_ids)
+                message.has_render_ui = turn.has_render_ui
                 await self.messages.promote_attachments(db, message)
                 # A PASS that attached files stays visible: the user should see them.
                 silent = silent and not message.attachments
@@ -930,6 +934,11 @@ class ChannelEngine(BaseDbService[Channel]):
             async with state.lock:
                 if turn.status is TurnStatus.RUNNING:
                     turn.tool_call_ids.add(payload["tool"]["id"])
+                    if (
+                        kind == "tool_completed"
+                        and payload["tool"].get("name") == RENDER_UI_TOOL
+                    ):
+                        turn.has_render_ui = True
                     if kind == "tool_started":
                         turn.reset_segment = True
         elif kind == "error" and turn.status is TurnStatus.RUNNING:

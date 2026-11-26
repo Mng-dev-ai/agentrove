@@ -65,6 +65,8 @@ export interface ChannelMessage {
   audience: string[] | null;
   attachments: MessageAttachment[];
   tool_call_count: number;
+  // Absent from backends that predate the field.
+  has_render_ui?: boolean;
   duration_ms: number | null;
   created_at: string;
 }

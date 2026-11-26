@@ -91,9 +91,17 @@ interface ChannelMessageActivityProps {
   channelId: string;
   messageId: string;
   agentKind: AgentKind;
+  rollUp?: boolean;
+  durationMs?: number | null;
 }
 
-function ChannelMessageActivity({ channelId, messageId, agentKind }: ChannelMessageActivityProps) {
+function ChannelMessageActivity({
+  channelId,
+  messageId,
+  agentKind,
+  rollUp,
+  durationMs,
+}: ChannelMessageActivityProps) {
   const { data, isPending, isError } = useChannelMessageActivityQuery(channelId, messageId);
   const events = useMemo(
     () => data?.content_render.events.filter((event) => ACTIVITY_EVENT_TYPES.has(event.type)),
@@ -102,7 +110,15 @@ function ChannelMessageActivity({ channelId, messageId, agentKind }: ChannelMess
 
   if (isError) return <p className={styles['activity-unavailable']}>Activity unavailable</p>;
   if (isPending || !events) return <ToolPlaceholder />;
-  return <MessageRenderer events={events} chatId={data.chat_id} agentKind={agentKind} />;
+  return (
+    <MessageRenderer
+      events={events}
+      chatId={data.chat_id}
+      agentKind={agentKind}
+      rollUp={rollUp}
+      durationMs={durationMs}
+    />
+  );
 }
 
 interface AgentChannelMessageProps {
@@ -145,15 +161,26 @@ const AgentChannelMessage = memo(function AgentChannelMessage({
           )}
         </div>
       )}
-      {!isStreaming && message.tool_call_count > 0 && (
-        <WorkedRollup durationMs={message.duration_ms}>
+      {!isStreaming &&
+        (message.has_render_ui ? (
           <ChannelMessageActivity
             channelId={message.channel_id}
             messageId={message.id}
             agentKind={agentKind}
+            rollUp
+            durationMs={message.duration_ms}
           />
-        </WorkedRollup>
-      )}
+        ) : (
+          message.tool_call_count > 0 && (
+            <WorkedRollup durationMs={message.duration_ms}>
+              <ChannelMessageActivity
+                channelId={message.channel_id}
+                messageId={message.id}
+                agentKind={agentKind}
+              />
+            </WorkedRollup>
+          )
+        ))}
       <MessageText>
         <MarkDown content={content} streaming={isRevealing} mentions={mentionHandles} prose />
       </MessageText>

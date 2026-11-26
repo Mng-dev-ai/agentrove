@@ -281,6 +281,14 @@ export function resolveAgentKind(
   return modelMap.get(modelId ?? '')?.agent_kind ?? getAgentKindForModelId(modelId);
 }
 
+export function resolveChatAgentKind(
+  modelMap: ReadonlyMap<string, Model>,
+  sessionAgentKind: AgentKind | null | undefined,
+  modelId: string | null | undefined,
+): AgentKind | null {
+  return sessionAgentKind ?? (modelId ? resolveAgentKind(modelMap, modelId) : null);
+}
+
 export function supportsPersona(model: Model | undefined, agentKind: AgentKind): boolean {
   return model?.supports_persona ?? PERSONAS_SUPPORTED_AGENTS.has(agentKind);
 }
