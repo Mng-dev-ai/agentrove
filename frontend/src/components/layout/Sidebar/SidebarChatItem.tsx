@@ -1,5 +1,5 @@
 import { Fragment, memo, useEffect, useRef } from 'react';
-import { ChevronRight, CornerDownRight, Server } from 'lucide-react';
+import { ChevronRight, CornerDownRight } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { chatStatusTone, CHAT_STATUS_LABEL, type ChatStatusTone } from '@/utils/message';
@@ -13,14 +13,13 @@ import { getRelativeTime } from '@/utils/date';
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
+import { describeMachine } from './sidebarHelpers';
 import type { ChildActivity } from './useSidebarActivity';
 import styles from './SidebarChatItem.module.scss';
 
 export interface MachineBadge {
   name: string;
   offline: boolean;
-  // The machine most loaded chats run on; its rows carry no inline tag.
-  isPrimary: boolean;
 }
 
 interface SidebarChatItemProps {
@@ -72,25 +71,6 @@ function ChildActivityCounts({ activity }: { activity: ChildActivity }) {
           {activity.running}
         </span>
       )}
-    </span>
-  );
-}
-
-// Inline only where the row's machine isn't the obvious one: another machine than
-// most rows, or offline. The hover preview always names it.
-export function SidebarMachineTag({ machineBadge }: { machineBadge?: MachineBadge }) {
-  if (!machineBadge || (machineBadge.isPrimary && !machineBadge.offline)) return null;
-  return (
-    <span
-      className={clsx(
-        styles['machine-tag'],
-        machineBadge.offline && styles['machine-tag--offline'],
-      )}
-    >
-      <Server className={styles['machine-icon']} />
-      <span className={styles['machine-name']}>
-        {machineBadge.offline ? `${machineBadge.name} · offline` : machineBadge.name}
-      </span>
     </span>
   );
 }
@@ -241,7 +221,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         .filter(Boolean)
         .join(' · ')}
       facts={[
-        ['Machine', machineBadge?.name],
+        ['Machine', describeMachine(machineBadge)],
         ['Workspace', workspaceBadge?.name],
         [
           'Sub-threads',
@@ -281,13 +261,9 @@ export const SidebarChatItem = memo(function SidebarChatItem({
               onSelect(chat.id);
             }}
             trailing={
-              <>
-                {/* Resting sub-thread hint; caret covers this on hover/expand and on touch. */}
-                {hasSubThreads && !showCaret && (
-                  <CornerDownRight className={styles['subthread-hint']} />
-                )}
-                <SidebarMachineTag machineBadge={machineBadge} />
-              </>
+              // Resting sub-thread hint; caret covers this on hover/expand and on touch.
+              hasSubThreads &&
+              !showCaret && <CornerDownRight className={styles['subthread-hint']} />
             }
           />
         }

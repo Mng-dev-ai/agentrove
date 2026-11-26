@@ -172,34 +172,17 @@ export function Sidebar({
     pagingCanMatch ? filters : null,
   );
 
-  // The machine most loaded chats run on, unaffected by filters: rows elsewhere get
-  // an inline machine tag
-  const primaryMachineId = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const chat of sidebarChats) {
-      const machineId = chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID;
-      counts.set(machineId, (counts.get(machineId) ?? 0) + 1);
-    }
-    let primary = LOCAL_MACHINE_ID;
-    for (const [machineId, count] of counts) {
-      if (count > (counts.get(primary) ?? 0)) primary = machineId;
-    }
-    return primary;
-  }, [sidebarChats, chatOrigins]);
   const machineBadge = useCallback(
     (machineId: string): MachineBadge | undefined => {
       if (machineId === LOCAL_MACHINE_ID) {
-        return machines.length === 0
-          ? undefined
-          : { name: LOCAL_MACHINE_NAME, offline: false, isPrimary: primaryMachineId === machineId };
+        return machines.length === 0 ? undefined : { name: LOCAL_MACHINE_NAME, offline: false };
       }
       return {
         name: machines.find((machine) => machine.id === machineId)?.name ?? 'Removed machine',
         offline: connections[machineId]?.status !== 'online',
-        isPrimary: primaryMachineId === machineId,
       };
     },
-    [machines, connections, primaryMachineId],
+    [machines, connections],
   );
   const machineBadgeForChat = useCallback(
     (chatId: string) => machineBadge(chatOrigins.get(chatId) ?? LOCAL_MACHINE_ID),

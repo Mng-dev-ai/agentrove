@@ -98,37 +98,6 @@
   }
 }
 
-.machine-tag {
-  @include type.type-meta(500);
-  display: inline-flex;
-  min-width: 0;
-  flex-shrink: 1;
-  align-items: center;
-  gap: var(--space-1);
-  border-radius: var(--radius-sm);
-  background-color: var(--theme-surface-tertiary);
-  padding-inline: var(--space-1);
-  color: var(--theme-text-tertiary);
-
-  &--offline {
-    color: colors.status-color('warning', 600);
-
-    :global([data-theme='dark']) & {
-      color: colors.status-color('warning', 400);
-    }
-  }
-}
-
-.machine-icon {
-  height: var(--space-2-5);
-  width: var(--space-2-5);
-  flex-shrink: 0;
-}
-
-.machine-name {
-  @include type.type-overflow;
-}
-
 .preview {
   display: flex;
   flex-direction: column;

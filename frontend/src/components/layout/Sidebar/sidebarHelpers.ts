@@ -1,5 +1,6 @@
 import toast from 'react-hot-toast';
 import { DROPDOWN_WIDTH, DROPDOWN_HEIGHT, DROPDOWN_MARGIN } from '@/config/constants';
+import type { MachineBadge } from './SidebarChatItem';
 
 export async function mutateWithToast<T>(
   mutateFn: () => Promise<T>,
@@ -51,4 +52,10 @@ export function calculateDropdownPosition(buttonRect: DOMRect): { top: number; l
   );
 
   return { top, left };
+}
+
+// For the hover preview: the row itself names no machine
+export function describeMachine(machineBadge?: MachineBadge): string | undefined {
+  if (!machineBadge) return undefined;
+  return machineBadge.offline ? `${machineBadge.name} · offline` : machineBadge.name;
 }

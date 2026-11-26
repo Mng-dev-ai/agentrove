@@ -21,6 +21,8 @@ interface TooltipPosition {
   left: number;
   triggerTop: number;
   triggerBottom: number;
+  triggerLeft: number;
+  triggerRight: number;
 }
 
 interface FloatingTooltipProps {
@@ -29,7 +31,8 @@ interface FloatingTooltipProps {
   className?: string;
   // Renders the trigger as a span so it can sit inside running text (e.g. a <p>).
   inline?: boolean;
-  // 'right' opens beside the trigger, top-aligned, so it doesn't cover the rows below
+  // 'right' opens beside the trigger, top-aligned, so it doesn't cover the rows below;
+  // it falls back to below when the viewport has no room on the right
   placement?: 'below' | 'right';
 }
 
@@ -55,21 +58,14 @@ export function FloatingTooltip({
       // Measure at show time, not pointer-enter — the list may scroll during the delay
       const rect = triggerRef.current?.getBoundingClientRect();
       if (rect && triggerRef.current?.matches(':hover')) {
-        setPosition(
-          placement === 'right'
-            ? {
-                top: rect.top,
-                left: rect.right + TOOLTIP_GAP,
-                triggerTop: rect.top,
-                triggerBottom: rect.bottom,
-              }
-            : {
-                top: rect.bottom + TOOLTIP_GAP,
-                left: rect.left,
-                triggerTop: rect.top,
-                triggerBottom: rect.bottom,
-              },
-        );
+        setPosition({
+          top: rect.bottom + TOOLTIP_GAP,
+          left: rect.left,
+          triggerTop: rect.top,
+          triggerBottom: rect.bottom,
+          triggerLeft: rect.left,
+          triggerRight: rect.right,
+        });
       }
     }, SHOW_DELAY_MS);
   };
@@ -92,14 +88,18 @@ export function FloatingTooltip({
     const belowTop = openAbove
       ? position.triggerTop - TOOLTIP_GAP - height
       : position.triggerBottom + TOOLTIP_GAP;
-    const desiredTop = placement === 'right' ? position.triggerTop : belowTop;
+    const opensRight =
+      placement === 'right' &&
+      position.triggerRight + TOOLTIP_GAP + width <= window.innerWidth - VIEWPORT_PADDING;
+    const desiredTop = opensRight ? position.triggerTop : belowTop;
+    const desiredLeft = opensRight ? position.triggerRight + TOOLTIP_GAP : position.triggerLeft;
     const top = Math.max(
       VIEWPORT_PADDING,
       Math.min(desiredTop, window.innerHeight - VIEWPORT_PADDING - height),
     );
     const left = Math.max(
       VIEWPORT_PADDING,
-      Math.min(position.left, window.innerWidth - VIEWPORT_PADDING - width),
+      Math.min(desiredLeft, window.innerWidth - VIEWPORT_PADDING - width),
     );
 
     if (top !== position.top || left !== position.left) {

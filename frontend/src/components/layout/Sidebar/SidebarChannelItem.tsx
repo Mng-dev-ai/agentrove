@@ -8,7 +8,8 @@ import { getRelativeTime } from '@/utils/date';
 import { chatStatusTone, CHAT_STATUS_LABEL } from '@/utils/message';
 import type { Channel } from '@/types/channel.types';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
-import { SidebarMachineTag, SidebarRowPreview, type MachineBadge } from './SidebarChatItem';
+import { SidebarRowPreview, type MachineBadge } from './SidebarChatItem';
+import { describeMachine } from './sidebarHelpers';
 import styles from './SidebarChannelItem.module.scss';
 
 interface SidebarChannelItemProps {
@@ -47,7 +48,7 @@ export function SidebarChannelItem({
         .filter(Boolean)
         .join(' · ')}
       facts={[
-        ['Machine', machineBadge?.name],
+        ['Machine', describeMachine(machineBadge)],
         ['Members', channel.members.map((member) => member.display_name).join(', ')],
       ]}
     />
@@ -86,7 +87,6 @@ export function SidebarChannelItem({
             isEmphasized={isActive || isUnread}
             isCurrent={isActive}
             onClick={() => onSelect(channel.id)}
-            trailing={<SidebarMachineTag machineBadge={machineBadge} />}
           />
         }
         timestamp={getRelativeTime(channel.updated_at)}
