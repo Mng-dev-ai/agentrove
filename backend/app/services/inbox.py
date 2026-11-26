@@ -77,7 +77,7 @@ class InboxService(BaseDbService[InboxItem]):
                 )
             ).one_or_none()
             if user.agent_scope is not None and (
-                chat is None or chat.id != user.agent_scope.chat_id
+                chat is None or chat.id != user.agent_chat_id
             ):
                 chat = None
             if chat is None:

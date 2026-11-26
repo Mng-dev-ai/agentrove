@@ -2360,7 +2360,7 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     mints = iter(("token-one", "token-two", "token-three", "token-four"))
     monkeypatch.setattr(
         "app.services.agent.create_mcp_access_token",
-        lambda user_id, hashed_password, device_ids: next(mints),
+        lambda user_id, hashed_password, device_ids, chat_id: next(mints),
     )
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -3107,6 +3107,30 @@ async def test_mcp_reaches_member_chats_only_of_channels_linked_to_the_caller(
         client, headers, linked_id, lambda activity: activity["elicitations"]
     )
     request_id = activity["elicitations"][0]["request"]["request_id"]
+    member_chat_id = channels["linked"]["members"][0]["chat_id"]
+    host_statuses = []
+    for chat_id in (str(caller.id), str(other.id), None):
+        token = create_mcp_access_token(
+            str(user.id), user.hashed_password, frozenset(), chat_id
+        )
+        host = {"Authorization": f"Bearer {token}"}
+        responses = [
+            await client.get(f"/api/v1/chat/chats/{member_chat_id}{path}", headers=host)
+            for path in ("/messages", "/status", "", "/context-usage")
+        ]
+        responses.append(
+            await client.post(
+                f"/api/v1/chat/chats/{member_chat_id}/elicitation/unknown/respond",
+                json={"request_id": "unknown", "action": "decline", "content": None},
+                headers=host,
+            )
+        )
+        host_statuses.append(
+            [
+                (response.status_code, response.json().get("detail"))
+                for response in responses
+            ]
+        )
 
     workspace.sandbox_provider = "docker"
     await db_session.commit()
@@ -3143,6 +3167,18 @@ async def test_mcp_reaches_member_chats_only_of_channels_linked_to_the_caller(
     workspace.sandbox_provider = "host"
     await db_session.commit()
 
+    linked_host, other_host, chatless_host = host_statuses
+    assert [status for status, _ in linked_host[:4]] == [200] * 4
+    assert linked_host[4] == (404, "Elicitation request not found or expired")
+    refused = [
+        (403, "Chat not found or you don't have permission to access messages"),
+        (404, "Chat not found or access denied"),
+        (404, "Chat not found or you don't have permission to access it"),
+        (404, "Chat not found or you don't have permission to access it"),
+        (404, "Chat not found or access denied"),
+    ]
+    assert other_host == refused
+    assert chatless_host == refused
     messages, pending, answered = results["linked"]
     assert messages["structuredContent"]["messages"], messages
     assert [

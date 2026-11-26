@@ -12,6 +12,7 @@ from app.models.types import PermissionMode
 from app.utils.sandbox import BaseBranch
 
 BROADCAST_MENTIONS = {"all", "everyone"}
+MemberOutcome = Literal["replied", "passed"]
 
 
 class ChannelMemberFields(BaseModel):
@@ -97,6 +98,12 @@ class ChannelMemberActivity(BaseModel):
     unavailable_members: dict[str, str]
 
 
+class ChannelMemberState(BaseModel):
+    state: Literal["running", "blocked", "retrying", "gave_up", "unavailable", "idle"]
+    detail: str | None = None
+    outcome: MemberOutcome | None = None
+
+
 class ChannelRead(BaseModel):
     id: UUID
     workspace_id: UUID
@@ -113,7 +120,7 @@ class ChannelRead(BaseModel):
     activity: ChannelMemberActivity
     parent_chat_id: UUID | None = None
     instructions: str | None = None
-    member_outcomes: dict[str, Literal["replied", "passed"]] = {}
+    member_states: dict[str, ChannelMemberState] = {}
 
 
 class ChannelMessageRead(BaseModel):

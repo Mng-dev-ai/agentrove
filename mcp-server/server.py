@@ -66,37 +66,6 @@ def _channel_summary(channel: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _member_states(channel: dict[str, Any]) -> list[dict[str, Any]]:
-    activity = channel["activity"]
-    states = []
-    for member in channel["members"]:
-        member_id = member["id"]
-        detail = None
-        if member_id in activity["waiting_member_ids"]:
-            state = "blocked"
-        elif member_id in activity["member_ids"]:
-            state = "running"
-        elif member_id in activity["retrying_member_ids"]:
-            state = "retrying"
-            detail = activity["member_errors"][member_id]
-        elif member_id in activity["unavailable_members"]:
-            state = "gave_up"
-            detail = activity["unavailable_members"][member_id]
-        else:
-            state = "idle"
-        states.append(
-            {
-                "id": member_id,
-                "chat_id": member["chat_id"],
-                "display_name": member["display_name"],
-                "state": state,
-                "detail": detail,
-                "outcome": channel["member_outcomes"].get(member_id),
-            }
-        )
-    return states
-
-
 async def _resolve_members(
     client: AgentroveClient, members: list[ChannelMember]
 ) -> list[dict[str, Any]]:
@@ -154,24 +123,17 @@ def _session() -> tuple[AgentroveClient, str | None]:
     return request.state.agentrove_client, request.state.agentrove_chat_id
 
 
-async def _is_linked_member(
-    client: AgentroveClient, current_chat_id: str | None, chat: dict[str, Any]
-) -> bool:
-    channel_id = chat.get("channel_id")
-    if current_chat_id is None or channel_id is None:
-        return False
-    channel = await client.get_channel(channel_id)
-    return bool(channel["parent_chat_id"] == current_chat_id)
-
-
 async def _require_delegate(
     client: AgentroveClient, current_chat_id: str | None, chat_id: str
 ) -> None:
     chat = await client.get_chat(chat_id)
-    if current_chat_id is None or not (
-        chat.get("parent_chat_id") == current_chat_id
-        or await _is_linked_member(client, current_chat_id, chat)
-    ):
+    channel_id = chat.get("channel_id")
+    parent_chat_id = (
+        chat.get("parent_chat_id")
+        if channel_id is None
+        else (await client.get_channel(channel_id))["parent_chat_id"]
+    )
+    if current_chat_id is None or parent_chat_id != current_chat_id:
         raise AgentroveError(
             f"Chat {chat_id} is not a sub-thread of this chat or a member of a "
             "channel linked to it."
@@ -803,14 +765,7 @@ async def get_messages(
     parent_chat_id set to the current chat; read other channels with
     get_channel_messages.
     """
-    client, current_chat_id = _session()
-    chat = await client.get_chat(chat_id)
-    if chat.get("channel_id") is not None and not await _is_linked_member(
-        client, current_chat_id, chat
-    ):
-        raise AgentroveError(
-            f"Chat {chat_id} is a member of a channel that is not linked to this chat."
-        )
+    client, _ = _session()
     page = await client.get_messages(chat_id, limit=limit, cursor=cursor)
     context_usage = await client.get_context_usage(chat_id)
     # Backend is newest-first; reverse for chronological readability.
@@ -943,12 +898,13 @@ async def get_channel_messages(channel_id: str, after_seq: int = 0) -> dict[str,
     "completed" when done; "cancelled" and "deleted" also occur.
 
     Also returns members: each member's id, chat_id, display_name and state — "running",
-    "blocked" (waiting on a permission request or question; see get_pending_requests),
-    "retrying" (failed, will try again; detail has the error), "gave_up" (stopped
-    retrying or its model is unavailable; detail has the reason) or "idle". For an
-    idle member, outcome says whether it "replied" or "passed" (had nothing to add) in
-    the round started by the latest user message; it is null when the member was not
-    addressed, has not run yet, or the backend restarted since.
+    "blocked" (waiting on a permission request or question; see get_pending_requests;
+    detail names what it waits on), "retrying" (failed, will try again; detail has the
+    error), "gave_up" (stopped retrying; detail has the reason), "unavailable" (its
+    model is unknown; detail says which) or "idle". outcome says whether the member
+    "replied" or "passed" (had nothing to add) in the round started by the latest user
+    message; it is null when the member was not addressed, has not finished a turn
+    yet, or the backend restarted since.
 
     Use this to follow a debate in one call instead of reading each member's chat.
     """
@@ -976,7 +932,15 @@ async def get_channel_messages(channel_id: str, after_seq: int = 0) -> dict[str,
             }
             for message in messages
         ],
-        "members": _member_states(channel),
+        "members": [
+            {
+                "id": member["id"],
+                "chat_id": member["chat_id"],
+                "display_name": member["display_name"],
+                **channel["member_states"][member["id"]],
+            }
+            for member in channel["members"]
+        ],
     }
 
 

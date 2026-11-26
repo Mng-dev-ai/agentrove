@@ -2813,6 +2813,7 @@ async def settle_round(
         await asyncio.gather(state.timer, return_exceptions=True)
     await runtime.wake(state)
     state.paused = False
+    state.quiet_until = 0
     await channel_engine.wake(state)
     await asyncio.gather(*wake._tasks)
 
@@ -2843,7 +2844,7 @@ async def test_linked_channel_wakes_its_parent_for_the_rounds_the_parent_posted(
     assert created.status_code == 201, created.text
     linked = channel_engine.states[UUID(created.json()["id"])]
     [member] = linked.channel.members
-    prompts = []
+    wakes = 0
 
     for reply, outcome in (("Found a bug", "replied"), ("PASS", "passed")):
         posted = await client.post(
@@ -2852,16 +2853,26 @@ async def test_linked_channel_wakes_its_parent_for_the_rounds_the_parent_posted(
             headers=headers,
         )
         assert posted.status_code == 201, posted.text
+        queued = await client.post(
+            f"/api/v1/channels/{linked.channel.id}/queue",
+            data={"content": "Queued by the user"},
+            headers=headers,
+        )
+        assert queued.status_code == 201, queued.text
         channel_runtime.events = [("assistant_text", {"text": reply})]
         await settle_round(linked, channel_runtime, wake)
-        prompts.append(initiate.call_args.args[0].prompt)
-        assert f"- #Review (channel_id: {linked.channel.id}, settled)" in prompts[-1]
+        wakes += 1
+        assert initiate.await_count == wakes
+        prompt = initiate.call_args.args[0].prompt
+        assert f"- #Review (channel_id: {linked.channel.id}, settled)" in prompt
         assert (
             f"  - {member.display_name} (chat_id: {member.chat_id}): {outcome}"
-            in prompts[-1]
+            in prompt
         )
+        channel_runtime.events = [("assistant_text", {"text": "Answering the user"})]
+        await settle_round(linked, channel_runtime, wake)
+        assert initiate.await_count == wakes
         assert linked.channel.owed_report_device_ids is None
-    assert initiate.await_count == 2
     assert initiate.call_args.args[0].chat_id == parent.id
 
     refused = await client.post(

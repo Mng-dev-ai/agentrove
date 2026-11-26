@@ -92,7 +92,10 @@ async def get_current_user(
 
 
 def create_mcp_access_token(
-    user_id: str, hashed_password: str, device_ids: frozenset[UUID]
+    user_id: str,
+    hashed_password: str,
+    device_ids: frozenset[UUID],
+    chat_id: str | None = None,
 ) -> str:
     # Minted for the stdio MCP server of a host-workspace session — audience must
     # match the JWTStrategy in user_manager.py (fastapi-users default) so the
@@ -105,6 +108,7 @@ def create_mcp_access_token(
                 "aud": ["fastapi-users:auth"],
                 "mcp": True,
                 "host": True,
+                "cid": chat_id,
                 "did": DEVICE_IDS.dump_python(device_ids, mode="json"),
                 "pwd": password_fingerprint(hashed_password),
             },
@@ -192,10 +196,10 @@ async def exchange_sandbox_mcp_token(token: str) -> tuple[str, str | None] | Non
         )
         if workspace is None:
             return None
-        if scope.chat_id is not None and (
+        if user.agent_chat_id is not None and (
             await db.scalar(
                 select(Chat.id).where(
-                    Chat.id == scope.chat_id,
+                    Chat.id == user.agent_chat_id,
                     Chat.user_id == user.id,
                     Chat.workspace_id == scope.workspace_id,
                     Chat.deleted_at.is_(None),

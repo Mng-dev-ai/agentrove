@@ -414,8 +414,8 @@ class ChannelService(BaseDbService[Channel]):
             activity=ChannelMemberActivity.model_validate(state.member_activity()),
             parent_chat_id=channel.parent_chat_id,
             instructions=channel.instructions,
-            member_outcomes={
-                str(member_id): outcome for member_id, outcome in state.outcomes.items()
+            member_states={
+                str(member.id): state.member_state(member) for member in channel.members
             },
         )
 

@@ -70,7 +70,7 @@ class SubThreadWake:
     def __init__(self) -> None:
         self._pending: dict[str, dict[str, frozenset[UUID]]] = {}
         self._waiting: dict[str, dict[str, InputWait]] = {}
-        self._channels: dict[str, set[str]] = {}
+        self._channels: dict[str, dict[str, ChannelReport]] = {}
         self._scheduled: set[str] = set()
         self._tasks: set[asyncio.Task[None]] = set()
         self._closed = False
@@ -160,8 +160,8 @@ class SubThreadWake:
         )
         self._schedule(report_parent_id)
 
-    def on_channel_update(self, parent_id: str, channel_id: str) -> None:
-        self._channels.setdefault(parent_id, set()).add(channel_id)
+    def on_channel_report(self, parent_id: str, report: ChannelReport) -> None:
+        self._channels.setdefault(parent_id, {})[report.channel_id] = report
         self._schedule(parent_id)
 
     def _add_reports(self, parent_id: str, reports: dict[str, frozenset[UUID]]) -> None:
@@ -255,10 +255,9 @@ class SubThreadWake:
             )
         if waiting:
             self._add_waits(parent_id, {child.chat_id: child.wait for child in waiting})
-        if channels:
-            self._channels.setdefault(parent_id, set()).update(
-                channel.channel_id for channel in channels
-            )
+        pending = self._channels.setdefault(parent_id, {}) if channels else {}
+        for channel in channels:
+            pending.setdefault(channel.channel_id, channel)
         if schedule:
             self._schedule(parent_id)
 
@@ -358,25 +357,14 @@ class SubThreadWake:
     async def _take_channels(
         self, db: AsyncSession, parent: Chat
     ) -> list[ChannelReport]:
-        # Avoid circular import with channels/engine.py.
-        from app.services.channels.engine import channel_engine
-
-        reports = []
-        for channel_id in self._channels.pop(str(parent.id), set()):
-            state = channel_engine.states.get(UUID(channel_id))
-            if state is None or state.channel.owed_report_device_ids is None:
-                continue
-            report = state.parent_report()
-            if report.needs_parent:
-                reports.append(report)
+        reports = list(self._channels.pop(str(parent.id), {}).values())
         active = await PairingService.active_device_ids(
             db,
             parent.user_id,
             frozenset[UUID]().union(*(report.device_ids for report in reports)),
         )
-        await self._clear_channel_owed(
-            [report for report in reports if not report.device_ids <= active],
-            keep_if_busy=False,
+        await self._channel_reports_delivered(
+            [report for report in reports if not report.device_ids <= active]
         )
         return sorted(
             (report for report in reports if report.device_ids <= active),
@@ -384,24 +372,20 @@ class SubThreadWake:
         )
 
     @staticmethod
-    async def _clear_channel_owed(
-        reports: list[ChannelReport], *, keep_if_busy: bool
-    ) -> None:
+    async def _channel_reports_delivered(reports: list[ChannelReport]) -> None:
         # Avoid circular import with channels/engine.py.
         from app.services.channels.engine import channel_engine
 
         for report in reports:
             state = channel_engine.states.get(UUID(report.channel_id))
             if state is not None:
-                await channel_engine.clear_owed_report(state, keep_if_busy=keep_if_busy)
+                await channel_engine.report_delivered(state)
 
     async def _report_delivered(
         self, children: list[ChildResult], channels: list[ChannelReport]
     ) -> None:
         await self._clear_owed(child.chat_id for child in children)
-        await self._clear_channel_owed(
-            [channel for channel in channels if channel.settled], keep_if_busy=True
-        )
+        await self._channel_reports_delivered(channels)
 
     async def _steer_into_turn(
         self,
@@ -556,14 +540,22 @@ class SubThreadWake:
         if channels:
             lines = []
             for channel in channels:
-                progress = "settled" if channel.settled else "still running"
                 lines.append(
-                    f"- #{channel.name} (channel_id: {channel.channel_id}, {progress})"
+                    f"- #{channel.name} (channel_id: {channel.channel_id}, "
+                    f"{channel.progress})"
                 )
-                lines.extend(
-                    f"  - {member.name} (chat_id: {member.chat_id}): {member.status}"
-                    for member in channel.members
-                )
+                for member in channel.members:
+                    state = member.state
+                    status = (
+                        state.outcome
+                        if state.state == "idle" and state.outcome
+                        else state.state.replace("_", " ")
+                    )
+                    detail = f" ({state.detail})" if state.detail else ""
+                    lines.append(
+                        f"  - {member.name} (chat_id: {member.chat_id}): "
+                        f"{status}{detail}"
+                    )
             sections.append(
                 f"{CHANNEL_OPENING}\n\n"
                 + "\n".join(lines)
@@ -602,9 +594,9 @@ class SubThreadWake:
             lines = ["Channel updates:"]
             for channel in channels:
                 title = SubThreadWake._notice_title(channel.name)
-                progress = "settled" if channel.settled else "needs attention"
                 lines.append(
-                    f"- **[#{title}](/channels/{channel.channel_id})** ({progress})"
+                    f"- **[#{title}](/channels/{channel.channel_id})** "
+                    f"({channel.progress})"
                 )
             sections.append("\n".join(lines))
         return "\n\n".join(sections)

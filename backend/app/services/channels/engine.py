@@ -33,6 +33,7 @@ from app.services.channels.state import (
     ChannelState,
     MemberRetry,
     MemberTurn,
+    RoundProgress,
     TurnStatus,
 )
 from app.services.chat import ChatService
@@ -192,6 +193,8 @@ class ChannelEngine(BaseDbService[Channel]):
                 async with state.lock:
                     if state.deleted:
                         raise HTTPException(404, "Channel not found")
+                    if not report_to_parent:
+                        self.report_round(state, "interrupted by a user message")
                     state.paused = True
                     state.last_reply = None
                     state.outcomes.clear()
@@ -205,11 +208,14 @@ class ChannelEngine(BaseDbService[Channel]):
                     await self.cancel_active(state, turns)
                     message = await self.send(state, content, attachments, device_ids)
                     if report_to_parent:
+                        owed = state.channel.owed_report_device_ids
                         await self.set_owed_report(
                             state,
-                            (state.channel.owed_report_device_ids or frozenset())
-                            | device_ids,
+                            device_ids | (owed or frozenset())
+                            if state.report_due
+                            else device_ids,
                         )
+                        state.report_due = True
             finally:
                 try:
                     await self.cancel_turns(turns)
@@ -235,24 +241,19 @@ class ChannelEngine(BaseDbService[Channel]):
             await db.commit()
         state.channel.owed_report_device_ids = device_ids
 
-    async def clear_owed_report(
-        self, state: ChannelState, *, keep_if_busy: bool
-    ) -> None:
+    async def report_delivered(self, state: ChannelState) -> None:
         async with state.lock:
-            # A post made since a delivered report was built still owes its own.
-            if state.idle() or not keep_if_busy:
+            if not state.report_due:
                 await self.set_owed_report(state, None)
 
     @staticmethod
-    def notify_parent(state: ChannelState) -> None:
-        channel = state.channel
-        if (
-            channel.parent_chat_id is not None
-            and channel.owed_report_device_ids is not None
-        ):
-            subthread_wake.on_channel_update(
-                str(channel.parent_chat_id), str(channel.id)
-            )
+    def report_round(state: ChannelState, progress: RoundProgress) -> None:
+        if not state.report_due:
+            return
+        subthread_wake.on_channel_report(
+            str(state.channel.parent_chat_id), state.parent_report(progress)
+        )
+        state.report_due = progress == "still running"
 
     async def cancel_active(self, state: ChannelState, turns: list[MemberTurn]) -> None:
         for turn in turns:
@@ -400,7 +401,7 @@ class ChannelEngine(BaseDbService[Channel]):
     async def settle(self, state: ChannelState) -> tuple[UUID, str, str] | None:
         if not state.idle():
             return None
-        self.notify_parent(state)
+        self.report_round(state, "settled")
         if state.last_reply is None:
             return None
         author, message = state.last_reply
@@ -464,7 +465,7 @@ class ChannelEngine(BaseDbService[Channel]):
                 attempts,
                 error,
             )
-            self.notify_parent(state)
+            self.report_round(state, "still running")
             return
         delay = min(previous.delay * 2, 300) if previous else 5
         state.retries[member.id] = MemberRetry(
@@ -828,6 +829,7 @@ class ChannelEngine(BaseDbService[Channel]):
                 state.timer = None
             state.retries.clear()
             state.last_reply = None
+            state.report_due = False
             await self.set_owed_report(state, None)
             turns = list(state.turns.values())
             await self.cancel_active(state, turns)
@@ -925,7 +927,9 @@ class ChannelEngine(BaseDbService[Channel]):
         messages: list[ChannelMessage],
         orphans: Sequence[Row[tuple[UUID, UUID, UUID]]],
     ) -> None:
-        state = ChannelState(channel)
+        state = ChannelState(
+            channel, report_due=channel.owed_report_device_ids is not None
+        )
         self.states[channel.id] = state
         for message in messages:
             if message.channel_id == channel.id:
@@ -989,7 +993,8 @@ class ChannelEngine(BaseDbService[Channel]):
             turn.source_message_id = UUID(payload["message_id"])
         elif kind == "permission_request":
             await self.requests.request_permission(state, turn, payload)
-            self.notify_parent(state)
+            if (turn.member.id, payload["request_id"]) in state.permissions:
+                self.report_round(state, "still running")
         elif kind == "permission_resolved":
             async with state.lock:
                 await self.requests.resolve_permissions(
@@ -997,7 +1002,8 @@ class ChannelEngine(BaseDbService[Channel]):
                 )
         elif kind == "elicitation_request":
             await self.requests.request_elicitation(state, turn, payload)
-            self.notify_parent(state)
+            if (turn.member.id, payload["request_id"]) in state.elicitations:
+                self.report_round(state, "still running")
         elif kind == "elicitation_resolved":
             async with state.lock:
                 await self.requests.resolve_elicitations(

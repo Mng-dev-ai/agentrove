@@ -6,8 +6,11 @@ from uuid import UUID, uuid4
 
 from app.catalog import MODELS
 from app.models.db_models.channel import Channel, ChannelMember, ChannelMessage
+from app.models.schemas.channel import ChannelMemberState, MemberOutcome
 
 ACTIVITY_EPOCH = uuid4().hex
+UNKNOWN_MODEL = "Model {model_id} is unknown on this instance"
+RoundProgress = Literal["settled", "still running", "interrupted by a user message"]
 
 
 class TurnStatus(Enum):
@@ -54,15 +57,14 @@ class MemberTurn:
 class MemberReport:
     name: str
     chat_id: str
-    status: str
+    state: ChannelMemberState
 
 
 @dataclass(frozen=True)
 class ChannelReport:
     channel_id: str
     name: str
-    settled: bool
-    needs_parent: bool
+    progress: RoundProgress
     members: list[MemberReport]
     device_ids: frozenset[UUID]
 
@@ -79,7 +81,9 @@ class ChannelState:
     permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     elicitations: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     last_reply: tuple[str, ChannelMessage] | None = None
-    outcomes: dict[UUID, Literal["replied", "passed"]] = field(default_factory=dict)
+    outcomes: dict[UUID, MemberOutcome] = field(default_factory=dict)
+    # The current round was started by the parent chat and its report is not built yet.
+    report_due: bool = False
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
     waiting_member_ids: list[str] = field(default_factory=list)
@@ -102,46 +106,51 @@ class ChannelState:
             "retrying_member_ids": self.retrying_member_ids,
             "member_errors": self.member_errors,
             "unavailable_members": {
-                str(member.id): f"Model {member.model_id} is unknown on this instance"
+                str(member.id): UNKNOWN_MODEL.format(model_id=member.model_id)
                 for member in self.channel.members
                 if member.model_id not in MODELS
             }
             | self.gave_up_members,
         }
 
-    def blocked_on(self, member_id: UUID) -> list[str]:
-        return [
+    def member_state(self, member: ChannelMember) -> ChannelMemberState:
+        blocked_on = [
             f"permission for {pending['request']['tool_name']}"
-            for (blocked_id, _), pending in self.permissions.items()
-            if blocked_id == member_id
+            for (member_id, _), pending in self.permissions.items()
+            if member_id == member.id
         ] + [
-            "a question"
-            for blocked_id, _ in self.elicitations
-            if blocked_id == member_id
+            "a question" for member_id, _ in self.elicitations if member_id == member.id
         ]
+        turn = self.turns.get(member.id)
+        state: ChannelMemberState
+        if blocked_on:
+            state = ChannelMemberState(state="blocked", detail=", ".join(blocked_on))
+        elif member.id in self.gave_up:
+            state = ChannelMemberState(state="gave_up", detail=self.gave_up[member.id])
+        elif member.model_id not in MODELS:
+            state = ChannelMemberState(
+                state="unavailable",
+                detail=UNKNOWN_MODEL.format(model_id=member.model_id),
+            )
+        elif turn is not None and turn.status is TurnStatus.RUNNING:
+            state = ChannelMemberState(state="running")
+        elif member.id in self.retries:
+            state = ChannelMemberState(
+                state="retrying", detail=self.retries[member.id].reason
+            )
+        else:
+            state = ChannelMemberState(state="idle")
+        state.outcome = self.outcomes.get(member.id)
+        return state
 
-    def member_status(self, member: ChannelMember) -> str:
-        if blocked_on := self.blocked_on(member.id):
-            return f"blocked on {', '.join(blocked_on)}"
-        if member.id in self.gave_up:
-            return self.gave_up[member.id]
-        if member.id in self.turns:
-            return "running"
-        if member.id in self.retries:
-            return f"retrying after an error: {self.retries[member.id].reason}"
-        return self.outcomes.get(member.id, "idle")
-
-    def parent_report(self) -> ChannelReport:
-        settled = self.idle()
+    def parent_report(self, progress: RoundProgress) -> ChannelReport:
         return ChannelReport(
             channel_id=str(self.channel.id),
             name=self.channel.name,
-            settled=settled,
-            needs_parent=settled
-            or bool(self.gave_up or self.permissions or self.elicitations),
+            progress=progress,
             members=[
                 MemberReport(
-                    member.display_name, str(member.chat_id), self.member_status(member)
+                    member.display_name, str(member.chat_id), self.member_state(member)
                 )
                 for member in self.channel.members
             ],

@@ -559,7 +559,9 @@ class AgentService:
             return servers
         credential_epoch = password_fingerprint(hashed_password)
         if sandbox_provider is SandboxProviderType.HOST:
-            access_token = create_mcp_access_token(user_id, hashed_password, device_ids)
+            access_token = create_mcp_access_token(
+                user_id, hashed_password, device_ids, current_chat_id
+            )
             # Host-provider agents share this process's network namespace.
             env = {
                 "AGENTROVE_API_URL": AgentService.loopback_api_url(),

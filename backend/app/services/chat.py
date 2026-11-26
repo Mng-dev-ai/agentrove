@@ -680,7 +680,7 @@ class ChatService(BaseDbService[Chat]):
                 Chat.id == chat_id,
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),
-                (Chat.is_visible() if not include_channel else true()),
+                (self._member_access(user) if include_channel else Chat.is_visible()),
             )
             .options(
                 selectinload(Chat.workspace),
@@ -917,15 +917,20 @@ class ChatService(BaseDbService[Chat]):
             return len(chat_ids)
 
     @staticmethod
-    def _readable(user: User) -> ColumnElement[bool]:
+    def _member_access(user: User) -> ColumnElement[bool]:
         if not user.agent_token:
+            return true()
+        if user.agent_chat_id is None:
             return Chat.is_visible()
-        # An agent also reads the member chats of channels linked to a parent chat;
-        # a token bound to one chat only those linked to that chat.
-        linked = select(Channel.id).where(Channel.parent_chat_id.is_not(None))
-        if user.agent_scope is not None and user.agent_scope.chat_id is not None:
-            linked = linked.where(Channel.parent_chat_id == user.agent_scope.chat_id)
-        return or_(Chat.is_visible(), Chat.channel_id.in_(linked))
+        # An agent reaches its own member chat and the member chats of channels
+        # linked to the chat its session runs in.
+        return or_(
+            Chat.is_visible(),
+            Chat.id == user.agent_chat_id,
+            Chat.channel_id.in_(
+                select(Channel.id).where(Channel.parent_chat_id == user.agent_chat_id)
+            ),
+        )
 
     async def require_readable_chat(self, chat_id: UUID, user: User) -> None:
         async with self.session_factory() as db:
@@ -934,7 +939,9 @@ class ChatService(BaseDbService[Chat]):
                     Chat.id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
-                    self._readable(user),
+                    self._member_access(user)
+                    if user.agent_token
+                    else Chat.is_visible(),
                 )
             )
             if workspace_id is None:
