@@ -35,7 +35,7 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 - `patchChatInCache` (`frontend/src/hooks/queries/useChatQueries.ts`) writes with `Query.setState` after `replaceEqualDeep`. `setQueryData` would clear pending invalidations; a bare `setState` would drop structural sharing. Keep both properties.
 - Composer lifetime: `ChatPage` keys `AgentPane` by chat id and `ChannelPage` keys `ChannelView` by channel id, so a chat switch remounts the composer and late callbacks cannot write across chats.
 - There is no insert-at-cursor helper; `useInputAttachments.ts` uses `document.execCommand('insertText')`.
-- Do not use `''` as an object key: Rollup has dropped an empty-string key read only through a function parameter, which broke production chunks that dev server and vitest do not show.
+- `''` object keys fail `npm run lint` (`no-restricted-syntax` in `frontend/eslint.config.js`): Rollup has dropped such a key from production chunks.
 
 ## Compatibility rules
 
@@ -57,7 +57,8 @@ Docker Smoke (`.github/workflows/docker-smoke.yml`, runs when either Dockerfile,
 Frontend (`.github/workflows/frontend-checks.yml`, Node 20, runs when `frontend/` changes). From `frontend/`, after `npm ci --legacy-peer-deps`:
 
 - `npm run lint`, `npm run format:check` (`prettier --check .`), `npm run typecheck`, `npm test` (`vitest run`, all tests), `npm run build`.
-- Also verify frontend changes on a production build, not only the dev server: `npx vite build --mode desktop` into a scratch `--outDir`, served statically.
+- The build job also builds `--mode desktop` (`dist-desktop`) and `--mode mobile` with `VITE_PLATFORM=mobile` (`dist-mobile`), and greps the mobile bundle for the folded flag.
+- The Bundle Smoke Test job runs `npm run test:smoke` (`frontend/e2e/`, Playwright, Chromium): it starts a throwaway backend seeded with a chat on a one-file git repo, builds and serves `dist-desktop` with `vite preview`, opens landing → chat → editor → diff view, and fails on any page, console or worker error or failed static request. Locally: Python with `backend/requirements.lock` installed on `PATH`, `npx playwright install chromium`, ports 18321/18322 free, then `npm run test:smoke` from `frontend/`.
 
 Desktop (`.github/workflows/desktop-checks.yml`, macos-latest, runs when `frontend/src-tauri/`, `rust-toolchain.toml` or the workflow change): creates empty `frontend/dist` and `frontend/backend-sidecar` (tauri-build needs `frontendDist` and bundle resources at compile time; `beforeBuildCommand` is never run), then `cargo test --locked` in `frontend/src-tauri`. Its rust-cache key (`desktop-pr-check-…`) is separate from the release cache and saved only from `main`.
 

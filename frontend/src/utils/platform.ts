@@ -1,5 +1,6 @@
 import { isTauri } from '@tauri-apps/api/core';
 
+// Frontend Checks greps the minified pair `startsWith("MAC"),<id>=!0,`: keep these adjacent.
 export const IS_MAC_PLATFORM = navigator.platform.toUpperCase().startsWith('MAC');
 
 // Vite `--mode mobile` sets VITE_PLATFORM=mobile. No local sidecar — skip desktop boot.

@@ -6,7 +6,17 @@ import tseslint from 'typescript-eslint';
 import eslintConfigPrettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  { ignores: ['dist', 'src-tauri/target', 'backend-sidecar', 'node_modules'] },
+  {
+    ignores: [
+      'dist',
+      'dist-desktop',
+      'dist-mobile',
+      'test-results',
+      'src-tauri/target',
+      'backend-sidecar',
+      'node_modules',
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],
@@ -28,6 +38,11 @@ export default tseslint.config(
           selector:
             "TSTypeReference > TSQualifiedName[left.name='React'][right.name=/^(FC|FunctionComponent)$/]",
           message: 'Type props via the function signature instead of React.FC.',
+        },
+        {
+          selector: "Property[computed=false][key.type='Literal'][key.value='']",
+          message:
+            "Don't use '' as an object key: Rollup can drop it from production chunks when it is read through a function parameter.",
         },
       ],
       'no-restricted-imports': [

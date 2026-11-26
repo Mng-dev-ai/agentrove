@@ -1,4 +1,7 @@
 dist
+dist-desktop
+dist-mobile
+test-results
 node_modules
 *.min.js
 *.min.css
