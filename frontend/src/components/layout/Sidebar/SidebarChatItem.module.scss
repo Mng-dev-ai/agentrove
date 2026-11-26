@@ -172,3 +172,45 @@
 .preview-label {
   color: var(--theme-text-tertiary);
 }
+
+.child-activity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.child-count {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--theme-text-secondary);
+
+  &--running {
+    color: colors.status-color('warning', 700);
+
+    :global([data-theme='dark']) & {
+      color: colors.status-color('warning', 400);
+    }
+  }
+}
+
+// Flat activity list: names the parent of a sub-thread shown without its tree
+.parent-context {
+  @include type.type-meta;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  padding-left: var(--space-5);
+  color: var(--theme-text-quaternary);
+}
+
+.parent-context-title {
+  @include type.type-overflow;
+}
+
+.parent-context-icon {
+  height: var(--space-2-5);
+  width: var(--space-2-5);
+  flex-shrink: 0;
+}

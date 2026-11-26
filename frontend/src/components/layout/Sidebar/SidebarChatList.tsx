@@ -65,12 +65,9 @@ export function SidebarChatList({
   const collapsedSections = useUIStore((state) => state.collapsedSidebarSections);
   const isPinnedCollapsed = collapsedSections.includes('pinned');
   const isRecentsCollapsed = collapsedSections.includes('recents');
-  // Workspace group labels already name the workspace; pinned chats have no such header
   // A collapsed section still shows its open chats, so the current selection never disappears
   const isOpenChat = (chat: Chat) =>
     chat.id === rowProps.selectedChatId || rowProps.splitChatIds.includes(chat.id);
-  const recentRowProps =
-    filters.groupBy === 'workspace' ? { ...rowProps, showWorkspaceBadges: false } : rowProps;
   return (
     <div ref={scrollContainerRef} className={styles.scroll}>
       {channels}
@@ -131,9 +128,7 @@ export function SidebarChatList({
             {isRecentsCollapsed ? (
               recentChats
                 .filter(isOpenChat)
-                .map((chat) => (
-                  <SidebarChatRow key={chat.id} chat={chat} rowProps={recentRowProps} />
-                ))
+                .map((chat) => <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />)
             ) : recentChats.length === 0 && recentsLoad.loadFailed ? (
               <LoadErrorState variant="inline" message="Couldn't load threads" load={recentsLoad} />
             ) : recentChats.length > 0 ? (
@@ -142,7 +137,7 @@ export function SidebarChatList({
                   <div key={section.key} className={section.label ? styles.section : undefined}>
                     {section.label && <div className={styles['group-label']}>{section.label}</div>}
                     {section.chats.map((chat) => (
-                      <SidebarChatRow key={chat.id} chat={chat} rowProps={recentRowProps} />
+                      <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
                     ))}
                   </div>
                 ))}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useRef } from 'react';
+import { useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import type { Chat } from '@/types/chat.types';
@@ -13,6 +13,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useLogout } from '@/hooks/useLogout';
 import { UserProfileMenu } from '@/components/layout/UserProfileMenu/UserProfileMenu';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
+import { SidebarActivityBar, SidebarActivityList } from './SidebarActivity';
 import { SidebarChannels } from './SidebarChannels';
 import { SidebarChatList } from './SidebarChatList';
 import { SidebarOverlays } from './SidebarOverlays';
@@ -20,6 +21,7 @@ import { type ChatRowProps } from './SidebarChatRow';
 import { buildRecentChatSections } from './sidebarGrouping';
 import { useSidebarChatActions } from './useSidebarChatActions';
 import { useSidebarWorkspaceActions } from './useSidebarWorkspaceActions';
+import { useSidebarActivity, type SidebarActivityKind } from './useSidebarActivity';
 import { countActiveSidebarFilters, withKnownSource } from '@/store/sidebarFilters';
 import { useChatOrigins } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
@@ -62,6 +64,11 @@ export function Sidebar({
   // Chats with a pending plan/permission request or agent question form — the
   // agent is blocked on the user.
   const blockedChatIdSet = useBlockedChatIds();
+  const { chatsByKind, childActivityByParentId } = useSidebarActivity(
+    streamingChatIdSet,
+    blockedChatIdSet,
+  );
+  const [activityView, setActivityView] = useState<SidebarActivityKind | null>(null);
   // Chats merge from two backends, so filters apply client-side over loaded
   // pages. Lives in the persisted uiStore so reloads keep the narrowed view.
   const storedFilters = useUIStore((state) => state.sidebarFilters);
@@ -256,6 +263,7 @@ export function Sidebar({
     onMouseLeave: chatActions.handleChatMouseLeave,
     expandedSubThreads: chatActions.expandedSubThreads,
     onToggleSubThreads: chatActions.handleToggleSubThreads,
+    childActivityByParentId,
   };
 
   return (
@@ -266,39 +274,58 @@ export function Sidebar({
         aria-hidden={isMobile && !sidebarOpen ? true : undefined}
         inert={isMobile && !sidebarOpen}
       >
-        <SidebarChatList
-          scrollContainerRef={scrollContainerRef}
-          channels={
-            <SidebarChannels
-              workspaces={workspaces}
-              workspaceId={selectedChatWorkspaceId ?? undefined}
-              filters={filters}
-              machineBadge={machineBadge}
-              selectedChannelId={selectedChannelId}
-              scrollContainerRef={scrollContainerRef}
-            />
-          }
-          isLoadingChats={isLoadingChats}
-          threadsLoad={threadsLoad}
-          pinnedLoad={pinnedLoad}
-          recentsLoad={recentsLoad}
-          hasAnyContent={hasAnyContent}
-          needsYouChats={needsYouChats}
-          pinnedChats={listedPinnedChats}
-          recentChats={listedRecentChats}
-          hasVisibleContent={hasVisibleContent}
-          recentChatSections={recentChatSections}
-          rowProps={rowProps}
-          filters={filters}
-          onChangeFilters={(next) => useUIStore.getState().setSidebarFilters(next)}
-          workspaceBadgeById={workspaceBadgeById}
-          machineOptions={machineOptions}
-          hasMore={showMore.hasMore}
-          isFetchingMore={showMore.isFetchingMore}
-          onLoadMore={showMore.loadMore}
-          canShowLess={showMore.canShowLess}
-          onShowLess={showMore.showLess}
+        <SidebarActivityBar
+          counts={{
+            running: chatsByKind.running.length,
+            'needs-you': chatsByKind['needs-you'].length,
+          }}
+          view={activityView}
+          onChangeView={setActivityView}
         />
+
+        {activityView ? (
+          <SidebarActivityList
+            scrollContainerRef={scrollContainerRef}
+            view={activityView}
+            chats={chatsByKind[activityView]}
+            rowProps={rowProps}
+            onClose={() => setActivityView(null)}
+          />
+        ) : (
+          <SidebarChatList
+            scrollContainerRef={scrollContainerRef}
+            channels={
+              <SidebarChannels
+                workspaces={workspaces}
+                workspaceId={selectedChatWorkspaceId ?? undefined}
+                filters={filters}
+                machineBadge={machineBadge}
+                selectedChannelId={selectedChannelId}
+                scrollContainerRef={scrollContainerRef}
+              />
+            }
+            isLoadingChats={isLoadingChats}
+            threadsLoad={threadsLoad}
+            pinnedLoad={pinnedLoad}
+            recentsLoad={recentsLoad}
+            hasAnyContent={hasAnyContent}
+            needsYouChats={needsYouChats}
+            pinnedChats={listedPinnedChats}
+            recentChats={listedRecentChats}
+            hasVisibleContent={hasVisibleContent}
+            recentChatSections={recentChatSections}
+            rowProps={rowProps}
+            filters={filters}
+            onChangeFilters={(next) => useUIStore.getState().setSidebarFilters(next)}
+            workspaceBadgeById={workspaceBadgeById}
+            machineOptions={machineOptions}
+            hasMore={showMore.hasMore}
+            isFetchingMore={showMore.isFetchingMore}
+            onLoadMore={showMore.loadMore}
+            canShowLess={showMore.canShowLess}
+            onShowLess={showMore.showLess}
+          />
+        )}
 
         {/* Always render footer so settings/logout work even if the user query fails. */}
         <div className={styles.footer}>

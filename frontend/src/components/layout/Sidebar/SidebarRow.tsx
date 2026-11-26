@@ -12,7 +12,9 @@ interface SidebarRowProps {
   leading?: ReactNode;
   title: ReactNode;
   subtitle?: ReactNode;
-  timestamp: string;
+  timestamp: ReactNode;
+  // Room for a trailing slot wider than a relative time, so titles truncate before it
+  isTimestampWide?: boolean;
   dropdownLabel: string;
   onDropdownClick: (e: MouseEvent<HTMLButtonElement>) => void;
   onMouseEnter: () => void;
@@ -27,6 +29,7 @@ export function SidebarRow({
   title,
   subtitle,
   timestamp,
+  isTimestampWide = false,
   dropdownLabel,
   onDropdownClick,
   onMouseEnter,
@@ -40,7 +43,7 @@ export function SidebarRow({
       onMouseLeave={onMouseLeave}
     >
       {/* Pad for timestamp/dropdown so long titles truncate before them. */}
-      <div className={styles['title-col']}>
+      <div className={clsx(styles['title-col'], isTimestampWide && styles['title-col--wide'])}>
         <div className={styles['title-row']}>
           {leading}
           {title}

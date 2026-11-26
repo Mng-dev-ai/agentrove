@@ -56,6 +56,14 @@
   @include responsive.media('touch') {
     padding-right: var(--space-16);
   }
+
+  &--wide {
+    padding-right: var(--space-14);
+
+    @include responsive.media('touch') {
+      padding-right: var(--space-20);
+    }
+  }
 }
 
 .title-row {

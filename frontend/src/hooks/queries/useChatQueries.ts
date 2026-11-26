@@ -160,7 +160,7 @@ export const useMessageRenderQuery = (chatId: string, messageId: string, enabled
   });
 };
 
-const chatQuery = (chatId: string | undefined) => ({
+export const chatQuery = (chatId: string | undefined) => ({
   queryKey: queryKeys.chat(chatId),
   queryFn: () => chatService.getChat(chatId!),
   gcTime: 1000 * 60 * 30,

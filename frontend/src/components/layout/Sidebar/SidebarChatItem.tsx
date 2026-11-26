@@ -13,6 +13,7 @@ import { getRelativeTime } from '@/utils/date';
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
+import type { ChildActivity } from './useSidebarActivity';
 import styles from './SidebarChatItem.module.scss';
 
 export interface MachineBadge {
@@ -41,6 +42,38 @@ interface SidebarChatItemProps {
   onMouseLeave: () => void;
   onToggleSubThreads?: (chatId: string) => void;
   isSubThreadsExpanded?: boolean;
+  // Running/blocked sub-threads, surfaced while the parent is collapsed
+  childActivity?: ChildActivity;
+  // Set in the flat activity list, where sub-threads appear without their parent row
+  parentTitle?: string;
+}
+
+function describeChildActivity({ running, needsYou }: ChildActivity): string {
+  return [needsYou > 0 && `${needsYou} needs you`, running > 0 && `${running} running`]
+    .filter(Boolean)
+    .join(' · ');
+}
+
+function ChildActivityCounts({ activity }: { activity: ChildActivity }) {
+  return (
+    <span
+      className={styles['child-activity']}
+      aria-label={`Sub-threads: ${describeChildActivity(activity)}`}
+    >
+      {activity.needsYou > 0 && (
+        <span className={styles['child-count']}>
+          <ChatStatusDot tone="blocked" />
+          {activity.needsYou}
+        </span>
+      )}
+      {activity.running > 0 && (
+        <span className={clsx(styles['child-count'], styles['child-count--running'])}>
+          <AsciiSpinner />
+          {activity.running}
+        </span>
+      )}
+    </span>
+  );
 }
 
 // Inline only where the row's machine isn't the obvious one: another machine than
@@ -107,6 +140,8 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   onMouseLeave,
   onToggleSubThreads,
   isSubThreadsExpanded,
+  childActivity,
+  parentTitle,
 }: SidebarChatItemProps) {
   // onToggleSubThreads is only set when sub_thread_count > 0
   const hasSubThreads = onToggleSubThreads != null;
@@ -226,8 +261,16 @@ export const SidebarChatItem = memo(function SidebarChatItem({
                 ['Workspace', workspaceBadge?.name],
                 [
                   'Sub-threads',
-                  chat.sub_thread_count > 0 ? String(chat.sub_thread_count) : undefined,
+                  chat.sub_thread_count > 0
+                    ? [
+                        String(chat.sub_thread_count),
+                        childActivity && describeChildActivity(childActivity),
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')
+                    : undefined,
                 ],
+                ['Parent', parentTitle],
               ]}
             />
           }
@@ -257,7 +300,22 @@ export const SidebarChatItem = memo(function SidebarChatItem({
           />
         </FloatingTooltip>
       }
-      timestamp={getRelativeTime(chat.updated_at)}
+      subtitle={
+        parentTitle && (
+          <span className={styles['parent-context']}>
+            <CornerDownRight className={styles['parent-context-icon']} />
+            <span className={styles['parent-context-title']}>{parentTitle}</span>
+          </span>
+        )
+      }
+      timestamp={
+        childActivity ? (
+          <ChildActivityCounts activity={childActivity} />
+        ) : (
+          getRelativeTime(chat.updated_at)
+        )
+      }
+      isTimestampWide={childActivity != null}
       dropdownLabel="Chat options"
       onDropdownClick={(e) => onDropdownClick(e, chat)}
     />

@@ -1,0 +1,80 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+
+.bar {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-1-5);
+  padding: var(--space-2) var(--space-4) var(--space-1);
+}
+
+.chip {
+  @include anim.transition-colors;
+  @include type.type-meta(500);
+  @include responsive.touch-target;
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-1-5);
+  border: 1px solid colors.theme-color('border', 0.5);
+  border-radius: var(--radius-md);
+  padding: var(--space-1) var(--space-2);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+
+  &--on {
+    border-color: var(--theme-border);
+    background-color: colors.theme-color('surface-hover', 0.5);
+    color: var(--theme-text-primary);
+  }
+}
+
+.chip-spinner {
+  @include type.type-glyph(type.$type-default-size, 500);
+  color: colors.status-color('warning', 700);
+
+  :global([data-theme='dark']) & {
+    color: colors.status-color('warning', 400);
+  }
+}
+
+.chip-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-primary);
+}
+
+.header {
+  @include type.type-meta;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--space-3);
+  padding-bottom: var(--space-1);
+  color: var(--theme-text-tertiary);
+}
+
+.close {
+  @include anim.transition-colors;
+  @include responsive.touch-target;
+  display: flex;
+  margin: calc(var(--space-1) * -1);
+  border-radius: var(--radius-md);
+  padding: var(--space-1);
+  color: var(--theme-text-quaternary);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+}
+
+.close-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
