@@ -21,7 +21,6 @@ from app.models.schemas.sandbox import (
 )
 from app.services.exceptions import SandboxException
 from app.services.sandbox import SandboxService
-from app.services.sandbox_providers.types import CommandResult
 from app.utils.sandbox import BRANCH_NAME_RE, git_cd_prefix, is_valid_base_ref
 
 logger = logging.getLogger(__name__)
@@ -29,7 +28,6 @@ logger = logging.getLogger(__name__)
 GITHUB_REMOTE_RE = re.compile(
     r"(?:https?://github\.com/|git@github\.com:)([^/]+)/([^/]+?)(?:\.git)?$"
 )
-DIFF_CAPTURE_ATTEMPTS = 3
 GIT_IS_REPO_CMD = "git rev-parse --is-inside-work-tree 2>/dev/null"
 GIT_CURRENT_BRANCH_CMD = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
 # Best-effort, but inside the caller's `&&` chain so a failed `cd` still aborts.
@@ -127,13 +125,23 @@ GIT_WORKTREE_REMOVE_TEMPLATE = Template(
     "git worktree remove '$worktree_dir' 2>&1 && git branch -d '$branch_name' 2>&1"
 )
 
-# The empty-tree diff is for an unborn HEAD only: after any other failure it
-# would show every tracked file as added.
+# The four per-file templates run when the single diff further down exits non-zero.
 GIT_DIFF_ALL_TEMPLATE = Template(
-    ' GIT_INDEX_FILE="$$tmp" git diff$ctx HEAD 2>/dev/null'
-    " || { git rev-parse -q --verify HEAD >/dev/null 2>&1 && exit 1;"
-    ' GIT_INDEX_FILE="$$tmp" git diff$ctx'
-    " $$(git hash-object -t tree /dev/null) 2>/dev/null; }"
+    "git diff$ctx HEAD 2>/dev/null"
+    " || git diff$ctx $$(git hash-object -t tree /dev/null) 2>/dev/null;"
+    "$untracked"
+)
+GIT_CHECKPOINT_DIFF_ALL_TEMPLATE = Template(
+    "git diff --binary HEAD 2>/dev/null;$untracked"
+)
+GIT_UNTRACKED_DIFF_TEMPLATE = Template(
+    " git ls-files --others --exclude-standard -z"
+    " | xargs -0 -I{} git diff$ctx --no-index -- /dev/null {} 2>/dev/null"
+)
+GIT_CHECKPOINT_UNTRACKED_DIFF_TEMPLATE = (
+    " git ls-files --others --exclude-standard -z"
+    " | xargs -0 -I{} "
+    "git diff --binary --no-index -- /dev/null {} 2>/dev/null"
 )
 GIT_DETECT_BASE_CMD = (
     "base=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/||');"
@@ -174,10 +182,12 @@ GIT_DIFF_BRANCH_TEMPLATE = Template(
     ' git diff$ctx "$$merge_base" HEAD 2>/dev/null'
 )
 
-# Not `git add -N`: one nested repo, out-of-cone or deleted path fails every file.
-# A failed index copy must exit: an empty one diffs every tracked file as deleted.
+# Exits non-zero unless every untracked file got an entry in the index copy.
+# Optional locks and the sparse index are off so git writes nothing but that copy.
 GIT_UNTRACKED_INDEX_CMD = (
     " tmp=$(mktemp 2>/dev/null) || exit 1; trap 'rm -f \"$tmp\"' EXIT;"
+    " n=${GIT_CONFIG_COUNT:-0}; export GIT_OPTIONAL_LOCKS=0 GIT_CONFIG_COUNT=$((n+1))"
+    " GIT_CONFIG_KEY_$n=index.sparse GIT_CONFIG_VALUE_$n=false;"
     " idx=$(git rev-parse --git-path index);"
     ' if [ -e "$idx" ]; then cp -p "$idx" "$tmp" 2>/dev/null || exit 1;'
     ' else rm -f "$tmp"; fi;'
@@ -185,16 +195,20 @@ GIT_UNTRACKED_INDEX_CMD = (
     " blob=$(git hash-object -t blob /dev/null) &&"
     " git ls-files --others --exclude-standard -z |"
     " xargs -0 sh -c 'blob=$1; shift; for f; do case $f in */) continue;; esac;"
-    """ if [ -L "$f" ] || [ -r "$f" ]; then"""
-    """ printf "100644 %s\\t%s\\0" "$blob" "$f"; fi; done' sh "$blob" |"""
-    " git update-index -z --add --replace --index-info) >/dev/null 2>&1"
-    " || exit 1;"
+    """ if [ -L "$f" ]; then m=120000; elif [ -x "$f" ]; then m=100755;"""
+    """ else m=100644; fi; printf "%s %s\\t%s\\0" "$m" "$blob" "$f"; done'"""
+    ' sh "$blob" |'
+    " git update-index -z --add --replace --no-split-index --index-info &&"
+    " rest=$(git ls-files --others --exclude-standard) &&"
+    """ ! printf '%s' "$rest" | LC_ALL=C grep -qv '/$') >/dev/null 2>&1"""
 )
-# Default context: restore applies onto exactly base_head.
-# Restore deletes whatever this diff omits, so every failure above must exit.
-GIT_CHECKPOINT_DIFF_CMD = (
+GIT_DIFF_ALL_FAST_TEMPLATE = Template(
+    " head=$$(git rev-parse --verify -q HEAD || git hash-object -t tree /dev/null);"
+    ' GIT_INDEX_FILE="$$tmp" git diff$ctx "$$head" 2>/dev/null'
+)
+GIT_CHECKPOINT_DIFF_FAST_CMD = (
     GIT_UNTRACKED_INDEX_CMD
-    + ' GIT_INDEX_FILE="$tmp" git diff --binary HEAD 2>/dev/null'
+    + ' || exit 1; GIT_INDEX_FILE="$tmp" git diff --binary HEAD 2>/dev/null'
 )
 GIT_MERGE_BASE_CMD = (
     ' merge_base=$(git merge-base "$base" HEAD 2>/dev/null || echo "$base");'
@@ -207,7 +221,7 @@ GIT_DIFF_STATS_CMD = (
     'cd "$(git rev-parse --show-toplevel)"; '
     "head=$(git rev-parse --verify -q HEAD || git hash-object -t tree /dev/null);"
     + GIT_UNTRACKED_INDEX_CMD
-    + " printf '__HEAD__\\n'; git rev-parse --verify -q HEAD 2>/dev/null;"
+    + "; printf '__HEAD__\\n'; git rev-parse --verify -q HEAD 2>/dev/null;"
     " printf '__UNCOMMITTED__\\n';"
     ' GIT_INDEX_FILE="$tmp" git diff --numstat "$head" 2>/dev/null;'
     " printf '__BRANCH__\\n'; "
@@ -300,14 +314,6 @@ class GitService:
         if not is_valid_base_ref(base_ref):
             raise SandboxException("Invalid base branch name")
 
-    async def _capture_diff(self, sandbox_id: str, command: str) -> CommandResult:
-        # `git diff` aborts when a file is deleted while it reads the tree.
-        for _ in range(DIFF_CAPTURE_ATTEMPTS):
-            result = await self.sandbox_service.execute_command(sandbox_id, command)
-            if result.exit_code in (0, 2):
-                break
-        return result
-
     async def get_diff(
         self,
         sandbox_id: str,
@@ -336,20 +342,32 @@ class GitService:
                 + ' if [ -z "$base" ]; then exit 2; fi;'
                 + GIT_MERGE_BASE_CMD
                 + GIT_UNTRACKED_INDEX_CMD
+                + ";"
                 + GIT_DIFF_TOTAL_TEMPLATE.substitute(flags=ctx)
             )
         else:
-            cmd = GIT_UNTRACKED_INDEX_CMD + GIT_DIFF_ALL_TEMPLATE.substitute(ctx=ctx)
+            cmd = (
+                GIT_UNTRACKED_INDEX_CMD
+                + " || exit 1;"
+                + GIT_DIFF_ALL_FAST_TEMPLATE.substitute(ctx=ctx)
+            )
 
-        result = await self._capture_diff(sandbox_id, f"{git_prefix}{cmd}")
-        if result.exit_code != 0:
+        result = await self.sandbox_service.execute_command(
+            sandbox_id, f"{git_prefix}{cmd}"
+        )
+        if mode == "all" and result.exit_code != 0:
+            cmd = GIT_DIFF_ALL_TEMPLATE.substitute(
+                ctx=ctx, untracked=GIT_UNTRACKED_DIFF_TEMPLATE.substitute(ctx=ctx)
+            )
+            result = await self.sandbox_service.execute_command(
+                sandbox_id, f"{git_prefix}{cmd}"
+            )
+        if mode != "all" and result.exit_code == 2:
             return GitDiffResponse(
                 diff="",
                 has_changes=False,
                 is_git_repo=True,
-                error="Could not determine base branch"
-                if mode != "all" and result.exit_code == 2
-                else "Could not read the working tree changes",
+                error="Could not determine base branch",
             )
         diff_output = result.stdout
         return GitDiffResponse(
@@ -626,11 +644,18 @@ class GitService:
         if marker == "clean":
             return Checkpoint(base_head=head, head_ref=head_ref, pre_run_diff="")
 
-        result = await self._capture_diff(
-            sandbox_id, f"{git_prefix}{GIT_CD_REPO_ROOT}{GIT_CHECKPOINT_DIFF_CMD}"
+        result = await self.sandbox_service.execute_command(
+            sandbox_id,
+            f"{git_prefix}{GIT_CD_REPO_ROOT}{GIT_CHECKPOINT_DIFF_FAST_CMD}",
         )
         if result.exit_code != 0:
-            return None
+            cmd = GIT_CHECKPOINT_DIFF_ALL_TEMPLATE.substitute(
+                untracked=GIT_CHECKPOINT_UNTRACKED_DIFF_TEMPLATE
+            )
+            result = await self.sandbox_service.execute_command(
+                sandbox_id,
+                f"{git_prefix}{GIT_CD_REPO_ROOT}{cmd}",
+            )
         return Checkpoint(base_head=head, head_ref=head_ref, pre_run_diff=result.stdout)
 
     async def restore_checkpoint_all(

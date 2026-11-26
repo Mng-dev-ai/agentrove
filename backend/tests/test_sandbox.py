@@ -103,6 +103,12 @@ def tree_snapshot(repo: Path) -> dict[str, tuple[str, bytes | str, bool]]:
     return snapshot
 
 
+def git_dir_snapshot(repo: Path) -> dict[str, tuple[str, bytes | str, bool]]:
+    snapshot = tree_snapshot(repo / ".git")
+    del snapshot["info/exclude"]
+    return snapshot
+
+
 def clone_with_origin(
     tmp_path: Path, files: dict[str, str] | None = None
 ) -> tuple[Path, Path]:
@@ -1534,10 +1540,13 @@ async def test_sparse_checkout_keeps_untracked_files_outside_the_cone(
     before = tree_snapshot(repo)
     api = await open_host_sandbox(repo)
     service = host_git_service(repo)
+    await service.create_checkpoint("sandbox-1")
+    git_dir_before = git_dir_snapshot(repo)
 
     body = (await api.get("git/diff")).json()
     checkpoint = await service.create_checkpoint("sandbox-1")
 
+    assert git_dir_snapshot(repo) == git_dir_before
     headers = [line for line in body["diff"].splitlines() if line[:4] == "diff"]
     assert headers == [
         "diff --git a/extra/new.py b/extra/new.py",
@@ -1558,7 +1567,72 @@ async def test_sparse_checkout_keeps_untracked_files_outside_the_cone(
     assert tree_snapshot(repo) == before
 
 
-async def test_checkpoint_is_not_taken_when_the_diff_capture_fails(
+async def test_checkpoint_keeps_untracked_file_git_refuses_to_index(
+    tmp_path: Path,
+) -> None:
+    repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
+    write_files(repo, {"git~1": "refused\n", "notes.txt": "untracked\n"})
+    service = host_git_service(repo)
+
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    assert checkpoint is not None
+    assert "diff --git a/git~1 b/git~1" in checkpoint.pre_run_diff
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+    assert result.success is False
+    assert (repo / "git~1").read_text() == "refused\n"
+    assert (repo / "notes.txt").read_text() == "untracked\n"
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"core.fileMode": "false"},
+        {"core.splitIndex": "true"},
+        {"core.splitIndex": "true", "splitIndex.sharedIndexExpire": "now"},
+    ],
+    ids=["filemode-off", "split-index", "split-index-expire-now"],
+)
+async def test_checkpoint_round_trips_under_index_config(
+    tmp_path: Path, config: dict[str, str]
+) -> None:
+    repo = init_repo(tmp_path / "repo", {f"t{i}.py": f"{i}\n" for i in range(5)})
+    for key, value in config.items():
+        git(repo, "config", key, value)
+    if "core.splitIndex" in config:
+        git(repo, "update-index", "--split-index")
+    write_files(repo, {"t0.py": "dirty\n", "run.sh": "#!/bin/sh\n"})
+    write_files(repo, {f"new{i}.py": f"{i}\n" for i in range(5)})
+    (repo / "run.sh").chmod(0o755)
+    (repo / "link").symlink_to("t1.py")
+    before = tree_snapshot(repo)
+    git_dir_before = git_dir_snapshot(repo)
+    service = host_git_service(repo)
+
+    checkpoint = await service.create_checkpoint("sandbox-1")
+
+    assert checkpoint is not None
+    assert git_dir_snapshot(repo) == git_dir_before
+    assert git(repo, "status", "--porcelain").count("??") == 7
+    for name in ("run.sh", "link", "new0.py"):
+        (repo / name).unlink()
+    result = await service.restore_checkpoint_all(
+        "sandbox-1",
+        base_head=checkpoint.base_head,
+        head_ref=checkpoint.head_ref,
+        pre_run_diff=checkpoint.pre_run_diff,
+    )
+
+    assert result.success is True
+    assert tree_snapshot(repo) == before
+
+
+async def test_checkpoint_uses_per_file_diff_when_the_single_diff_fails(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     repo = init_repo(tmp_path / "repo", {"app.py": "v1\n"})
@@ -1568,7 +1642,8 @@ async def test_checkpoint_is_not_taken_when_the_diff_capture_fails(
 
     checkpoint = await host_git_service(repo).create_checkpoint("sandbox-1")
 
-    assert checkpoint is None
+    assert checkpoint is not None
+    assert checkpoint.pre_run_diff.count("diff --git") == 2
     assert (repo / ".git" / "index").read_bytes() == index_before
 
 
