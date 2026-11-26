@@ -157,25 +157,21 @@ class ChannelService(BaseDbService[Channel]):
         self.require_agent_workspace(user, data.workspace_id)
         settings = self.member_settings(data.members)
         async with self.session_factory() as db:
-            workspace = await db.scalar(
-                select(Workspace).where(
-                    Workspace.id == data.workspace_id,
-                    Workspace.user_id == user.id,
-                    Workspace.deleted_at.is_(None),
-                )
-            )
-            if workspace is None:
-                raise HTTPException(404, "Workspace not found")
-            if data.worktree and not workspace.sandbox_id:
+            workspace = await self._live_workspace(db, data.workspace_id, user.id)
+        if data.worktree and not workspace.sandbox_id:
+            raise HTTPException(400, "Workspace has no sandbox")
+        if data.branch and not data.worktree:
+            if not workspace.sandbox_id:
                 raise HTTPException(400, "Workspace has no sandbox")
-            if data.branch and not data.worktree:
-                if not workspace.sandbox_id:
-                    raise HTTPException(400, "Workspace has no sandbox")
-                checkout = await GitService(
-                    self.chats.sandbox_for_workspace(workspace)
-                ).checkout(workspace.sandbox_id, data.branch)
-                if not checkout.success:
-                    raise HTTPException(400, checkout.error)
+            checkout = await GitService(
+                self.chats.sandbox_for_workspace(workspace)
+            ).checkout(workspace.sandbox_id, data.branch)
+            if not checkout.success:
+                raise HTTPException(400, checkout.error)
+        async with self.write_session() as db:
+            # The checkout ran without the write lock, so the workspace may have
+            # been deleted since the first read.
+            workspace = await self._live_workspace(db, data.workspace_id, user.id)
             channel = Channel(
                 user_id=user.id,
                 workspace_id=data.workspace_id,
@@ -199,6 +195,21 @@ class ChannelService(BaseDbService[Channel]):
             await self.delete(channel)
             raise
         return channel
+
+    @staticmethod
+    async def _live_workspace(
+        db: AsyncSession, workspace_id: UUID, user_id: UUID
+    ) -> Workspace:
+        workspace: Workspace | None = await db.scalar(
+            select(Workspace).where(
+                Workspace.id == workspace_id,
+                Workspace.user_id == user_id,
+                Workspace.deleted_at.is_(None),
+            )
+        )
+        if workspace is None:
+            raise HTTPException(404, "Workspace not found")
+        return workspace
 
     @classmethod
     def member_settings(

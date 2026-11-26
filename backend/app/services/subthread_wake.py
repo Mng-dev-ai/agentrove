@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.catalog import MODELS
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, begin_immediate
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole
 from app.models.schemas.chat import ChatRequest
@@ -112,6 +112,7 @@ class SubThreadWake:
     async def owe_report(
         db: AsyncSession, chat_id: UUID, device_ids: frozenset[UUID]
     ) -> None:
+        await begin_immediate(db)
         owed = await db.scalar(
             select(Chat.owed_report_device_ids).where(Chat.id == chat_id)
         )

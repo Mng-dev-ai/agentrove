@@ -1,9 +1,11 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import AsyncContextManager, Callable, Generic, TypeVar
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, begin_immediate
 from app.models.db_models.user import User
 from app.services.exceptions import ErrorCode, ServiceException
 
@@ -23,6 +25,12 @@ class BaseDbService(Generic[T]):
     @session_factory.setter
     def session_factory(self, value: SessionFactoryType) -> None:
         self._session_factory = value
+
+    @asynccontextmanager
+    async def write_session(self) -> AsyncIterator[AsyncSession]:
+        async with self._session_factory() as db:
+            await begin_immediate(db)
+            yield db
 
     @staticmethod
     def require_agent_workspace(user: User, workspace_id: UUID | None) -> None:

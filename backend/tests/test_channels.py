@@ -2,8 +2,10 @@ import asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from functools import partial
 from pathlib import Path
 from typing import Any
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.endpoints import chat as chat_endpoint
 from app.catalog import MODELS
 from app.core.security import create_mcp_access_token
+from app.db.session import SessionLocal
 from app.models.db_models.channel import (
     Channel,
     ChannelDelivery,
@@ -29,6 +32,7 @@ from app.models.db_models.push import PushDelivery
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatRequest
+from app.models.schemas.sandbox import GitCheckoutResponse
 from app.models.types import AgentKind
 from app.services.channels import service as channel_module
 from app.services.channels import engine as channel_engine_module
@@ -231,6 +235,19 @@ async def channel_runtime(
     monkeypatch.setattr(SandboxProvider, "create_provider", FakeProviderFactory())
     yield runtime
     await reset_channel_states(runtime.turns)
+
+
+async def checkout_while_workspace_is_deleted(
+    workspace_id: UUID, _sandbox_id: str, branch: str
+) -> GitCheckoutResponse:
+    async with SessionLocal() as db:
+        await db.execute(
+            update(Workspace)
+            .where(Workspace.id == workspace_id)
+            .values(deleted_at=datetime.now(timezone.utc))
+        )
+        await db.commit()
+    return GitCheckoutResponse(success=True, current_branch=branch)
 
 
 @pytest.fixture
@@ -2496,3 +2513,27 @@ async def test_agent_tokens_cannot_change_members(
             method, path, headers={"Authorization": f"Bearer {token}"}, **kwargs
         )
         assert response.status_code == 403, (method, response.text)
+
+
+async def test_channel_create_rejects_workspace_deleted_during_branch_checkout(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, _user, workspace = owner
+    monkeypatch.setattr(
+        channel_module.GitService,
+        "checkout",
+        AsyncMock(
+            side_effect=partial(checkout_while_workspace_is_deleted, workspace.id)
+        ),
+    )
+
+    response = await client.post(
+        "/api/v1/channels", json={**channel_data, "branch": "feature"}, headers=headers
+    )
+
+    assert response.status_code == 404
+    assert await db_session.scalar(select(Channel.id)) is None

@@ -1,13 +1,14 @@
 import asyncio
 from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog import MODELS
+from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat
 from app.services.chat import ChatService
 from app.services.exceptions import ChatException
@@ -17,7 +18,12 @@ from app.services import subthread_wake as wake_module
 from app.services.subthread_wake import SubThreadWake
 
 from tests.conftest import LoginClient, UserFactory
-from tests.helpers import create_authenticated_workspace, create_chat_row
+from tests.helpers import (
+    RACE_WINDOW_SECONDS,
+    CommitGate,
+    create_authenticated_workspace,
+    create_chat_row,
+)
 
 pytestmark = pytest.mark.anyio
 
@@ -40,6 +46,12 @@ async def chats(
         child.parent_chat_id = parent.id
     await db_session.commit()
     return parent, children
+
+
+async def owe_report_in_own_session(chat_id: UUID, device_ids: frozenset[UUID]) -> None:
+    async with SessionLocal() as db:
+        await SubThreadWake.owe_report(db, chat_id, device_ids)
+        await db.commit()
 
 
 @pytest.fixture
@@ -273,3 +285,26 @@ async def test_owed_report_cleared_only_once_delivered(
     assert initiate.await_count == 2
     assert await db_session.scalar(owed) is None
     assert await db_session.scalar(updated_at) == before
+
+
+async def test_report_owed_during_a_clear_keeps_only_its_own_devices(
+    db_session: AsyncSession,
+    chats: tuple[Chat, list[Chat]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    child = chats[1][0]
+    delivered, late = uuid4(), uuid4()
+    await owe_report_in_own_session(child.id, frozenset({delivered}))
+    gate = CommitGate()
+    monkeypatch.setattr(wake_module, "SessionLocal", gate)
+    clearing = asyncio.create_task(SubThreadWake._clear_owed([str(child.id)]))
+    await gate.reached.wait()
+
+    owing = asyncio.create_task(owe_report_in_own_session(child.id, frozenset({late})))
+    await asyncio.sleep(RACE_WINDOW_SECONDS)
+    gate.release.set()
+    await asyncio.gather(clearing, owing)
+
+    assert await db_session.scalar(
+        select(Chat.owed_report_device_ids).where(Chat.id == child.id)
+    ) == {late}

@@ -8,16 +8,17 @@ from zoneinfo import ZoneInfo
 import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import get_automation_service
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, begin_immediate
 from app.models.db_models.automation import Automation
 from app.models.db_models.channel import Channel, ChannelMember, ChannelMessage
 from app.models.db_models.chat import Chat
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
+from app.models.schemas.automation import AutomationUpdate
 from app.models.schemas.chat import ChatCreate, ChatRequest
 from app.services.automation import AutomationService
 from app.services.channels.engine import channel_engine
@@ -28,6 +29,7 @@ from app.services.user import UserService
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
+    RACE_WINDOW_SECONDS,
     FakeProviderFactory,
     create_authenticated_workspace,
 )
@@ -826,3 +828,68 @@ async def test_delete_workspace_removes_its_automations_only(
     assert [item["name"] for item in listed.json()] == ["Survivor"]
     remaining = await db_session.scalars(select(Automation.workspace_id))
     assert remaining.all() == [second_workspace.id]
+
+
+async def test_create_automation_sees_a_workspace_delete_committing_under_it(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    chat_runtime: FakeChatService,
+) -> None:
+    headers, _user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    async with SessionLocal() as writer:
+        await begin_immediate(writer)
+        await writer.execute(
+            update(Workspace)
+            .where(Workspace.id == workspace.id)
+            .values(deleted_at=datetime.now(timezone.utc))
+        )
+        creating = asyncio.create_task(
+            client.post(
+                "/api/v1/automations",
+                json=automation_payload(workspace.id),
+                headers=headers,
+            )
+        )
+        await asyncio.sleep(RACE_WINDOW_SECONDS)
+        await writer.commit()
+    response = await creating
+
+    assert response.status_code == 404
+    assert await db_session.scalar(select(Automation.id)) is None
+
+
+async def test_update_automation_merges_devices_committed_under_it(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    chat_runtime: FakeChatService,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    automation_id = UUID((await create_automation(client, headers, workspace.id))["id"])
+    concurrent_editor, editor = uuid4(), uuid4()
+    async with SessionLocal() as writer:
+        await begin_immediate(writer)
+        await writer.execute(
+            update(Automation)
+            .where(Automation.id == automation_id)
+            .values(device_ids=frozenset({concurrent_editor}))
+        )
+        updating = asyncio.create_task(
+            AutomationService(chat_runtime).update_automation(
+                automation_id,
+                user,
+                frozenset({editor}),
+                AutomationUpdate(name="Renamed"),
+            )
+        )
+        await asyncio.sleep(RACE_WINDOW_SECONDS)
+        await writer.commit()
+
+    assert (await updating).device_ids == {concurrent_editor, editor}

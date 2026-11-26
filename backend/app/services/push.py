@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import InstrumentedAttribute
 
 from app.core.config import get_settings
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, begin_immediate
 from app.models.db_models.push import PushDelivery, PushDevice
 from app.models.db_models.user import User, UserSettings
 from app.services.db import SessionFactoryType
@@ -55,15 +55,9 @@ class PushService:
     async def register_device(
         db: AsyncSession, user: User, token: str, sandbox: bool
     ) -> bool:
-        # A phone that switched accounts gets a fresh row so deliveries queued
-        # for the previous account cascade away instead of reaching the new one.
-        await db.execute(
-            delete(PushDevice).where(
-                PushDevice.token == token, PushDevice.user_id != user.id
-            )
-        )
-        # The delete took SQLite's write lock, so these reads see every committed
-        # revocation: a request authenticated before one must not register after it.
+        # Under the write lock these reads see every committed revocation: a
+        # request authenticated before one must not register after it.
+        await begin_immediate(db)
         hashed_password = await db.scalar(
             select(User.hashed_password).where(User.id == user.id)
         )
@@ -72,6 +66,13 @@ class PushService:
         ):
             await db.rollback()
             return False
+        # A phone that switched accounts gets a fresh row so deliveries queued
+        # for the previous account cascade away instead of reaching the new one.
+        await db.execute(
+            delete(PushDevice).where(
+                PushDevice.token == token, PushDevice.user_id != user.id
+            )
+        )
         device = await db.scalar(select(PushDevice).where(PushDevice.token == token))
         paired_device_id = next(iter(user.device_ids), None)
         now = datetime.now(timezone.utc)

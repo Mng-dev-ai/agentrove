@@ -150,7 +150,7 @@ class AutomationService(BaseDbService[Automation]):
     ) -> Automation:
         self._validate_model(data.model_id)
         self.require_agent_workspace(user, data.workspace_id)
-        async with self.session_factory() as db:
+        async with self.write_session() as db:
             await self._validate_workspace(db, data.workspace_id, user.id)
             if data.channel_members is not None:
                 ChannelService.member_settings(data.channel_members)
@@ -175,7 +175,7 @@ class AutomationService(BaseDbService[Automation]):
         data: AutomationUpdate,
     ) -> Automation:
         changes = data.model_dump(exclude_unset=True)
-        async with self.session_factory() as db:
+        async with self.write_session() as db:
             automation = await self._get_owned(db, automation_id, user)
             # A new-channel run never uses model_id, so a stale one must not block
             # its edits; it is checked again when switching back to a chat target.
