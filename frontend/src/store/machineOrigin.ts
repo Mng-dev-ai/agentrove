@@ -124,6 +124,10 @@ export function forgetChatOrigins(isForgotten: (chatId: string) => boolean): voi
   if (changed) notify();
 }
 
+export function forgetChannelOrigin(channelId: string): void {
+  update(CHANNELS_KEY, (origins) => origins.delete(channelId));
+}
+
 export function assignSandboxesToMachine(machineId: string, sandboxIds: Iterable<string>): void {
   assign(SANDBOXES_KEY, machineId, sandboxIds);
 }

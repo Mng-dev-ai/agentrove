@@ -404,9 +404,28 @@ export const usePinChatMutation = createMutation<Chat, Error, { chatId: string; 
   },
 );
 
-export const useDeleteChatMutation = createMutation<void, Error, string>(
-  (chatId) => chatService.deleteChat(chatId),
-  (queryClient, _data, chatId) => {
+async function fetchSubThreadIds(queryClient: QueryClient, chatId: string): Promise<string[]> {
+  if (queryClient.getQueryData<Chat>(queryKeys.chat(chatId))?.parent_chat_id) return [];
+  try {
+    const subThreads = await queryClient.fetchQuery({
+      queryKey: queryKeys.subThreads(chatId),
+      queryFn: () => chatService.getSubThreads(chatId),
+    });
+    return subThreads.map((sub) => sub.id);
+  } catch {
+    return (queryClient.getQueryData<Chat[]>(queryKeys.subThreads(chatId)) ?? []).map(
+      (sub) => sub.id,
+    );
+  }
+}
+
+export const useDeleteChatMutation = createMutation<string[], Error, string>(
+  async (chatId, { client }) => {
+    const subThreadIds = await fetchSubThreadIds(client, chatId);
+    await chatService.deleteChat(chatId);
+    return subThreadIds;
+  },
+  (queryClient, subThreadIds, chatId) => {
     queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
       { queryKey: [queryKeys.chats, 'infinite'] },
       (oldData) => {
@@ -422,19 +441,21 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
       },
     );
 
-    // One pass: find parent if sub-thread, clean child caches if deleting a parent.
+    // One pass: find parent if sub-thread, collect cached children if deleting a parent.
     let parentId = queryClient.getQueryData<Chat>(queryKeys.chat(chatId))?.parent_chat_id;
+    const childIds = new Set(subThreadIds);
     const allCachedEntries = queryClient.getQueriesData<Chat | Chat[]>({ queryKey: ['chat'] });
     for (const [key, data] of allCachedEntries) {
       if (!parentId && Array.isArray(data) && data.some((sub) => sub.id === chatId)) {
         parentId = key[1] as string;
       }
-      if (!Array.isArray(data) && data?.parent_chat_id === chatId) {
-        queryClient.removeQueries({ queryKey: queryKeys.chat(data.id) });
-        queryClient.removeQueries({ queryKey: queryKeys.messages(data.id) });
-        queryClient.removeQueries({ queryKey: queryKeys.contextUsage(data.id) });
-        forgetChat(data.id);
-      }
+      if (!Array.isArray(data) && data?.parent_chat_id === chatId) childIds.add(data.id);
+    }
+    for (const childId of childIds) {
+      queryClient.removeQueries({ queryKey: queryKeys.chat(childId) });
+      queryClient.removeQueries({ queryKey: queryKeys.messages(childId) });
+      queryClient.removeQueries({ queryKey: queryKeys.contextUsage(childId) });
+      forgetChat(childId);
     }
 
     if (parentId) {
@@ -444,9 +465,6 @@ export const useDeleteChatMutation = createMutation<void, Error, string>(
     queryClient.removeQueries({ queryKey: queryKeys.chat(chatId) });
     queryClient.removeQueries({ queryKey: queryKeys.messages(chatId) });
     queryClient.removeQueries({ queryKey: queryKeys.contextUsage(chatId) });
-    for (const sub of queryClient.getQueryData<Chat[]>(queryKeys.subThreads(chatId)) ?? []) {
-      forgetChat(sub.id);
-    }
     queryClient.removeQueries({ queryKey: queryKeys.subThreads(chatId) });
     queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });

@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { QueryClient, UseMutationOptions } from '@tanstack/react-query';
+import type { MutationFunction, QueryClient, UseMutationOptions } from '@tanstack/react-query';
 
 export function createMutation<TData, TError, TVariables>(
-  mutationFn: (variables: TVariables) => Promise<TData>,
+  mutationFn: MutationFunction<TData, TVariables>,
   onCacheUpdate: (
     queryClient: QueryClient,
     data: TData,
