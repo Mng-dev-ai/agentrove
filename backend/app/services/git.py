@@ -30,6 +30,7 @@ GITHUB_REMOTE_RE = re.compile(
 )
 GIT_IS_REPO_CMD = "git rev-parse --is-inside-work-tree 2>/dev/null"
 GIT_CURRENT_BRANCH_CMD = "git rev-parse --abbrev-ref HEAD 2>/dev/null"
+# Backend git doesn't read the agent HOME's global excludes that hide these paths.
 # Best-effort, but inside the caller's `&&` chain so a failed `cd` still aborts.
 # `--git-path` gives the common dir's info/exclude, which linked worktrees read.
 GIT_ENSURE_EXCLUDES_CMD = (
@@ -780,7 +781,6 @@ class GitService:
 
     @staticmethod
     def chat_worktree_path(chat_id: str) -> str:
-        # A worktree dir is named after the short id of the chat that created it.
         return posixpath.join(".worktrees", chat_id[:8])
 
     async def create_worktree(
@@ -890,7 +890,6 @@ class GitService:
 
     @staticmethod
     def _validate_relative_path(path: str) -> None:
-        # Reject absolutes, `..`, a `-` prefix (option injection) and newlines/NULs.
         if (
             not path
             or path.startswith("/")
