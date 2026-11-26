@@ -189,9 +189,17 @@ const browserVault: MachineVault = {
   pair: (machineId, url, secret, deviceName) =>
     withMachineLock(machineId, async () => {
       const origin = requireOrigin(url);
+      const trimmedSecret = secret.trim();
+      if (!/^[\x21-\x7e]{1,512}$/.test(trimmedSecret)) {
+        throw new MachineVaultError('invalid_link', 'Invalid or expired pairing link');
+      }
+      const trimmedName = deviceName.trim();
+      if (!trimmedName || [...trimmedName].length > 100) {
+        throw new MachineVaultError('invalid_input', 'Invalid device name');
+      }
       const response = await send(
         `${origin}/api/v1/auth/pair`,
-        { method: 'POST', body: { secret, device_name: deviceName } },
+        { method: 'POST', body: { secret: trimmedSecret, device_name: trimmedName } },
         REQUEST_TIMEOUT_MS,
       );
       if (response.status === 400) {
