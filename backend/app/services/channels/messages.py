@@ -20,7 +20,10 @@ from app.services.db import BaseDbService
 from app.services.pairing import PairingService
 from app.utils.attachment_urls import AttachmentURL
 
-MENTION = re.compile(r"(?:^|(?<=\s))@(\S+)")
+# Emphasis, strikethrough and link delimiters bound a mention: the feed renders
+# markdown before it pills, so `**@name**` and `[x](url)@name` are pilled.
+MENTION = re.compile(r"(?:^|(?<=[\s*_~)]))@(\S+)")
+MENTION_TRAILING = (".", ",", ":", ";", "!", "?", "*", "_", "~")
 
 
 class ChannelMessageStore(BaseDbService[ChannelMessage]):
@@ -90,7 +93,7 @@ class ChannelMessageStore(BaseDbService[ChannelMessage]):
         mentioned: set[str] = set()
         for match in MENTION.finditer(text):
             name = match[1].lower()
-            while name not in ids and name[-1:] in (".", ",", ":", ";", "!", "?"):
+            while name not in ids and name[-1:] in MENTION_TRAILING:
                 name = name[:-1]
             member_id = ids.get(name)
             if member_id is None and name in BROADCAST_MENTIONS:
