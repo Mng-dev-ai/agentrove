@@ -26,7 +26,7 @@ class CachePubSub(Protocol):
     async def get_message(
         self, ignore_subscribe_messages: bool = False, timeout: float = 1.0
     ) -> dict[str, Any] | None: ...
-    async def close(self) -> None: ...
+    async def aclose(self) -> None: ...
 
 
 class CacheStore(Protocol):
@@ -37,7 +37,7 @@ class CacheStore(Protocol):
     async def publish(self, channel: str, message: str) -> int: ...
     def pubsub(self) -> CachePubSub: ...
     async def ping(self) -> bool: ...
-    async def close(self) -> None: ...
+    async def aclose(self) -> None: ...
 
 
 class MemoryPubSub:
@@ -62,7 +62,7 @@ class MemoryPubSub:
     def put_nowait(self, message: dict[str, Any]) -> None:
         self._queue.put_nowait(message)
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         pass
 
 
@@ -148,7 +148,7 @@ class MemoryStore:
     async def ping(self) -> bool:
         return True
 
-    async def close(self) -> None:
+    async def aclose(self) -> None:
         for timer in self._timers.values():
             timer.cancel()
         self._timers.clear()
@@ -175,7 +175,7 @@ async def _open_cache_store() -> AsyncIterator[CacheStore]:
         yield store
     finally:
         try:
-            await store.close()
+            await store.aclose()
         except CacheError as e:
             logger.warning("Error closing Redis connection: %s", e)
 
@@ -200,6 +200,6 @@ async def cache_pubsub(store: CacheStore, channel: str) -> AsyncIterator[CachePu
         except CacheError as e:
             logger.warning("Error unsubscribing from channel %s: %s", channel, e)
         try:
-            await pubsub.close()
+            await pubsub.aclose()
         except CacheError as e:
             logger.warning("Error closing pubsub: %s", e)
