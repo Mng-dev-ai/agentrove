@@ -1,3 +1,5 @@
+import type { PermissionMode } from '@/store/chatSettingsStore';
+
 export type ToolEventStatus = 'started' | 'completed' | 'failed';
 
 export interface ToolImage {
@@ -16,7 +18,7 @@ export interface ToolEventPayload {
   result?: unknown;
   images?: ToolImage[];
   error?: string;
-  permission_mode?: string | null;
+  permission_mode?: PermissionMode | null;
 }
 
 export interface ToolAggregate {

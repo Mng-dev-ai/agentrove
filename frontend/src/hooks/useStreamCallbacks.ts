@@ -16,16 +16,14 @@ import type {
   Chat,
   ContextUsage,
   ElicitationRequest,
-  ElicitationSchema,
   Message,
   PermissionRequest,
 } from '@/types/chat.types';
-import type { ToolEventPayload } from '@/types/tools.types';
 import type { QueueProcessingData, StreamEnvelope, StreamState } from '@/types/stream.types';
 import { useMessageCache } from '@/hooks/useMessageCache';
 import { streamService } from '@/services/streamService';
 import type { StreamOptions } from '@/services/streamService';
-import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
+import { useChatSettingsStore } from '@/store/chatSettingsStore';
 import { usePermissionStore } from '@/store/permissionStore';
 import {
   findMessageInCache,
@@ -40,7 +38,7 @@ import {
   insertMessagesById,
   getStreamErrorMessage,
 } from '@/hooks/stream/messageUpdates';
-import { envelopeToRenderEvent, extractPayloadData } from '@/hooks/stream/envelopeTranslation';
+import { envelopeToRenderEvent } from '@/hooks/stream/envelopeTranslation';
 import {
   advanceStreamSession,
   cancelGitRefresh,
@@ -277,15 +275,15 @@ export function useStreamCallbacks({
 
       // Permissions go to the modal, not message content.
       if (envelope.kind === 'permission_request' && onPermissionRequest) {
-        const payload = envelope.payload as Record<string, unknown>;
+        const { payload } = envelope;
         const request_id = typeof payload.request_id === 'string' ? payload.request_id : undefined;
         const tool_name = typeof payload.tool_name === 'string' ? payload.tool_name : undefined;
         const tool_input =
           payload.tool_input && typeof payload.tool_input === 'object'
-            ? (payload.tool_input as Record<string, unknown>)
+            ? payload.tool_input
             : undefined;
-        const data = extractPayloadData(payload) ?? {};
-        const options = Array.isArray(data.options) ? data.options : [];
+        const rawOptions = payload.data?.options;
+        const options = Array.isArray(rawOptions) ? rawOptions : [];
 
         if (request_id && tool_name && tool_input) {
           onPermissionRequest({
@@ -300,7 +298,7 @@ export function useStreamCallbacks({
       }
 
       if (envelope.kind === 'permission_dismissed') {
-        const payload = envelope.payload as Record<string, unknown>;
+        const { payload } = envelope;
         if (typeof payload.request_id === 'string') {
           usePermissionStore
             .getState()
@@ -311,23 +309,23 @@ export function useStreamCallbacks({
 
       // Elicitations block the turn like permissions do — inline form, not content.
       if (envelope.kind === 'elicitation_request' && onElicitationRequest) {
-        const payload = envelope.payload as Record<string, unknown>;
+        const { payload } = envelope;
         const request_id = typeof payload.request_id === 'string' ? payload.request_id : undefined;
-        const data = extractPayloadData(payload);
+        const data = payload.data;
 
         if (request_id && data) {
           onElicitationRequest({
             request_id,
             message: typeof data.message === 'string' ? data.message : '',
             tool_call_id: typeof data.tool_call_id === 'string' ? data.tool_call_id : null,
-            requested_schema: (data.requested_schema ?? {}) as ElicitationSchema,
+            requested_schema: data.requested_schema ?? {},
           });
         }
         return;
       }
 
       if (envelope.kind === 'elicitation_dismissed' && onElicitationDismissed) {
-        const payload = envelope.payload as Record<string, unknown>;
+        const { payload } = envelope;
         if (typeof payload.request_id === 'string') {
           onElicitationDismissed(payload.request_id);
         }
@@ -335,8 +333,8 @@ export function useStreamCallbacks({
       }
 
       if (envelope.kind === 'system') {
-        const payload = envelope.payload as Record<string, unknown>;
-        const nestedData = extractPayloadData(payload);
+        const { payload } = envelope;
+        const nestedData = payload.data;
 
         const eventChatId =
           typeof payload.chat_id === 'string'
@@ -346,9 +344,7 @@ export function useStreamCallbacks({
               : undefined;
 
         if (onContextUsageUpdate) {
-          const contextUsage =
-            (payload.context_usage as ContextUsage | undefined) ??
-            (nestedData?.context_usage as ContextUsage | undefined);
+          const contextUsage = payload.context_usage ?? nestedData?.context_usage;
           if (contextUsage) {
             onContextUsageUpdate(contextUsage, eventChatId);
           }
@@ -367,15 +363,12 @@ export function useStreamCallbacks({
         scheduleGitRefresh(envelope.chatId, () =>
           refreshChatGitState(queryClient, envelope.chatId),
         );
-        const tool = (envelope.payload as { tool?: ToolEventPayload })?.tool;
+        const tool = envelope.payload.tool;
         if (tool?.name === 'EnterPlanMode' && chatId) {
           useChatSettingsStore.getState().setPermissionMode(chatId, 'plan');
         } else if (tool?.name === 'ExitPlanMode' && chatId) {
           if (tool.permission_mode) {
-            // Payload types as string; backend emits a known PermissionMode.
-            useChatSettingsStore
-              .getState()
-              .setPermissionMode(chatId, tool.permission_mode as PermissionMode);
+            useChatSettingsStore.getState().setPermissionMode(chatId, tool.permission_mode);
           }
         }
       }

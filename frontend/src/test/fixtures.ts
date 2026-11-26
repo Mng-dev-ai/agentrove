@@ -2,6 +2,7 @@ import type { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import type { PaginatedMessages } from '@/types/api.types';
 import type { Message } from '@/types/chat.types';
+import type { StreamEnvelope } from '@/types/stream.types';
 
 type MessagesData = { pages: PaginatedMessages[]; pageParams: unknown[] };
 
@@ -23,6 +24,11 @@ export function makeMessage(id: string, overrides: Partial<Message> = {}): Messa
     tool_results_omitted: false,
     ...overrides,
   };
+}
+
+// Wire data is unvalidated JSON, so payloads the types rule out still arrive.
+export function wireEnvelope(value: unknown): StreamEnvelope {
+  return JSON.parse(JSON.stringify(value));
 }
 
 export function seedMessagePages(queryClient: QueryClient, chatId: string, pages: Message[][]) {

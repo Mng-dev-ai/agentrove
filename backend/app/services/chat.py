@@ -5,7 +5,7 @@ import math
 from collections.abc import AsyncIterator, Sequence
 from contextlib import AsyncExitStack
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
 from sqlalchemy import Row, func, or_, select, text, update, true
@@ -62,6 +62,7 @@ from app.services.streaming.types import (
     ChannelMemberTurn,
     ChatStreamRequest,
     StreamEnvelope,
+    StreamEnvelopeKind,
 )
 from app.services.subthread_wake import subthread_wake
 from app.services.user import UserService
@@ -1023,7 +1024,7 @@ class ChatService(BaseDbService[Chat]):
                     message_id=event.message_id,
                     stream_id=event.stream_id,
                     seq=int(event.seq),
-                    kind=event.event_type,
+                    kind=cast(StreamEnvelopeKind, event.event_type),
                     payload=event.render_payload,
                 )
 
@@ -1048,7 +1049,7 @@ class ChatService(BaseDbService[Chat]):
         message_id: UUID,
         stream_id: UUID,
         seq: int,
-        kind: str,
+        kind: StreamEnvelopeKind,
         payload: dict[str, Any],
     ) -> dict[str, Any]:
         # SSE envelope shape; live path builds the same {id, event, data} from pre-serialized JSON.

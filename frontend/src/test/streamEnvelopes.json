@@ -1,0 +1,274 @@
+[
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 1,
+    "kind": "stream_started",
+    "payload": { "status": "started", "message_id": "22222222-2222-4222-8222-222222222222" }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 2,
+    "kind": "system",
+    "payload": { "data": { "worktree_cwd": "/workspace/.worktrees/feature" } }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 3,
+    "kind": "system",
+    "payload": { "data": { "session_id": "session-1" } }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 4,
+    "kind": "user_text",
+    "payload": { "text": "List the files" }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 5,
+    "kind": "assistant_thinking",
+    "payload": { "thinking": "The user wants a listing." }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 6,
+    "kind": "assistant_text",
+    "payload": { "text": "Listing the files." }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 7,
+    "kind": "tool_started",
+    "payload": {
+      "tool": {
+        "id": "tool-1",
+        "name": "Bash",
+        "title": "ls",
+        "status": "started",
+        "parent_id": null,
+        "input": { "command": "ls" }
+      }
+    }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 8,
+    "kind": "permission_request",
+    "payload": {
+      "request_id": "tool-1",
+      "tool_name": "Bash",
+      "tool_input": { "command": "ls" },
+      "data": {
+        "options": [
+          {
+            "kind": "allow_once",
+            "name": "Allow",
+            "option_id": "allow",
+            "permission_mode": null
+          },
+          {
+            "kind": "allow_always",
+            "name": "Always allow edits",
+            "option_id": "acceptEdits",
+            "permission_mode": "acceptEdits"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 9,
+    "kind": "permission_resolved",
+    "payload": { "request_id": "tool-1" }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 10,
+    "kind": "permission_dismissed",
+    "payload": { "request_id": "tool-0" }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 11,
+    "kind": "elicitation_request",
+    "payload": {
+      "request_id": "elicit-1",
+      "data": {
+        "message": "Which directory?",
+        "tool_call_id": "tool-1",
+        "requested_schema": {
+          "type": "object",
+          "properties": { "directory": { "type": "string" } }
+        }
+      }
+    }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 12,
+    "kind": "elicitation_resolved",
+    "payload": { "request_id": "elicit-1" }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 13,
+    "kind": "elicitation_dismissed",
+    "payload": { "request_id": "elicit-0" }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 14,
+    "kind": "tool_completed",
+    "payload": {
+      "tool": {
+        "id": "tool-1",
+        "name": "Bash",
+        "title": "ls",
+        "status": "completed",
+        "parent_id": null,
+        "input": { "command": "ls" },
+        "result": "README.md"
+      }
+    }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 15,
+    "kind": "tool_failed",
+    "payload": {
+      "tool": {
+        "id": "tool-2",
+        "name": "Read",
+        "title": "Read missing.txt",
+        "status": "failed",
+        "parent_id": null,
+        "input": { "file_path": "missing.txt" },
+        "error": "File not found"
+      }
+    }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 16,
+    "kind": "plan",
+    "payload": {
+      "data": {
+        "entries": [{ "content": "List the files", "status": "completed", "priority": "medium" }]
+      }
+    }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 17,
+    "kind": "user_steering",
+    "payload": {
+      "queued_message_id": "44444444-4444-4444-8444-444444444444",
+      "text": "Also show hidden files",
+      "attachments": [
+        {
+          "id": "44444444-4444-4444-8444-444444444444-0",
+          "message_id": "22222222-2222-4222-8222-222222222222",
+          "file_url": "/api/v1/attachments/temp/notes.pdf",
+          "file_type": "pdf",
+          "filename": "notes.pdf",
+          "created_at": "2026-01-01T00:00:00+00:00"
+        }
+      ]
+    }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 18,
+    "kind": "prompt_suggestions",
+    "payload": { "suggestions": ["Run the tests", "Show hidden files"] }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 19,
+    "kind": "system",
+    "payload": {
+      "context_usage": { "tokens_used": 1200, "context_window": 200000, "percentage": 0.6 },
+      "chat_id": "11111111-1111-4111-8111-111111111111"
+    }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 20,
+    "kind": "queue_processing",
+    "payload": {
+      "queued_message_id": "55555555-5555-4555-8555-555555555555",
+      "user_message_id": "66666666-6666-4666-8666-666666666666",
+      "assistant_message_id": "77777777-7777-4777-8777-777777777777",
+      "checkpoint_id": null,
+      "content": "Now run the tests",
+      "model_id": "claude-sonnet",
+      "attachments": null,
+      "prior_duration_ms": 1200
+    }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 21,
+    "kind": "complete",
+    "payload": { "status": "completed", "duration_ms": 1200 }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 22,
+    "kind": "cancelled",
+    "payload": { "status": "interrupted", "duration_ms": 800 }
+  },
+  {
+    "chatId": "11111111-1111-4111-8111-111111111111",
+    "messageId": "22222222-2222-4222-8222-222222222222",
+    "streamId": "33333333-3333-4333-8333-333333333333",
+    "seq": 23,
+    "kind": "error",
+    "payload": { "error": "Stream ended unexpectedly" }
+  }
+]

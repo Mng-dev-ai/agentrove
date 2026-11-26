@@ -9,22 +9,41 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { clearAllStreamState } from '@/hooks/stream/streamRegistry';
 import { chatService } from '@/services/chatService';
-import { useChatSettingsStore } from '@/store/chatSettingsStore';
-import type { Chat, Message } from '@/types/chat.types';
-import type { QueueProcessingData, StreamEnvelope, StreamKind } from '@/types/stream.types';
-import { makeMessage, readMessagePages, seedMessagePages } from '@/test/fixtures';
+import { streamConnection } from '@/services/streamConnection';
+import { streamService } from '@/services/streamService';
+import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
+import { useStreamStore } from '@/store/streamStore';
+import type { Chat, Message, PermissionOption } from '@/types/chat.types';
+import type { QueueProcessingData, StreamEnvelope } from '@/types/stream.types';
+import { makeMessage, readMessagePages, seedMessagePages, wireEnvelope } from '@/test/fixtures';
+import streamEnvelopes from '@/test/streamEnvelopes.json';
 import { useStreamCallbacks } from './useStreamCallbacks';
 
-function envelope(
-  kind: StreamKind,
-  payload: Record<string, unknown>,
-  overrides: Partial<StreamEnvelope> = {},
-): StreamEnvelope {
-  return { chatId: 'c1', messageId: 'a1', streamId: 's1', seq: 1, kind, payload, ...overrides };
+// The real connection opens an EventSource for any registered stream and fails it.
+vi.mock('@/services/streamConnection', () => ({
+  streamConnection: { configure: vi.fn(), requestReplay: vi.fn() },
+}));
+
+// streamService registers its raw-data handler once, when the module loads.
+const deliverRawEnvelope = vi.mocked(streamConnection.configure).mock.calls[0][0].onEnvelopeData;
+const ENVELOPE_IDS: EnvelopeIds = { chatId: 'c1', messageId: 'a1', streamId: 's1', seq: 1 };
+const ALLOW_OPTION: PermissionOption = {
+  kind: 'allow_once',
+  name: 'Allow',
+  option_id: 'allow',
+  permission_mode: null,
+};
+
+type EnvelopeIds = Pick<StreamEnvelope, 'chatId' | 'messageId' | 'streamId' | 'seq'>;
+type EnvelopeBodyOf<E> = E extends unknown ? Omit<E, keyof EnvelopeIds> : never;
+type EnvelopeBody = EnvelopeBodyOf<StreamEnvelope>;
+
+function envelope(body: EnvelopeBody, overrides: Partial<EnvelopeIds> = {}): StreamEnvelope {
+  return { ...ENVELOPE_IDS, ...body, ...overrides };
 }
 
-const text = (value: string, overrides?: Partial<StreamEnvelope>) =>
-  envelope('assistant_text', { text: value }, overrides);
+const text = (value: string, overrides?: Partial<EnvelopeIds>) =>
+  envelope({ kind: 'assistant_text', payload: { text: value } }, overrides);
 
 const handlers = {
   onPermissionRequest: vi.fn(),
@@ -150,23 +169,35 @@ describe('side-effect envelopes', () => {
     act(() => {
       result.current.onEnvelope(
         envelope(
-          'permission_request',
           {
-            request_id: 'p1',
-            tool_name: 'Bash',
-            tool_input: { command: 'ls' },
-            data: { options: [{ id: 'allow' }] },
+            kind: 'permission_request',
+            payload: {
+              request_id: 'p1',
+              tool_name: 'Bash',
+              tool_input: { command: 'ls' },
+              data: { options: [ALLOW_OPTION] },
+            },
           },
           { seq: 7 },
         ),
       );
       result.current.onEnvelope(
-        envelope('permission_request', { request_id: 'p2', tool_name: 'Bash' }),
+        wireEnvelope({
+          ...ENVELOPE_IDS,
+          kind: 'permission_request',
+          payload: { request_id: 'p2', tool_name: 'Bash' },
+        }),
       );
       result.current.onEnvelope(
-        envelope('elicitation_request', { request_id: 'e1', data: { message: 'Pick one' } }),
+        wireEnvelope({
+          ...ENVELOPE_IDS,
+          kind: 'elicitation_request',
+          payload: { request_id: 'e1', data: { message: 'Pick one' } },
+        }),
       );
-      result.current.onEnvelope(envelope('elicitation_dismissed', { request_id: 'e0' }));
+      result.current.onEnvelope(
+        envelope({ kind: 'elicitation_dismissed', payload: { request_id: 'e0' } }),
+      );
     });
     await flushTimers();
 
@@ -175,7 +206,7 @@ describe('side-effect envelopes', () => {
       request_id: 'p1',
       tool_name: 'Bash',
       tool_input: { command: 'ls' },
-      options: [{ id: 'allow' }],
+      options: [ALLOW_OPTION],
       seq: 7,
     });
     expect(handlers.onElicitationRequest).toHaveBeenCalledWith({
@@ -195,8 +226,9 @@ describe('side-effect envelopes', () => {
 
     act(() =>
       result.current.onEnvelope(
-        envelope('system', {
-          data: { chat_id: 'c1', context_usage: usage, worktree_cwd: '/wt/feature' },
+        envelope({
+          kind: 'system',
+          payload: { data: { chat_id: 'c1', context_usage: usage, worktree_cwd: '/wt/feature' } },
         }),
       ),
     );
@@ -205,11 +237,98 @@ describe('side-effect envelopes', () => {
     expect(queryClient.getQueryData<Chat>(queryKeys.chat('c1'))?.worktree_cwd).toBe('/wt/feature');
   });
 
+  // backend/tests/test_stream_envelopes.py holds StreamEnvelopeKind to the same file.
+  it('carries every backend envelope kind from raw stream data to its handler', async () => {
+    queryClient.setQueryData(queryKeys.chat('c1'), { id: 'c1', worktree_cwd: null } as Chat);
+    const { result } = renderCallbacks();
+    const sent = streamEnvelopes.map((entry) => ({ ...entry, ...ENVELOPE_IDS, seq: entry.seq }));
+    const received: StreamEnvelope[] = [];
+    const callbacks = {
+      onEnvelope: (envelope: StreamEnvelope) => {
+        received.push(envelope);
+        result.current.onEnvelope(envelope);
+      },
+      onComplete: vi.fn(),
+      onError: vi.fn(),
+      onQueueProcess: vi.fn(),
+    };
+
+    await act(async () => {
+      for (const entry of sent) {
+        // Terminal kinds drop the stream and a queue handoff repoints it.
+        const stale = useStreamStore.getState().getStreamByChat('c1');
+        if (stale) useStreamStore.getState().removeStream(stale.id);
+        await streamService.replayStream({ chatId: 'c1', messageId: 'a1', ...callbacks });
+        deliverRawEnvelope(JSON.stringify(entry));
+      }
+    });
+    await flushTimers();
+
+    expect(received).toEqual(sent.filter((entry) => entry.kind !== 'queue_processing'));
+    const entryOf = (kind: StreamEnvelope['kind']) => sent.find((entry) => entry.kind === kind)!;
+    const systemPayloads = sent.filter((entry) => entry.kind === 'system').map((e) => e.payload);
+
+    const queued = entryOf('queue_processing').payload;
+    expect(callbacks.onQueueProcess).toHaveBeenCalledWith({
+      queuedMessageId: queued.queued_message_id,
+      userMessageId: queued.user_message_id,
+      assistantMessageId: queued.assistant_message_id,
+      checkpointId: queued.checkpoint_id,
+      content: queued.content,
+      modelId: queued.model_id,
+      attachments: queued.attachments,
+      priorMessageId: 'a1',
+      priorDurationMs: queued.prior_duration_ms,
+    });
+    expect(callbacks.onComplete.mock.calls).toEqual([
+      ['a1', 's1', 'complete', entryOf('complete').payload.duration_ms],
+      ['a1', 's1', 'cancelled', entryOf('cancelled').payload.duration_ms],
+    ]);
+    expect(callbacks.onError.mock.calls[0][0].getDetailedMessage()).toContain(
+      entryOf('error').payload.error,
+    );
+
+    const permission = entryOf('permission_request');
+    expect(handlers.onPermissionRequest).toHaveBeenCalledWith({
+      request_id: permission.payload.request_id,
+      tool_name: permission.payload.tool_name,
+      tool_input: permission.payload.tool_input,
+      options: permission.payload.data?.options,
+      seq: permission.seq,
+    });
+    const elicitation = entryOf('elicitation_request').payload;
+    expect(handlers.onElicitationRequest).toHaveBeenCalledWith({
+      request_id: elicitation.request_id,
+      message: elicitation.data?.message,
+      tool_call_id: elicitation.data?.tool_call_id,
+      requested_schema: elicitation.data?.requested_schema,
+    });
+    expect(handlers.onElicitationDismissed).toHaveBeenCalledWith(
+      entryOf('elicitation_dismissed').payload.request_id,
+    );
+    const usage = systemPayloads.find((payload) => payload.context_usage)!;
+    expect(handlers.onContextUsageUpdate).toHaveBeenCalledWith(usage.context_usage, usage.chat_id);
+    expect(queryClient.getQueryData<Chat>(queryKeys.chat('c1'))?.worktree_cwd).toBe(
+      systemPayloads.find((payload) => payload.data?.worktree_cwd)!.data?.worktree_cwd,
+    );
+    expect(result.current.messages[0].content_render.events.map((event) => event.type)).toEqual([
+      'assistant_thinking',
+      'assistant_text',
+      'tool_started',
+      'tool_completed',
+      'tool_failed',
+      'plan',
+      'user_steering',
+      'prompt_suggestions',
+    ]);
+  });
+
   it('follows the agent into and out of plan mode', () => {
     const { result } = renderCallbacks();
-    const toolCompleted = (name: string, permission_mode?: string) =>
-      envelope('tool_completed', {
-        tool: { id: name, name, title: name, status: 'completed', permission_mode },
+    const toolCompleted = (name: string, permission_mode?: PermissionMode) =>
+      envelope({
+        kind: 'tool_completed',
+        payload: { tool: { id: name, name, title: name, status: 'completed', permission_mode } },
       });
 
     act(() => result.current.onEnvelope(toolCompleted('EnterPlanMode')));
@@ -235,8 +354,9 @@ describe('side-effect envelopes', () => {
     act(() => {
       for (const id of ['t1', 't2', 't3']) {
         result.current.onEnvelope(
-          envelope('tool_completed', {
-            tool: { id, name: 'Edit', title: id, status: 'completed' },
+          envelope({
+            kind: 'tool_completed',
+            payload: { tool: { id, name: 'Edit', title: id, status: 'completed' } },
           }),
         );
       }
@@ -271,8 +391,9 @@ describe('side-effect envelopes', () => {
 
     act(() =>
       result.current.onEnvelope(
-        envelope('tool_completed', {
-          tool: { id: 't1', name: 'Edit', title: 't1', status: 'completed' },
+        envelope({
+          kind: 'tool_completed',
+          payload: { tool: { id: 't1', name: 'Edit', title: 't1', status: 'completed' } },
         }),
       ),
     );
@@ -301,8 +422,9 @@ describe('side-effect envelopes', () => {
 
     act(() =>
       result.current.onEnvelope(
-        envelope('tool_completed', {
-          tool: { id: 't1', name: 'Edit', title: 't1', status: 'completed' },
+        envelope({
+          kind: 'tool_completed',
+          payload: { tool: { id: 't1', name: 'Edit', title: 't1', status: 'completed' } },
         }),
       ),
     );
@@ -407,6 +529,7 @@ describe('onQueueProcess', () => {
       checkpointId: null,
       content: 'next',
       modelId: 'm',
+      attachments: null,
       priorMessageId: 'a1',
       priorDurationMs: 5000,
     };
