@@ -1,17 +1,9 @@
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Edit2, Pin, PinOff, Plus, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
+import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { ConfirmDialog } from '@/components/ui/ConfirmDialog/ConfirmDialog';
-import { RenameModal } from '@/components/ui/RenameModal/RenameModal';
 import { CreateChannelDialog } from '@/components/channels/CreateChannelDialog';
-import {
-  useDeleteChannelMutation,
-  useMachinesChannels,
-  usePinChannelMutation,
-  useRenameChannelMutation,
-} from '@/hooks/queries/useChannelQueries';
+import { useMachinesChannels } from '@/hooks/queries/useChannelQueries';
 import { useMachinesModelMaps } from '@/hooks/queries/useModelQueries';
 import { permissionNotifyEvent, useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import { useMountEffect } from '@/hooks/useMountEffect';
@@ -29,10 +21,9 @@ import { getAgentKindForModelId } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Channel } from '@/types/channel.types';
 import { notifyPermissionRequest, notifyStreamComplete } from '@/utils/notifications';
-import { calculateDropdownPosition, mutateWithToast } from './sidebarHelpers';
+import { calculateDropdownPosition } from './sidebarHelpers';
 import { SidebarChannelItem } from './SidebarChannelItem';
 import type { MachineBadge } from './SidebarChatItem';
-import { SidebarMenu, SidebarMenuItem } from './SidebarMenu';
 import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import styles from './SidebarChannels.module.scss';
@@ -96,9 +87,6 @@ export function SidebarChannels({
     ...filteredChannels.filter(({ channel }) => channel.pinned_at),
     ...filteredChannels.filter(({ channel }) => !channel.pinned_at),
   ];
-  const deleteChannel = useDeleteChannelMutation();
-  const renameChannel = useRenameChannelMutation();
-  const pinChannel = usePinChannelMutation();
   const isCollapsed = useUIStore((state) => state.collapsedSidebarSections.includes('channels'));
   const [isExpanded, setIsExpanded] = useState(false);
   const collapsedChannels = channels.filter(
@@ -151,29 +139,18 @@ export function SidebarChannels({
   }, [liveMachineIdsKey]);
 
   const [createOpen, setCreateOpen] = useState(false);
-  const [dropdown, setDropdown] = useState<{
-    channel: Channel;
-    position: { top: number; left: number };
-  } | null>(null);
-  const [channelToDelete, setChannelToDelete] = useState<Channel | null>(null);
-  const [channelToRename, setChannelToRename] = useState<Channel | null>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useMountEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setDropdown(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  });
+  const openMenuChannelId = useUIStore((state) =>
+    state.channelMenu?.source === 'sidebar' ? state.channelMenu.channel.id : null,
+  );
 
   // The menu is fixed-positioned, so it would float at a stale spot once the list scrolls
   useMountEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
-    const handleScroll = () => setDropdown(null);
+    const handleScroll = () => {
+      const ui = useUIStore.getState();
+      if (ui.channelMenu?.source === 'sidebar') ui.setChannelMenu(null);
+    };
     scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
     return () => scrollContainer.removeEventListener('scroll', handleScroll);
   });
@@ -186,45 +163,11 @@ export function SidebarChannels({
   const handleDropdownClick = (e: React.MouseEvent<HTMLButtonElement>, channel: Channel) => {
     e.stopPropagation();
     const rect = e.currentTarget.getBoundingClientRect();
-    setDropdown((prev) =>
-      prev?.channel.id === channel.id
-        ? null
-        : { channel, position: calculateDropdownPosition(rect) },
-    );
-  };
-
-  const confirmDelete = async () => {
-    if (!channelToDelete) return;
-    const { id } = channelToDelete;
-    try {
-      await mutateWithToast(
-        () => deleteChannel.mutateAsync(id),
-        'Channel deleted successfully',
-        'Failed to delete channel',
-      );
-      if (id === selectedChannelId) navigate('/');
-    } catch {
-      // toast already shown by mutateWithToast
-    } finally {
-      setChannelToDelete(null);
-    }
-  };
-
-  const togglePin = async (channel: Channel) => {
-    setDropdown(null);
-    const isPinned = !!channel.pinned_at;
-    await mutateWithToast(
-      () => pinChannel.mutateAsync({ channelId: channel.id, pinned: !isPinned }),
-      isPinned ? 'Channel unpinned' : 'Channel pinned',
-      'Failed to update pin status',
-    ).catch(() => undefined);
-  };
-
-  const saveRename = async (name: string) => {
-    if (!channelToRename) return;
-    await renameChannel.mutateAsync({ channelId: channelToRename.id, name });
-    toast.success('Channel renamed successfully');
-    setChannelToRename(null);
+    useUIStore.getState().toggleChannelMenu({
+      channel,
+      position: calculateDropdownPosition(rect),
+      source: 'sidebar',
+    });
   };
 
   return (
@@ -246,7 +189,7 @@ export function SidebarChannels({
           machineBadge={machineBadge(machineId)}
           isActive={channel.id === selectedChannelId}
           isCompleted={completedChannelIds.has(channel.id)}
-          isDropdownOpen={dropdown?.channel.id === channel.id}
+          isDropdownOpen={openMenuChannelId === channel.id}
           onSelect={navigateToChannel}
           onDropdownClick={handleDropdownClick}
         />
@@ -275,62 +218,6 @@ export function SidebarChannels({
           </p>
         )
       )}
-
-      {dropdown && (
-        <SidebarMenu
-          ref={dropdownRef}
-          position={dropdown.position}
-          onClose={() => setDropdown(null)}
-        >
-          {dropdown.channel.pinned_at !== undefined && (
-            <SidebarMenuItem
-              icon={dropdown.channel.pinned_at ? PinOff : Pin}
-              onClick={() => togglePin(dropdown.channel)}
-            >
-              {dropdown.channel.pinned_at ? 'Unpin' : 'Pin'}
-            </SidebarMenuItem>
-          )}
-          <SidebarMenuItem
-            icon={Edit2}
-            onClick={() => {
-              setChannelToRename(dropdown.channel);
-              setDropdown(null);
-            }}
-          >
-            Rename
-          </SidebarMenuItem>
-          <SidebarMenuItem
-            icon={Trash2}
-            onClick={() => {
-              setChannelToDelete(dropdown.channel);
-              setDropdown(null);
-            }}
-            danger
-          >
-            Delete
-          </SidebarMenuItem>
-        </SidebarMenu>
-      )}
-
-      <ConfirmDialog
-        destructive
-        isOpen={!!channelToDelete}
-        onClose={() => setChannelToDelete(null)}
-        onConfirm={confirmDelete}
-        title="Delete Channel"
-        message="Are you sure you want to delete this channel and its messages? This action cannot be undone."
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-      />
-
-      <RenameModal
-        isOpen={!!channelToRename}
-        onClose={() => setChannelToRename(null)}
-        onSave={saveRename}
-        currentTitle={channelToRename?.name ?? ''}
-        isLoading={renameChannel.isPending}
-        subject="channel"
-      />
 
       {createOpen && (
         <CreateChannelDialog
