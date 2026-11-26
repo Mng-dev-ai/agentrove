@@ -1,5 +1,5 @@
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from functools import partial
@@ -31,6 +31,7 @@ from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.push import PushDelivery
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
+from app.models.schemas.channel import ChannelCreate, ChannelMemberCreate
 from app.models.schemas.chat import ChatRequest
 from app.models.schemas.sandbox import GitCheckoutResponse
 from app.models.types import AgentKind
@@ -248,6 +249,18 @@ async def checkout_while_workspace_is_deleted(
         )
         await db.commit()
     return GitCheckoutResponse(success=True, current_branch=branch)
+
+
+async def list_channels_then_run(
+    list_channels: Callable[[User, UUID | None], Awaitable[list[Channel]]],
+    pending: list[Coroutine[Any, Any, Channel]],
+    user: User,
+    workspace_id: UUID | None,
+) -> list[Channel]:
+    channels = await list_channels(user, workspace_id)
+    while pending:
+        await pending.pop()
+    return channels
 
 
 @pytest.fixture
@@ -2537,3 +2550,33 @@ async def test_channel_create_rejects_workspace_deleted_during_branch_checkout(
 
     assert response.status_code == 404
     assert await db_session.scalar(select(Channel.id)) is None
+
+
+async def test_workspace_delete_takes_a_channel_created_after_its_channel_sweep(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = owner
+    late_create = channel_service.create(
+        user,
+        ChannelCreate(
+            name="Late",
+            workspace_id=workspace.id,
+            members=[ChannelMemberCreate(model_id=TEST_MODEL_ID)],
+        ),
+    )
+    monkeypatch.setattr(
+        channel_service,
+        "list_channels",
+        partial(list_channels_then_run, channel_service.list_channels, [late_create]),
+    )
+
+    response = await client.delete(
+        f"/api/v1/workspaces/{workspace.id}", headers=headers
+    )
+
+    assert response.status_code == 204
+    assert await db_session.scalar(select(Channel.id)) is None
+    assert await db_session.scalar(select(Chat.id)) is None

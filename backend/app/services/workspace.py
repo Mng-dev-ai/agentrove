@@ -320,6 +320,11 @@ class WorkspaceService(BaseDbService[Workspace]):
             for cid in chat_ids:
                 asyncio.create_task(session_registry.terminate(str(cid)))
 
+            # A channel created since the first sweep committed before the
+            # soft-delete; it needs the sandbox, so it goes before the teardown.
+            for channel in await channel_service.list_channels(user, workspace_id):
+                await channel_service.delete(channel)
+
             if workspace.sandbox_id:
                 provider = SandboxProvider.create_provider(
                     workspace.sandbox_provider, workspace_path=workspace.workspace_path

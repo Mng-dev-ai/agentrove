@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID, uuid4
@@ -7,13 +8,16 @@ from httpx import AsyncClient
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import get_password_hash
+from app.db.session import SessionLocal, begin_immediate
 from app.models.db_models.push import PushDevice
-from app.models.db_models.user import UserSettings
+from app.models.db_models.user import User, UserSettings
 from app.services.push import PushService
 
 from tests.conftest import EmailCapture, FakeApns, LoginClient, UserFactory
 from tests.helpers import (
     DEVICE_TOKEN,
+    RACE_WINDOW_SECONDS,
     create_authenticated_workspace,
     create_chat_row,
     deliveries,
@@ -189,6 +193,37 @@ async def test_registration_served_after_a_password_reset_is_rejected(
     )
 
     assert late.status_code == 401
+    assert await db_session.scalar(select(PushDevice.id)) is None
+
+
+async def test_registration_waits_for_a_password_reset_committing_under_it(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, user, _workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    async with SessionLocal() as writer:
+        await begin_immediate(writer)
+        await writer.execute(
+            update(User)
+            .where(User.id == user.id)
+            .values(hashed_password=get_password_hash("newpassword123"))
+        )
+        registering = asyncio.create_task(
+            client.post(
+                "/api/v1/push/devices",
+                json={"token": DEVICE_TOKEN, "sandbox": True},
+                headers=headers,
+            )
+        )
+        await asyncio.sleep(RACE_WINDOW_SECONDS)
+        await writer.commit()
+    response = await registering
+
+    assert response.status_code == 401
     assert await db_session.scalar(select(PushDevice.id)) is None
 
 
