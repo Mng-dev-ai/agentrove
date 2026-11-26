@@ -77,6 +77,16 @@ async function fakeFetch(url: string, init: RequestInit = {}): Promise<Response>
     throw new TypeError('Failed to fetch');
   }
   if (response instanceof Promise) return response;
+  if (response.status !== undefined && response.status >= 300 && response.status < 400) {
+    if (init.redirect === 'error') throw new TypeError('Failed to fetch');
+    if (init.redirect === 'manual') {
+      return Object.defineProperties(new Response(null), {
+        type: { value: 'opaqueredirect' },
+        status: { value: 0 },
+        ok: { value: false },
+      });
+    }
+  }
   const body = response.json === undefined ? response.text : JSON.stringify(response.json);
   return new Response(body ?? null, { status: response.status });
 }
@@ -221,7 +231,7 @@ describe('browserVault browser-only behaviour', () => {
   it('sends requests without cookies or cache and refuses redirects', async () => {
     await runStep(await loadVault(false), pairedSetup, 'pair');
     expect(inits[0]).toMatchObject({
-      redirect: 'error',
+      redirect: 'manual',
       credentials: 'omit',
       cache: 'no-store',
       headers: { 'Content-Type': 'application/json' },
