@@ -59,12 +59,14 @@ Frontend (`.github/workflows/frontend-checks.yml`, Node 20, runs when `frontend/
 - `npm run lint`, `npm run format:check` (`prettier --check .`), `npm run typecheck`, `npm test` (`vitest run`, all tests), `npm run build`.
 - Also verify frontend changes on a production build, not only the dev server: `npx vite build --mode desktop` into a scratch `--outDir`, served statically.
 
+Desktop (`.github/workflows/desktop-checks.yml`, macos-latest, runs when `frontend/src-tauri/`, `rust-toolchain.toml` or the workflow change): creates empty `frontend/dist` and `frontend/backend-sidecar` (tauri-build needs `frontendDist` and bundle resources at compile time; `beforeBuildCommand` is never run), then `cargo test --locked` in `frontend/src-tauri`. Its rust-cache key (`desktop-pr-check-…`) is separate from the release cache and saved only from `main`.
+
 PR checks do not run while the PR conflicts with `main`.
 
 ## Desktop / release
 
 - `.github/workflows/desktop-release.yml` runs on `v*` tags and `workflow_dispatch` on macOS; `validate_only=true` builds, signs and notarizes without publishing.
-- No PR check compiles the Tauri Rust (`frontend/src-tauri`, toolchain in `rust-toolchain.toml`). The validate-only run is the compile proof: `gh workflow run desktop-release.yml --ref <branch> -f validate_only=true`. Do not list `cargo` as a CI check.
+- The Desktop PR check compiles the Tauri Rust (`frontend/src-tauri`, toolchain in `rust-toolchain.toml`) in the dev profile and runs its tests. The validate-only run remains the proof for the release build, bundling, signing and notarization: `gh workflow run desktop-release.yml --ref <branch> -f validate_only=true`.
 - `desktop/run_build.mjs` pins the bundled Python, Node, ripgrep, claude-agent-acp, Claude Code and codex-acp versions and supports macOS arm64/x64 only. Tauri bundles `frontend/backend-sidecar/` as a resource.
 - Tauri's resource copy turns symlinks and hardlinks into full files. After changing what `run_build.mjs` installs, list the release tarball (`tar -tzv`) for duplicated large binaries.
 - Cargo caches saved on a tag ref are unreadable by later tags; `.github/workflows/desktop-rust-cache.yml` warms the cache from `main` (on Rust toolchain/lock changes and a twice-weekly schedule).

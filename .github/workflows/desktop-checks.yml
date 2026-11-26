@@ -1,0 +1,50 @@
+name: Desktop Checks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/src-tauri/**'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/desktop-checks.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src-tauri/**'
+      - 'rust-toolchain.toml'
+      - '.github/workflows/desktop-checks.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Cargo Test
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Caches saved from a PR ref are readable only by that PR; the push-to-main run saves one every PR can read.
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: frontend/src-tauri -> target
+          shared-key: desktop-pr-check-${{ hashFiles('rust-toolchain.toml', 'frontend/src-tauri/Cargo.lock') }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      # tauri.conf.json's frontendDist and bundle resources must exist at compile time.
+      - name: Stub frontend dist and sidecar
+        run: mkdir -p frontend/dist frontend/backend-sidecar
+
+      - name: Run cargo test
+        run: |
+          cd frontend/src-tauri
+          cargo test --locked
