@@ -26,7 +26,6 @@ from starlette.datastructures import Headers
 
 from app.catalog import MODELS
 from app.constants import REDIS_KEY_CHAT_CONTEXT_USAGE
-from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.core.config import get_settings
 from app.core.deps import (
     ensure_chat_access,
@@ -94,7 +93,7 @@ from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services.storage import StorageService
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.turn_settings import resolve_inherited_turn_settings
+from app.services.turn_settings import MissingTurnModelError, resolve_turn_settings
 from app.utils.cache import CacheError, cache_connection
 from app.utils.parsing import parse_stream_cursors
 
@@ -170,21 +169,6 @@ async def promote_chat(
     return await chat_service.promote_chat(chat_id, current_user)
 
 
-def _required_model_id(model_id: str | None) -> str:
-    if model_id is None:
-        raise RequestValidationError(
-            [
-                {
-                    "type": "missing",
-                    "loc": ("body", "model_id"),
-                    "msg": "Field required",
-                    "input": None,
-                }
-            ]
-        )
-    return model_id
-
-
 @router.post("/chat", response_model=ChatCompletionResponse)
 async def send_message(
     prompt: str = Form(...),
@@ -205,27 +189,26 @@ async def send_message(
 ) -> dict[str, Any]:
     files = attached_files or []
     try:
-        if inherit_turn_settings:
-            model_id, thinking_mode, selected_persona_name = (
-                resolve_inherited_turn_settings(
-                    await chat_service.get_chat(UUID(chat_id), current_user),
-                    model_id=model_id,
-                    thinking_mode=thinking_mode,
-                    persona_name=selected_persona_name,
-                )
-            )
+        model_id, thinking_mode, selected_persona_name = resolve_turn_settings(
+            await chat_service.get_chat(UUID(chat_id), current_user)
+            if inherit_turn_settings
+            else None,
+            model_id=model_id,
+            thinking_mode=thinking_mode,
+            persona_name=selected_persona_name,
+        )
         request = ChatRequest(
             prompt=prompt,
             chat_id=UUID(chat_id),
             user_message_id=user_message_id,
-            model_id=_required_model_id(model_id),
+            model_id=model_id,
             attached_files=files,
             permission_mode=permission_mode,
             thinking_mode=thinking_mode,
             worktree=worktree,
             base_branch=base_branch,
             fast_mode=fast_mode,
-            selected_persona_name=selected_persona_name or DEFAULT_PERSONA_NAME,
+            selected_persona_name=selected_persona_name,
             report_to_parent=report_to_parent,
         )
         result = await chat_service.initiate_chat_completion(
@@ -241,7 +224,7 @@ async def send_message(
             "checkpoint_id": result["checkpoint_id"],
             "worktree_cwd": result["worktree_cwd"],
         }
-    except ValidationError as e:
+    except (ValidationError, MissingTurnModelError) as e:
         raise RequestValidationError(e.errors()) from e
     except ChatException as e:
         raise HTTPException(status_code=e.status_code, detail=str(e)) from e
@@ -857,22 +840,18 @@ async def queue_message(
     queue_service: QueueService = Depends(get_queue_service),
     chat_service: ChatService = Depends(get_chat_service),
 ) -> QueueAddResponse:
-    if inherit_turn_settings:
-        model_id, thinking_mode, selected_persona_name = (
-            resolve_inherited_turn_settings(
-                chat,
-                model_id=model_id,
-                thinking_mode=thinking_mode,
-                persona_name=selected_persona_name,
-            )
-        )
-    model_id = _required_model_id(model_id)
-    if report_to_parent and chat.parent_chat_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="report_to_parent requires a sub-thread",
-        )
     try:
+        model_id, thinking_mode, selected_persona_name = resolve_turn_settings(
+            chat if inherit_turn_settings else None,
+            model_id=model_id,
+            thinking_mode=thinking_mode,
+            persona_name=selected_persona_name,
+        )
+        if report_to_parent and chat.parent_chat_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="report_to_parent requires a sub-thread",
+            )
         queued_message = QueuedMessageBase(
             content=content,
             model_id=model_id,
@@ -881,11 +860,11 @@ async def queue_message(
             worktree=worktree,
             base_branch=base_branch,
             fast_mode=fast_mode,
-            selected_persona_name=selected_persona_name or DEFAULT_PERSONA_NAME,
+            selected_persona_name=selected_persona_name,
             report_to_parent=report_to_parent,
             device_ids=current_user.device_ids,
         )
-    except ValidationError as e:
+    except (ValidationError, MissingTurnModelError) as e:
         raise RequestValidationError(e.errors()) from e
 
     attachments: list[MessageAttachmentDict] | None = None
