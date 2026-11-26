@@ -155,27 +155,9 @@ GIT_WORKTREE_REMOVE_TEMPLATE = Template(
 # keys files by path. `hash-object -t tree /dev/null` yields the empty-tree id
 # for the repo's object format (the stock pre-commit-hook idiom).
 GIT_DIFF_ALL_TEMPLATE = Template(
-    "git diff$ctx HEAD 2>/dev/null"
-    " || git diff$ctx $$(git hash-object -t tree /dev/null) 2>/dev/null;"
-    "$untracked"
-)
-# Default context (no -U flag): restore resets --hard to base_head before
-# applying, and changed-files builds its temp index from exactly base_head, so
-# the patch base is always byte-identical — full-file context would only bloat
-# every checkpoint row stored in the DB.
-# No unborn-HEAD fallback (unlike GIT_DIFF_ALL_TEMPLATE): the checkpoint probe
-# already required a resolvable HEAD before this diff runs.
-GIT_CHECKPOINT_DIFF_ALL_TEMPLATE = Template(
-    "git diff --binary HEAD 2>/dev/null;$untracked"
-)
-GIT_UNTRACKED_DIFF_TEMPLATE = Template(
-    " git ls-files --others --exclude-standard -z"
-    " | xargs -0 -I{} git diff$ctx --no-index -- /dev/null {} 2>/dev/null"
-)
-GIT_CHECKPOINT_UNTRACKED_DIFF_TEMPLATE = (
-    " git ls-files --others --exclude-standard -z"
-    " | xargs -0 -I{} "
-    "git diff --binary --no-index -- /dev/null {} 2>/dev/null"
+    ' GIT_INDEX_FILE="$$tmp" git diff$ctx HEAD 2>/dev/null'
+    ' || GIT_INDEX_FILE="$$tmp" git diff$ctx'
+    " $$(git hash-object -t tree /dev/null) 2>/dev/null"
 )
 GIT_DETECT_BASE_CMD = (
     "base=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/||');"
@@ -224,13 +206,37 @@ GIT_DIFF_BRANCH_TEMPLATE = Template(
 )
 
 # Untracked files are marked intent-to-add in a throwaway index copy so one
-# `git diff` counts them without touching the real index. Bail if mktemp fails
-# (an empty GIT_INDEX_FILE would hit the real index); with no index yet, drop
-# the copy so git starts empty instead of rejecting a zero-byte file.
+# `git diff` covers them without touching the real index. The add takes the
+# `ls-files --others` list rather than `-A`: `git add -A -N` aborts on a nested
+# repo with no commit, dropping every untracked file, and records one that has
+# commits as a gitlink. ls-files prints nested repos as `dir/`, which the grep
+# drops; the sh filter drops unreadable files, which would abort the diff for
+# every file. Bail if mktemp or the copy fails (an empty GIT_INDEX_FILE would
+# hit the real index, an empty copy would diff every tracked file as deleted);
+# with no index yet, drop the copy so git starts empty instead of rejecting a
+# zero-byte file. `$ita` is the add's exit status.
 GIT_INTENT_TO_ADD_INDEX_CMD = (
     " tmp=$(mktemp) || exit 1; trap 'rm -f \"$tmp\"' EXIT;"
-    ' cp -p "$(git rev-parse --git-path index)" "$tmp" 2>/dev/null || rm -f "$tmp";'
-    ' GIT_INDEX_FILE="$tmp" git add -A -N >/dev/null 2>&1;'
+    " idx=$(git rev-parse --git-path index);"
+    ' if [ -e "$idx" ]; then cp -p "$idx" "$tmp" || exit 1; else rm -f "$tmp"; fi;'
+    ' (cd "$(git rev-parse --show-toplevel)" && export GIT_INDEX_FILE="$tmp" &&'
+    " git ls-files --others --exclude-standard -z | grep -zv '/$' |"
+    """ xargs -0 sh -c 'for f; do if [ -L "$f" ] || [ -r "$f" ]; then"""
+    """ printf "%s\\0" "$f"; fi; done' sh |"""
+    " git --literal-pathspecs add -N --pathspec-from-file=- --pathspec-file-nul"
+    " >/dev/null 2>&1); ita=$?;"
+)
+# Default context (no -U flag): restore resets --hard to base_head before
+# applying, and changed-files builds its temp index from exactly base_head, so
+# the patch base is always byte-identical — full-file context would only bloat
+# every checkpoint row stored in the DB.
+# No unborn-HEAD fallback (unlike GIT_DIFF_ALL_TEMPLATE): the checkpoint probe
+# already required a resolvable HEAD before this diff runs. Restore deletes
+# whatever the patch doesn't carry, so a failed add exits instead of emitting a
+# diff without the untracked files.
+GIT_CHECKPOINT_DIFF_CMD = (
+    GIT_INTENT_TO_ADD_INDEX_CMD + ' [ "$ita" -eq 0 ] || exit 1;'
+    ' GIT_INDEX_FILE="$tmp" git diff --binary HEAD 2>/dev/null'
 )
 GIT_MERGE_BASE_CMD = (
     ' merge_base=$(git merge-base "$base" HEAD 2>/dev/null || echo "$base");'
@@ -368,7 +374,6 @@ class GitService:
         # Large context window so the patch includes the entire file,
         # enabling full-file diff view
         ctx = " -U99999" if full_context else ""
-        untracked_diff = GIT_UNTRACKED_DIFF_TEMPLATE.substitute(ctx=ctx)
 
         if mode == "branch":
             cmd = GIT_DIFF_BRANCH_TEMPLATE.substitute(
@@ -383,7 +388,9 @@ class GitService:
                 + GIT_DIFF_TOTAL_TEMPLATE.substitute(flags=ctx)
             )
         else:
-            cmd = GIT_DIFF_ALL_TEMPLATE.substitute(ctx=ctx, untracked=untracked_diff)
+            cmd = GIT_INTENT_TO_ADD_INDEX_CMD + GIT_DIFF_ALL_TEMPLATE.substitute(
+                ctx=ctx
+            )
 
         result = await self.sandbox_service.execute_command(
             sandbox_id, f"{git_prefix}{cmd}"
@@ -683,13 +690,12 @@ class GitService:
         if marker == "clean":
             return Checkpoint(base_head=head, head_ref=head_ref, pre_run_diff="")
 
-        cmd = GIT_CHECKPOINT_DIFF_ALL_TEMPLATE.substitute(
-            untracked=GIT_CHECKPOINT_UNTRACKED_DIFF_TEMPLATE
-        )
         result = await self.sandbox_service.execute_command(
             sandbox_id,
-            f"{git_prefix}{GIT_CD_REPO_ROOT}{cmd}",
+            f"{git_prefix}{GIT_CD_REPO_ROOT}{GIT_CHECKPOINT_DIFF_CMD}",
         )
+        if result.exit_code != 0:
+            return None
         return Checkpoint(base_head=head, head_ref=head_ref, pre_run_diff=result.stdout)
 
     async def restore_checkpoint_all(
