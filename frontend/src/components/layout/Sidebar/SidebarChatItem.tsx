@@ -188,7 +188,13 @@ export const SidebarChatItem = memo(function SidebarChatItem({
       <Button
         onClick={() => onToggleSubThreads(chat.id)}
         aria-expanded={isSubThreadsExpanded}
-        aria-label={`${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`}
+        // The caret covers the labelled status icon, so it carries the status word too
+        aria-label={[
+          `${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`,
+          statusLabel,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         variant="unstyled"
         className={clsx(styles['caret-btn'], !showCaret && styles['caret-btn--resting'])}
       >
