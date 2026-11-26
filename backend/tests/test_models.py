@@ -7,6 +7,7 @@ from app.services.acp.adapters import (
     AGENT_ADAPTERS,
     PERSONAS_SUPPORTED_AGENTS,
     THINKING_MODE_ORDER,
+    UNATTENDED_PERMISSION_MODE,
 )
 
 from tests.conftest import LoginClient, UserFactory
@@ -61,6 +62,7 @@ async def test_list_models_exposes_agent_capabilities(
         assert item["supports_persona"] is (kind in PERSONAS_SUPPORTED_AGENTS)
         assert item["supports_fast_mode"] is (adapter.fast_mode_config_id is not None)
         assert item["supports_usage_updates"] is adapter.supports_usage_updates
+        assert item["unattended_permission_mode"] == UNATTENDED_PERMISSION_MODE[kind]
 
 
 async def test_list_models_filters_by_agent_kind(

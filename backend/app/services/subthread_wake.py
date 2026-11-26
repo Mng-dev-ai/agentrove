@@ -17,7 +17,7 @@ from app.models.db_models.enums import MessageRole
 from app.models.schemas.chat import ChatRequest
 from app.models.types import PermissionMode
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
-from app.services.acp.adapters import NORMAL_SESSION_MODE
+from app.services.acp.adapters import UNSPECIFIED_PERMISSION_MODE
 from app.services.pairing import PairingService
 from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
@@ -404,7 +404,7 @@ class SubThreadWake:
             permission_mode=cast(
                 PermissionMode,
                 parent.last_permission_mode
-                or NORMAL_SESSION_MODE[MODELS[model_id].agent_kind],
+                or UNSPECIFIED_PERMISSION_MODE[MODELS[model_id].agent_kind],
             ),
             thinking_mode=parent.last_thinking_mode,
             selected_persona_name=parent.last_persona_name or DEFAULT_PERSONA_NAME,

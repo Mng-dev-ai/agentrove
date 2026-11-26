@@ -41,7 +41,7 @@ from app.models.types import ChatCompletionResult, MessageAttachmentDict, Permis
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME, build_system_prompt_for_chat
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
-    NORMAL_SESSION_MODE,
+    UNSPECIFIED_PERMISSION_MODE,
     AgentAdapter,
 )
 from app.services.agent import AgentService
@@ -407,7 +407,7 @@ class ChatService(BaseDbService[Chat]):
             chat=chat,
             model_id=model_id,
             permission_mode=source.last_permission_mode
-            or NORMAL_SESSION_MODE[model.agent_kind],
+            or UNSPECIFIED_PERMISSION_MODE[model.agent_kind],
             session_id=None,
         )
         ForkService(self.session_factory).start(chat.id, config)

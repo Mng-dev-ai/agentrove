@@ -174,7 +174,6 @@ class AgentroveClient:
         return await self._request_list("GET", "/models/", params=params)
 
     async def resolve_model(self, model_id: str | None) -> dict[str, Any]:
-        # agent_kind must come from the registry (drives permission mode).
         if self._models_cache is None:
             resp = await self.request("GET", "/models/")
             self._models_cache = resp.json()

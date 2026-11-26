@@ -6,7 +6,7 @@ import binascii
 import logging
 import re
 from collections.abc import Callable
-from typing import Any, Literal, cast
+from typing import Any, Literal, cast, get_args
 
 from acp.connection import StreamDirection
 from acp.connection import StreamEvent as AcpStreamEvent
@@ -63,22 +63,7 @@ _SENTINEL = object()
 _HEARTBEAT_TOOL_ID_RE = re.compile(r"-heartbeat-\d+$")
 
 # Valid ACP option_ids that match our PermissionMode literals directly.
-VALID_PERMISSION_MODES: set[str] = {
-    "auto_edit",
-    "default",
-    "acceptEdits",
-    "plan",
-    "build",
-    "bypassPermissions",
-    "agent",
-    "autopilot",
-    "auto",
-    "read-only",
-    "full-access",
-    "ask",
-    "always-approve",
-    "yolo",
-}
+VALID_PERMISSION_MODES: frozenset[str] = frozenset(get_args(PermissionMode))
 
 # claude-agent-acp ExitPlanMode option ids → the mode the agent switches to.
 # Its `auto` options stay unmapped: Claude chats have no Auto mode to show.
