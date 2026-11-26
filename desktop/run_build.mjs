@@ -30,9 +30,13 @@ const PYTHON_VERSION = '3.12.12';
 const NODE_VERSION = '22.12.0';
 const RELEASE_TAG = '20260211';
 const RIPGREP_VERSION = '14.1.1';
-const CLAUDE_AGENT_ACP_VERSION = '0.112.0';
-const CLAUDE_CODE_VERSION = '2.1.332';
-const CODEX_ACP_VERSION = '2.12.0';
+const ACP_PROVIDERS_FILE = join(rootDir, 'scripts', 'acp-providers.env');
+const { CLAUDE_AGENT_ACP_VERSION, CLAUDE_CODE_VERSION, CODEX_ACP_VERSION } = Object.fromEntries(
+  readFileSync(ACP_PROVIDERS_FILE, 'utf-8')
+    .trim()
+    .split('\n')
+    .map((line) => line.split('=')),
+);
 const GET_PIP_URL = 'https://bootstrap.pypa.io/get-pip.py';
 
 const platform = process.platform;
@@ -40,6 +44,10 @@ const arch = process.arch;
 
 if (platform !== 'darwin' || !['arm64', 'x64'].includes(arch)) {
   throw new Error(`Desktop build supports macOS arm64/x64 only (received: ${arch}/${platform})`);
+}
+
+if (!CLAUDE_AGENT_ACP_VERSION || !CLAUDE_CODE_VERSION || !CODEX_ACP_VERSION) {
+  throw new Error(`${ACP_PROVIDERS_FILE} is missing a claude-agent-acp, Claude Code or codex-acp pin`);
 }
 
 const ARCH_TRIPLE = arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';

@@ -37,8 +37,6 @@ RUN . /etc/os-release && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.332 @agentclientprotocol/claude-agent-acp@0.112.0 @agentclientprotocol/codex-acp@2.12.0 @openai/codex@0.172.0 @github/copilot@1.0.116
-
 # Playwright + Chromium for browser-testing local dev servers.
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV NODE_PATH=/usr/lib/node_modules
@@ -48,21 +46,34 @@ RUN npm install -g playwright@1.64.1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# ACP provider CLI pins: each install below sources this file, and `${VAR:?}`
+# fails the build on a missing or empty pin.
+COPY scripts/acp-providers.env /opt/acp-providers.env
+
+RUN . /opt/acp-providers.env && \
+    npm install -g \
+    "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION:?}" \
+    "@agentclientprotocol/claude-agent-acp@${CLAUDE_AGENT_ACP_VERSION:?}" \
+    "@agentclientprotocol/codex-acp@${CODEX_ACP_VERSION:?}" \
+    "@openai/codex@${CODEX_VERSION:?}" \
+    "@github/copilot@${COPILOT_VERSION:?}"
+
 # Cursor CLI — used for the Cursor ACP server (`cursor-agent acp`). Pinned
 # download replicating cursor.com/install, which always fetches its own latest.
 RUN set -eux; \
-    v=2026.11.22-e9042b2; \
+    . /opt/acp-providers.env; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
-    dir=/opt/cursor-agent/versions/$v; \
+    dir=/opt/cursor-agent/versions/${CURSOR_VERSION:?}; \
     mkdir -p "$dir" /root/.local/bin; \
-    curl -fsSL "https://downloads.cursor.com/lab/$v/linux/$arch/agent-cli-package.tar.gz" \
+    curl -fsSL "https://downloads.cursor.com/lab/${CURSOR_VERSION:?}/linux/$arch/agent-cli-package.tar.gz" \
       | tar --strip-components=1 -xz -C "$dir"; \
     ln -sf "$dir/cursor-agent" /root/.local/bin/cursor-agent; \
     ln -sf "$dir/cursor-agent" /usr/local/bin/cursor-agent
 
 # OpenCode CLI — used for the OpenCode ACP server (`opencode acp`); installs to
 # /root/.opencode/bin. Pinned for reproducible builds.
-RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.4.2 && \
+RUN . /opt/acp-providers.env && \
+    curl -fsSL https://opencode.ai/v2/install | bash -s -- --version "${OPENCODE_VERSION:?}" && \
     cp /root/.opencode/bin/opencode /usr/local/bin/opencode && \
     chmod +x /usr/local/bin/opencode
 
@@ -70,25 +81,25 @@ RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.4.2 && \
 # Download the static binary directly: install.sh symlinks into /usr/local/bin
 # then our old `cp -L` treats src/dest as the same file and exits 1.
 RUN set -eux; \
-    grok_version=1.0.92; \
+    . /opt/acp-providers.env; \
     arch="$(uname -m)"; \
     case "$arch" in \
       x86_64|amd64) arch=x86_64 ;; \
       aarch64|arm64) arch=aarch64 ;; \
       *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
     esac; \
-    curl -fsSL "https://x.ai/cli/grok-${grok_version}-linux-${arch}" -o /usr/local/bin/grok; \
+    curl -fsSL "https://x.ai/cli/grok-${GROK_VERSION:?}-linux-${arch}" -o /usr/local/bin/grok; \
     chmod +x /usr/local/bin/grok
 
 RUN set -eux; \
-    antigravity_version=1.5.2; \
+    . /opt/acp-providers.env; \
     case "$(uname -m)" in \
       x86_64|amd64) arch=x86_64 ;; \
       aarch64|arm64) arch=arm64 ;; \
       *) exit 1 ;; \
     esac; \
     mkdir -p /opt/antigravity; \
-    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${antigravity_version}-linux-${arch}.zip" \
+    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${ANTIGRAVITY_VERSION:?}-linux-${arch}.zip" \
       -o /tmp/antigravity.zip; \
     unzip /tmp/antigravity.zip -d /opt/antigravity; \
     rm /tmp/antigravity.zip; \
