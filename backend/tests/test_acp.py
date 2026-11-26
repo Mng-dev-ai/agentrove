@@ -27,7 +27,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.constants import REDIS_KEY_USER_STREAMS_LIVE
+from app.constants import REDIS_KEY_CHAT_QUEUE, REDIS_KEY_USER_STREAMS_LIVE
 import app.main as main_module
 from app.core.config import Settings, get_settings
 from app.core.security import authenticate_websocket_user, create_mcp_access_token
@@ -39,6 +39,7 @@ from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.paired_device import PairedDevice
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
+from app.models.schemas.queue import QueuedMessageBase
 from app.models.types import AgentKind, PermissionMode
 from app.services.channels import engine as channel_engine_module
 from app.services.acp import client as acp_client_module
@@ -60,6 +61,7 @@ from app.services.exceptions import AgentException
 from app.services.fork import ForkService
 from app.services.git import GitService
 from app.services.handoff import HandoffService
+from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers import SandboxProviderType
 from app.services.sandbox_providers.base import SandboxProvider
@@ -138,6 +140,8 @@ DIFF_RESULT = {"diffs": [{"path": "app.py", "oldText": "old", "newText": "new"}]
 # content_type, not on parsing the file itself.
 PNG_BYTES = bytes.fromhex("89504e470d0a1a0a0000000d49484452")
 PDF_BYTES = b"%PDF-1.4\n%fake\n"
+# Fire-and-forget tasks a chat or workspace delete leaves behind.
+DELETE_CLEANUP_TASKS = {"SessionRegistry.terminate", "teardown_workspace_sandbox"}
 
 
 @pytest.fixture(scope="session")
@@ -4793,3 +4797,67 @@ def test_adapter_session_modes_are_the_permission_modes_both_sides_declare() -> 
         get_args(PermissionMode)
     )
     assert json.loads(FRONTEND_PERMISSION_MODES.read_text()) == by_kind
+
+
+@pytest.mark.parametrize(
+    "delete_path",
+    [
+        "/api/v1/chat/chats/{chat_id}",
+        "/api/v1/chat/chats/all",
+        "/api/v1/workspaces/{workspace_id}",
+    ],
+)
+async def test_deleting_a_chat_tombstones_it_clears_its_queue_and_ends_its_session(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    fake_agent: FakeAgentHandle,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    endpoint_cache: EndpointCache,
+    delete_path: str,
+) -> None:
+    headers, workspace = auth_workspace
+    chat = await create_chat(client, headers, workspace, model_id="sonnet")
+    turn = await send_message(
+        client, headers, chat_id=chat["id"], model_id="sonnet", prompt="hello"
+    )
+    assert turn.status_code == 200, turn.text
+    await wait_for_message(
+        client, headers, chat_id=chat["id"], message_id=turn.json()["message_id"]
+    )
+    session = session_registry._sessions[chat["id"]]
+    queue_key = REDIS_KEY_CHAT_QUEUE.format(queue_id=chat["id"])
+    await QueueService(endpoint_cache.store).add_message(
+        chat["id"],
+        QueuedMessageBase(content="queued", device_ids=frozenset(), model_id="sonnet"),
+    )
+    assert session.acp_session.is_alive()
+    assert await endpoint_cache.store.get(queue_key) is not None
+
+    response = await client.delete(
+        delete_path.format(chat_id=chat["id"], workspace_id=workspace.id),
+        headers=headers,
+    )
+    await asyncio.gather(
+        *[
+            task
+            for task in asyncio.all_tasks()
+            if task.get_coro().__qualname__ in DELETE_CLEANUP_TASKS
+        ]
+    )
+
+    assert response.status_code == 204, response.text
+    chat_id = UUID(chat["id"])
+    chat_deleted_at = await db_session.scalar(
+        select(Chat.deleted_at).where(Chat.id == chat_id)
+    )
+    message_deleted_at = (
+        await db_session.scalars(
+            select(Message.deleted_at).where(Message.chat_id == chat_id)
+        )
+    ).all()
+    assert chat_deleted_at is not None
+    assert message_deleted_at
+    assert None not in message_deleted_at
+    assert await endpoint_cache.store.get(queue_key) is None
+    assert chat["id"] not in session_registry._sessions
+    assert not session.acp_session.is_alive()

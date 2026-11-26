@@ -15,7 +15,7 @@ from sqlalchemy import delete, func, select, update
 from app.catalog import BUILTIN_SLASH_COMMANDS
 from app.core.config import get_settings
 from app.models.db_models.automation import Automation
-from app.models.db_models.chat import Chat, Message
+from app.models.db_models.chat import Chat
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.schemas.pagination import PaginatedResponse, PaginationParams
@@ -28,12 +28,11 @@ from app.models.schemas.workspace import (
 )
 from app.models.types import AgentKind
 from app.services.channels.service import channel_service
+from app.services.chat import ChatService
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ErrorCode, WorkspaceException
-from app.services.queue import QueueService
 from app.services.sandbox import SandboxService
 from app.services.sandbox_providers.base import SandboxProvider
-from app.services.session_registry import session_registry
 from app.services.terminal import teardown_workspace_sandbox
 from app.services.user import UserService
 
@@ -299,14 +298,7 @@ class WorkspaceService(BaseDbService[Workspace]):
             )
 
             if chat_ids:
-                await db.execute(
-                    update(Message)
-                    .where(
-                        Message.chat_id.in_(chat_ids),
-                        Message.deleted_at.is_(None),
-                    )
-                    .values(deleted_at=now)
-                )
+                await ChatService.soft_delete_messages(db, chat_ids, now)
 
             # Soft-delete never fires the FK CASCADE: remove this workspace's
             # automations outright or they keep firing into a deleted workspace.
@@ -315,10 +307,7 @@ class WorkspaceService(BaseDbService[Workspace]):
             )
 
             await db.commit()
-            await QueueService.clear_queues([str(cid) for cid in chat_ids])
-
-            for cid in chat_ids:
-                asyncio.create_task(session_registry.terminate(str(cid)))
+            await ChatService.release_deleted_chats(chat_ids)
 
             if workspace.sandbox_id:
                 provider = SandboxProvider.create_provider(
