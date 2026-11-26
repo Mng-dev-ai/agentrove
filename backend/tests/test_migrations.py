@@ -40,7 +40,10 @@ ADDED_TO_BASE_TABLES = {
         ("column", "device_id", "CHAR(32)", 0, None, 0),
         ("index", "ix_refresh_tokens_device_id", 0, "c", 0, ("device_id",)),
     },
-    "channel_messages": {("column", "device_ids", "JSON", 1, "'[]'", 0)},
+    "channel_messages": {
+        ("column", "device_ids", "JSON", 1, "'[]'", 0),
+        ("column", "has_render_ui", "BOOLEAN", 1, "'0'", 0),
+    },
     "automations": {
         ("column", "device_ids", "JSON", 1, "'[]'", 0),
         ("column", "channel_members", "JSON", 0, None, 0),

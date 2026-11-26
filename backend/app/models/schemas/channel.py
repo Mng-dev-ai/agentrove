@@ -120,6 +120,7 @@ class ChannelMessageRead(BaseModel):
     member_id: UUID | None
     content: str
     tool_call_count: int
+    has_render_ui: bool
     duration_ms: int | None
     audience: list[UUID] | None
     attachments: list[MessageAttachment]

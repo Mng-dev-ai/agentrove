@@ -20,6 +20,8 @@ interface MessageRendererProps {
   onSuggestionSelect?: (suggestion: string) => void;
   agentKind?: AgentKind;
   highlightMentions?: boolean;
+  // Roll up the trace even without a tail: the caller renders the answer below.
+  rollUp?: boolean;
 }
 
 const isTraceSegment = (segment: MessageSegment): boolean =>
@@ -42,6 +44,7 @@ export const MessageRenderer = memo(function MessageRenderer({
   onSuggestionSelect,
   agentKind,
   highlightMentions = false,
+  rollUp = false,
 }: MessageRendererProps) {
   const prevSegmentsRef = React.useRef<Map<string, MessageSegment>>(new Map());
   const [fullRenderRequested, setFullRenderRequested] = React.useState(false);
@@ -124,7 +127,8 @@ export const MessageRenderer = memo(function MessageRenderer({
   // unless its tool results were omitted, where showing it would mean fetching
   // the full render on chat open.
   const rollUpTrace =
-    traceSegments.length > 0 && (tailSegments.length > 0 || omittedToolResults !== undefined);
+    traceSegments.length > 0 &&
+    (rollUp || tailSegments.length > 0 || omittedToolResults !== undefined);
   const { rollupSegments, renderUiSegments } = React.useMemo(() => {
     if (!rollUpTrace) return { rollupSegments: traceSegments, renderUiSegments: [] };
     const rollupSegments: MessageSegment[] = [];

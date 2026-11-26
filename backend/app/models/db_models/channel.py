@@ -97,6 +97,9 @@ class ChannelMessage(Base):
         UUIDSet(), nullable=False, server_default="[]"
     )
     tool_call_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    has_render_ui: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0"
+    )
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     content: Mapped[str] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(10))

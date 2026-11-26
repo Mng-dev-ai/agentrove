@@ -507,6 +507,35 @@ async def test_tool_segments_counts_and_source_duration_are_persisted(
     assert message.duration_ms == channel_runtime.sources[0].duration_ms == 1234
 
 
+@pytest.mark.parametrize(
+    ("tool_name", "has_render_ui"),
+    [("mcp__agentrove__render_ui", True), ("mcp__agentrove__list_chats", False)],
+)
+async def test_completed_render_ui_call_marks_the_message(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    tool_name: str,
+    has_render_ui: bool,
+) -> None:
+    await channel_engine.messages.new_message(
+        channel_state, "Show me", device_ids=frozenset()
+    )
+    channel_runtime.events = [
+        ("tool_started", {"tool": {"id": "read", "name": "Read"}}),
+        ("tool_completed", {"tool": {"id": "read", "name": "Read"}}),
+        ("tool_started", {"tool": {"id": "ui", "name": tool_name}}),
+        ("tool_completed", {"tool": {"id": "ui", "name": tool_name}}),
+        ("assistant_text", {"text": "Here it is."}),
+    ]
+    await channel_runtime.wake(channel_state)
+
+    url = f"/api/v1/channels/{channel_state.channel.id}/messages"
+    reply = (await client.get(url, headers=owner[0])).json()[-1]
+    assert (reply["tool_call_count"], reply["has_render_ui"]) == (2, has_render_ui)
+
+
 async def test_sequence_increases_across_user_agent_and_deleted_messages(
     channel_state: ChannelState, channel_runtime: ScriptedTurns
 ) -> None:
