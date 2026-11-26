@@ -1,5 +1,6 @@
 import type { UseQueryResult } from '@tanstack/react-query';
 import { ServiceError } from '@/services/base/ServiceError';
+import { isTransientStatus } from '@/types/errors.types';
 
 export interface ListLoadState {
   loadFailed: boolean;
@@ -7,12 +8,12 @@ export interface ListLoadState {
   retry: () => Promise<unknown>;
 }
 
-// serviceCall already backs off on 500/503/504, so list loads retry once more only for
-// failures it skipped that can be transient (network, 502) and never for 4xx.
+// APIClient already retries a GET once on 500/503/504, so list loads retry once more only
+// for failures it skipped that can be transient (network, 502) and never for 4xx.
 export function retryTransientOnce(failureCount: number, error: Error): boolean {
   if (failureCount > 0) return false;
   if (!(error instanceof ServiceError) || error.status === undefined) return true;
-  return error.status >= 500 && !ServiceError.isRetryable(error);
+  return error.status >= 500 && !isTransientStatus(error.status);
 }
 
 // A refetch puts a never-loaded query back to pending; errorUpdateCount survives it, so

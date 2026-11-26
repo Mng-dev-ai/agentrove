@@ -2,7 +2,7 @@ import { authStorage } from '@/utils/storage';
 import { invalidateSessionAndRedirect } from '@/utils/authSession';
 import { channelMachineId, chatMachineId, sandboxMachineId } from '@/store/machineOrigin';
 import { jwtExpiryMs } from '@/utils/jwt';
-import { NetworkError } from '@/types/errors.types';
+import { NetworkError, isTransientStatus } from '@/types/errors.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import {
   getMachineAccessToken,
@@ -31,6 +31,7 @@ const ACCESS_TOKEN_EXPIRY_BUFFER_MS = 30_000;
 const LOCAL_REFRESH_LOCK = 'agentrove-local-session-refresh';
 // Must exceed the backend SQLite busy_timeout (30s): aborting doesn't stop the server consuming the token.
 const REFRESH_TIMEOUT_MS = 45_000;
+const TRANSIENT_RETRY_DELAY_MS = 1000;
 
 class RefreshTokenError extends Error {
   status: number;
@@ -43,6 +44,24 @@ class RefreshTokenError extends Error {
 }
 
 export type { ApiStreamResponse as StreamResponse } from '@/types/stream.types';
+
+function transientRetryBackoff(signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal?.reason);
+    };
+    const timer = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, TRANSIENT_RETRY_DELAY_MS);
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
+}
 
 const trimTrailingSlash = (url: string): string => url.replace(/\/+$/, '');
 
@@ -274,6 +293,7 @@ class APIClient {
     options: RequestOptions = {},
     additionalHeaders: Record<string, string> = {},
     isRetry = false,
+    isTransientRetry = false,
   ): Promise<T | null> {
     const { data, formData, signal, ...customConfig } = options;
 
@@ -310,9 +330,23 @@ class APIClient {
 
     if (response.status === 401 && !isRetry && !endpoint.includes('/auth/jwt/')) {
       if (await this.recoverFromUnauthorized(token)) {
-        return this.request<T>(endpoint, method, options, additionalHeaders, true);
+        return this.request<T>(
+          endpoint,
+          method,
+          options,
+          additionalHeaders,
+          true,
+          isTransientRetry,
+        );
       }
       throw new Error('Session expired');
+    }
+
+    // Only GET: replaying a mutation whose first attempt reached the server duplicates it.
+    if (method === 'GET' && !isTransientRetry && isTransientStatus(response.status)) {
+      void response.body?.cancel();
+      await transientRetryBackoff(signal);
+      return this.request<T>(endpoint, method, options, additionalHeaders, isRetry, true);
     }
 
     return this.handleResponse(response);

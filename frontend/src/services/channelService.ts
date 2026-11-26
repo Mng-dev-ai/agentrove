@@ -20,16 +20,13 @@ function syncActivities(channels: Channel[]): void {
 }
 
 async function listChannels(machineId: string): Promise<Channel[]> {
-  return serviceCall(
-    async () => {
-      const response = await getMachineClient(machineId).get<Channel[]>('/channels');
-      const channels = ensureResponse(response, 'Failed to load channels');
-      assignChannelsToMachine(machineId, channels);
-      syncActivities(channels);
-      return channels;
-    },
-    { maxRetries: 1 },
-  );
+  return serviceCall(async () => {
+    const response = await getMachineClient(machineId).get<Channel[]>('/channels');
+    const channels = ensureResponse(response, 'Failed to load channels');
+    assignChannelsToMachine(machineId, channels);
+    syncActivities(channels);
+    return channels;
+  });
 }
 
 async function getChannel(channelId: string): Promise<Channel> {

@@ -8,15 +8,15 @@ describe('serviceCall', () => {
     const error = new NetworkError();
     const request = () => Promise.reject(error);
 
-    await expect(serviceCall(request, { maxRetries: 0 })).rejects.toBe(error);
+    await expect(serviceCall(request)).rejects.toBe(error);
   });
 
-  it('does not retry a 502 response', async () => {
+  it.each([500, 502, 503, 504])('does not retry a %i response', async (status) => {
     const request = vi.fn(() =>
-      Promise.reject(new ServiceError('Docker unavailable', undefined, {}, 502)),
+      Promise.reject(new ServiceError('Docker unavailable', undefined, {}, status)),
     );
 
-    await expect(serviceCall(request)).rejects.toMatchObject({ status: 502 });
+    await expect(serviceCall(request)).rejects.toMatchObject({ status });
     expect(request).toHaveBeenCalledOnce();
   });
 });

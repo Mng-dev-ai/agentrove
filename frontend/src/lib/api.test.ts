@@ -56,7 +56,7 @@ describe('APIClient success + error shaping', () => {
 
   it('throws with the JSON `message` and attaches the status', async () => {
     fetchMock.mockResolvedValueOnce(json({ message: 'boom' }, 500));
-    await expect(apiClient.get('/thing')).rejects.toMatchObject({ message: 'boom', status: 500 });
+    await expect(apiClient.post('/thing')).rejects.toMatchObject({ message: 'boom', status: 500 });
   });
 
   it('falls back to `detail` then statusText for the error message', async () => {
@@ -66,7 +66,7 @@ describe('APIClient success + error shaping', () => {
     fetchMock.mockResolvedValueOnce(
       new Response('plain text', { status: 500, statusText: 'Boom' }),
     );
-    await expect(apiClient.get('/thing')).rejects.toMatchObject({ message: 'Boom' });
+    await expect(apiClient.post('/thing')).rejects.toMatchObject({ message: 'Boom' });
   });
 
   it.each([
@@ -88,7 +88,7 @@ describe('APIClient success + error shaping', () => {
 
   it('uses a status placeholder when the error body is empty', async () => {
     fetchMock.mockResolvedValueOnce(new Response('', { status: 503 }));
-    await expect(apiClient.get('/thing')).rejects.toMatchObject({
+    await expect(apiClient.post('/thing')).rejects.toMatchObject({
       message: 'HTTP error! status: 503',
     });
   });
@@ -125,6 +125,19 @@ describe('APIClient 401 handling', () => {
     expect(bearerOf(fetchMock.mock.calls[2][1])).toBe('Bearer a2');
     expect(authStorage.getToken()).toBe('a2');
     expect(authStorage.getRefreshToken()).toBe('r2');
+  });
+
+  it('refreshes and replays a POST once after a 401', async () => {
+    await signIn('access', 'refresh-tok');
+    fetchMock
+      .mockResolvedValueOnce(json({ message: 'unauth' }, 401))
+      .mockResolvedValueOnce(tokens('a2', 'r2'))
+      .mockResolvedValueOnce(json({ message: 'unauth' }, 401));
+
+    await expect(apiClient.post('/thing', { a: 1 })).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[2][1]).toMatchObject({ method: 'POST', body: '{"a":1}' });
+    expect(bearerOf(fetchMock.mock.calls[2][1])).toBe('Bearer a2');
   });
 
   it('tears down the session on a 401 with no refresh token', async () => {
@@ -227,6 +240,81 @@ describe('APIClient 401 handling', () => {
     await expect(slow).resolves.toEqual({ ok: true });
     expect(refreshes).toBe(1);
     expect(bearerOf(fetchMock.mock.lastCall?.[1])).toBe(`Bearer ${fresh}`);
+  });
+});
+
+describe('APIClient transient-status retry', () => {
+  const TRANSIENT_STATUSES = [500, 503, 504];
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each(TRANSIENT_STATUSES)('never retries a POST receiving %i', async (status) => {
+    fetchMock.mockResolvedValue(json({ detail: 'down' }, status));
+
+    await expect(apiClient.post('/thing', { a: 1 })).rejects.toMatchObject({ status });
+    await vi.runAllTimersAsync();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it.each(TRANSIENT_STATUSES)('retries a GET receiving %i once and resolves', async (status) => {
+    fetchMock
+      .mockResolvedValueOnce(json({ detail: 'down' }, status))
+      .mockResolvedValueOnce(json({ id: 7 }));
+
+    const result = apiClient.get('/thing');
+    await vi.runAllTimersAsync();
+
+    await expect(result).resolves.toEqual({ id: 7 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it.each(TRANSIENT_STATUSES)(
+    'does not retry a GET a second time when the retry also receives %i',
+    async (status) => {
+      fetchMock.mockImplementation(async () => json({ detail: 'down' }, status));
+
+      const result = expect(apiClient.get('/thing')).rejects.toMatchObject({ status });
+      await vi.runAllTimersAsync();
+
+      await result;
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('rejects an aborted GET immediately during the backoff', async () => {
+    fetchMock.mockResolvedValue(json({ detail: 'down' }, 503));
+    const controller = new AbortController();
+
+    const result = apiClient.get('/thing', controller.signal);
+    await vi.advanceTimersByTimeAsync(10);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    controller.abort();
+
+    await expect(result).rejects.toMatchObject({ name: 'AbortError' });
+    await vi.runAllTimersAsync();
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('spends the 401 replay and the transient retry once each on one GET', async () => {
+    await signIn('access', 'refresh-tok');
+    fetchMock.mockImplementation(async (url, init) => {
+      if (isRefresh(url)) return tokens('new-access', 'new-refresh');
+      return bearerOf(init) === 'Bearer access'
+        ? json({ detail: 'expired' }, 401)
+        : json({ detail: 'down' }, 503);
+    });
+
+    const result = expect(apiClient.get('/thing')).rejects.toMatchObject({ status: 503 });
+    await vi.runAllTimersAsync();
+
+    await result;
+    expect(fetchMock.mock.calls.filter(([url]) => !isRefresh(url))).toHaveLength(3);
   });
 });
 
