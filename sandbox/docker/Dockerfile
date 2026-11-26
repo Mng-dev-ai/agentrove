@@ -80,15 +80,19 @@ RUN useradd -m -s /bin/bash -u 1000 user && \
 
 COPY --chmod=755 sandbox/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 
+# ACP provider CLI pins: each install below sources this file, and `${VAR:?}`
+# fails the build on a missing or empty pin.
+COPY scripts/acp-providers.env /opt/acp-providers.env
+
 RUN set -eux; \
-    antigravity_version=1.5.2; \
+    . /opt/acp-providers.env; \
     case "$(uname -m)" in \
       x86_64|amd64) arch=x86_64 ;; \
       aarch64|arm64) arch=arm64 ;; \
       *) exit 1 ;; \
     esac; \
     mkdir -p /opt/antigravity /home/user/.local/bin; \
-    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${antigravity_version}-linux-${arch}.zip" \
+    curl -fsSL "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-${ANTIGRAVITY_VERSION:?}-linux-${arch}.zip" \
       -o /tmp/antigravity.zip; \
     unzip /tmp/antigravity.zip -d /opt/antigravity; \
     rm /tmp/antigravity.zip; \
@@ -110,30 +114,37 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | b
     nvm alias default $NODE_VERSION
 
 RUN . "$NVM_DIR/nvm.sh" && \
-    npm install -g @anthropic-ai/claude-code@2.1.332 @agentclientprotocol/claude-agent-acp@0.112.0 @agentclientprotocol/codex-acp@2.12.0 @openai/codex@0.172.0 @github/copilot@1.0.116
+    . /opt/acp-providers.env && \
+    npm install -g \
+    "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION:?}" \
+    "@agentclientprotocol/claude-agent-acp@${CLAUDE_AGENT_ACP_VERSION:?}" \
+    "@agentclientprotocol/codex-acp@${CODEX_ACP_VERSION:?}" \
+    "@openai/codex@${CODEX_VERSION:?}" \
+    "@github/copilot@${COPILOT_VERSION:?}"
 
 # Cursor CLI — pinned download replicating cursor.com/install (which always
 # fetches its own latest); cursor-agent lands in ~/.local/bin, already on PATH.
 RUN set -eux; \
-    v=2026.11.22-e9042b2; \
+    . /opt/acp-providers.env; \
     case "$(uname -m)" in x86_64) arch=x64;; aarch64) arch=arm64;; *) exit 1;; esac; \
-    dir=/home/user/.local/share/cursor-agent/versions/$v; \
+    dir=/home/user/.local/share/cursor-agent/versions/${CURSOR_VERSION:?}; \
     mkdir -p "$dir" /home/user/.local/bin; \
-    curl -fsSL "https://downloads.cursor.com/lab/$v/linux/$arch/agent-cli-package.tar.gz" \
+    curl -fsSL "https://downloads.cursor.com/lab/${CURSOR_VERSION:?}/linux/$arch/agent-cli-package.tar.gz" \
       | tar --strip-components=1 -xz -C "$dir"; \
     ln -sf "$dir/cursor-agent" /home/user/.local/bin/cursor-agent; \
     ln -sf "$dir/cursor-agent" /home/user/.local/bin/agent
 
 # OpenCode CLI (installs `opencode` to ~/.opencode/bin; symlink into ~/.local/bin
 # so the ACP binary resolves without modifying PATH). Pinned for reproducible builds.
-RUN curl -fsSL https://opencode.ai/v2/install | bash -s -- --version 2.4.2 && \
+RUN . /opt/acp-providers.env && \
+    curl -fsSL https://opencode.ai/v2/install | bash -s -- --version "${OPENCODE_VERSION:?}" && \
     mkdir -p /home/user/.local/bin && \
     ln -sf /home/user/.opencode/bin/opencode /home/user/.local/bin/opencode
 
 # Grok Build CLI — download static binary into ~/.local/bin (already on PATH).
 # Avoid install.sh: it targets ~/.grok/bin and is awkward under non-root USER.
 RUN set -eux; \
-    grok_version=1.0.92; \
+    . /opt/acp-providers.env; \
     arch="$(uname -m)"; \
     case "$arch" in \
       x86_64|amd64) arch=x86_64 ;; \
@@ -141,7 +152,7 @@ RUN set -eux; \
       *) echo "unsupported arch: $arch" >&2; exit 1 ;; \
     esac; \
     mkdir -p /home/user/.local/bin; \
-    curl -fsSL "https://x.ai/cli/grok-${grok_version}-linux-${arch}" -o /home/user/.local/bin/grok; \
+    curl -fsSL "https://x.ai/cli/grok-${GROK_VERSION:?}-linux-${arch}" -o /home/user/.local/bin/grok; \
     chmod +x /home/user/.local/bin/grok
 
 RUN python3 -m pip install --user --upgrade pip && \

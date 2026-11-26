@@ -10,6 +10,7 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 - `frontend/`: React + Vite + TypeScript app, also the Tauri desktop shell (`frontend/src-tauri`, Rust).
 - `desktop/run_build.mjs`: builds the desktop backend sidecar (`frontend/backend-sidecar`) that Tauri bundles.
 - `backend/app/catalog/opencode.py` is generated: change it only by editing `scripts/opencode_catalog_overrides.toml` (provider allow-list, display-name overrides, keep-list, legacy flags) and running `python3 scripts/sync_opencode_catalog.py [models.dev snapshot.json]` with ruff 0.15.0 on `PATH`. The daily bump workflow runs it too.
+- `scripts/acp-providers.env`: the only place the nine ACP provider CLI versions are written. Both Dockerfiles `COPY` and source it, `desktop/run_build.mjs` parses it, and `scripts/bump-acp-providers.sh` rewrites it; `backend/tests/test_acp_provider_pins.py` fails on a pin hardcoded in a consumer.
 - `sandbox/`: sandbox Docker image; `scripts/`: `install-hooks.sh` (sets `core.hooksPath=.githooks`; the pre-commit hook runs lint-staged in `frontend/` and `pre-commit` on staged backend files).
 
 ## Backend
@@ -40,7 +41,7 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 
 - Released frontends can be older than the backend they talk to. They ignore channel-feed envelope kinds they do not know (`default` case of `applyToSlice` in `frontend/src/store/channelStore.ts`; frontends up to v0.1.69 wiped the open channel instead and are unsupported), so a new kind is safe when older frontends still work without it. Changing or removing an existing kind or payload field breaks them.
 - Older backends ignore unknown request fields, so new optional request fields are safe.
-- Grok CLI is pinned as `grok_version=` in both Dockerfiles and bumped to `x.ai/cli/stable` by `scripts/bump-acp-providers.sh`: its ACP behavior changes arrive through bump PRs. Its modes are UI labels mapped to the CLI's `default`/`plan`; always-approve is the `--always-approve` launch flag; auto-review is `_meta.autoMode` on session new/load; effort is the `reasoning_effort` config option (ignored on load). See `GrokAgentAdapter` in `backend/app/services/acp/adapters.py`.
+- Grok CLI is pinned as `GROK_VERSION` in `scripts/acp-providers.env` and bumped to `x.ai/cli/stable` by `scripts/bump-acp-providers.sh`: its ACP behavior changes arrive through bump PRs. Its modes are UI labels mapped to the CLI's `default`/`plan`; always-approve is the `--always-approve` launch flag; auto-review is `_meta.autoMode` on session new/load; effort is the `reasoning_effort` config option (ignored on load). See `GrokAgentAdapter` in `backend/app/services/acp/adapters.py`.
 
 ## Checks CI runs
 
@@ -51,7 +52,7 @@ Backend (`.github/workflows/backend-checks.yml`, Python 3.12, runs when `backend
 - Direct deps live in `backend/requirements-core.txt` (shared with the desktop sidecar); `backend/requirements.txt` includes it with `-r` (deptry follows the include) and adds the server-only packages. `desktop/requirements.lock` is compiled from the core list constrained by `backend/requirements.lock`; CI recompiles it with `uv==0.13.10` and fails on `git diff --exit-code desktop/requirements.lock`. Both compile commands, run from the repo root, are in the lock headers.
 - Tests: `uv pip install -r backend/requirements.lock pytest pytest-asyncio pytest-cov pytest-xdist ruff==0.15.0`, then `COVERAGE_CORE=sysmon pytest tests -n auto --cov=app --cov-fail-under=85`. The job has a Redis service and sets `TEST_REDIS_URL=redis://localhost:6379/0`; the Redis leg of `tests/test_cache_contract.py` skips locally without it and fails in CI without it.
 
-Docker Smoke (`.github/workflows/docker-smoke.yml`, runs when either Dockerfile, `scripts/bump-acp-providers.sh` or `.github/actions/docker-smoke/` change): builds `backend/Dockerfile` and `sandbox/docker/Dockerfile` for linux/amd64 without pushing, then runs `--version` of every bundled agent CLI in each image (`.github/actions/docker-smoke/`). The daily bump workflow runs the same action before opening its PR, because `pull_request` runs on its `github.token` PRs wait for manual approval; the PR job is skipped on `bot/bump-acp-providers`.
+Docker Smoke (`.github/workflows/docker-smoke.yml`, runs when either Dockerfile, `scripts/acp-providers.env`, `scripts/bump-acp-providers.sh` or `.github/actions/docker-smoke/` change): builds `backend/Dockerfile` and `sandbox/docker/Dockerfile` for linux/amd64 without pushing, then runs `--version` of every bundled agent CLI in each image (`.github/actions/docker-smoke/`). The daily bump workflow runs the same action before opening its PR, because `pull_request` runs on its `github.token` PRs wait for manual approval; the PR job is skipped on `bot/bump-acp-providers`.
 
 Frontend (`.github/workflows/frontend-checks.yml`, Node 20, runs when `frontend/` changes). From `frontend/`, after `npm ci --legacy-peer-deps`:
 
@@ -66,6 +67,6 @@ PR checks do not run while the PR conflicts with `main`.
 
 - `.github/workflows/desktop-release.yml` runs on `v*` tags and `workflow_dispatch` on macOS; `validate_only=true` builds, signs and notarizes without publishing.
 - The Desktop PR check compiles the Tauri Rust (`frontend/src-tauri`, toolchain in `rust-toolchain.toml`) in the dev profile and runs its tests. The validate-only run remains the proof for the release build, bundling, signing and notarization: `gh workflow run desktop-release.yml --ref <branch> -f validate_only=true`.
-- `desktop/run_build.mjs` pins the bundled Python, Node, ripgrep, claude-agent-acp, Claude Code and codex-acp versions and supports macOS arm64/x64 only. Tauri bundles `frontend/backend-sidecar/` as a resource.
+- `desktop/run_build.mjs` pins the bundled Python, Node and ripgrep versions, reads the claude-agent-acp, Claude Code and codex-acp pins from `scripts/acp-providers.env`, and supports macOS arm64/x64 only. Tauri bundles `frontend/backend-sidecar/` as a resource.
 - Tauri's resource copy turns symlinks and hardlinks into full files. After changing what `run_build.mjs` installs, list the release tarball (`tar -tzv`) for duplicated large binaries.
 - Cargo caches saved on a tag ref are unreadable by later tags; `.github/workflows/desktop-rust-cache.yml` warms the cache from `main` (on Rust toolchain/lock changes and a twice-weekly schedule).

@@ -39,13 +39,13 @@ jobs:
         continue-on-error: true
         run: python scripts/sync_opencode_catalog.py
 
-      - name: Detect Dockerfile changes
+      - name: Detect image changes
         id: changes
-        run: git diff --quiet -- backend/Dockerfile sandbox/docker/Dockerfile || echo "dockerfiles=true" >> "$GITHUB_OUTPUT"
+        run: git diff --quiet -- scripts/acp-providers.env backend/Dockerfile sandbox/docker/Dockerfile || echo "images=true" >> "$GITHUB_OUTPUT"
 
       # github.token PRs need a manual approval before pull_request checks run, so verify here.
       - name: Build images and smoke-test CLIs
-        if: steps.changes.outputs.dockerfiles == 'true'
+        if: steps.changes.outputs.images == 'true'
         uses: ./.github/actions/docker-smoke
 
       - name: Open pull request
@@ -57,7 +57,7 @@ jobs:
           commit-message: 'chore: bump ACP providers'
           title: 'chore: bump ACP providers'
           body: |
-            Pins Claude Code, claude-agent-acp, codex-acp, Codex, Copilot, OpenCode, Cursor CLI, Antigravity, and Grok to their latest releases in `backend/Dockerfile`, `sandbox/docker/Dockerfile`, and `desktop/run_build.mjs`.
+            Pins Claude Code, claude-agent-acp, codex-acp, Codex, Copilot, OpenCode, Cursor CLI, Antigravity, and Grok to their latest releases in `scripts/acp-providers.env`, which `backend/Dockerfile`, `sandbox/docker/Dockerfile`, and `desktop/run_build.mjs` read.
 
             Regenerates `backend/app/catalog/opencode.py` from models.dev and `scripts/opencode_catalog_overrides.toml`. Catalog refresh in this run: ${{ steps.catalog.outcome }} (on `failure` the catalog is unchanged; see the run log).
 

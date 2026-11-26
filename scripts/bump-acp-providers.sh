@@ -1,12 +1,31 @@
 #!/usr/bin/env bash
 # Pins every ACP provider CLI (Claude Code, claude-agent-acp, codex-acp, Codex, Copilot,
-# OpenCode, Cursor, Antigravity, Grok) in the Dockerfiles and desktop build to its latest release.
+# OpenCode, Cursor, Antigravity, Grok) in scripts/acp-providers.env to its latest release.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-DOCKERFILES=(backend/Dockerfile sandbox/docker/Dockerfile)
+MANIFEST=scripts/acp-providers.env
 DESKTOP_BUILD=desktop/run_build.mjs
+KEYS=(
+  CLAUDE_CODE_VERSION
+  CLAUDE_AGENT_ACP_VERSION
+  CODEX_ACP_VERSION
+  CODEX_VERSION
+  COPILOT_VERSION
+  OPENCODE_VERSION
+  CURSOR_VERSION
+  ANTIGRAVITY_VERSION
+  GROK_VERSION
+)
+
+for key in "${KEYS[@]}"; do
+  if ! grep -q "^${key}=" "$MANIFEST"; then
+    echo "$MANIFEST has no ${key} pin" >&2
+    exit 1
+  fi
+done
+
 MIN_NODE=$(sed -nE "s/^const NODE_VERSION = '([^']+)';/\1/p" "$DESKTOP_BUILD")
 
 latest_npm() {
@@ -20,35 +39,44 @@ latest_npm() {
   echo "$version"
 }
 
-bump_npm() {
-  local pkg=$1 desktop_const=${2:-} version
-  version=$(latest_npm "$pkg")
-  sed -i -E "s#${pkg}@[0-9][^ ]*#${pkg}@${version}#g" "${DOCKERFILES[@]}"
-  if [ -n "$desktop_const" ]; then
-    sed -i -E "s/^const ${desktop_const} = '[^']+';/const ${desktop_const} = '${version}';/" "$DESKTOP_BUILD"
+pin() {
+  local key=$1 version=$2
+  # The image builds source the manifest as shell, so only version characters may reach it.
+  if ! [[ $version =~ ^[0-9][0-9A-Za-z.-]*$ ]]; then
+    echo "refusing to pin ${key} to '${version:0:80}'" >&2
+    exit 1
+  fi
+  sed -i -E "s/^${key}=.*/${key}=${version}/" "$MANIFEST"
+  if ! grep -qxF "${key}=${version}" "$MANIFEST"; then
+    echo "failed to pin ${key} in $MANIFEST" >&2
+    exit 1
   fi
 }
 
-bump_npm @anthropic-ai/claude-code CLAUDE_CODE_VERSION
-bump_npm @agentclientprotocol/claude-agent-acp CLAUDE_AGENT_ACP_VERSION
-bump_npm @agentclientprotocol/codex-acp CODEX_ACP_VERSION
-bump_npm @openai/codex
-bump_npm @github/copilot
+pin_npm() {
+  local key=$1 pkg=$2 version
+  version=$(latest_npm "$pkg")
+  pin "$key" "$version"
+}
 
-opencode=$(latest_npm @opencode/cli)
-sed -i -E "s#(opencode\.ai/v2/install \| bash -s -- --version )[0-9.]+#\1${opencode}#" "${DOCKERFILES[@]}"
+pin_npm CLAUDE_CODE_VERSION @anthropic-ai/claude-code
+pin_npm CLAUDE_AGENT_ACP_VERSION @agentclientprotocol/claude-agent-acp
+pin_npm CODEX_ACP_VERSION @agentclientprotocol/codex-acp
+pin_npm CODEX_VERSION @openai/codex
+pin_npm COPILOT_VERSION @github/copilot
+pin_npm OPENCODE_VERSION @opencode/cli
 
 cursor_install=$(curl -fsSL https://cursor.com/install)
 cursor=$(grep -m1 -oE 'downloads\.cursor\.com/lab/[^/]+' <<<"$cursor_install" | cut -d/ -f3)
-sed -i -E "s#^(\s*)v=[0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9a-f]+;#\1v=${cursor};#" "${DOCKERFILES[@]}"
+pin CURSOR_VERSION "$cursor"
 
 antigravity=$(curl -fsSL https://cdn.agentclientprotocol.com/registry/v1/latest/registry.json \
   | jq -er '.agents[] | select(.id == "antigravity-acp") | .version')
-sed -i -E "s#^(\s*)antigravity_version=[0-9]+\.[0-9]+\.[0-9]+;#\1antigravity_version=${antigravity};#" "${DOCKERFILES[@]}"
+pin ANTIGRAVITY_VERSION "$antigravity"
 
 grok=$(curl -fsSL https://x.ai/cli/stable)
 if ! [[ $grok =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "x.ai/cli/stable returned a non-semver version: ${grok:0:80}" >&2
   exit 1
 fi
-sed -i -E "s#^(\s*)grok_version=[0-9]+\.[0-9]+\.[0-9]+;#\1grok_version=${grok};#" "${DOCKERFILES[@]}"
+pin GROK_VERSION "$grok"

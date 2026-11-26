@@ -5,6 +5,7 @@ on:
     paths:
       - 'backend/Dockerfile'
       - 'sandbox/docker/Dockerfile'
+      - 'scripts/acp-providers.env'
       - 'scripts/bump-acp-providers.sh'
       - '.github/actions/docker-smoke/**'
       - '.github/workflows/docker-smoke.yml'

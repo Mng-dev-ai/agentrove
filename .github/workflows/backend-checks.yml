@@ -9,6 +9,7 @@ on:
       - 'scripts/**'
       - 'mcp-server/**'
       - 'desktop/requirements*'
+      - 'desktop/run_build.mjs'
       - 'frontend/src/test/agentPermissionModes.json'
       - '.github/workflows/backend-checks.yml'
   pull_request:
@@ -19,6 +20,7 @@ on:
       - 'scripts/**'
       - 'mcp-server/**'
       - 'desktop/requirements*'
+      - 'desktop/run_build.mjs'
       - 'frontend/src/test/agentPermissionModes.json'
       - '.github/workflows/backend-checks.yml'
 
