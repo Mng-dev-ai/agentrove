@@ -37,7 +37,7 @@ from app.models.types import MessageAttachmentDict, PermissionMode
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
     NATIVE_FILE_TYPES,
-    NORMAL_SESSION_MODE,
+    UNSPECIFIED_PERMISSION_MODE,
 )
 from app.services.agent import AgentService
 from app.services.channels.engine import ChannelEngine, channel_engine
@@ -223,7 +223,7 @@ class ChannelService(BaseDbService[Channel]):
             )
         kind = model.agent_kind
         if mode is None:
-            return NORMAL_SESSION_MODE[kind]
+            return UNSPECIFIED_PERMISSION_MODE[kind]
         if mode not in AGENT_ADAPTERS[kind].session_modes:
             raise HTTPException(400, f"Invalid permission mode for {kind.value}")
         return mode

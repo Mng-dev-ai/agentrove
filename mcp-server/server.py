@@ -15,18 +15,6 @@ mcp = FastMCP("agentrove")
 
 MEMORY_SEARCH_LIMIT = 10
 
-# Unattended full-execution mode per agent. Backend rejects cross-agent modes;
-# mirrored here because this HTTP client can't import adapters.*_SESSION_MODES.
-PERMISSION_MODE_BY_AGENT = {
-    "antigravity": "yolo",
-    "claude": "bypassPermissions",
-    "codex": "full-access",
-    "copilot": "autopilot",
-    "cursor": "agent",
-    "grok": "always-approve",
-    "opencode": "build",
-}
-
 
 class ChannelMember(BaseModel):
     model_id: str
@@ -82,7 +70,7 @@ async def _resolve_members(
             {
                 **member.model_dump(exclude_none=True),
                 "model_id": model["model_id"],
-                "permission_mode": PERMISSION_MODE_BY_AGENT[model["agent_kind"]],
+                "permission_mode": model["unattended_permission_mode"],
             }
         )
     return resolved_members
@@ -579,7 +567,7 @@ async def send_message(
             model, chat.get("last_thinking_mode")
         )
     resolved_model = model["model_id"]
-    permission_mode = PERMISSION_MODE_BY_AGENT[model["agent_kind"]]
+    permission_mode = model["unattended_permission_mode"]
     if chat_id is None:
         resolved_workspace = await client.resolve_workspace_id(workspace_id)
         chat_title = (title or prompt[:60]).strip() or "New chat"
@@ -964,7 +952,7 @@ async def create_automation(
         "timezone": timezone,
         "workspace_id": resolved_workspace,
         "model_id": model["model_id"],
-        "permission_mode": PERMISSION_MODE_BY_AGENT[model["agent_kind"]],
+        "permission_mode": model["unattended_permission_mode"],
         "worktree": worktree,
         "enabled": enabled,
     }
@@ -1023,7 +1011,7 @@ async def update_automation(
     if model_id is not None:
         model = await client.resolve_model(model_id)
         body["model_id"] = model["model_id"]
-        body["permission_mode"] = PERMISSION_MODE_BY_AGENT[model["agent_kind"]]
+        body["permission_mode"] = model["unattended_permission_mode"]
     if thinking_mode is not None:
         body["thinking_mode"] = thinking_mode
     if worktree is not None:

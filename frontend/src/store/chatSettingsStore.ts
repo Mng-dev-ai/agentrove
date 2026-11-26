@@ -1,21 +1,22 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-type PermissionMode =
-  | 'auto_edit'
-  | 'default'
-  | 'acceptEdits'
-  | 'plan'
-  | 'bypassPermissions'
-  | 'agent'
-  | 'autopilot'
-  | 'auto'
-  | 'always-approve'
-  | 'read-only'
-  | 'full-access'
-  | 'ask'
-  | 'build'
-  | 'yolo';
+export const PERMISSION_MODES = [
+  'auto_edit',
+  'default',
+  'acceptEdits',
+  'plan',
+  'bypassPermissions',
+  'agent',
+  'autopilot',
+  'auto',
+  'always-approve',
+  'read-only',
+  'full-access',
+  'ask',
+  'build',
+  'yolo',
+] as const;
 
 const DEFAULT_KEY = '__default__';
 export const DEFAULT_PERMISSION_MODE: PermissionMode = 'bypassPermissions';
@@ -23,6 +24,8 @@ export const DEFAULT_THINKING_MODE: string = 'high';
 export const DEFAULT_WORKTREE = false;
 export const DEFAULT_FAST_MODE = false;
 export const DEFAULT_PERSONA = 'Default';
+
+type PermissionMode = (typeof PERMISSION_MODES)[number];
 
 function withoutChats<T>(
   byChat: Record<string, T>,

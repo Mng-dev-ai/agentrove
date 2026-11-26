@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from app.models.types import AgentKind
+from app.models.types import AgentKind, PermissionMode
 
 
 class AIModelResponse(BaseModel):
@@ -17,3 +17,5 @@ class AIModelResponse(BaseModel):
     supports_persona: bool = False
     supports_fast_mode: bool = False
     supports_usage_updates: bool = False
+    # Mode the MCP server gives the chats, members and automations it creates.
+    unattended_permission_mode: PermissionMode

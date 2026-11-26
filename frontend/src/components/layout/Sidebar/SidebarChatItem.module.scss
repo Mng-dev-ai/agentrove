@@ -3,19 +3,6 @@
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
-// Positioning slots passed to FloatingTooltip wrappers (own our own layout)
-.status-tooltip {
-  display: flex;
-  flex-shrink: 0;
-  align-items: center;
-}
-
-.title-tooltip {
-  display: flex;
-  min-width: 0;
-  flex: 1;
-}
-
 .status-slot {
   position: relative;
   display: flex;
@@ -111,49 +98,48 @@
   }
 }
 
-.workspace-badge {
-  @include type.type-meta(500);
+.preview {
   display: flex;
-  max-width: 100%;
-  align-items: center;
-  gap: var(--space-1);
-  align-self: flex-start;
-  color: var(--theme-text-quaternary);
-
-  // pl-5 (icon 14px + gap 6px) indents the name under the title, not the icon
-  &--indented {
-    padding-left: var(--space-5);
-  }
+  flex-direction: column;
+  gap: var(--space-0-5);
 }
 
-.machine-badge {
+.preview-title {
+  overflow-wrap: anywhere;
+}
+
+.preview-detail {
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
+}
+
+.preview-facts {
+  @include type.type-meta;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--space-3);
+  row-gap: var(--space-0-5);
+  margin-top: var(--space-1);
+  border-top: 1px solid colors.theme-color('border', 0.5);
+  padding-top: var(--space-1-5);
+  color: var(--theme-text-secondary);
+}
+
+.preview-label {
+  color: var(--theme-text-tertiary);
+}
+
+.child-activity {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1-5);
+}
+
+.child-count {
   display: inline-flex;
-  min-width: 0;
-  flex-shrink: 0;
   align-items: center;
   gap: var(--space-1);
-}
-
-.machine-badge--offline {
-  color: colors.status-color('warning', 600);
-
-  :global([data-theme='dark']) & {
-    color: colors.status-color('warning', 400);
-  }
-}
-
-// Status words reuse the dot's hues at steps that clear 4.5:1 for 11px text:
-// darker on light (warning/success need 700), lighter on dark.
-.status-word {
-  flex-shrink: 0;
-
-  &--blocked {
-    color: colors.status-color('error', 600);
-
-    :global([data-theme='dark']) & {
-      color: colors.status-color('error', 400);
-    }
-  }
+  color: var(--theme-text-secondary);
 
   &--running {
     color: colors.status-color('warning', 700);
@@ -162,22 +148,25 @@
       color: colors.status-color('warning', 400);
     }
   }
-
-  &--completed {
-    color: colors.status-color('success', 700);
-
-    :global([data-theme='dark']) & {
-      color: colors.status-color('success', 400);
-    }
-  }
 }
 
-.machine-icon {
+// Flat activity list: names the parent of a sub-thread shown without its tree
+.parent-context {
+  @include type.type-meta;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1);
+  padding-left: var(--space-5);
+  color: var(--theme-text-quaternary);
+}
+
+.parent-context-title {
+  @include type.type-overflow;
+}
+
+.parent-context-icon {
   height: var(--space-2-5);
   width: var(--space-2-5);
   flex-shrink: 0;
-}
-
-.workspace-name {
-  @include type.type-overflow;
 }

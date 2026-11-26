@@ -34,8 +34,9 @@ NATIVE_FILE_TYPES: dict[AgentKind, frozenset[str]] = {
     AgentKind.OPENCODE: frozenset({"image"}),
 }
 
-# Full-execution mode per agent for unattended one-shots (Codex rejects unknown modes; avoid plan/read-only).
-NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
+# Mode a turn runs in when none was stored or sent (forks, channel members,
+# sub-thread wakes) and for internal one-shots.
+UNSPECIFIED_PERMISSION_MODE: dict[AgentKind, PermissionMode] = {
     AgentKind.ANTIGRAVITY: "yolo",
     AgentKind.CLAUDE: "default",
     AgentKind.CODEX: "auto",
@@ -45,7 +46,20 @@ NORMAL_SESSION_MODE: dict[AgentKind, PermissionMode] = {
     AgentKind.OPENCODE: "build",
 }
 
-FULL_ACCESS_SESSION_MODES: dict[AgentKind, frozenset[PermissionMode]] = {
+# Mode the MCP server gives the chats, channel members and automations an agent
+# creates; it reads it from GET /models/.
+UNATTENDED_PERMISSION_MODE: dict[AgentKind, PermissionMode] = {
+    AgentKind.ANTIGRAVITY: "yolo",
+    AgentKind.CLAUDE: "bypassPermissions",
+    AgentKind.CODEX: "full-access",
+    AgentKind.COPILOT: "autopilot",
+    AgentKind.CURSOR: "agent",
+    AgentKind.GROK: "always-approve",
+    AgentKind.OPENCODE: "build",
+}
+
+# Modes in which a channel member is given the Agentrove MCP server.
+CHANNEL_MCP_PERMISSION_MODES: dict[AgentKind, frozenset[PermissionMode]] = {
     AgentKind.ANTIGRAVITY: frozenset({"yolo"}),
     AgentKind.CLAUDE: frozenset({"bypassPermissions"}),
     AgentKind.CODEX: frozenset({"full-access"}),
@@ -142,7 +156,7 @@ class AgentAdapter:
     ) -> bool:
         return (
             not channel_member
-            or permission_mode in FULL_ACCESS_SESSION_MODES[agent_kind]
+            or permission_mode in CHANNEL_MCP_PERMISSION_MODES[agent_kind]
         )
 
     @staticmethod

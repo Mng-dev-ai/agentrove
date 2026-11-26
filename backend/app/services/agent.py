@@ -34,7 +34,7 @@ from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 from app.prompts.generate_title import GENERATE_TITLE_SYSTEM_PROMPT
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
-    NORMAL_SESSION_MODE,
+    UNSPECIFIED_PERMISSION_MODE,
     AgentAdapter,
 )
 from app.services.acp.client import AcpClientHandler
@@ -477,7 +477,7 @@ class AgentService:
             device_ids=frozenset(),
             agentrove_mcp=False,
             agent_kind=agent_kind,
-            permission_mode=NORMAL_SESSION_MODE[agent_kind],
+            permission_mode=UNSPECIFIED_PERMISSION_MODE[agent_kind],
             model_id=model_id,
             session_id=None,
             sandbox_provider=sandbox_provider,

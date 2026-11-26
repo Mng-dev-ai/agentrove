@@ -1,4 +1,13 @@
-import { useState, useRef, useMemo, useCallback, useEffect, ReactNode, Suspense } from 'react';
+import {
+  useState,
+  useRef,
+  useMemo,
+  useCallback,
+  useEffect,
+  ReactNode,
+  Suspense,
+  type SetStateAction,
+} from 'react';
 import clsx from 'clsx';
 import { lazyNamed } from '@/utils/lazyNamed';
 import { useMountEffect } from '@/hooks/useMountEffect';
@@ -241,8 +250,13 @@ export function LandingPage() {
     useUIStore.getState().resetWorkspace();
   });
 
-  const handleFileAttach = useCallback((files: File[]) => {
-    useChatStore.getState().setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, files);
+  const handleFileAttach = useCallback((action: SetStateAction<File[]>) => {
+    const store = useChatStore.getState();
+    const files =
+      typeof action === 'function'
+        ? action(store.attachedFilesByChat[PENDING_NEW_CHAT_KEY] ?? [])
+        : action;
+    store.setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, files);
   }, []);
 
   const handleNewChat = useCallback(

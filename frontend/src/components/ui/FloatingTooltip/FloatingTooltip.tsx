@@ -21,14 +21,19 @@ interface TooltipPosition {
   left: number;
   triggerTop: number;
   triggerBottom: number;
+  triggerLeft: number;
+  triggerRight: number;
 }
 
 interface FloatingTooltipProps {
-  content: string;
+  content: ReactNode;
   children: ReactNode;
   className?: string;
   // Renders the trigger as a span so it can sit inside running text (e.g. a <p>).
   inline?: boolean;
+  // 'right' opens beside the trigger, top-aligned, so it doesn't cover the rows below;
+  // it falls back to below when the viewport has no room on the right
+  placement?: 'below' | 'right';
 }
 
 // Fixed-position title replacement — unlike CSS Tooltip, won't clip inside overflow lists.
@@ -37,6 +42,7 @@ export function FloatingTooltip({
   children,
   className,
   inline = false,
+  placement = 'below',
 }: FloatingTooltipProps) {
   const [position, setPosition] = useState<TooltipPosition | null>(null);
   // Covers show delay + visible so scroll can cancel a pending show, not just an open tip.
@@ -57,6 +63,8 @@ export function FloatingTooltip({
           left: rect.left,
           triggerTop: rect.top,
           triggerBottom: rect.bottom,
+          triggerLeft: rect.left,
+          triggerRight: rect.right,
         });
       }
     }, SHOW_DELAY_MS);
@@ -77,22 +85,27 @@ export function FloatingTooltip({
     const fitsBelow =
       position.triggerBottom + TOOLTIP_GAP + height <= window.innerHeight - VIEWPORT_PADDING;
     const openAbove = !fitsBelow && fitsAbove;
-    const desiredTop = openAbove
+    const belowTop = openAbove
       ? position.triggerTop - TOOLTIP_GAP - height
       : position.triggerBottom + TOOLTIP_GAP;
+    const opensRight =
+      placement === 'right' &&
+      position.triggerRight + TOOLTIP_GAP + width <= window.innerWidth - VIEWPORT_PADDING;
+    const desiredTop = opensRight ? position.triggerTop : belowTop;
+    const desiredLeft = opensRight ? position.triggerRight + TOOLTIP_GAP : position.triggerLeft;
     const top = Math.max(
       VIEWPORT_PADDING,
       Math.min(desiredTop, window.innerHeight - VIEWPORT_PADDING - height),
     );
     const left = Math.max(
       VIEWPORT_PADDING,
-      Math.min(position.left, window.innerWidth - VIEWPORT_PADDING - width),
+      Math.min(desiredLeft, window.innerWidth - VIEWPORT_PADDING - width),
     );
 
     if (top !== position.top || left !== position.left) {
       setPosition({ ...position, top, left });
     }
-  }, [position]);
+  }, [position, placement]);
 
   // pointerleave alone is unreliable: WKWebView (Tauri) can drop it on fast
   // window exits, native title-bar transitions, and focus changes.

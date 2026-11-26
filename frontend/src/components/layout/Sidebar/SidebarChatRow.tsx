@@ -3,6 +3,7 @@ import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import type { MachineBadge } from './SidebarChatItem';
 import { SidebarChatItem } from './SidebarChatItem';
 import { SubThreadList } from './SubThreadList';
+import type { ChildActivity } from './useSidebarActivity';
 
 // Bundle row handlers/state so pinned and recent sections forward one object.
 export interface ChatRowProps {
@@ -15,8 +16,6 @@ export interface ChatRowProps {
   completedChatIdSet: Set<string>;
   workspaceBadgeById: Map<string, WorkspaceBadge>;
   machineBadgeForChat: (chatId: string) => MachineBadge | undefined;
-  // Only when visible chats span several workspaces — otherwise every row repeats the same name
-  showWorkspaceBadges: boolean;
   onChatSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   canOpenChatInSplit: (chatId: string) => boolean;
@@ -25,9 +24,23 @@ export interface ChatRowProps {
   onMouseLeave: () => void;
   expandedSubThreads: Set<string>;
   onToggleSubThreads: (chatId: string) => void;
+  childActivityByParentId: Map<string, ChildActivity>;
 }
 
-export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatRowProps }) {
+interface SidebarChatRowProps {
+  chat: Chat;
+  rowProps: ChatRowProps;
+  // The flat activity list already lists active sub-threads, so its rows don't expand
+  isFlat?: boolean;
+  parentTitle?: string;
+}
+
+export function SidebarChatRow({
+  chat,
+  rowProps,
+  isFlat = false,
+  parentTitle,
+}: SidebarChatRowProps) {
   const {
     selectedChatId,
     splitChatIds,
@@ -38,7 +51,6 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
     completedChatIdSet,
     workspaceBadgeById,
     machineBadgeForChat,
-    showWorkspaceBadges,
     onChatSelect,
     onOpenInSplit,
     canOpenChatInSplit,
@@ -47,9 +59,10 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
     onMouseLeave,
     expandedSubThreads,
     onToggleSubThreads,
+    childActivityByParentId,
   } = rowProps;
-  const hasSubThreads = chat.sub_thread_count > 0;
-  const machineBadge = machineBadgeForChat(chat.id);
+  const hasSubThreads = !isFlat && chat.sub_thread_count > 0;
+  const isExpanded = hasSubThreads && expandedSubThreads.has(chat.id);
 
   return (
     <div>
@@ -62,9 +75,8 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
         isChatStreaming={streamingChatIdSet.has(chat.id)}
         isChatBlocked={blockedChatIdSet.has(chat.id)}
         isChatCompleted={completedChatIdSet.has(chat.id)}
-        workspaceBadge={showWorkspaceBadges ? workspaceBadgeById.get(chat.workspace_id) : undefined}
-        machineName={machineBadge?.name}
-        machineOffline={machineBadge?.offline}
+        workspaceBadge={workspaceBadgeById.get(chat.workspace_id)}
+        machineBadge={machineBadgeForChat(chat.id)}
         onSelect={onChatSelect}
         onOpenInSplit={onOpenInSplit}
         canOpenInSplit={canOpenChatInSplit(chat.id)}
@@ -72,9 +84,13 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
         onMouseEnter={onMouseEnter}
         onMouseLeave={onMouseLeave}
         onToggleSubThreads={hasSubThreads ? onToggleSubThreads : undefined}
-        isSubThreadsExpanded={hasSubThreads ? expandedSubThreads.has(chat.id) : undefined}
+        isSubThreadsExpanded={hasSubThreads ? isExpanded : undefined}
+        childActivity={
+          hasSubThreads && !isExpanded ? childActivityByParentId.get(chat.id) : undefined
+        }
+        parentTitle={parentTitle}
       />
-      {hasSubThreads && expandedSubThreads.has(chat.id) && (
+      {isExpanded && (
         <SubThreadList
           parentChatId={chat.id}
           selectedChatId={selectedChatId}
