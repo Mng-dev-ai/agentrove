@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -55,6 +55,7 @@ from tests.helpers import (
 
 
 TEST_MODEL_ID = "opencode:google-vertex/claude-sonnet-4-6@default"
+WORKTREE_CWD = ".worktrees/racing00"
 
 pytestmark = pytest.mark.anyio
 
@@ -262,6 +263,36 @@ async def list_channels_then_run(
     while pending:
         await pending.pop()
     return channels
+
+
+async def create_worktree_while_workspace_is_deleted(
+    delete: Callable[[], Coroutine[Any, Any, Response]],
+    deleting: list[asyncio.Task[Response]],
+    *_args: Any,
+    **_kwargs: Any,
+) -> str:
+    deleting.append(asyncio.create_task(delete()))
+    await asyncio.sleep(RACE_WINDOW_SECONDS)
+    return WORKTREE_CWD
+
+
+@asynccontextmanager
+async def session_running_after_commit(
+    pending: list[Coroutine[Any, Any, Response]], responses: list[Response]
+) -> AsyncIterator[AsyncSession]:
+    async with SessionLocal() as db:
+        db.commit = partial(commit_then_run, db.commit, pending, responses)
+        yield db
+
+
+async def commit_then_run(
+    commit: Callable[[], Awaitable[None]],
+    pending: list[Coroutine[Any, Any, Response]],
+    responses: list[Response],
+) -> None:
+    await commit()
+    while pending:
+        responses.append(await pending.pop())
 
 
 @pytest.fixture
@@ -2605,4 +2636,67 @@ async def test_channel_create_waits_for_a_workspace_delete_committing_under_it(
     response = await creating
 
     assert response.status_code == 404
+    assert await db_session.scalar(select(Channel.id)) is None
+
+
+async def test_workspace_delete_during_worktree_creation_removes_the_worktree(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, _user, workspace = owner
+    deleting: list[asyncio.Task[Response]] = []
+    monkeypatch.setattr(
+        channel_module.GitService,
+        "create_worktree",
+        AsyncMock(
+            side_effect=partial(
+                create_worktree_while_workspace_is_deleted,
+                partial(
+                    client.delete,
+                    f"/api/v1/workspaces/{workspace.id}",
+                    headers=headers,
+                ),
+                deleting,
+            )
+        ),
+    )
+    remove_worktree = AsyncMock()
+    monkeypatch.setattr(channel_module.GitService, "remove_worktree", remove_worktree)
+
+    await client.post(
+        "/api/v1/channels", json={**channel_data, "worktree": True}, headers=headers
+    )
+    response = await deleting[0]
+
+    assert response.status_code == 204
+    remove_worktree.assert_awaited_once_with(workspace.sandbox_id, WORKTREE_CWD)
+    assert await db_session.scalar(select(Channel.id)) is None
+    assert await db_session.scalar(select(Chat.id)) is None
+
+
+async def test_workspace_delete_takes_a_channel_committed_but_not_yet_registered(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, _user, workspace = owner
+    responses: list[Response] = []
+    monkeypatch.setattr(
+        channel_service,
+        "session_factory",
+        partial(
+            session_running_after_commit,
+            [client.delete(f"/api/v1/workspaces/{workspace.id}", headers=headers)],
+            responses,
+        ),
+    )
+
+    await client.post("/api/v1/channels", json=channel_data, headers=headers)
+
+    assert [response.status_code for response in responses] == [204]
     assert await db_session.scalar(select(Channel.id)) is None

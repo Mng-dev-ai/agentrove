@@ -8,13 +8,14 @@ from uuid import UUID
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
-from app.db.session import SessionLocal
+from app.db.session import SessionLocal, begin_immediate
 from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
+from app.models.db_models.workspace import Workspace
 from app.models.schemas.chat import ChatCreate
 from app.services.chat import ChatService
 from app.services.git import GitService
@@ -195,6 +196,38 @@ async def test_list_get_and_update_workspace(
     assert listed["items"][0]["id"] == workspace_id
     assert listed["items"][0]["name"] == "Renamed Workspace"
     assert get_response.json()["name"] == "Renamed Workspace"
+
+
+async def test_update_workspace_deleted_under_it_is_not_found_and_stays_deleted(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+) -> None:
+    headers, workspace = await owner_with_workspace(client, create_user, login)
+    workspace_id = UUID(workspace["id"])
+    async with SessionLocal() as writer:
+        await begin_immediate(writer)
+        await writer.execute(
+            update(Workspace)
+            .where(Workspace.id == workspace_id)
+            .values(deleted_at=datetime.now(timezone.utc))
+        )
+        renaming = asyncio.create_task(
+            client.patch(
+                f"/api/v1/workspaces/{workspace_id}",
+                json={"name": "Renamed"},
+                headers=headers,
+            )
+        )
+        await asyncio.sleep(RACE_WINDOW_SECONDS)
+        await writer.commit()
+    response = await renaming
+
+    assert response.status_code == 404
+    assert await db_session.scalar(
+        select(Workspace.deleted_at).where(Workspace.id == workspace_id)
+    )
 
 
 async def test_list_workspaces_orders_by_latest_chat_and_counts_top_level_chats(
