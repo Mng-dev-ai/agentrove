@@ -3065,6 +3065,99 @@ async def test_respond_to_request_answers_only_the_callers_sub_threads(
     await db_session.commit()
 
 
+async def test_mcp_reaches_member_chats_only_of_channels_linked_to_the_caller(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
+    headers, workspace = auth_workspace
+    route_sandbox_client_to_app(monkeypatch, client)
+    user = await db_session.get_one(User, workspace.user_id)
+    caller = await create_chat_row(db_session, user, workspace)
+    other = await create_chat_row(db_session, user, workspace)
+    channels = {}
+    for name, parent_chat_id in (
+        ("linked", str(caller.id)),
+        ("linked elsewhere", str(other.id)),
+        ("unlinked", None),
+    ):
+        created = await client.post(
+            "/api/v1/channels",
+            json={
+                "name": name,
+                "workspace_id": str(workspace.id),
+                "members": [{"model_id": "sonnet", "display_name": "alice"}],
+                "parent_chat_id": parent_chat_id,
+            },
+            headers=headers,
+        )
+        assert created.status_code == 201, created.text
+        channels[name] = created.json()
+    linked_id = channels["linked"]["id"]
+    posted = await client.post(
+        f"/api/v1/channels/{linked_id}/messages",
+        data={"content": f"{MARKER_ELICITATION} choose"},
+        headers=headers,
+    )
+    assert posted.status_code == 201, posted.text
+    activity = await wait_for_channel_activity(
+        client, headers, linked_id, lambda activity: activity["elicitations"]
+    )
+    request_id = activity["elicitations"][0]["request"]["request_id"]
+
+    workspace.sandbox_provider = "docker"
+    await db_session.commit()
+    monkeypatch.setitem(session_registry._mcp_sessions, "member-scope", None)
+    server = docker_mcp_server(
+        str(user.id),
+        user.hashed_password,
+        workspace_id=str(workspace.id),
+        chat_id=str(caller.id),
+        session_id="member-scope",
+    )
+    authorization = {"Authorization": server["headers"]["Authorization"]}
+    results = {}
+    async with main_module.mcp_endpoint.run():
+        for name, channel in channels.items():
+            chat_id = channel["members"][0]["chat_id"]
+            results[name] = [
+                await mcp_call_tool(
+                    client, authorization, "get_messages", chat_id=chat_id
+                ),
+                await mcp_call_tool(
+                    client, authorization, "get_pending_requests", chat_id=chat_id
+                ),
+                await mcp_call_tool(
+                    client,
+                    authorization,
+                    "respond_to_request",
+                    chat_id=chat_id,
+                    request_id=request_id,
+                    action="accept",
+                    content={"question_0": "Red"},
+                ),
+            ]
+    workspace.sandbox_provider = "host"
+    await db_session.commit()
+
+    messages, pending, answered = results["linked"]
+    assert messages["structuredContent"]["messages"], messages
+    assert [
+        question["request_id"] for question in pending["structuredContent"]["questions"]
+    ] == [request_id]
+    assert answered["structuredContent"] == {"answered": True}
+    for name in ("linked elsewhere", "unlinked"):
+        assert [bool(result.get("isError")) for result in results[name]] == [True] * 3
+    await wait_for_channel_activity(
+        client, headers, linked_id, lambda activity: not activity["member_ids"]
+    )
+    for channel in channels.values():
+        await client.delete(f"/api/v1/channels/{channel['id']}", headers=headers)
+
+
 def route_sandbox_client_to_app(
     monkeypatch: pytest.MonkeyPatch,
     client: httpx.AsyncClient,
