@@ -1,11 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import streamEnvelopes from '@/test/streamEnvelopes.json';
-import type { StreamEnvelope, StreamKind } from '@/types/stream.types';
+import { wireEnvelope } from '@/test/fixtures';
+import type { StreamEnvelope } from '@/types/stream.types';
 import { envelopeToRenderEvent } from './envelopeTranslation';
 
 // Exhaustive over the union, so a kind added to StreamEnvelope has to be classified
 // here; the fixture test below then demands an entry for it.
-const RENDERS_CONTENT: Record<StreamKind, boolean> = {
+const RENDERS_CONTENT: Record<StreamEnvelope['kind'], boolean> = {
   stream_started: false,
   assistant_text: true,
   assistant_thinking: true,
@@ -29,23 +30,25 @@ const RENDERS_CONTENT: Record<StreamKind, boolean> = {
   queue_processing: false,
 };
 
-// Wire data is unvalidated JSON, so payloads the types rule out still arrive.
-const fromWire = (value: unknown): StreamEnvelope => JSON.parse(JSON.stringify(value));
-
-const wireEnvelope = (kind: StreamKind, payload: unknown): StreamEnvelope =>
-  fromWire({ chatId: 'c1', messageId: 'a1', streamId: 's1', seq: 1, kind, payload });
-
 describe('envelopeToRenderEvent', () => {
   it('drops envelopes with nothing to render', () => {
-    expect(envelopeToRenderEvent(wireEnvelope('assistant_text', { text: '' }))).toBeNull();
-    expect(envelopeToRenderEvent(wireEnvelope('tool_started', {}))).toBeNull();
-    expect(envelopeToRenderEvent(wireEnvelope('plan', { data: { entries: [] } }))).toBeNull();
-    expect(envelopeToRenderEvent(wireEnvelope('complete', { text: 'done' }))).toBeNull();
+    expect(
+      envelopeToRenderEvent(wireEnvelope({ kind: 'assistant_text', payload: { text: '' } })),
+    ).toBeNull();
+    expect(envelopeToRenderEvent(wireEnvelope({ kind: 'tool_started', payload: {} }))).toBeNull();
+    expect(
+      envelopeToRenderEvent(wireEnvelope({ kind: 'plan', payload: { data: { entries: [] } } })),
+    ).toBeNull();
+    expect(
+      envelopeToRenderEvent(wireEnvelope({ kind: 'complete', payload: { text: 'done' } })),
+    ).toBeNull();
   });
 
   it('keeps only string prompt suggestions', () => {
     expect(
-      envelopeToRenderEvent(wireEnvelope('prompt_suggestions', { suggestions: ['Run tests', 3] })),
+      envelopeToRenderEvent(
+        wireEnvelope({ kind: 'prompt_suggestions', payload: { suggestions: ['Run tests', 3] } }),
+      ),
     ).toEqual({ type: 'prompt_suggestions', suggestions: ['Run tests'] });
   });
 });
@@ -60,7 +63,7 @@ describe('backend stream envelope fixture', () => {
 
   it('translates each content kind to the render event the backend persists', () => {
     for (const entry of streamEnvelopes) {
-      const envelope = fromWire(entry);
+      const envelope = wireEnvelope(entry);
       const event = envelopeToRenderEvent(envelope);
       if (RENDERS_CONTENT[envelope.kind]) {
         expect(event).toMatchObject({ type: entry.kind, ...entry.payload });

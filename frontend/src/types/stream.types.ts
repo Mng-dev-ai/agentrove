@@ -20,7 +20,9 @@ interface StreamEnvelopeBase<K extends string, P> {
 }
 
 // `system` has two wire shapes. ACP session info and the turn's worktree nest
-// under `data`; context usage sits at the top level beside `chat_id`.
+// under `data`; context usage sits at the top level beside `chat_id`. Nested
+// `data.chat_id` / `data.context_usage` are tolerated legacy input that no
+// current backend emits.
 interface SystemDataPayload {
   data: {
     session_id?: string;
@@ -109,8 +111,6 @@ export type StreamEnvelope =
         prior_duration_ms: number | null;
       }
     >;
-
-export type StreamKind = StreamEnvelope['kind'];
 
 export interface QueueProcessingData {
   queuedMessageId: string;

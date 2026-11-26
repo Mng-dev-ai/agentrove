@@ -14,8 +14,8 @@ import { streamService } from '@/services/streamService';
 import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
 import { useStreamStore } from '@/store/streamStore';
 import type { Chat, Message, PermissionOption } from '@/types/chat.types';
-import type { QueueProcessingData, StreamEnvelope, StreamKind } from '@/types/stream.types';
-import { makeMessage, readMessagePages, seedMessagePages } from '@/test/fixtures';
+import type { QueueProcessingData, StreamEnvelope } from '@/types/stream.types';
+import { makeMessage, readMessagePages, seedMessagePages, wireEnvelope } from '@/test/fixtures';
 import streamEnvelopes from '@/test/streamEnvelopes.json';
 import { useStreamCallbacks } from './useStreamCallbacks';
 
@@ -26,31 +26,24 @@ vi.mock('@/services/streamConnection', () => ({
 
 // streamService registers its raw-data handler once, when the module loads.
 const deliverRawEnvelope = vi.mocked(streamConnection.configure).mock.calls[0][0].onEnvelopeData;
-
-type EnvelopeIds = Pick<StreamEnvelope, 'chatId' | 'messageId' | 'streamId' | 'seq'>;
-type EnvelopeBodyOf<E> = E extends unknown ? Omit<E, keyof EnvelopeIds> : never;
-type EnvelopeBody = EnvelopeBodyOf<StreamEnvelope>;
-
 const ENVELOPE_IDS: EnvelopeIds = { chatId: 'c1', messageId: 'a1', streamId: 's1', seq: 1 };
-
-function envelope(body: EnvelopeBody, overrides: Partial<EnvelopeIds> = {}): StreamEnvelope {
-  return { ...ENVELOPE_IDS, ...body, ...overrides };
-}
-
-// Wire data is unvalidated JSON, so payloads the types rule out still arrive.
-function malformedEnvelope(kind: StreamKind, payload: unknown): StreamEnvelope {
-  return JSON.parse(JSON.stringify({ ...ENVELOPE_IDS, kind, payload }));
-}
-
-const text = (value: string, overrides?: Partial<EnvelopeIds>) =>
-  envelope({ kind: 'assistant_text', payload: { text: value } }, overrides);
-
 const ALLOW_OPTION: PermissionOption = {
   kind: 'allow_once',
   name: 'Allow',
   option_id: 'allow',
   permission_mode: null,
 };
+
+type EnvelopeIds = Pick<StreamEnvelope, 'chatId' | 'messageId' | 'streamId' | 'seq'>;
+type EnvelopeBodyOf<E> = E extends unknown ? Omit<E, keyof EnvelopeIds> : never;
+type EnvelopeBody = EnvelopeBodyOf<StreamEnvelope>;
+
+function envelope(body: EnvelopeBody, overrides: Partial<EnvelopeIds> = {}): StreamEnvelope {
+  return { ...ENVELOPE_IDS, ...body, ...overrides };
+}
+
+const text = (value: string, overrides?: Partial<EnvelopeIds>) =>
+  envelope({ kind: 'assistant_text', payload: { text: value } }, overrides);
 
 const handlers = {
   onPermissionRequest: vi.fn(),
@@ -189,12 +182,17 @@ describe('side-effect envelopes', () => {
         ),
       );
       result.current.onEnvelope(
-        malformedEnvelope('permission_request', { request_id: 'p2', tool_name: 'Bash' }),
+        wireEnvelope({
+          ...ENVELOPE_IDS,
+          kind: 'permission_request',
+          payload: { request_id: 'p2', tool_name: 'Bash' },
+        }),
       );
       result.current.onEnvelope(
-        malformedEnvelope('elicitation_request', {
-          request_id: 'e1',
-          data: { message: 'Pick one' },
+        wireEnvelope({
+          ...ENVELOPE_IDS,
+          kind: 'elicitation_request',
+          payload: { request_id: 'e1', data: { message: 'Pick one' } },
         }),
       );
       result.current.onEnvelope(
@@ -267,53 +265,51 @@ describe('side-effect envelopes', () => {
     await flushTimers();
 
     expect(received).toEqual(sent.filter((entry) => entry.kind !== 'queue_processing'));
+    const entryOf = (kind: StreamEnvelope['kind']) => sent.find((entry) => entry.kind === kind)!;
+    const systemPayloads = sent.filter((entry) => entry.kind === 'system').map((e) => e.payload);
+
+    const queued = entryOf('queue_processing').payload;
     expect(callbacks.onQueueProcess).toHaveBeenCalledWith({
-      queuedMessageId: '55555555-5555-4555-8555-555555555555',
-      userMessageId: '66666666-6666-4666-8666-666666666666',
-      assistantMessageId: '77777777-7777-4777-8777-777777777777',
-      checkpointId: null,
-      content: 'Now run the tests',
-      modelId: 'claude-sonnet',
-      attachments: null,
+      queuedMessageId: queued.queued_message_id,
+      userMessageId: queued.user_message_id,
+      assistantMessageId: queued.assistant_message_id,
+      checkpointId: queued.checkpoint_id,
+      content: queued.content,
+      modelId: queued.model_id,
+      attachments: queued.attachments,
       priorMessageId: 'a1',
-      priorDurationMs: 1200,
+      priorDurationMs: queued.prior_duration_ms,
     });
     expect(callbacks.onComplete.mock.calls).toEqual([
-      ['a1', 's1', 'complete', 1200],
-      ['a1', 's1', 'cancelled', 800],
+      ['a1', 's1', 'complete', entryOf('complete').payload.duration_ms],
+      ['a1', 's1', 'cancelled', entryOf('cancelled').payload.duration_ms],
     ]);
     expect(callbacks.onError.mock.calls[0][0].getDetailedMessage()).toContain(
-      'Stream ended unexpectedly',
+      entryOf('error').payload.error,
     );
 
+    const permission = entryOf('permission_request');
     expect(handlers.onPermissionRequest).toHaveBeenCalledWith({
-      request_id: 'tool-1',
-      tool_name: 'Bash',
-      tool_input: { command: 'ls' },
-      options: [
-        ALLOW_OPTION,
-        {
-          kind: 'allow_always',
-          name: 'Always allow edits',
-          option_id: 'acceptEdits',
-          permission_mode: 'acceptEdits',
-        },
-      ],
-      seq: 8,
+      request_id: permission.payload.request_id,
+      tool_name: permission.payload.tool_name,
+      tool_input: permission.payload.tool_input,
+      options: permission.payload.data?.options,
+      seq: permission.seq,
     });
+    const elicitation = entryOf('elicitation_request').payload;
     expect(handlers.onElicitationRequest).toHaveBeenCalledWith({
-      request_id: 'elicit-1',
-      message: 'Which directory?',
-      tool_call_id: 'tool-1',
-      requested_schema: { type: 'object', properties: { directory: { type: 'string' } } },
+      request_id: elicitation.request_id,
+      message: elicitation.data?.message,
+      tool_call_id: elicitation.data?.tool_call_id,
+      requested_schema: elicitation.data?.requested_schema,
     });
-    expect(handlers.onElicitationDismissed).toHaveBeenCalledWith('elicit-0');
-    expect(handlers.onContextUsageUpdate).toHaveBeenCalledWith(
-      { tokens_used: 1200, context_window: 200000, percentage: 0.6 },
-      '11111111-1111-4111-8111-111111111111',
+    expect(handlers.onElicitationDismissed).toHaveBeenCalledWith(
+      entryOf('elicitation_dismissed').payload.request_id,
     );
+    const usage = systemPayloads.find((payload) => payload.context_usage)!;
+    expect(handlers.onContextUsageUpdate).toHaveBeenCalledWith(usage.context_usage, usage.chat_id);
     expect(queryClient.getQueryData<Chat>(queryKeys.chat('c1'))?.worktree_cwd).toBe(
-      '/workspace/.worktrees/feature',
+      systemPayloads.find((payload) => payload.data?.worktree_cwd)!.data?.worktree_cwd,
     );
     expect(result.current.messages[0].content_render.events.map((event) => event.type)).toEqual([
       'assistant_thinking',
