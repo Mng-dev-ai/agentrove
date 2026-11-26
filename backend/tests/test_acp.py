@@ -29,7 +29,6 @@ from sqlalchemy.orm import selectinload
 
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 import app.main as main_module
-from app.core import deps
 from app.core.config import Settings, get_settings
 from app.core.security import authenticate_websocket_user, create_mcp_access_token
 from app.db.session import SessionLocal
@@ -42,7 +41,6 @@ from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.models.types import AgentKind, PermissionMode
 from app.services.channels import engine as channel_engine_module
-from app.services.channels import publisher as channel_publisher_module
 from app.services.acp import client as acp_client_module
 from app.services.acp.adapters import (
     AGENT_ADAPTERS,
@@ -66,7 +64,6 @@ from app.services.sandbox_providers import SandboxProviderType
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.host_provider import LocalHostProvider
 from app.services.session_registry import SessionRegistry
-from app.services.streaming import recovery as recovery_module
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES
@@ -206,22 +203,6 @@ def pin_ambient_settings() -> Iterator[None]:
         yield
     finally:
         settings.DESKTOP_MODE = original
-
-
-@pytest.fixture
-def acp_cache(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
-    # Redis isn't available in tests — every module that touches cache_connection
-    # for the chat-streaming path needs the in-memory fake wired in.
-    from app.api.endpoints import chat as chat_endpoint
-    from app.services import chat as chat_service_module
-    from app.services.streaming import runtime as runtime_module
-
-    cache = EndpointCache()
-    monkeypatch.setattr(chat_endpoint, "cache_connection", cache.connect)
-    monkeypatch.setattr(chat_service_module, "cache_connection", cache.connect)
-    monkeypatch.setattr(runtime_module, "cache_connection", cache.connect)
-    monkeypatch.setattr(recovery_module, "cache_connection", cache.connect)
-    return cache
 
 
 @pytest_asyncio.fixture
@@ -441,7 +422,6 @@ async def test_session_setup_gates_reasoning_effort_by_model(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     model_id: str,
     thinking_mode: str,
     expected_status: str,
@@ -492,7 +472,6 @@ async def test_turn_with_unsupported_tier_keeps_the_chats_last_thinking_mode(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -635,7 +614,6 @@ async def test_chat_tool_call_extraction_variants(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     markers: tuple[str, ...],
     expected: dict[tuple[str, str], Any],
 ) -> None:
@@ -667,7 +645,6 @@ async def test_antigravity_mcp_tool_call_is_unwrapped(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     model_id = "antigravity:gemini-4-argon"
@@ -701,7 +678,6 @@ async def test_image_reads_store_the_file_bytes_for_allowlisted_agents(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     tmp_path: Path,
     model_id: str,
     permission_mode: str,
@@ -762,7 +738,6 @@ async def test_failed_turn_keeps_an_image_read_that_arrived_completed(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     tmp_path: Path,
 ) -> None:
     headers, workspace = auth_workspace
@@ -799,7 +774,6 @@ async def test_opencode_image_content_block_lands_in_images(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     model_id = "opencode:opencode/gpt-5-nano"
@@ -831,7 +805,6 @@ async def test_chat_untracked_tool_updates_render_only_with_identity(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -870,7 +843,6 @@ async def test_chat_records_last_turn_settings(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     # The chat must record each turn's model/thinking/persona so out-of-band
     # follow-ups (MCP) and the UI can inherit them instead of their defaults.
@@ -905,7 +877,6 @@ async def test_chat_tool_left_active_is_auto_completed_on_finish(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     # Tool never terminals — finish(prompt_completed=True) auto-closes it.
     headers, workspace = auth_workspace
@@ -934,7 +905,6 @@ async def test_chat_agent_exit_mid_turn_fails_message_and_next_turn_recovers(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -967,7 +937,6 @@ async def test_chat_non_text_content_chunks_produce_no_events(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     # Non-text content blocks map to None — no extra text/thinking events.
     headers, workspace = auth_workspace
@@ -997,7 +966,6 @@ async def test_chat_enter_plan_mode_tool_triggers_mid_stream_mode_switch(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     # Completed EnterPlanMode → map_session_mode + set_mode mid-turn.
     headers, workspace = auth_workspace
@@ -1062,7 +1030,6 @@ async def test_chat_exit_plan_approval_carries_the_chosen_mode(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     option_id: str,
     expect_permission_mode: str | None,
 ) -> None:
@@ -1092,7 +1059,6 @@ async def test_agent_reported_mode_makes_the_next_turn_reapply_the_chat_mode(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -1140,7 +1106,6 @@ async def test_chat_permission_mode_unsupported_by_adapter(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     model_id: str,
     agent_permission_mode: str,
     expect_raises: bool,
@@ -1180,7 +1145,6 @@ async def test_chat_default_permission_mode_is_sent_to_agent(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -1205,7 +1169,6 @@ async def test_grok_always_approve_chat_starts_with_strict_mode_ids(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("FAKE_ACP_SCENARIO", "grok_mode_ids")
@@ -1232,7 +1195,6 @@ async def test_grok_tier_change_sets_effort_on_the_loaded_session(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     # Grok keeps a loaded session's saved effort and ignores a launch flag.
     headers, workspace = auth_workspace
@@ -1272,7 +1234,6 @@ async def test_grok_auto_mode_requests_auto_review(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="grok:grok-4.5")
@@ -1308,7 +1269,6 @@ async def test_permission_mode_change_respawns_only_launch_baked_agents(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     model_id: str,
     first_mode: str,
     second_mode: str,
@@ -1376,7 +1336,6 @@ async def test_chat_attachments_embed_native_types_and_note_the_rest(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     model_id: str,
     permission_mode: str,
     files: list[tuple[str, bytes, str]],
@@ -1414,7 +1373,6 @@ async def test_host_attachment_note_points_at_the_workspace_on_disk(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="gpt-5.4")
@@ -1452,7 +1410,7 @@ async def test_chat_permission_response_flow(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
     option_id: str,
     expect_permission_mode: str | None,
     expect_status: str,
@@ -1491,7 +1449,7 @@ async def test_chat_permission_response_flow(
     ]
 
     channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=workspace.user_id)
-    pubsub = acp_cache.store.pubsub()
+    pubsub = endpoint_cache.store.pubsub()
     await pubsub.subscribe(channel)
     respond = await client.post(
         f"/api/v1/chat/chats/{chat['id']}/permissions/{request_id}/respond",
@@ -1541,7 +1499,7 @@ async def test_chat_elicitation_response_flow(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
     action: str,
     content: dict[str, str] | None,
     expected_response: dict[str, Any],
@@ -1562,7 +1520,7 @@ async def test_chat_elicitation_response_flow(
     )
     request_id = event["render_payload"]["request_id"]
     channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=workspace.user_id)
-    pubsub = acp_cache.store.pubsub()
+    pubsub = endpoint_cache.store.pubsub()
     await pubsub.subscribe(channel)
     response = await client.post(
         f"/api/v1/chat/chats/{chat['id']}/elicitation/{request_id}/respond",
@@ -1596,11 +1554,11 @@ async def test_chat_elicitation_request_is_published_and_hydrated_until_answered
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=workspace.user_id)
-    pubsub = acp_cache.store.pubsub()
+    pubsub = endpoint_cache.store.pubsub()
     await pubsub.subscribe(channel)
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
     send_response = await send_message(
@@ -1665,7 +1623,7 @@ async def test_chat_cancel_pending_elicitation_returns_cancel_and_dismisses(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
+    endpoint_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -1683,7 +1641,7 @@ async def test_chat_cancel_pending_elicitation_returns_cancel_and_dismisses(
     request_id = event["render_payload"]["request_id"]
 
     channel = REDIS_KEY_USER_STREAMS_LIVE.format(user_id=workspace.user_id)
-    pubsub = acp_cache.store.pubsub()
+    pubsub = endpoint_cache.store.pubsub()
     await pubsub.subscribe(channel)
 
     cancel_response = await client.delete(
@@ -1723,7 +1681,6 @@ async def test_concurrent_elicitations_share_tool_id_but_resolve_independently(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -1843,13 +1800,10 @@ async def test_channel_member_question_waits_for_the_owner(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     resolution: str,
     expected_response: dict[str, Any],
 ) -> None:
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     channel = await client.post(
@@ -1930,11 +1884,8 @@ async def test_unanswered_channel_member_question_is_declined_on_timeout(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     monkeypatch.setattr(acp_client_module, "CHANNEL_ELICITATION_TIMEOUT_SECONDS", 0)
     headers, workspace = auth_workspace
@@ -1982,7 +1933,6 @@ async def test_chat_ask_user_question_flow(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     option_id: str,
     expect_response: dict[str, Any],
 ) -> None:
@@ -2032,7 +1982,6 @@ async def test_chat_cancel_marks_message_interrupted(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -2066,7 +2015,6 @@ async def test_chat_resume_after_session_eviction_mutes_replayed_history(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, workspace = auth_workspace
@@ -2116,7 +2064,6 @@ async def test_chat_provider_switch_hands_off_context(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, workspace = auth_workspace
@@ -2224,7 +2171,6 @@ async def test_chat_model_and_permission_mode_errors_fail(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     scenario: str,
 ) -> None:
@@ -2256,7 +2202,6 @@ async def test_chat_recovers_on_next_turn_after_rejected_model(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("FAKE_ACP_SCENARIO", "model_error")
@@ -2301,7 +2246,6 @@ async def test_copilot_mid_session_model_switch_reapplies_supported_effort(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="copilot:grok-4.5")
@@ -2404,7 +2348,6 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # A fresh token per turn (real mints differ once a second has passed) must
@@ -2606,7 +2549,6 @@ async def test_sandbox_token_only_opens_the_mcp_endpoint_while_its_session_lives
     db_session: AsyncSession,
     fake_agent: FakeAgentHandle,
     auth_workspace: tuple[dict[str, str], Workspace],
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, workspace = auth_workspace
@@ -2751,7 +2693,6 @@ async def test_device_automation_stops_minting_tokens_once_device_is_revoked(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     pairing = await client.post("/api/v1/auth/pairing", headers=headers)
@@ -2855,14 +2796,11 @@ async def test_channel_turn_acts_for_the_devices_behind_its_prompt(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     posts: list[tuple[str, str]],
     revoked: str,
     expected: dict[str, tuple[list[str], int]],
 ) -> None:
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.5)
     headers, workspace = auth_workspace
     devices = {name: await pair_device(client, headers, name) for name in ("A", "B")}
@@ -2929,11 +2867,8 @@ async def test_channel_member_gets_its_chat_and_memory_only_with_agentrove_tools
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     spawned: list[AcpSessionConfig] = []
     create = AcpSession.create
@@ -3261,7 +3196,6 @@ async def test_mcp_tools_accept_every_backend_thinking_mode_tier(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     tier: str,
 ) -> None:
@@ -3331,7 +3265,6 @@ async def test_mcp_follow_up_inherits_only_a_tier_the_model_accepts(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     model_id: str,
     thinking_mode: str,
@@ -3383,7 +3316,6 @@ async def test_revocation_cancels_the_devices_running_turn(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     email_capture: EmailCapture,
     login: LoginClient,
     revoke: str,
@@ -3432,7 +3364,6 @@ async def test_revocation_during_agent_startup_never_submits_the_prompt(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -3500,11 +3431,9 @@ async def test_wake_ignores_the_devices_of_the_parents_last_turn(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     revoke_parent_device: bool,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
     headers, workspace = auth_workspace
     pairing = await client.post("/api/v1/auth/pairing", headers=headers)
@@ -3574,11 +3503,9 @@ async def test_wake_acts_for_the_reporting_childs_devices(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     revoke_before_wake: bool,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
@@ -3645,13 +3572,11 @@ async def test_report_acts_for_the_devices_of_the_turn_that_filed_it(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     follow_up: str,
     revoked: str,
     wakes: bool,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 3600)
     wake = SubThreadWake()
     monkeypatch.setattr(runtime_module, "subthread_wake", wake)
@@ -3741,7 +3666,6 @@ async def test_automation_turn_acts_for_the_devices_behind_its_saved_prompt(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     edit: dict[str, str] | None,
     saver_kept: bool,
 ) -> None:
@@ -3802,13 +3726,10 @@ async def test_edited_chat_queue_item_acts_for_the_devices_behind_what_survives(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
-    monkeypatch: pytest.MonkeyPatch,
     attach: bool,
     content: str,
     queuer_kept: bool,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -3843,12 +3764,8 @@ async def test_edited_channel_queue_item_keeps_acting_for_the_device_that_queued
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
@@ -3903,10 +3820,7 @@ async def test_chat_send_now_acts_for_the_clicking_device(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -3949,12 +3863,8 @@ async def test_channel_send_now_acts_for_the_clicking_device(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
@@ -4006,12 +3916,8 @@ async def test_channel_send_now_keeps_the_clicking_device_when_posting_fails(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_engine_module, "cache_connection", acp_cache.connect)
-    monkeypatch.setattr(channel_publisher_module, "cache_connection", acp_cache.connect)
     monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
     headers, workspace = auth_workspace
     paired = await pair_device(client, headers, "Laptop")
@@ -4072,7 +3978,6 @@ async def test_manual_automation_run_is_bound_to_the_clicking_device(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     pairing = await client.post("/api/v1/auth/pairing", headers=headers)
@@ -4167,7 +4072,6 @@ async def test_fork_chat_refuses_what_it_cannot_fork(
     create_user: UserFactory,
     login: LoginClient,
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -4226,7 +4130,6 @@ async def test_fork_first_turn_continues_a_copy_of_the_source_session(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     source = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -4256,7 +4159,6 @@ async def test_side_question_fork_gets_a_generated_title_and_plain_fork_does_not
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     source = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -4281,7 +4183,6 @@ async def test_fork_session_failure_fails_the_turn_and_retry_converges(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, workspace = auth_workspace
@@ -4314,7 +4215,6 @@ async def test_fork_first_turn_ahead_of_the_creation_copy_forks_once(
     db_session: AsyncSession,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers, workspace = auth_workspace
@@ -4361,7 +4261,6 @@ async def test_fork_first_turn_on_another_agent_kind_fails_without_a_prompt(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
 ) -> None:
     headers, workspace = auth_workspace
     source = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -4383,7 +4282,6 @@ async def test_fork_never_outlives_the_worktree_of_a_source_deleted_meanwhile(
     create_user: UserFactory,
     login: LoginClient,
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:

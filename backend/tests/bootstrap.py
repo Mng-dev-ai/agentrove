@@ -23,6 +23,9 @@ os.environ["REGISTRATION_OPEN"] = "false"
 os.environ["MAIL_PASSWORD"] = ""
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{TEST_DIR / 'test.db'}"
 os.environ["STORAGE_PATH"] = str(TEST_DIR / "storage")
+# A closed port: only the cache contract test may reach a real Redis, through
+# TEST_REDIS_URL.
+os.environ["REDIS_URL"] = "redis://127.0.0.1:1/0"
 
 # Production argon2 cost (~60ms per hash/verify) dominates auth-heavy tests;
 # must be patched before app.core.security builds its PasswordHelper.

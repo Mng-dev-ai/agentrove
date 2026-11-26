@@ -82,6 +82,17 @@ jobs:
     name: Backend Tests
     runs-on: ubuntu-latest
 
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
 
@@ -103,6 +114,7 @@ jobs:
         # SQLAlchemy's greenlet switches, under-reporting request handlers.
         env:
           COVERAGE_CORE: sysmon
+          TEST_REDIS_URL: redis://localhost:6379/0
         run: |
           cd backend
           pytest tests -n auto --cov=app --cov-report=term-missing:skip-covered --cov-fail-under=85 --durations=20

@@ -101,6 +101,7 @@ class MemoryStore:
         return self._data.get(key)
 
     async def set(self, key: str, value: str, ex: int | None = None) -> None:
+        self._remove_key(key)
         self._data[key] = value
         if ex is not None:
             self._set_expiry(key, ex)
@@ -141,6 +142,8 @@ class MemoryStore:
         subs = self._subscribers.get(channel, [])
         if sub in subs:
             subs.remove(sub)
+            if not subs:
+                del self._subscribers[channel]
 
     async def ping(self) -> bool:
         return True
@@ -155,7 +158,7 @@ class MemoryStore:
 
 
 @asynccontextmanager
-async def cache_connection() -> AsyncIterator[CacheStore]:
+async def _open_cache_store() -> AsyncIterator[CacheStore]:
     if settings.DESKTOP_MODE:
         yield MemoryStore.get_instance()
         return
@@ -175,6 +178,14 @@ async def cache_connection() -> AsyncIterator[CacheStore]:
             await store.close()
         except CacheError as e:
             logger.warning("Error closing Redis connection: %s", e)
+
+
+# Callers import this by value, so the store is resolved through the module
+# global at call time: that global is the one place to swap the store.
+@asynccontextmanager
+async def cache_connection() -> AsyncIterator[CacheStore]:
+    async with _open_cache_store() as store:
+        yield store
 
 
 @asynccontextmanager

@@ -13,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.endpoints import chat as chat_endpoint
 from app.catalog import MODELS
-from app.core import deps
 from app.core.security import create_mcp_access_token
 from app.models.db_models.channel import (
     Channel,
@@ -43,7 +42,6 @@ from app.services.streaming.types import ChannelMemberTurn, EventSink
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
-    EndpointCache,
     FakeProviderFactory,
     create_authenticated_workspace,
     create_chat_row,
@@ -276,14 +274,6 @@ async def channel_state(
 
 
 @pytest.fixture
-def channel_queue(monkeypatch: pytest.MonkeyPatch) -> EndpointCache:
-    cache = EndpointCache()
-    monkeypatch.setattr(deps, "cache_connection", cache.connect)
-    monkeypatch.setattr(channel_engine_module, "cache_connection", cache.connect)
-    return cache
-
-
-@pytest.fixture
 async def source_message(
     db_session: AsyncSession, channel_state: ChannelState
 ) -> Message:
@@ -368,7 +358,6 @@ async def test_settled_run_pushes_its_last_visible_reply_once(
     owner: tuple[dict[str, str], User, Workspace],
     channel_state: ChannelState,
     channel_runtime: ScriptedTurns,
-    channel_queue: EndpointCache,
     db_session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
     replies: list[str],
@@ -1291,7 +1280,6 @@ async def test_queued_post_gives_a_member_that_gave_up_fresh_attempts(
     owner: tuple[dict[str, str], User, Workspace],
     channel_state: ChannelState,
     channel_runtime: ScriptedTurns,
-    channel_queue: EndpointCache,
 ) -> None:
     await channel_engine.messages.new_message(
         channel_state, "Please retry", device_ids=frozenset()
@@ -1507,7 +1495,6 @@ async def test_channel_routes_require_the_owner(
     owner: tuple[dict[str, str], User, Workspace],
     other_owner: tuple[dict[str, str], User, Workspace],
     channel_data: dict[str, Any],
-    channel_queue: EndpointCache,
     authenticated: bool,
 ) -> None:
     message = await channel_engine.messages.new_message(
@@ -1833,12 +1820,10 @@ async def test_member_elicitation_response_allows_only_the_owner(
 async def test_member_context_usage_is_readable_only_by_the_owner(
     client: AsyncClient,
     db_session: AsyncSession,
-    monkeypatch: pytest.MonkeyPatch,
     owner: tuple[dict[str, str], User, Workspace],
     other_owner: tuple[dict[str, str], User, Workspace],
     channel_state: ChannelState,
 ) -> None:
-    monkeypatch.setattr(chat_endpoint, "cache_connection", EndpointCache().connect)
     chat_id = channel_state.channel.members[0].chat_id
     await db_session.execute(
         update(Chat).where(Chat.id == chat_id).values(context_token_usage=1234)
@@ -2150,7 +2135,6 @@ async def test_queued_message_can_be_edited_deleted_and_sent_now(
     client: AsyncClient,
     owner: tuple[dict[str, str], User, Workspace],
     channel_state: ChannelState,
-    channel_queue: EndpointCache,
 ) -> None:
     base = f"/api/v1/channels/{channel_state.channel.id}/queue"
     kept = await client.post(base, headers=owner[0], data={"content": "Later"})
@@ -2189,7 +2173,6 @@ async def test_message_queued_on_an_idle_channel_is_sent_immediately(
     owner: tuple[dict[str, str], User, Workspace],
     channel_state: ChannelState,
     channel_runtime: ScriptedTurns,
-    channel_queue: EndpointCache,
 ) -> None:
     channel_state.paused = False
     base = f"/api/v1/channels/{channel_state.channel.id}/queue"
