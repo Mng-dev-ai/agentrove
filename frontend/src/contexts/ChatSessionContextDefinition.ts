@@ -1,4 +1,4 @@
-import { createContext } from 'react';
+import { createContext, type Dispatch, type SetStateAction } from 'react';
 import type {
   ElicitationContent,
   ElicitationRequest,
@@ -29,7 +29,7 @@ export interface ChatSessionState {
 export interface ChatSessionActions {
   onSubmit: (e: React.FormEvent) => void;
   onStopStream: () => void;
-  onAttach: (files: File[]) => void;
+  onAttach: Dispatch<SetStateAction<File[]>>;
   onModelChange: (modelId: string) => void;
   fetchNextPage: () => void;
   onPermissionApprove: (optionId: string) => void;

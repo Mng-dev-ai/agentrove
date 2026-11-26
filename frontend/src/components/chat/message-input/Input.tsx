@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, type Dispatch, type SetStateAction } from 'react';
 import { SendButton } from './SendButton';
 import type { SendButtonStatus } from './SendButton';
 import { AttachButton } from './AttachButton';
@@ -18,7 +18,7 @@ export interface InputProps {
   message: string;
   setMessage: (value: string) => void;
   onSubmit: (e: React.FormEvent) => void;
-  onAttach?: (files: File[]) => void;
+  onAttach?: Dispatch<SetStateAction<File[]>>;
   attachedFiles?: File[] | null;
   isLoading: boolean;
   isStreaming?: boolean;

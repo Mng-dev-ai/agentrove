@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from 'react';
+import { useCallback, type Dispatch, type SetStateAction } from 'react';
 import toast from 'react-hot-toast';
 import { useDragAndDrop } from '@/hooks/useDragAndDrop';
 import { useFileHandling } from '@/hooks/useFileHandling';
@@ -8,7 +8,7 @@ import { getCopiedAttachments } from '@/utils/copiedAttachments';
 interface UseInputAttachmentsOptions {
   machineId: string;
   attachedFiles: File[] | null;
-  onAttach?: (files: File[]) => void;
+  onAttach?: Dispatch<SetStateAction<File[]>>;
 }
 
 export function useInputAttachments({
@@ -42,11 +42,6 @@ export function useInputAttachments({
     onFilesDrop: handleDroppedFiles,
   });
 
-  const handleDroppedFilesRef = useRef(handleDroppedFiles);
-  useLayoutEffect(() => {
-    handleDroppedFilesRef.current = handleDroppedFiles;
-  }, [handleDroppedFiles]);
-
   const handlePaste = useCallback(
     (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
       // Pasted screenshots/files arrive as clipboard files — route them through the
@@ -71,7 +66,7 @@ export function useInputAttachments({
         .catch(() => [])
         .then((files) => {
           if (!textarea.isConnected) return;
-          handleDroppedFilesRef.current(files);
+          handleDroppedFiles(files);
           textarea.focus();
           document.execCommand('insertText', false, pastedText);
         });

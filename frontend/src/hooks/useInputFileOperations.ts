@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type Dispatch, type SetStateAction } from 'react';
 import { logger } from '@/utils/logger';
 import { convertDataUrlToUploadedFile, filterChatAttachmentFiles } from '@/utils/file';
 import { useUploadLimits } from '@/hooks/queries/useMachineQueries';
@@ -6,7 +6,7 @@ import { useUploadLimits } from '@/hooks/queries/useMachineQueries';
 interface UseInputFileOperationsProps {
   machineId: string;
   attachedFiles?: File[] | null;
-  onAttach?: (files: File[]) => void;
+  onAttach?: Dispatch<SetStateAction<File[]>>;
 }
 
 export const useInputFileOperations = ({
@@ -29,23 +29,19 @@ export const useInputFileOperations = ({
       if (onAttach) {
         const validFiles = filterValidFiles(files);
         if (validFiles.length > 0) {
-          onAttach([...(attachedFiles || []), ...validFiles]);
+          onAttach((current) => [...current, ...validFiles]);
         }
       }
       setShowFileUpload(false);
     },
-    [filterValidFiles, onAttach, attachedFiles],
+    [filterValidFiles, onAttach],
   );
 
   const handleRemoveFile = useCallback(
     (index: number) => {
-      if (onAttach && attachedFiles) {
-        const newFiles = [...attachedFiles];
-        newFiles.splice(index, 1);
-        onAttach(newFiles);
-      }
+      onAttach?.((current) => current.filter((_, fileIndex) => fileIndex !== index));
     },
-    [onAttach, attachedFiles],
+    [onAttach],
   );
 
   const handleDrawClick = useCallback((index: number) => {
@@ -57,24 +53,22 @@ export const useInputFileOperations = ({
     async (dataUrl: string) => {
       if (editingImageIndex === null || !attachedFiles) return;
 
-      if (editingImageIndex >= attachedFiles.length) {
+      const originalFile = attachedFiles[editingImageIndex];
+      if (!originalFile) {
         setShowDrawingModal(false);
         setEditingImageIndex(null);
         return;
       }
 
       try {
-        const originalFile = attachedFiles[editingImageIndex];
         const file = await convertDataUrlToUploadedFile(
           dataUrl,
-          originalFile?.name || 'edited-image.png',
+          originalFile.name || 'edited-image.png',
         );
 
         const [validFile] = filterValidFiles([file]);
         if (onAttach && validFile) {
-          const newFiles = [...attachedFiles];
-          newFiles[editingImageIndex] = validFile;
-          onAttach(newFiles);
+          onAttach((current) => current.map((f) => (f === originalFile ? validFile : f)));
         }
       } catch (error) {
         logger.error('Drawing save failed', 'useInputFileOperations', error);
@@ -93,11 +87,10 @@ export const useInputFileOperations = ({
       const validFiles = filterValidFiles(droppedFiles);
 
       if (validFiles.length > 0) {
-        const existingFiles = attachedFiles || [];
-        onAttach([...existingFiles, ...validFiles]);
+        onAttach((current) => [...current, ...validFiles]);
       }
     },
-    [filterValidFiles, onAttach, attachedFiles],
+    [filterValidFiles, onAttach],
   );
 
   const closeDrawingModal = useCallback(() => {
