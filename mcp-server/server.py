@@ -48,6 +48,8 @@ def _channel_summary(channel: dict[str, Any]) -> dict[str, Any]:
         "workspace_id": channel["workspace_id"],
         "worktree": channel["worktree"],
         "branch": channel["branch"],
+        "parent_chat_id": channel["parent_chat_id"],
+        "instructions": channel["instructions"],
         "created_at": channel["created_at"],
         "updated_at": channel["updated_at"],
         "members": [
@@ -62,6 +64,37 @@ def _channel_summary(channel: dict[str, Any]) -> dict[str, Any]:
             for member in channel["members"]
         ],
     }
+
+
+def _member_states(channel: dict[str, Any]) -> list[dict[str, Any]]:
+    activity = channel["activity"]
+    states = []
+    for member in channel["members"]:
+        member_id = member["id"]
+        detail = None
+        if member_id in activity["waiting_member_ids"]:
+            state = "blocked"
+        elif member_id in activity["member_ids"]:
+            state = "running"
+        elif member_id in activity["retrying_member_ids"]:
+            state = "retrying"
+            detail = activity["member_errors"][member_id]
+        elif member_id in activity["unavailable_members"]:
+            state = "gave_up"
+            detail = activity["unavailable_members"][member_id]
+        else:
+            state = "idle"
+        states.append(
+            {
+                "id": member_id,
+                "chat_id": member["chat_id"],
+                "display_name": member["display_name"],
+                "state": state,
+                "detail": detail,
+                "outcome": channel["member_outcomes"].get(member_id),
+            }
+        )
+    return states
 
 
 async def _resolve_members(
@@ -121,14 +154,28 @@ def _session() -> tuple[AgentroveClient, str | None]:
     return request.state.agentrove_client, request.state.agentrove_chat_id
 
 
-async def _require_sub_thread(
+async def _is_linked_member(
+    client: AgentroveClient, current_chat_id: str | None, chat: dict[str, Any]
+) -> bool:
+    channel_id = chat.get("channel_id")
+    if current_chat_id is None or channel_id is None:
+        return False
+    channel = await client.get_channel(channel_id)
+    return bool(channel["parent_chat_id"] == current_chat_id)
+
+
+async def _require_delegate(
     client: AgentroveClient, current_chat_id: str | None, chat_id: str
 ) -> None:
-    if (
-        current_chat_id is None
-        or (await client.get_chat(chat_id)).get("parent_chat_id") != current_chat_id
+    chat = await client.get_chat(chat_id)
+    if current_chat_id is None or not (
+        chat.get("parent_chat_id") == current_chat_id
+        or await _is_linked_member(client, current_chat_id, chat)
     ):
-        raise AgentroveError(f"Chat {chat_id} is not a sub-thread of this chat.")
+        raise AgentroveError(
+            f"Chat {chat_id} is not a sub-thread of this chat or a member of a "
+            "channel linked to it."
+        )
 
 
 class _SandboxClient(AgentroveClient):
@@ -660,15 +707,16 @@ async def stop_chat(chat_id: str) -> dict[str, Any]:
 
 @mcp.tool()
 async def get_pending_requests(chat_id: str) -> dict[str, Any]:
-    """List the permission requests and questions a sub-thread's running turn is blocked on.
+    """List the permission requests and questions a delegated chat's running turn is blocked on.
 
     Returns {"permissions": [{request_id, tool_name, tool_input, options: [{option_id,
     name, kind}]}], "questions": [{request_id, message, requested_schema}]}. Both lists
     are empty when nothing is pending or the chat has no running turn. Answer each one
-    with respond_to_request. chat_id must be a sub-thread of the current chat.
+    with respond_to_request. chat_id must be a sub-thread of the current chat, or a
+    member's chat_id of a channel created with parent_chat_id set to the current chat.
     """
     client, current_chat_id = _session()
-    await _require_sub_thread(client, current_chat_id, chat_id)
+    await _require_delegate(client, current_chat_id, chat_id)
     status = await client.get_chat_status(chat_id)
     return {
         "permissions": [
@@ -709,13 +757,14 @@ async def respond_to_request(
     an empty string denies it. A question is answered with action ("accept", "decline"
     or "cancel") and, when accepting, content: an object matching the question's
     requested_schema. The chat's turn resumes as soon as the request is answered.
-    chat_id must be a sub-thread of the current chat.
+    chat_id must be a sub-thread of the current chat, or a member's chat_id of a
+    channel created with parent_chat_id set to the current chat.
 
     Returns {"answered": true}, or {"answered": false, "detail": ...} when the request
     was already answered or is no longer pending, or the chat was not found.
     """
     client, current_chat_id = _session()
-    await _require_sub_thread(client, current_chat_id, chat_id)
+    await _require_delegate(client, current_chat_id, chat_id)
     if option_id is not None and action is None:
         detail = await client.respond_to_permission(chat_id, request_id, option_id)
     elif action is not None and option_id is None:
@@ -749,8 +798,19 @@ async def get_messages(
     chat's agent session (null until the first turn completes). A high percentage
     means follow-ups in this chat run with little headroom; prefer a fresh chat or
     sub-thread with a distilled handoff instead of continuing a nearly-full one.
+
+    A channel member's chat is readable only when its channel was created with
+    parent_chat_id set to the current chat; read other channels with
+    get_channel_messages.
     """
-    client, _ = _session()
+    client, current_chat_id = _session()
+    chat = await client.get_chat(chat_id)
+    if chat.get("channel_id") is not None and not await _is_linked_member(
+        client, current_chat_id, chat
+    ):
+        raise AgentroveError(
+            f"Chat {chat_id} is a member of a channel that is not linked to this chat."
+        )
     page = await client.get_messages(chat_id, limit=limit, cursor=cursor)
     context_usage = await client.get_context_usage(chat_id)
     # Backend is newest-first; reverse for chronological readability.
@@ -793,6 +853,8 @@ async def create_channel(
     workspace_id: str | None = None,
     worktree: bool = False,
     branch: str | None = None,
+    parent_chat_id: str | None = None,
+    instructions: str | None = None,
 ) -> dict[str, Any]:
     """Create a multi-agent channel for a discussion or debate.
 
@@ -804,18 +866,34 @@ async def create_channel(
     Omit workspace_id to use the most recently active workspace. Set worktree=true
     for an isolated git worktree. branch selects the checkout or worktree base branch.
 
+    Set parent_chat_id to this chat's id (get_current_chat) to link the channel to it:
+    the channel then lives in the parent's workspace (workspace_id is ignored), is
+    deleted with the parent, and AgentRove notifies this chat about the rounds you
+    start with post_channel_message, so you can end your turn instead of polling. The
+    parent must be a top-level chat, not a sub-thread or a channel member.
+
+    By default members are told to post one short, chat-style message per round.
+    instructions replaces that reply-style guidance in each member's introduction, e.g.
+    to ask for long structured replies such as review findings; members still reply
+    `PASS` when they have nothing to add.
+
     Returns the channel summary, including its id and each member's chat_id. Creating
     the channel does not start the discussion: call post_channel_message with its id.
     Members reply asynchronously; read the discussion with get_channel_messages.
     """
     client, _ = _session()
-    resolved_workspace = await client.resolve_workspace_id(workspace_id)
+    if parent_chat_id is None:
+        resolved_workspace = await client.resolve_workspace_id(workspace_id)
+    else:
+        resolved_workspace = (await client.get_chat(parent_chat_id))["workspace_id"]
     body: dict[str, Any] = {
         "name": name,
         "members": await _resolve_members(client, members),
         "workspace_id": resolved_workspace,
         "worktree": worktree,
         "branch": branch,
+        "parent_chat_id": parent_chat_id,
+        "instructions": instructions,
     }
     channel = await client.create_channel(body)
     return {"channel": _channel_summary(channel)}
@@ -827,10 +905,26 @@ async def post_channel_message(channel_id: str, content: str) -> dict[str, Any]:
 
     Members reply asynchronously; use get_channel_messages with the channel_id to
     read the discussion and members' replies.
+
+    When the channel was created with parent_chat_id set to the current chat,
+    AgentRove notifies this chat once every member is idle again (replied, passed with
+    nothing to add, or gave up), and earlier when a member gives up or blocks on a
+    permission request or a question. If you are still mid-turn the notice is injected
+    into your running turn when your agent supports it; otherwise a new turn starts in
+    this chat afterwards. So you don't need to poll, and can end your turn. Answer a
+    blocked member with get_pending_requests and respond_to_request, using the
+    member's chat_id.
+
     Returns the posted message_id, channel_id, seq and status, not the members' replies.
     """
-    client, _ = _session()
-    message = await client.post_channel_message(channel_id, content)
+    client, current_chat_id = _session()
+    channel = await client.get_channel(channel_id)
+    message = await client.post_channel_message(
+        channel_id,
+        content,
+        report_to_parent=current_chat_id is not None
+        and channel["parent_chat_id"] == current_chat_id,
+    )
     return {
         "message_id": message["id"],
         "channel_id": message["channel_id"],
@@ -847,6 +941,14 @@ async def get_channel_messages(channel_id: str, after_seq: int = 0) -> dict[str,
     includes its author's display name (or "user"), member_id, content and status.
     Status is "streaming" while a member is replying and content is partial, then
     "completed" when done; "cancelled" and "deleted" also occur.
+
+    Also returns members: each member's id, chat_id, display_name and state — "running",
+    "blocked" (waiting on a permission request or question; see get_pending_requests),
+    "retrying" (failed, will try again; detail has the error), "gave_up" (stopped
+    retrying or its model is unavailable; detail has the reason) or "idle". For an
+    idle member, outcome says whether it "replied" or "passed" (had nothing to add) in
+    the round started by the latest user message; it is null when the member was not
+    addressed, has not run yet, or the backend restarted since.
 
     Use this to follow a debate in one call instead of reading each member's chat.
     """
@@ -873,7 +975,8 @@ async def get_channel_messages(channel_id: str, after_seq: int = 0) -> dict[str,
                 "created_at": message["created_at"],
             }
             for message in messages
-        ]
+        ],
+        "members": _member_states(channel),
     }
 
 

@@ -17,6 +17,7 @@ from app.models.db_models.enums import MessageRole
 from app.models.schemas.chat import ChatRequest
 from app.models.types import PermissionMode
 from app.services.acp.adapters import UNSPECIFIED_PERMISSION_MODE
+from app.services.channels.state import ChannelReport
 from app.services.pairing import PairingService
 from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
@@ -36,6 +37,10 @@ MID_TURN_OPENING = (
 )
 WAITING_OPENING = (
     "These sub-threads you delegated are blocked waiting for input "
+    "(sent automatically by Agentrove, not typed by the user):"
+)
+CHANNEL_OPENING = (
+    "These channels you posted to have an update for you "
     "(sent automatically by Agentrove, not typed by the user):"
 )
 
@@ -65,6 +70,7 @@ class SubThreadWake:
     def __init__(self) -> None:
         self._pending: dict[str, dict[str, frozenset[UUID]]] = {}
         self._waiting: dict[str, dict[str, InputWait]] = {}
+        self._channels: dict[str, set[str]] = {}
         self._scheduled: set[str] = set()
         self._tasks: set[asyncio.Task[None]] = set()
         self._closed = False
@@ -77,7 +83,9 @@ class SubThreadWake:
     ) -> None:
         if report_parent_id is not None:
             self._add_reports(report_parent_id, {chat_id: device_ids})
-        for parent_id in self._pending.keys() | self._waiting.keys():
+        for parent_id in (
+            self._pending.keys() | self._waiting.keys() | self._channels.keys()
+        ):
             if parent_id == chat_id or chat_id in self._pending.get(parent_id, {}):
                 self._schedule(parent_id)
 
@@ -152,6 +160,10 @@ class SubThreadWake:
         )
         self._schedule(report_parent_id)
 
+    def on_channel_update(self, parent_id: str, channel_id: str) -> None:
+        self._channels.setdefault(parent_id, set()).add(channel_id)
+        self._schedule(parent_id)
+
     def _add_reports(self, parent_id: str, reports: dict[str, frozenset[UUID]]) -> None:
         pending = self._pending.setdefault(parent_id, {})
         for child_id, device_ids in reports.items():
@@ -199,19 +211,25 @@ class SubThreadWake:
             )
             if parent is None or parent.deleted_at is not None:
                 self._waiting.pop(parent_id, None)
+                self._channels.pop(parent_id, None)
                 await self._clear_owed(self._pending.pop(parent_id, {}))
                 return
             children = await self._take_finished(db, parent)
             waiting = await self._take_waiting(db, parent)
-        if not children and not waiting:
+            channels = await self._take_channels(db, parent)
+        if not children and not waiting and not channels:
             return
         device_ids = frozenset[UUID]().union(
-            *(c.device_ids for c in children), *(w.wait.device_ids for w in waiting)
+            *(c.device_ids for c in children),
+            *(w.wait.device_ids for w in waiting),
+            *(c.device_ids for c in channels),
         )
         if mid_turn:
-            await self._steer_into_turn(parent_id, children, waiting, device_ids)
+            await self._steer_into_turn(
+                parent_id, children, waiting, channels, device_ids
+            )
         else:
-            await self._start_wake_turn(parent, children, waiting, device_ids)
+            await self._start_wake_turn(parent, children, waiting, channels, device_ids)
 
     def _requeue(
         self, parent_id: str, reports: dict[str, frozenset[UUID]], *, schedule: bool
@@ -227,6 +245,7 @@ class SubThreadWake:
         parent_id: str,
         children: list[ChildResult],
         waiting: list[WaitingChild],
+        channels: list[ChannelReport],
         *,
         schedule: bool,
     ) -> None:
@@ -236,6 +255,10 @@ class SubThreadWake:
             )
         if waiting:
             self._add_waits(parent_id, {child.chat_id: child.wait for child in waiting})
+        if channels:
+            self._channels.setdefault(parent_id, set()).update(
+                channel.channel_id for channel in channels
+            )
         if schedule:
             self._schedule(parent_id)
 
@@ -332,11 +355,60 @@ class SubThreadWake:
                 )
         return sorted(reported, key=attrgetter("title"))
 
+    async def _take_channels(
+        self, db: AsyncSession, parent: Chat
+    ) -> list[ChannelReport]:
+        # Avoid circular import with channels/engine.py.
+        from app.services.channels.engine import channel_engine
+
+        reports = []
+        for channel_id in self._channels.pop(str(parent.id), set()):
+            state = channel_engine.states.get(UUID(channel_id))
+            if state is None or state.channel.owed_report_device_ids is None:
+                continue
+            report = state.parent_report()
+            if report.needs_parent:
+                reports.append(report)
+        active = await PairingService.active_device_ids(
+            db,
+            parent.user_id,
+            frozenset[UUID]().union(*(report.device_ids for report in reports)),
+        )
+        await self._clear_channel_owed(
+            [report for report in reports if not report.device_ids <= active],
+            keep_if_busy=False,
+        )
+        return sorted(
+            (report for report in reports if report.device_ids <= active),
+            key=attrgetter("name"),
+        )
+
+    @staticmethod
+    async def _clear_channel_owed(
+        reports: list[ChannelReport], *, keep_if_busy: bool
+    ) -> None:
+        # Avoid circular import with channels/engine.py.
+        from app.services.channels.engine import channel_engine
+
+        for report in reports:
+            state = channel_engine.states.get(UUID(report.channel_id))
+            if state is not None:
+                await channel_engine.clear_owed_report(state, keep_if_busy=keep_if_busy)
+
+    async def _report_delivered(
+        self, children: list[ChildResult], channels: list[ChannelReport]
+    ) -> None:
+        await self._clear_owed(child.chat_id for child in children)
+        await self._clear_channel_owed(
+            [channel for channel in channels if channel.settled], keep_if_busy=True
+        )
+
     async def _steer_into_turn(
         self,
         parent_id: str,
         children: list[ChildResult],
         waiting: list[WaitingChild],
+        channels: list[ChannelReport],
         device_ids: frozenset[UUID],
     ) -> None:
         # Avoid circular import with runtime.py.
@@ -344,54 +416,58 @@ class SubThreadWake:
 
         if not await ChatStreamRuntime.steer_app_notice(
             parent_id,
-            self._build_prompt(children, waiting, MID_TURN_OPENING),
-            self._build_notice(children, waiting),
+            self._build_prompt(children, waiting, channels, MID_TURN_OPENING),
+            self._build_notice(children, waiting, channels),
             device_ids,
         ):
             self._requeue_undelivered(
                 parent_id,
                 children,
                 waiting,
+                channels,
                 schedule=not ChatStreamRuntime.has_active_chat(parent_id),
             )
             return
-        await self._clear_owed(child.chat_id for child in children)
+        await self._report_delivered(children, channels)
 
     async def _start_wake_turn(
         self,
         parent: Chat,
         children: list[ChildResult],
         waiting: list[WaitingChild],
+        channels: list[ChannelReport],
         device_ids: frozenset[UUID],
     ) -> None:
         # Avoid circular import with chat.py.
         from app.services.chat import ChatService
 
         request = self._wake_request(
-            parent, self._build_prompt(children, waiting, IDLE_OPENING)
+            parent, self._build_prompt(children, waiting, channels, IDLE_OPENING)
         )
         if request is None:
             logger.warning(
                 "Parent chat %s has no usable model to wake with; dropping %d results",
                 parent.id,
-                len(children) + len(waiting),
+                len(children) + len(waiting) + len(channels),
             )
-            await self._clear_owed(child.chat_id for child in children)
+            await self._report_delivered(children, channels)
             return
         try:
             await ChatService(UserService()).initiate_chat_completion(
                 request,
                 parent.user,
-                user_app_notice=self._build_notice(children, waiting),
+                user_app_notice=self._build_notice(children, waiting, channels),
                 device_ids=device_ids,
             )
         except Exception as exc:
             busy = isinstance(exc, ChatException) and exc.status_code == 409
-            self._requeue_undelivered(str(parent.id), children, waiting, schedule=busy)
+            self._requeue_undelivered(
+                str(parent.id), children, waiting, channels, schedule=busy
+            )
             if not busy:
                 raise
             return
-        await self._clear_owed(child.chat_id for child in children)
+        await self._report_delivered(children, channels)
 
     @staticmethod
     def _wake_request(parent: Chat, prompt: str) -> ChatRequest | None:
@@ -438,7 +514,10 @@ class SubThreadWake:
 
     @staticmethod
     def _build_prompt(
-        children: list[ChildResult], waiting: list[WaitingChild], opening: str
+        children: list[ChildResult],
+        waiting: list[WaitingChild],
+        channels: list[ChannelReport],
+        opening: str,
     ) -> str:
         sections = []
         if children:
@@ -474,10 +553,36 @@ class SubThreadWake:
                 "user's judgement to the user instead. Use stop_chat to end a "
                 "sub-thread that should not continue."
             )
+        if channels:
+            lines = []
+            for channel in channels:
+                progress = "settled" if channel.settled else "still running"
+                lines.append(
+                    f"- #{channel.name} (channel_id: {channel.channel_id}, {progress})"
+                )
+                lines.extend(
+                    f"  - {member.name} (chat_id: {member.chat_id}): {member.status}"
+                    for member in channel.members
+                )
+            sections.append(
+                f"{CHANNEL_OPENING}\n\n"
+                + "\n".join(lines)
+                + "\n\nRead a channel's discussion with get_channel_messages"
+                "(channel_id). A blocked member resumes once it is answered: call "
+                "get_pending_requests with that member's chat_id to read each request "
+                "and respond_to_request to answer it. Answer yourself only what your "
+                "task context settles; put any question or permission that needs the "
+                "user's judgement to the user instead. A member that gave up tries "
+                "again when you post to the channel."
+            )
         return "\n\n".join(sections)
 
     @staticmethod
-    def _build_notice(children: list[ChildResult], waiting: list[WaitingChild]) -> str:
+    def _build_notice(
+        children: list[ChildResult],
+        waiting: list[WaitingChild],
+        channels: list[ChannelReport],
+    ) -> str:
         sections = []
         if children:
             lines = ["Finished sub-threads:"]
@@ -492,6 +597,15 @@ class SubThreadWake:
             for waiting_child in waiting:
                 title = SubThreadWake._notice_title(waiting_child.title)
                 lines.append(f"- **[{title}](/chat/{waiting_child.chat_id})**")
+            sections.append("\n".join(lines))
+        if channels:
+            lines = ["Channel updates:"]
+            for channel in channels:
+                title = SubThreadWake._notice_title(channel.name)
+                progress = "settled" if channel.settled else "needs attention"
+                lines.append(
+                    f"- **[#{title}](/channels/{channel.channel_id})** ({progress})"
+                )
             sections.append("\n".join(lines))
         return "\n\n".join(sections)
 

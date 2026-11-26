@@ -66,6 +66,8 @@ class ChannelCreate(BaseModel):
     worktree: bool = False
     branch: BaseBranch = None
     members: list[ChannelMemberCreate] = Field(min_length=1)
+    parent_chat_id: UUID | None = None
+    instructions: str | None = Field(None, min_length=1, max_length=10000)
 
 
 class ChannelUpdate(BaseModel):
@@ -109,6 +111,9 @@ class ChannelRead(BaseModel):
     former_members: list[ChannelMemberRead]
     anchor_chat_id: UUID
     activity: ChannelMemberActivity
+    parent_chat_id: UUID | None = None
+    instructions: str | None = None
+    member_outcomes: dict[str, Literal["replied", "passed"]] = {}
 
 
 class ChannelMessageRead(BaseModel):

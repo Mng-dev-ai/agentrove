@@ -110,15 +110,24 @@ async def post_message(
     channel_id: UUID,
     content: str = Form(..., min_length=1, max_length=100000),
     attached_files: list[UploadFile] | None = File(None),
+    report_to_parent: bool = Form(False),
     user: User = Depends(get_current_user),
 ) -> ChannelMessageRead:
     channel = await channel_service.get(channel_id, user)
+    if report_to_parent and channel.parent_chat_id is None:
+        raise HTTPException(400, "report_to_parent requires a linked channel")
     try:
         attachments = await channel_service.save_attachments(channel, attached_files)
     except (StorageException, SandboxException) as exc:
         raise HTTPException(exc.status_code, str(exc)) from exc
     response: ChannelMessageRead = ChannelMessageRead.model_validate(
-        await channel_engine.post(channel, content, attachments, user.device_ids)
+        await channel_engine.post(
+            channel,
+            content,
+            attachments,
+            user.device_ids,
+            report_to_parent=report_to_parent,
+        )
     )
     return response
 

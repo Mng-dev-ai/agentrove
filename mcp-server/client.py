@@ -379,12 +379,12 @@ class AgentroveClient:
         )
 
     async def post_channel_message(
-        self, channel_id: str, content: str
+        self, channel_id: str, content: str, report_to_parent: bool
     ) -> dict[str, Any]:
         return await self._request_object(
             "POST",
             f"/channels/{channel_id}/messages",
-            data={"content": content},
+            data={"content": content, "report_to_parent": report_to_parent},
             expected=(201,),
         )
 

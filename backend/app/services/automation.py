@@ -408,7 +408,9 @@ class AutomationService(BaseDbService[Automation]):
             ),
         )
         try:
-            await channel_engine.post(channel, automation.prompt, [], device_ids)
+            await channel_engine.post(
+                channel, automation.prompt, [], device_ids, report_to_parent=False
+            )
         except Exception:
             try:
                 await channel_service.delete(channel)

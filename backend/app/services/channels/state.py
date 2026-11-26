@@ -1,7 +1,7 @@
 import asyncio
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from app.catalog import MODELS
@@ -50,6 +50,23 @@ class MemberTurn:
         return frozenset().union(*(message.device_ids for message in self.batch))
 
 
+@dataclass(frozen=True)
+class MemberReport:
+    name: str
+    chat_id: str
+    status: str
+
+
+@dataclass(frozen=True)
+class ChannelReport:
+    channel_id: str
+    name: str
+    settled: bool
+    needs_parent: bool
+    members: list[MemberReport]
+    device_ids: frozenset[UUID]
+
+
 @dataclass
 class ChannelState:
     channel: Channel
@@ -62,6 +79,7 @@ class ChannelState:
     permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     elicitations: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     last_reply: tuple[str, ChannelMessage] | None = None
+    outcomes: dict[UUID, Literal["replied", "passed"]] = field(default_factory=dict)
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
     waiting_member_ids: list[str] = field(default_factory=list)
@@ -90,6 +108,45 @@ class ChannelState:
             }
             | self.gave_up_members,
         }
+
+    def blocked_on(self, member_id: UUID) -> list[str]:
+        return [
+            f"permission for {pending['request']['tool_name']}"
+            for (blocked_id, _), pending in self.permissions.items()
+            if blocked_id == member_id
+        ] + [
+            "a question"
+            for blocked_id, _ in self.elicitations
+            if blocked_id == member_id
+        ]
+
+    def member_status(self, member: ChannelMember) -> str:
+        if blocked_on := self.blocked_on(member.id):
+            return f"blocked on {', '.join(blocked_on)}"
+        if member.id in self.gave_up:
+            return self.gave_up[member.id]
+        if member.id in self.turns:
+            return "running"
+        if member.id in self.retries:
+            return f"retrying after an error: {self.retries[member.id].reason}"
+        return self.outcomes.get(member.id, "idle")
+
+    def parent_report(self) -> ChannelReport:
+        settled = self.idle()
+        return ChannelReport(
+            channel_id=str(self.channel.id),
+            name=self.channel.name,
+            settled=settled,
+            needs_parent=settled
+            or bool(self.gave_up or self.permissions or self.elicitations),
+            members=[
+                MemberReport(
+                    member.display_name, str(member.chat_id), self.member_status(member)
+                )
+                for member in self.channel.members
+            ],
+            device_ids=self.channel.owed_report_device_ids or frozenset(),
+        )
 
     def give_fresh_attempts(self, audience: list[str] | None) -> None:
         if audience is None:

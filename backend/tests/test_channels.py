@@ -38,12 +38,15 @@ from app.models.types import AgentKind
 from app.services.channels import service as channel_module
 from app.services.channels import engine as channel_engine_module
 from app.services import push as push_module
+from app.services import subthread_wake as wake_module
 from app.services.channels.state import ChannelState, MemberTurn, TurnStatus
 from app.services.channels.service import channel_service
 from app.services.channels.engine import MAX_ATTEMPTS, ChannelEngine, channel_engine
+from app.services.chat import ChatService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChannelMemberTurn, EventSink
+from app.services.subthread_wake import SubThreadWake
 
 from tests.conftest import LoginClient, UserFactory
 from tests.helpers import (
@@ -438,7 +441,9 @@ async def test_settled_run_pushes_its_last_visible_reply_once(
 
     for index, reply in enumerate(replies):
         if index:
-            await channel_engine.post(channel_state.channel, "Again?", [], frozenset())
+            await channel_engine.post(
+                channel_state.channel, "Again?", [], frozenset(), report_to_parent=False
+            )
             assert channel_state.timer is not None
             channel_state.timer.cancel()
             await asyncio.gather(channel_state.timer, return_exceptions=True)
@@ -2729,3 +2734,148 @@ async def test_workspace_delete_takes_a_channel_committed_but_not_yet_registered
 
     assert [response.status_code for response in responses] == [204]
     assert await db_session.scalar(select(Channel.id)) is None
+
+
+async def test_channel_parent_must_be_the_owners_top_level_chat(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    other_owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    channel_state: ChannelState,
+) -> None:
+    headers, user, workspace = owner
+    top_level = await create_chat_row(db_session, user, workspace)
+    sub_thread = await create_chat_row(db_session, user, workspace)
+    sub_thread.parent_chat_id = top_level.id
+    await db_session.commit()
+    foreign = await create_chat_row(db_session, other_owner[1], other_owner[2])
+
+    rejected = [
+        await client.post(
+            "/api/v1/channels",
+            json=channel_data | {"parent_chat_id": str(parent_id)},
+            headers=headers,
+        )
+        for parent_id in (
+            sub_thread.id,
+            channel_state.channel.members[0].chat_id,
+            foreign.id,
+        )
+    ]
+    linked = await client.post(
+        "/api/v1/channels",
+        json=channel_data | {"parent_chat_id": str(top_level.id)},
+        headers=headers,
+    )
+
+    assert [response.status_code for response in rejected] == [400, 404, 404]
+    assert linked.status_code == 201, linked.text
+    assert linked.json()["parent_chat_id"] == str(top_level.id)
+    assert set((await db_session.scalars(select(Channel.id))).all()) == {
+        channel_state.channel.id,
+        UUID(linked.json()["id"]),
+    }
+
+
+async def test_deleting_a_parent_chat_deletes_its_linked_channel(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    channel_state: ChannelState,
+) -> None:
+    headers, user, workspace = owner
+    parent = await create_chat_row(db_session, user, workspace)
+    linked = await client.post(
+        "/api/v1/channels",
+        json=channel_data | {"parent_chat_id": str(parent.id)},
+        headers=headers,
+    )
+    assert linked.status_code == 201, linked.text
+
+    deleted = await client.delete(f"/api/v1/chat/chats/{parent.id}", headers=headers)
+
+    assert deleted.status_code == 204, deleted.text
+    unlinked = channel_state.channel
+    assert (await db_session.scalars(select(Channel.id))).all() == [unlinked.id]
+    assert (
+        await db_session.scalars(select(Chat.id).where(Chat.channel_id.is_not(None)))
+    ).all() == [member.chat_id for member in unlinked.members]
+    assert set(channel_engine.states) == {unlinked.id}
+
+
+async def settle_round(
+    state: ChannelState, runtime: ScriptedTurns, wake: SubThreadWake
+) -> None:
+    if state.timer is not None:
+        state.timer.cancel()
+        await asyncio.gather(state.timer, return_exceptions=True)
+    await runtime.wake(state)
+    state.paused = False
+    await channel_engine.wake(state)
+    await asyncio.gather(*wake._tasks)
+
+
+async def test_linked_channel_wakes_its_parent_for_the_rounds_the_parent_posted(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    channel_state: ChannelState,
+    channel_runtime: ScriptedTurns,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = owner
+    parent = await create_chat_row(db_session, user, workspace)
+    parent.last_model_id = TEST_MODEL_ID
+    await db_session.commit()
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
+    wake = SubThreadWake()
+    monkeypatch.setattr(channel_engine_module, "subthread_wake", wake)
+    initiate = AsyncMock()
+    monkeypatch.setattr(ChatService, "initiate_chat_completion", initiate)
+    created = await client.post(
+        "/api/v1/channels",
+        json=channel_data | {"parent_chat_id": str(parent.id)},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    linked = channel_engine.states[UUID(created.json()["id"])]
+    [member] = linked.channel.members
+    prompts = []
+
+    for reply, outcome in (("Found a bug", "replied"), ("PASS", "passed")):
+        posted = await client.post(
+            f"/api/v1/channels/{linked.channel.id}/messages",
+            data={"content": "Review this", "report_to_parent": "true"},
+            headers=headers,
+        )
+        assert posted.status_code == 201, posted.text
+        channel_runtime.events = [("assistant_text", {"text": reply})]
+        await settle_round(linked, channel_runtime, wake)
+        prompts.append(initiate.call_args.args[0].prompt)
+        assert f"- #Review (channel_id: {linked.channel.id}, settled)" in prompts[-1]
+        assert (
+            f"  - {member.display_name} (chat_id: {member.chat_id}): {outcome}"
+            in prompts[-1]
+        )
+        assert linked.channel.owed_report_device_ids is None
+    assert initiate.await_count == 2
+    assert initiate.call_args.args[0].chat_id == parent.id
+
+    refused = await client.post(
+        f"/api/v1/channels/{channel_state.channel.id}/messages",
+        data={"content": "Review this", "report_to_parent": "true"},
+        headers=headers,
+    )
+    assert refused.status_code == 400, refused.text
+    for state in (linked, channel_state):
+        posted = await client.post(
+            f"/api/v1/channels/{state.channel.id}/messages",
+            data={"content": "From the user"},
+            headers=headers,
+        )
+        assert posted.status_code == 201, posted.text
+        await settle_round(state, channel_runtime, wake)
+    assert initiate.await_count == 2
