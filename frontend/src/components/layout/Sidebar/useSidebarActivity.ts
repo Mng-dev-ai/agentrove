@@ -2,8 +2,7 @@ import { useMemo } from 'react';
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { chatQuery } from '@/hooks/queries/useChatQueries';
 import type { Chat } from '@/types/chat.types';
-
-export type SidebarActivityKind = 'running' | 'needs-you';
+import type { SidebarActivityKind } from '@/store/sidebarFilters';
 
 export interface ChildActivity {
   running: number;

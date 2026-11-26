@@ -26,7 +26,11 @@ import {
 } from '@/utils/tileHelpers';
 import { clearTerminalStorage } from '@/utils/terminal';
 import type { MenuMode } from '@/components/ui/command-menu/commandRegistry';
-import { EMPTY_SIDEBAR_FILTERS, type SidebarFilters } from '@/store/sidebarFilters';
+import {
+  EMPTY_SIDEBAR_FILTERS,
+  type SidebarActivityKind,
+  type SidebarFilters,
+} from '@/store/sidebarFilters';
 import { THEME_CYCLE } from '@/utils/theme';
 
 export const MIN_SIDEBAR_WIDTH = 220;
@@ -91,6 +95,8 @@ type UIStoreState = ThemeState &
     // Persisted so reload keeps the narrowed sidebar view.
     sidebarFilters: SidebarFilters;
     setSidebarFilters: (filters: SidebarFilters) => void;
+    sidebarActivityView: SidebarActivityKind | null;
+    setSidebarActivityView: (view: SidebarActivityKind | null) => void;
     collapsedSidebarSections: SidebarSection[];
     toggleSidebarSection: (section: SidebarSection) => void;
     chatMenu: ChatMenu | null;
@@ -327,6 +333,8 @@ export const useUIStore = create<UIStoreState>()(
       },
       sidebarFilters: EMPTY_SIDEBAR_FILTERS,
       setSidebarFilters: (filters) => set({ sidebarFilters: filters }),
+      sidebarActivityView: null,
+      setSidebarActivityView: (view) => set({ sidebarActivityView: view }),
       collapsedSidebarSections: [],
       toggleSidebarSection: (section) =>
         set((state) => ({

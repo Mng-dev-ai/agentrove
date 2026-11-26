@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useCallback, useRef, useState } from 'react';
+import { useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
 import type { Chat } from '@/types/chat.types';
@@ -21,7 +21,7 @@ import { type ChatRowProps } from './SidebarChatRow';
 import { buildRecentChatSections } from './sidebarGrouping';
 import { useSidebarChatActions } from './useSidebarChatActions';
 import { useSidebarWorkspaceActions } from './useSidebarWorkspaceActions';
-import { useSidebarActivity, type SidebarActivityKind } from './useSidebarActivity';
+import { useSidebarActivity } from './useSidebarActivity';
 import { countActiveSidebarFilters, withKnownSource } from '@/store/sidebarFilters';
 import { useChatOrigins } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_NAME, useMachineStore } from '@/store/machineStore';
@@ -68,7 +68,8 @@ export function Sidebar({
     streamingChatIdSet,
     blockedChatIdSet,
   );
-  const [activityView, setActivityView] = useState<SidebarActivityKind | null>(null);
+  const activityView = useUIStore((state) => state.sidebarActivityView);
+  const setActivityView = useUIStore((state) => state.setSidebarActivityView);
   // Chats merge from two backends, so filters apply client-side over loaded
   // pages. Lives in the persisted uiStore so reloads keep the narrowed view.
   const storedFilters = useUIStore((state) => state.sidebarFilters);
