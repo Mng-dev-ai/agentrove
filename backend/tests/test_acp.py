@@ -3326,10 +3326,7 @@ async def test_turn_routes_inherit_settings_only_when_asked(
     client: httpx.AsyncClient,
     auth_workspace: tuple[dict[str, str], Workspace],
     fake_agent: FakeAgentHandle,
-    acp_cache: EndpointCache,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(deps, "cache_connection", acp_cache.connect)
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
     detail_url = f"/api/v1/chat/chats/{chat['id']}"
