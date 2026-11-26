@@ -15,8 +15,6 @@ export interface ChatRowProps {
   completedChatIdSet: Set<string>;
   workspaceBadgeById: Map<string, WorkspaceBadge>;
   machineBadgeForChat: (chatId: string) => MachineBadge | undefined;
-  // Only when visible chats span several workspaces — otherwise every row repeats the same name
-  showWorkspaceBadges: boolean;
   onChatSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   canOpenChatInSplit: (chatId: string) => boolean;
@@ -38,7 +36,6 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
     completedChatIdSet,
     workspaceBadgeById,
     machineBadgeForChat,
-    showWorkspaceBadges,
     onChatSelect,
     onOpenInSplit,
     canOpenChatInSplit,
@@ -49,7 +46,6 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
     onToggleSubThreads,
   } = rowProps;
   const hasSubThreads = chat.sub_thread_count > 0;
-  const machineBadge = machineBadgeForChat(chat.id);
 
   return (
     <div>
@@ -62,9 +58,8 @@ export function SidebarChatRow({ chat, rowProps }: { chat: Chat; rowProps: ChatR
         isChatStreaming={streamingChatIdSet.has(chat.id)}
         isChatBlocked={blockedChatIdSet.has(chat.id)}
         isChatCompleted={completedChatIdSet.has(chat.id)}
-        workspaceBadge={showWorkspaceBadges ? workspaceBadgeById.get(chat.workspace_id) : undefined}
-        machineName={machineBadge?.name}
-        machineOffline={machineBadge?.offline}
+        workspaceBadge={workspaceBadgeById.get(chat.workspace_id)}
+        machineBadge={machineBadgeForChat(chat.id)}
         onSelect={onChatSelect}
         onOpenInSplit={onOpenInSplit}
         canOpenInSplit={canOpenChatInSplit(chat.id)}

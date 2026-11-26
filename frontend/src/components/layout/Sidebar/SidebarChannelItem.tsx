@@ -8,7 +8,7 @@ import { getRelativeTime } from '@/utils/date';
 import { chatStatusTone, CHAT_STATUS_LABEL } from '@/utils/message';
 import type { Channel } from '@/types/channel.types';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
-import { SidebarRowBadges, type MachineBadge } from './SidebarChatItem';
+import { SidebarMachineTag, SidebarRowPreview, type MachineBadge } from './SidebarChatItem';
 import styles from './SidebarChannelItem.module.scss';
 
 interface SidebarChannelItemProps {
@@ -73,7 +73,21 @@ export function SidebarChannelItem({
       }
       title={
         <FloatingTooltip
-          content={channel.members.map((member) => member.display_name).join(', ')}
+          content={
+            <SidebarRowPreview
+              title={channel.name}
+              detail={[
+                `Updated ${getRelativeTime(channel.updated_at)}`,
+                status && CHAT_STATUS_LABEL[status],
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+              facts={[
+                ['Machine', machineBadge?.name],
+                ['Members', channel.members.map((member) => member.display_name).join(', ')],
+              ]}
+            />
+          }
           className={styles['title-tooltip']}
         >
           <SidebarRowTitle
@@ -81,15 +95,9 @@ export function SidebarChannelItem({
             isEmphasized={isActive || isUnread}
             isCurrent={isActive}
             onClick={() => onSelect(channel.id)}
+            trailing={<SidebarMachineTag machineBadge={machineBadge} />}
           />
         </FloatingTooltip>
-      }
-      subtitle={
-        <SidebarRowBadges
-          machineName={machineBadge?.name}
-          machineOffline={machineBadge?.offline}
-          isIndented
-        />
       }
       timestamp={getRelativeTime(channel.updated_at)}
       dropdownLabel="Channel options"

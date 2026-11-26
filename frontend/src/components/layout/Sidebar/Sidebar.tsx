@@ -126,22 +126,6 @@ export function Sidebar({
   const chatOrigins = useChatOrigins();
   const connections = useMachineStore((state) => state.connections);
   const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
-  const machineBadge = useCallback(
-    (machineId: string): MachineBadge | undefined => {
-      if (machineId === LOCAL_MACHINE_ID) {
-        return machines.length === 0 ? undefined : { name: LOCAL_MACHINE_NAME, offline: false };
-      }
-      return {
-        name: machines.find((machine) => machine.id === machineId)?.name ?? 'Removed machine',
-        offline: connections[machineId]?.status !== 'online',
-      };
-    },
-    [machines, connections],
-  );
-  const machineBadgeForChat = useCallback(
-    (chatId: string) => machineBadge(chatOrigins.get(chatId) ?? LOCAL_MACHINE_ID),
-    [machineBadge, chatOrigins],
-  );
   const chatMatchesFilters = useCallback(
     (chat: Chat) => {
       if (filters.workspaceId && chat.workspace_id !== filters.workspaceId) return false;
@@ -194,13 +178,40 @@ export function Sidebar({
     [visiblePinnedChats, visibleRecentChats, blockedChatIdSet],
   );
 
-  const groupBy = filters.groupBy;
-  const showWorkspaceBadges = useMemo(
-    () =>
-      new Set([...visiblePinnedChats, ...visibleRecentChats].map((chat) => chat.workspace_id))
-        .size > 1,
-    [visiblePinnedChats, visibleRecentChats],
+  // The machine most listed chats run on: rows elsewhere get an inline machine tag
+  const primaryMachineId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const chat of [...visiblePinnedChats, ...visibleRecentChats]) {
+      const machineId = chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID;
+      counts.set(machineId, (counts.get(machineId) ?? 0) + 1);
+    }
+    let primary = LOCAL_MACHINE_ID;
+    for (const [machineId, count] of counts) {
+      if (count > (counts.get(primary) ?? 0)) primary = machineId;
+    }
+    return primary;
+  }, [visiblePinnedChats, visibleRecentChats, chatOrigins]);
+  const machineBadge = useCallback(
+    (machineId: string): MachineBadge | undefined => {
+      if (machineId === LOCAL_MACHINE_ID) {
+        return machines.length === 0
+          ? undefined
+          : { name: LOCAL_MACHINE_NAME, offline: false, isPrimary: primaryMachineId === machineId };
+      }
+      return {
+        name: machines.find((machine) => machine.id === machineId)?.name ?? 'Removed machine',
+        offline: connections[machineId]?.status !== 'online',
+        isPrimary: primaryMachineId === machineId,
+      };
+    },
+    [machines, connections, primaryMachineId],
   );
+  const machineBadgeForChat = useCallback(
+    (chatId: string) => machineBadge(chatOrigins.get(chatId) ?? LOCAL_MACHINE_ID),
+    [machineBadge, chatOrigins],
+  );
+
+  const groupBy = filters.groupBy;
   const recentChatSections = useMemo(
     () =>
       buildRecentChatSections({
@@ -237,7 +248,6 @@ export function Sidebar({
     completedChatIdSet: completedChatIds,
     workspaceBadgeById,
     machineBadgeForChat,
-    showWorkspaceBadges,
     onChatSelect: chatActions.handleChatSelect,
     onOpenInSplit: chatActions.showSplitAffordance ? chatActions.handleOpenInSplit : undefined,
     canOpenChatInSplit: chatActions.canOpenChatInSplit,

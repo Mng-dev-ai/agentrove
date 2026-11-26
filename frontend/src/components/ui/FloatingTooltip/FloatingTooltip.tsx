@@ -24,7 +24,7 @@ interface TooltipPosition {
 }
 
 interface FloatingTooltipProps {
-  content: string;
+  content: ReactNode;
   children: ReactNode;
   className?: string;
   // Renders the trigger as a span so it can sit inside running text (e.g. a <p>).

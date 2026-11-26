@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { Fragment, memo, useEffect, useRef } from 'react';
 import { ChevronRight, CornerDownRight, Server } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
@@ -18,6 +18,8 @@ import styles from './SidebarChatItem.module.scss';
 export interface MachineBadge {
   name: string;
   offline: boolean;
+  // The machine most listed rows run on; its rows carry no inline tag.
+  isPrimary: boolean;
 }
 
 interface SidebarChatItemProps {
@@ -30,8 +32,7 @@ interface SidebarChatItemProps {
   isChatBlocked: boolean;
   isChatCompleted: boolean;
   workspaceBadge?: WorkspaceBadge;
-  machineName?: string;
-  machineOffline?: boolean;
+  machineBadge?: MachineBadge;
   onSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   canOpenInSplit?: boolean;
@@ -42,50 +43,47 @@ interface SidebarChatItemProps {
   isSubThreadsExpanded?: boolean;
 }
 
-interface SidebarRowBadgesProps {
-  machineName?: string;
-  machineOffline?: boolean;
-  workspaceName?: string;
-  isIndented: boolean;
-  // Spelled-out status so the colored dot never carries meaning alone. Unread is
-  // left out: the bold title already says it.
-  status?: ChatStatusTone | null;
-}
-
-export function SidebarRowBadges({
-  machineName,
-  machineOffline = false,
-  workspaceName,
-  isIndented,
-  status,
-}: SidebarRowBadgesProps) {
-  const statusWord = status && status !== 'unread' ? CHAT_STATUS_LABEL[status] : null;
-  if (!workspaceName && !machineName && !statusWord) return null;
+// Inline only where the row's machine isn't the obvious one: another machine than
+// most rows, or offline. The hover preview always names it.
+export function SidebarMachineTag({ machineBadge }: { machineBadge?: MachineBadge }) {
+  if (!machineBadge || (machineBadge.isPrimary && !machineBadge.offline)) return null;
   return (
     <span
-      className={clsx(styles['workspace-badge'], isIndented && styles['workspace-badge--indented'])}
+      className={clsx(
+        styles['machine-tag'],
+        machineBadge.offline && styles['machine-tag--offline'],
+      )}
     >
-      {statusWord && (
-        <span className={clsx(styles['status-word'], styles[`status-word--${status}`])}>
-          {statusWord}
+      <Server className={styles['machine-icon']} />
+      <span className={styles['machine-name']}>
+        {machineBadge.offline ? `${machineBadge.name} · offline` : machineBadge.name}
+      </span>
+    </span>
+  );
+}
+
+interface SidebarRowPreviewProps {
+  title: string;
+  detail: string;
+  facts: [label: string, value: string | undefined][];
+}
+
+export function SidebarRowPreview({ title, detail, facts }: SidebarRowPreviewProps) {
+  const shownFacts = facts.filter(([, value]) => value);
+  return (
+    <span className={styles.preview}>
+      <span className={styles['preview-title']}>{title}</span>
+      <span className={styles['preview-detail']}>{detail}</span>
+      {shownFacts.length > 0 && (
+        <span className={styles['preview-facts']}>
+          {shownFacts.map(([label, value]) => (
+            <Fragment key={label}>
+              <span className={styles['preview-label']}>{label}</span>
+              <span>{value}</span>
+            </Fragment>
+          ))}
         </span>
       )}
-      {statusWord && (machineName || workspaceName) && <span aria-hidden>·</span>}
-      {machineName && (
-        <span
-          className={clsx(
-            styles['machine-badge'],
-            machineOffline && styles['machine-badge--offline'],
-          )}
-        >
-          <Server className={styles['machine-icon']} />
-          <span className={styles['workspace-name']}>
-            {machineOffline ? `${machineName} · Machine offline` : machineName}
-          </span>
-        </span>
-      )}
-      {machineName && workspaceName && <span aria-hidden>·</span>}
-      {workspaceName && <span className={styles['workspace-name']}>{workspaceName}</span>}
     </span>
   );
 }
@@ -100,8 +98,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   isChatBlocked,
   isChatCompleted,
   workspaceBadge,
-  machineName,
-  machineOffline = false,
+  machineBadge,
   onSelect,
   onOpenInSplit,
   canOpenInSplit = false,
@@ -134,7 +131,6 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   // other status renders its tone directly.
   const statusTone: ChatStatusTone | null = showSpinner ? null : status;
   const statusLabel = status ? CHAT_STATUS_LABEL[status] : null;
-  // Mirrors the leading-slot render below — the workspace line indents to stay flush with the title
   const hasLeadingSlot = hasSubThreads || agentKind != null || status != null;
   const statusSlot = hasLeadingSlot ? (
     // Running swaps to a spinner; blocked/done/unread show a colored dot on the
@@ -216,9 +212,24 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         // Tooltip on title only — icon has its own status tooltip.
         <FloatingTooltip
           content={
-            onOpenInSplit && canOpenInSplit
-              ? `${chat.title} (Shift-click to open in split)`
-              : chat.title
+            <SidebarRowPreview
+              title={stripMarkdownTitle(chat.title)}
+              detail={[
+                `Updated ${getRelativeTime(chat.updated_at)}`,
+                statusLabel,
+                onOpenInSplit && canOpenInSplit ? 'Shift-click to open in split' : null,
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+              facts={[
+                ['Machine', machineBadge?.name],
+                ['Workspace', workspaceBadge?.name],
+                [
+                  'Sub-threads',
+                  chat.sub_thread_count > 0 ? String(chat.sub_thread_count) : undefined,
+                ],
+              ]}
+            />
           }
           className={styles['title-tooltip']}
         >
@@ -235,21 +246,16 @@ export const SidebarChatItem = memo(function SidebarChatItem({
               onSelect(chat.id);
             }}
             trailing={
-              // Resting sub-thread hint; caret covers this on hover/expand and on touch.
-              hasSubThreads &&
-              !showCaret && <CornerDownRight className={styles['subthread-hint']} />
+              <>
+                {/* Resting sub-thread hint; caret covers this on hover/expand and on touch. */}
+                {hasSubThreads && !showCaret && (
+                  <CornerDownRight className={styles['subthread-hint']} />
+                )}
+                <SidebarMachineTag machineBadge={machineBadge} />
+              </>
             }
           />
         </FloatingTooltip>
-      }
-      subtitle={
-        <SidebarRowBadges
-          machineName={machineName}
-          machineOffline={machineOffline}
-          workspaceName={workspaceBadge?.name}
-          isIndented={hasLeadingSlot}
-          status={status}
-        />
       }
       timestamp={getRelativeTime(chat.updated_at)}
       dropdownLabel="Chat options"
