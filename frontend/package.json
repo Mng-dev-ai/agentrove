@@ -19,6 +19,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "test": "vitest run",
+    "test:smoke": "playwright test -c e2e",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
     "desktop:build": "tauri build"
@@ -62,6 +63,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@playwright/test": "1.64.1",
     "@tauri-apps/cli": "2.12.1",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

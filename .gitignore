@@ -10,6 +10,9 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+dist-desktop
+dist-mobile
+test-results
 *.local
 storage/
 

@@ -94,3 +94,58 @@ jobs:
         run: |
           cd frontend
           npm run build
+
+      - name: Build desktop
+        run: |
+          cd frontend
+          npm run build -- --mode desktop --outDir dist-desktop
+
+      - name: Build mobile
+        env:
+          VITE_PLATFORM: mobile
+          VITE_API_BASE_URL: https://api.example.invalid/api/v1
+          VITE_WS_URL: wss://api.example.invalid/api/v1/ws
+        run: |
+          cd frontend
+          npm run build:mobile -- --outDir dist-mobile
+
+      # IS_MOBILE_BUILD in src/utils/platform.ts is folded at build time and minified
+      # right after IS_MAC_PLATFORM: `=!0` only when VITE_PLATFORM=mobile reached the build.
+      - name: Check mobile flag in bundle
+        run: |
+          cd frontend
+          grep -Eq 'startsWith\("MAC"\),[A-Za-z_$][A-Za-z0-9_$]*=!0,' dist-mobile/assets/*.js \
+            || { echo "::error::dist-mobile was built without VITE_PLATFORM=mobile"; exit 1; }
+
+  smoke:
+    name: Bundle Smoke Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.lock
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.lock
+          cd frontend
+          npm ci --legacy-peer-deps
+          npx playwright install --with-deps chromium
+
+      - name: Smoke-test desktop bundle
+        run: |
+          cd frontend
+          npm run test:smoke
