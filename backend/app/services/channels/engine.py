@@ -332,6 +332,8 @@ class ChannelEngine(BaseDbService[Channel]):
                 except Exception as exc:
                     if member.id not in state.gave_up:
                         self.backoff(state, member, exc)
+                        if member.id in state.gave_up:
+                            self.report_round(state, "still running")
                     if member.id in state.gave_up:
                         state.turns.pop(member.id, None)
                     else:
@@ -465,7 +467,6 @@ class ChannelEngine(BaseDbService[Channel]):
                 attempts,
                 error,
             )
-            self.report_round(state, "still running")
             return
         delay = min(previous.delay * 2, 300) if previous else 5
         state.retries[member.id] = MemberRetry(
@@ -590,6 +591,8 @@ class ChannelEngine(BaseDbService[Channel]):
                     self.fail_turn(state, turn, exc)
                 else:
                     state.turns.pop(member.id)
+                if member.id in state.gave_up:
+                    self.report_round(state, "still running")
                 await self.publisher.publish_activity(state)
                 self.schedule(state)
 
@@ -993,8 +996,9 @@ class ChannelEngine(BaseDbService[Channel]):
             turn.source_message_id = UUID(payload["message_id"])
         elif kind == "permission_request":
             await self.requests.request_permission(state, turn, payload)
-            if (turn.member.id, payload["request_id"]) in state.permissions:
-                self.report_round(state, "still running")
+            async with state.lock:
+                if (turn.member.id, payload["request_id"]) in state.permissions:
+                    self.report_round(state, "still running")
         elif kind == "permission_resolved":
             async with state.lock:
                 await self.requests.resolve_permissions(
@@ -1002,8 +1006,9 @@ class ChannelEngine(BaseDbService[Channel]):
                 )
         elif kind == "elicitation_request":
             await self.requests.request_elicitation(state, turn, payload)
-            if (turn.member.id, payload["request_id"]) in state.elicitations:
-                self.report_round(state, "still running")
+            async with state.lock:
+                if (turn.member.id, payload["request_id"]) in state.elicitations:
+                    self.report_round(state, "still running")
         elif kind == "elicitation_resolved":
             async with state.lock:
                 await self.requests.resolve_elicitations(
