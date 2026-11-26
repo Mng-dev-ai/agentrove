@@ -19,6 +19,7 @@ import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { Tooltip } from '@/components/ui/Tooltip/Tooltip';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { CommandMenu } from '@/components/ui/command-menu/CommandMenu';
 import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import {
@@ -32,6 +33,7 @@ import {
 } from '@/hooks/queries/useInboxQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
+import { ChatProvider } from '@/contexts/ChatContext';
 import { formatFullTimestamp, getRelativeTime } from '@/utils/date';
 import { stripMarkdownTitle } from '@/utils/format';
 import { logger } from '@/utils/logger';
@@ -385,6 +387,9 @@ export function InboxPage() {
           </div>
         )}
       </div>
+      <ChatProvider>
+        <CommandMenu />
+      </ChatProvider>
     </div>
   );
 }
