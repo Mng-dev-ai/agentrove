@@ -172,7 +172,7 @@ async def promote_chat(
 @router.post("/chat", response_model=ChatCompletionResponse)
 async def send_message(
     prompt: str = Form(...),
-    chat_id: str = Form(...),
+    chat_id: UUID = Form(...),
     user_message_id: UUID | None = Form(None),
     model_id: str = Form(...),
     permission_mode: PermissionMode = Form("bypassPermissions"),
@@ -190,7 +190,7 @@ async def send_message(
     files = attached_files or []
     try:
         thinking_mode, persona_name = resolve_turn_settings(
-            await chat_service.get_chat(UUID(chat_id), current_user)
+            await chat_service.get_chat(chat_id, current_user)
             if inherit_turn_settings
             else None,
             model_id,
@@ -199,7 +199,7 @@ async def send_message(
         )
         request = ChatRequest(
             prompt=prompt,
-            chat_id=UUID(chat_id),
+            chat_id=chat_id,
             user_message_id=user_message_id,
             model_id=model_id,
             attached_files=files,
