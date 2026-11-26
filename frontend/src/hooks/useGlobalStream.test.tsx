@@ -11,6 +11,7 @@ vi.mock('@/services/chatService', () => ({ chatService: { checkChatStatus } }));
 vi.mock('@/utils/logger', () => ({ logger: { error: vi.fn() } }));
 
 const INITIAL_PRUNE_MS = 500;
+const PRUNE_INTERVAL_MS = 5000;
 
 const track = (chatId: string) =>
   useStreamStore.getState().addStreamMetadata({ chatId, messageId: `${chatId}-msg`, startTime: 0 });
@@ -107,5 +108,24 @@ describe('useGlobalStream', () => {
 
     expect(usePermissionStore.getState().pendingRequests.get('waiting')).toEqual([request]);
     expect(trackedChats()).toEqual(['waiting']);
+  });
+
+  it('keeps polling a blocked chat through a failed probe so a resolved approval still clears', async () => {
+    track('waiting');
+    const request = { request_id: 'r1', tool_name: 'Bash', tool_input: {}, options: [], seq: 1 };
+    checkChatStatus.mockResolvedValueOnce({
+      has_active_task: true,
+      pending_permissions: [request],
+    });
+    checkChatStatus.mockRejectedValueOnce(new Error('offline'));
+    checkChatStatus.mockResolvedValueOnce({ has_active_task: true, pending_permissions: [] });
+
+    renderHook(() => useGlobalStream());
+    await vi.advanceTimersByTimeAsync(INITIAL_PRUNE_MS);
+    await vi.advanceTimersByTimeAsync(PRUNE_INTERVAL_MS);
+    expect(trackedChats()).toEqual(['waiting']);
+
+    await vi.advanceTimersByTimeAsync(PRUNE_INTERVAL_MS);
+    expect(usePermissionStore.getState().pendingRequests.has('waiting')).toBe(false);
   });
 });

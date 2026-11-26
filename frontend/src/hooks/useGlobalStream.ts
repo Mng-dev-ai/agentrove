@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { logger } from '@/utils/logger';
 import { useStreamStore } from '@/store/streamStore';
 import { syncChatStatus } from '@/services/chatStatusSync';
+import { useElicitationStore } from '@/store/elicitationStore';
+import { usePermissionStore } from '@/store/permissionStore';
 import { pruneIfStillOrphan } from '@/utils/activeStreams';
 
 interface UseGlobalStreamOptions {
@@ -10,6 +12,13 @@ interface UseGlobalStreamOptions {
 }
 
 const STREAM_PRUNE_INTERVAL_MS = 5000;
+
+function isChatBlocked(chatId: string): boolean {
+  return (
+    usePermissionStore.getState().pendingRequests.has(chatId) ||
+    useElicitationStore.getState().pendingRequests.has(chatId)
+  );
+}
 
 // Interval reconcile: background sub-threads register metadata without an EventSource,
 // so removeStream never fires for them — prune settled orphans so indicators clear.
@@ -43,7 +52,9 @@ export function useGlobalStream(options?: UseGlobalStreamOptions) {
           }
         } catch (error) {
           logger.error('Stream prune check failed', 'useGlobalStream', error);
-          pruneIfStillOrphan(streamMeta.chatId, false);
+          // A blocked chat stays tracked: only a later successful probe can clear
+          // approvals answered elsewhere.
+          if (!isChatBlocked(streamMeta.chatId)) pruneIfStillOrphan(streamMeta.chatId, false);
         }
       });
 
