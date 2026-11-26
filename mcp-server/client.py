@@ -342,7 +342,7 @@ class AgentroveClient:
     async def get_messages(
         self, chat_id: str, limit: int, cursor: str | None
     ) -> dict[str, Any]:
-        params: dict[str, Any] = {"limit": limit}
+        params: dict[str, Any] = {"limit": limit, "omit_tool_results": "true"}
         if cursor:
             params["cursor"] = cursor
         return await self._request_object(
