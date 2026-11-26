@@ -33,7 +33,6 @@ Facts and rules for changing this repo. Search with `.worktrees/`, `node_modules
 - Chat events (`chat_created`, `stream_started`, `title_updated`) are parsed and dispatched once, in `frontend/src/hooks/chatEventSync.ts`. `frontend/src/hooks/useChatEvents.ts` (local) and `frontend/src/hooks/useRemoteMachineSync.ts` (remote machines) each pass it a `ChatEventOrigin` holding only what differs per origin; a step both origins need belongs in `chatEventSync.ts`.
 - `patchChatInCache` (`frontend/src/hooks/queries/useChatQueries.ts`) writes with `Query.setState` after `replaceEqualDeep`. `setQueryData` would clear pending invalidations; a bare `setState` would drop structural sharing. Keep both properties.
 - Composer lifetime: `ChatPage` keys `AgentPane` by chat id and `ChannelPage` keys `ChannelView` by channel id, so a chat switch remounts the composer and late callbacks cannot write across chats.
-- `handleDroppedFiles` (`frontend/src/hooks/useInputFileOperations.ts`) closes over the render-time `attachedFiles` and `onAttach` takes a full array. Never call it after an `await` except through a latest-value ref.
 - There is no insert-at-cursor helper; `useInputAttachments.ts` uses `document.execCommand('insertText')`.
 - Do not use `''` as an object key: Rollup has dropped an empty-string key read only through a function parameter, which broke production chunks that dev server and vitest do not show.
 

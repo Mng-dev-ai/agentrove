@@ -2,7 +2,7 @@
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { AgentKind, Chat, Model } from '@/types/chat.types';
 import type { UserSettings } from '@/types/user.types';
@@ -85,6 +85,18 @@ function render(overrides: Partial<Parameters<typeof useInputSubmit>[0]> = {}) {
   return { opts, result };
 }
 
+type SubmitOptions = Parameters<typeof useInputSubmit>[0];
+
+function useSubmitWithFiles(opts: SubmitOptions, initialFiles: File[]) {
+  const [files, setFiles] = useState(initialFiles);
+  const submit = useInputSubmit({ ...opts, attachedFiles: files, onAttach: setFiles });
+  return { files, setFiles, submit };
+}
+
+function renderWithFiles(opts: SubmitOptions, initialFiles: File[]) {
+  return renderHook(() => useSubmitWithFiles(opts, initialFiles), { wrapper });
+}
+
 function fakeForm() {
   const requestSubmit = vi.fn();
   return { requestSubmit, formRef: { current: { requestSubmit } as unknown as HTMLFormElement } };
@@ -146,6 +158,25 @@ describe('useInputSubmit — submitOrStop queue path', () => {
     expect(queuedContents()[0]).toContain('quoted');
     expect(queuedContents()[0]).toMatch(/hello$/);
   });
+
+  it('restores failed sent files ahead of files attached while the queue request ran', async () => {
+    let failQueue!: (error: Error) => void;
+    queueMessage.mockReturnValue(
+      new Promise((_, reject) => {
+        failQueue = reject;
+      }),
+    );
+    const sent = new File(['a'], 'sent.png', { type: 'image/png' });
+    const added = new File(['b'], 'added.png', { type: 'image/png' });
+    const { result } = renderWithFiles(makeOptions({ isStreaming: true }), [sent]);
+    act(() => result.current.submit.submitOrStop());
+    await waitFor(() => expect(queueMessage).toHaveBeenCalledTimes(1));
+    expect(result.current.files).toEqual([]);
+    act(() => result.current.setFiles((current) => [...current, added]));
+    await act(async () => failQueue(new Error('queue failed')));
+
+    expect(result.current.files.map((file) => file.name)).toEqual(['sent.png', 'added.png']);
+  });
 });
 
 describe('useInputSubmit — submitOrStop send path', () => {
@@ -194,18 +225,14 @@ describe('useInputSubmit — /btw side question', () => {
     const opts = makeOptions({
       chat: forkableChat,
       chatModel: forkableModel,
-      attachedFiles: [sent],
       messageRef: { current: '/btw where is retry?' },
     });
-    const { result, rerender } = renderHook((props) => useInputSubmit(props), {
-      wrapper,
-      initialProps: opts,
-    });
-    act(() => result.current.submitOrStop());
-    rerender({ ...opts, attachedFiles: [sent, added] });
+    const { result } = renderWithFiles(opts, [sent]);
+    act(() => result.current.submit.submitOrStop());
+    act(() => result.current.setFiles((current) => [...current, added]));
     await act(async () => finishStart());
 
     expect(vi.mocked(startSideQuestion).mock.calls[0][1].attachedFiles).toEqual([sent]);
-    expect(opts.onAttach).toHaveBeenCalledWith([added]);
+    expect(result.current.files.map((file) => file.name)).toEqual(['added.png']);
   });
 });

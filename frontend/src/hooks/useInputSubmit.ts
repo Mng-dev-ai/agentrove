@@ -1,4 +1,4 @@
-import { useCallback, useRef, type RefObject } from 'react';
+import { useCallback, useRef, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import { useChatSettings } from '@/hooks/useChatSettings';
 import toast from 'react-hot-toast';
 import { queryClient } from '@/lib/queryClient';
@@ -45,7 +45,7 @@ interface UseInputSubmitOptions {
   attachedFiles: File[] | null;
   messageRef: RefObject<string>;
   setMessage: (value: string) => void;
-  onAttach?: (files: File[]) => void;
+  onAttach?: Dispatch<SetStateAction<File[]>>;
   formRef: RefObject<HTMLFormElement | null>;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
   handleMentionKeyDown: (e: React.KeyboardEvent<Element>) => boolean;
@@ -81,8 +81,6 @@ export function useInputSubmit({
 }: UseInputSubmitOptions) {
   const { permissionMode, thinkingMode, persona } = useChatSettings(chatId);
   const sideQuestionPendingRef = useRef(false);
-  const attachedFilesRef = useRef(attachedFiles);
-  attachedFilesRef.current = attachedFiles;
   const handleSubmit = useCallback(
     (event: React.FormEvent) => {
       event.preventDefault();
@@ -128,9 +126,7 @@ export function useInputSubmit({
         .then(() => {
           if (messageRef.current === text) setMessage('');
           if (sentFiles.length > 0) {
-            onAttach?.(
-              (attachedFilesRef.current ?? []).filter((file) => !sentFiles.includes(file)),
-            );
+            onAttach?.((current) => current.filter((file) => !sentFiles.includes(file)));
           }
           const uiStore = useUIStore.getState();
           const current = uiStore.composerSelectionsByChat[parentChatId] ?? [];
@@ -166,6 +162,7 @@ export function useInputSubmit({
       const validPersona = resolvePersona(persona, personas);
       const text = messageRef.current;
       const fullMessage = formatComposerSelections(attachedSelections, text.trim());
+      const sentFiles = attachedFiles ?? [];
       void fetchAutoSteerQueuedMessages(queryClient, chatMachineId(chatId))
         .then(async (sendNow) => {
           const result = await useMessageQueueStore
@@ -189,7 +186,7 @@ export function useInputSubmit({
         })
         .catch((error: unknown) => {
           setMessage(messageRef.current ? `${text}\n${messageRef.current}` : text);
-          onAttach?.(attachedFiles ?? []);
+          onAttach?.((current) => [...sentFiles, ...current]);
           attachedSelections.forEach((selection) =>
             useUIStore.getState().addComposerSelection(chatId, selection),
           );
