@@ -5,11 +5,8 @@ import type { QueryClient } from '@tanstack/react-query';
 import {
   MessagesSquare,
   MessageSquarePlus,
-  CodeXml,
-  Terminal,
   GitBranch,
   PanelLeftClose,
-  PanelRight,
   GitPullRequest,
   GitCommitHorizontal,
   ArrowUpFromLine,
@@ -22,7 +19,8 @@ import { useChatStore } from '@/store/chatStore';
 import { sandboxService } from '@/services/sandboxService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { invalidateGitState } from '@/hooks/queries/useSandboxQueries';
-import { activeSplitSlot } from '@/utils/tileHelpers';
+import { SessionPanelIcon } from '@/components/ui/icons/viewIcons';
+import { activeSplitSlot, VIEW_ICONS } from '@/utils/tileHelpers';
 import { traverseFileStructure, getFileName } from '@/utils/file';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
 import type { ViewType } from '@/types/ui.types';
@@ -82,9 +80,9 @@ export type MenuListItem =
 
 const VIEW_COMMANDS: ViewCommandItem[] = [
   { type: 'view', id: 'agent', label: 'Agent', icon: MessagesSquare, shortcut: 'a' },
-  { type: 'view', id: 'editor', label: 'Editor', icon: CodeXml, shortcut: 'e' },
-  { type: 'view', id: 'terminal', label: 'Terminal', icon: Terminal, shortcut: 't' },
-  { type: 'view', id: 'diff', label: 'Diff', icon: GitBranch, shortcut: 'd' },
+  { type: 'view', id: 'editor', label: 'Editor', icon: VIEW_ICONS.editor, shortcut: 'e' },
+  { type: 'view', id: 'terminal', label: 'Terminal', icon: VIEW_ICONS.terminal, shortcut: 't' },
+  { type: 'view', id: 'diff', label: 'Diff', icon: VIEW_ICONS.diff, shortcut: 'd' },
 ];
 
 const ACTION_COMMANDS: ActionCommandItem[] = [
@@ -161,7 +159,7 @@ const SETTING_COMMANDS: ActionCommandItem[] = [
     type: 'action',
     id: 'toggle-session-panel',
     label: 'Toggle session panel',
-    icon: PanelRight,
+    icon: SessionPanelIcon,
     shortcut: SESSION_PANEL_SHORTCUT,
     hideOnMobile: true,
     requiresChat: true,
