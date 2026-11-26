@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     Update,
+    text,
     update,
 )
 from sqlalchemy import Enum as SQLAlchemyEnum
@@ -252,7 +253,22 @@ class Message(Base):
         Index("idx_messages_chat_id_created_at", "chat_id", "created_at"),
         Index("idx_messages_role_created", "role", "created_at"),
         Index("idx_messages_chat_id_deleted_at", "chat_id", "deleted_at"),
-        Index("idx_messages_chat_id_role_deleted", "chat_id", "role", "deleted_at"),
+        Index(
+            "idx_messages_chat_id_role_deleted_created",
+            "chat_id",
+            "role",
+            "deleted_at",
+            "created_at",
+        ),
+        Index(
+            "idx_messages_in_progress_assistant",
+            "stream_status",
+            "role",
+            sqlite_where=text(
+                "stream_status = 'in_progress' AND role = 'assistant' "
+                "AND deleted_at IS NULL"
+            ),
+        ),
     )
 
 
