@@ -11,6 +11,7 @@ on:
       - 'desktop/requirements*'
       - 'desktop/run_build.mjs'
       - 'frontend/src/test/agentPermissionModes.json'
+      - 'frontend/src/test/channelMentions.json'
       - 'frontend/src/test/streamEnvelopes.json'
       - '.github/workflows/backend-checks.yml'
   pull_request:
@@ -23,6 +24,7 @@ on:
       - 'desktop/requirements*'
       - 'desktop/run_build.mjs'
       - 'frontend/src/test/agentPermissionModes.json'
+      - 'frontend/src/test/channelMentions.json'
       - 'frontend/src/test/streamEnvelopes.json'
       - '.github/workflows/backend-checks.yml'
 

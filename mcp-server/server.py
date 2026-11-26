@@ -6,7 +6,7 @@ from typing import Annotated, Any, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.server.streamable_http_manager import StreamableHTTPSessionManager
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 from starlette.types import Receive, Scope, Send
 
 from client import DEFAULT_API_URL, AgentroveClient, AgentroveError, ChatBusyError
@@ -14,13 +14,31 @@ from client import DEFAULT_API_URL, AgentroveClient, AgentroveError, ChatBusyErr
 mcp = FastMCP("agentrove")
 
 MEMORY_SEARCH_LIMIT = 10
+BROADCAST_MENTIONS = {"all", "everyone"}
 
 
 class ChannelMember(BaseModel):
     model_id: str
-    display_name: str | None = Field(None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$")
+    display_name: (
+        Annotated[
+            str,
+            StringConstraints(
+                strip_whitespace=True, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,31}$"
+            ),
+        ]
+        | None
+    ) = None
     persona: str | None = None
     thinking_mode: str | None = None
+
+    @field_validator("display_name")
+    @classmethod
+    def unreserved_display_name(cls, value: str | None) -> str | None:
+        if value is not None and value.lower() in BROADCAST_MENTIONS:
+            raise ValueError(
+                f"Display name '{value}' is reserved for @{value} mentions"
+            )
+        return value
 
 
 def _channel_summary(channel: dict[str, Any]) -> dict[str, Any]:
@@ -780,7 +798,8 @@ async def create_channel(
 
     Supply at least one member, each with a model_id from list_models and optional
     display_name, persona (a name from list_personas), and thinking_mode (as in
-    send_message). Display names must match [A-Za-z0-9][A-Za-z0-9._-]{0,31}.
+    send_message). Display names must match [A-Za-z0-9][A-Za-z0-9._-]{0,31} and
+    cannot be "all" or "everyone", which mention every member.
     Members run unattended with their model's full-execution permission mode.
     Omit workspace_id to use the most recently active workspace. Set worktree=true
     for an isolated git worktree. branch selects the checkout or worktree base branch.
