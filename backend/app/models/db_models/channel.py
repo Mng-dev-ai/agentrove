@@ -69,7 +69,9 @@ class ChannelMember(Base):
     chat_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("chats.id", ondelete="CASCADE"), unique=True
     )
-    permission_mode: Mapped[PermissionMode] = mapped_column(String(32))
+    permission_mode: Mapped[PermissionMode] = mapped_column(
+        String(32), server_default="default"
+    )
     model_id: Mapped[str] = mapped_column(String(128))
     persona: Mapped[str | None] = mapped_column(String(100))
     thinking_mode: Mapped[str | None] = mapped_column(String(50))

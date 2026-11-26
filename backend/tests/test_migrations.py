@@ -12,6 +12,7 @@ from alembic.config import Config
 from alembic.script import ScriptDirectory
 
 from app.core.config import get_settings
+from app.db.base_class import Base
 
 BASE_REVISION = "e3bdc269cf4a"
 ORPHANING_MIGRATION = """
@@ -34,62 +35,6 @@ def downgrade() -> None:
 """
 COLUMN_VALUES = {("channel_messages", "status"): "completed"}
 CLEARED_TABLES = {"push_devices", "push_deliveries"}
-NEW_TABLES = {"instance", "paired_devices", "pairing_secrets"}
-ADDED_TO_BASE_TABLES = {
-    "refresh_tokens": {
-        ("column", "device_id", "CHAR(32)", 0, None, 0),
-        ("index", "ix_refresh_tokens_device_id", 0, "c", 0, ("device_id",)),
-    },
-    "channel_messages": {
-        ("column", "device_ids", "JSON", 1, "'[]'", 0),
-        ("column", "has_render_ui", "BOOLEAN", 1, "'0'", 0),
-    },
-    "automations": {
-        ("column", "device_ids", "JSON", 1, "'[]'", 0),
-        ("column", "channel_members", "JSON", 0, None, 0),
-    },
-    "chats": {
-        ("column", "owed_report_device_ids", "JSON", 0, None, 0),
-        ("column", "forked_from_chat_id", "CHAR(32)", 0, None, 0),
-        ("column", "forked_from_title", "VARCHAR(255)", 0, None, 0),
-        ("column", "fork_source_session_id", "VARCHAR(128)", 0, None, 0),
-        ("column", "fork_agent_kind", "VARCHAR(32)", 0, None, 0),
-        ("column", "forked_session_id", "VARCHAR(128)", 0, None, 0),
-    },
-    "chat_checkpoints": {("column", "head_ref", "VARCHAR(255)", 0, None, 0)},
-    "channels": {
-        ("column", "last_viewed_at", "DATETIME", 0, None, 0),
-        ("column", "pinned_at", "DATETIME", 0, None, 0),
-    },
-    "channel_members": {("column", "removed_at", "DATETIME", 0, None, 0)},
-    "push_devices": {
-        ("column", "paired_device_id", "CHAR(32)", 0, None, 0),
-        (
-            "foreign_key",
-            "paired_devices",
-            "paired_device_id",
-            "id",
-            "NO ACTION",
-            "CASCADE",
-        ),
-        (
-            "index",
-            "ix_push_devices_paired_device_id",
-            0,
-            "c",
-            0,
-            ("paired_device_id",),
-        ),
-    },
-    "user_settings": {
-        ("column", "settings_version", "INTEGER", 1, "'0'", 0),
-        ("column", "notify_permission_requests", "BOOLEAN", 1, "'true'", 0),
-        ("column", "notify_questions", "BOOLEAN", 1, "'true'", 0),
-        ("column", "notify_completions", "BOOLEAN", 1, "'true'", 0),
-        ("column", "notify_inbox_messages", "BOOLEAN", 1, "'true'", 0),
-        ("column", "notify_sub_threads", "BOOLEAN", 1, "'true'", 0),
-    },
-}
 
 
 def _alembic_config() -> Config:
@@ -196,7 +141,34 @@ def migration_engine(
     engine.dispose()
 
 
-def test_upgrade_and_downgrade_keep_every_row(migration_engine: sa.Engine) -> None:
+@pytest.fixture(scope="module")
+def head_schema(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> dict[str, set[tuple[Any, ...]]]:
+    db_path = tmp_path_factory.mktemp("head") / "head.db"
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(
+            get_settings(), "DATABASE_URL", f"sqlite+aiosqlite:///{db_path}"
+        )
+        command.upgrade(_alembic_config(), "head")
+    engine = sa.create_engine(f"sqlite:///{db_path}")
+    schema = _schema(engine)
+    engine.dispose()
+    return schema
+
+
+def test_head_schema_matches_models(
+    head_schema: dict[str, set[tuple[Any, ...]]], tmp_path: Path
+) -> None:
+    engine = sa.create_engine(f"sqlite:///{tmp_path / 'models.db'}")
+    Base.metadata.create_all(engine)
+    assert _schema(engine) == head_schema
+    engine.dispose()
+
+
+def test_upgrade_and_downgrade_keep_every_row(
+    migration_engine: sa.Engine, head_schema: dict[str, set[tuple[Any, ...]]]
+) -> None:
     config = _alembic_config()
     base_counts = _row_counts(migration_engine)
     base_schema = _schema(migration_engine)
@@ -206,12 +178,7 @@ def test_upgrade_and_downgrade_keep_every_row(migration_engine: sa.Engine) -> No
     assert {
         table: _row_counts(migration_engine)[table] for table in base_counts
     } == base_counts | dict.fromkeys(CLEARED_TABLES, 0)
-    head_schema = _schema(migration_engine)
-    assert set(head_schema) - set(base_schema) == NEW_TABLES
-    assert {table: head_schema[table] for table in base_schema} == {
-        table: rows | ADDED_TO_BASE_TABLES.get(table, set())
-        for table, rows in base_schema.items()
-    }
+    assert _schema(migration_engine) == head_schema
     _seed_empty_tables(migration_engine)
 
     command.downgrade(config, BASE_REVISION)

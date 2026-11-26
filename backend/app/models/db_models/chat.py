@@ -33,6 +33,7 @@ class Chat(Base):
         GUID(),
         primary_key=True,
         default=uuid.uuid4,
+        server_default=uuid_server_default(),
     )
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     user_id: Mapped[UUID] = mapped_column(
@@ -194,6 +195,7 @@ class Message(Base):
         GUID(),
         primary_key=True,
         default=uuid.uuid4,
+        server_default=uuid_server_default(),
     )
     chat_id: Mapped[UUID] = mapped_column(
         GUID(), ForeignKey("chats.id", ondelete="CASCADE"), nullable=False
@@ -261,6 +263,7 @@ class MessageAttachment(Base):
         GUID(),
         primary_key=True,
         default=uuid.uuid4,
+        server_default=uuid_server_default(),
     )
     message_id: Mapped[UUID] = mapped_column(
         GUID(),
@@ -292,6 +295,7 @@ class MessageEvent(Base):
         GUID(),
         primary_key=True,
         default=uuid.uuid4,
+        server_default=uuid_server_default(),
     )
     message_id: Mapped[UUID] = mapped_column(
         GUID(),
