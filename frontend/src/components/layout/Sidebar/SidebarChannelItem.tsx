@@ -3,13 +3,12 @@ import { Hash } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
-import { useChannelActivity } from '@/store/channelStore';
 import { getRelativeTime } from '@/utils/date';
-import { chatStatusTone, CHAT_STATUS_LABEL } from '@/utils/message';
+import { CHAT_STATUS_LABEL } from '@/utils/message';
 import type { Channel } from '@/types/channel.types';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
 import { SidebarRowPreview, type MachineBadge } from './SidebarChatItem';
-import { describeMachine } from './sidebarHelpers';
+import { describeMachine, useChannelRowStatus } from './sidebarHelpers';
 import styles from './SidebarChannelItem.module.scss';
 
 interface SidebarChannelItemProps {
@@ -32,14 +31,7 @@ export function SidebarChannelItem({
   onDropdownClick,
 }: SidebarChannelItemProps) {
   const [isHovered, setIsHovered] = useState(false);
-  const activity = useChannelActivity(channel);
-  const isUnread = !isActive && !!channel.unread;
-  const status = chatStatusTone({
-    blocked: activity.waiting_member_ids.length > 0,
-    streaming: activity.member_ids.length > 0,
-    completed: isCompleted,
-    unread: isUnread,
-  });
+  const { status, isUnread } = useChannelRowStatus(channel, isActive, isCompleted);
   const statusLabel = status ? CHAT_STATUS_LABEL[status] : undefined;
   const preview = (
     <SidebarRowPreview

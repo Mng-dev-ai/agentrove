@@ -1,5 +1,8 @@
 import toast from 'react-hot-toast';
 import { DROPDOWN_WIDTH, DROPDOWN_HEIGHT, DROPDOWN_MARGIN } from '@/config/constants';
+import { useChannelActivity } from '@/store/channelStore';
+import type { Channel } from '@/types/channel.types';
+import { chatStatusTone } from '@/utils/message';
 import type { MachineBadge } from './SidebarChatItem';
 
 export async function mutateWithToast<T>(
@@ -58,4 +61,17 @@ export function calculateDropdownPosition(buttonRect: DOMRect): { top: number; l
 export function describeMachine(machineBadge?: MachineBadge): string | undefined {
   if (!machineBadge) return undefined;
   return machineBadge.offline ? `${machineBadge.name} · offline` : machineBadge.name;
+}
+
+// Status of a channel row, top-level or nested: unread is moot while the channel is open
+export function useChannelRowStatus(channel: Channel, isActive: boolean, isCompleted: boolean) {
+  const activity = useChannelActivity(channel);
+  const isUnread = !isActive && !!channel.unread;
+  const status = chatStatusTone({
+    blocked: activity.waiting_member_ids.length > 0,
+    streaming: activity.member_ids.length > 0,
+    completed: isCompleted,
+    unread: isUnread,
+  });
+  return { status, isUnread };
 }

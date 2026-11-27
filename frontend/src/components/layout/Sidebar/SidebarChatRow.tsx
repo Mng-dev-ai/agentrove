@@ -1,11 +1,10 @@
-import type { MouseEvent } from 'react';
-import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import type { MachineBadge } from './SidebarChatItem';
 import { SidebarChatItem } from './SidebarChatItem';
 import type { MachineChannel } from './sidebarGrouping';
 import { SubThreadList } from './SubThreadList';
+import type { SidebarChannelActions } from './useSidebarChannelActions';
 import type { ChildActivity } from './useSidebarActivity';
 
 const NO_LINKED_CHANNELS: MachineChannel[] = [];
@@ -32,10 +31,7 @@ export interface ChatRowProps {
   childActivityByParentId: Map<string, ChildActivity>;
   linkedChannelsByParentId: Map<string, MachineChannel[]>;
   selectedChannelId: string | null;
-  openMenuChannelId: string | null;
-  completedChannelIds: ReadonlySet<string>;
-  onChannelSelect: (channelId: string) => void;
-  onChannelDropdownClick: (e: MouseEvent<HTMLButtonElement>, channel: Channel) => void;
+  channelActions: SidebarChannelActions;
 }
 
 interface SidebarChatRowProps {
@@ -73,10 +69,7 @@ export function SidebarChatRow({
     childActivityByParentId,
     linkedChannelsByParentId,
     selectedChannelId,
-    openMenuChannelId,
-    completedChannelIds,
-    onChannelSelect,
-    onChannelDropdownClick,
+    channelActions,
   } = rowProps;
   const linkedChannels = isFlat
     ? NO_LINKED_CHANNELS
@@ -117,12 +110,10 @@ export function SidebarChatRow({
           hasSubThreads={chat.sub_thread_count > 0}
           linkedChannels={linkedChannels}
           selectedChannelId={selectedChannelId}
-          openMenuChannelId={openMenuChannelId}
-          completedChannelIds={completedChannelIds}
-          onChannelSelect={onChannelSelect}
-          onChannelDropdownClick={onChannelDropdownClick}
+          channelActions={channelActions}
           selectedChatId={selectedChatId}
           splitChatIds={splitChatIds}
+          dropdownChatId={dropdownChatId}
           onSelect={onChatSelect}
           onDropdownClick={onDropdownClick}
           streamingChatIdSet={streamingChatIdSet}

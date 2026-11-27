@@ -123,18 +123,6 @@ export function Sidebar({
     navigate,
     scrollContainerRef,
   });
-  // A selected linked channel opens its parent's child list, as a selected sub-thread does
-  const selectedChannelParentId = machineChannels.find(
-    ({ channel }) => channel.id === selectedChannelId,
-  )?.channel.parent_chat_id;
-  const chatActions = useSidebarChatActions({
-    selectedChatId,
-    selectedChatParentId: selectedChatParentId ?? selectedChannelParentId,
-    isMobile,
-    navigate,
-    scrollContainerRef,
-    onChatSelect,
-  });
   const workspaceActions = useSidebarWorkspaceActions({
     selectedChatId,
     selectedChannelId,
@@ -226,34 +214,48 @@ export function Sidebar({
     [machineBadge, chatOrigins],
   );
 
+  // The rows SidebarChatList renders: linked channels nest under exactly these
   const collapsedSections = useUIStore((state) => state.collapsedSidebarSections);
-  const { linkedByParentId, topLevel: topLevelChannels } = useMemo(() => {
-    const openChatIds = { selectedChatId, splitChatIds };
-    const parentRows = [
-      ...renderedSectionChats(
-        visiblePinnedChats,
-        collapsedSections.includes('pinned'),
-        openChatIds,
+  const isPinnedCollapsed = collapsedSections.includes('pinned');
+  const isRecentsCollapsed = collapsedSections.includes('recents');
+  const pinnedRows = useMemo(
+    () =>
+      renderedSectionChats(visiblePinnedChats, isPinnedCollapsed, { selectedChatId, splitChatIds }),
+    [visiblePinnedChats, isPinnedCollapsed, selectedChatId, splitChatIds],
+  );
+  const recentRows = useMemo(
+    () =>
+      renderedSectionChats(visibleRecentChats, isRecentsCollapsed, {
+        selectedChatId,
+        splitChatIds,
+      }),
+    [visibleRecentChats, isRecentsCollapsed, selectedChatId, splitChatIds],
+  );
+  const { linkedByParentId, topLevel: topLevelChannels } = useMemo(
+    () =>
+      partitionLinkedChannels(
+        machineChannels,
+        new Map(
+          [...pinnedRows, ...recentRows].map((chat) => [
+            chat.id,
+            chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID,
+          ]),
+        ),
       ),
-      ...renderedSectionChats(
-        visibleRecentChats,
-        collapsedSections.includes('recents'),
-        openChatIds,
-      ),
-    ];
-    return partitionLinkedChannels(
-      machineChannels,
-      new Map(parentRows.map((chat) => [chat.id, chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID])),
-    );
-  }, [
-    visiblePinnedChats,
-    visibleRecentChats,
-    collapsedSections,
+    [pinnedRows, recentRows, machineChannels, chatOrigins],
+  );
+  // A selected nested channel opens its parent's child list, as a selected sub-thread does
+  const selectedChannelParentId = [...linkedByParentId].find(([, linked]) =>
+    linked.some(({ channel }) => channel.id === selectedChannelId),
+  )?.[0];
+  const chatActions = useSidebarChatActions({
     selectedChatId,
-    splitChatIds,
-    machineChannels,
-    chatOrigins,
-  ]);
+    selectedChatParentId: selectedChatParentId ?? selectedChannelParentId,
+    isMobile,
+    navigate,
+    scrollContainerRef,
+    onChatSelect,
+  });
   const { entriesByKind, childActivityByParentId } = useSidebarActivity(
     streamingChatIdSet,
     blockedChatIdSet,
@@ -266,12 +268,12 @@ export function Sidebar({
     () =>
       buildRecentChatSections({
         groupBy,
-        visibleRecentChats,
+        visibleRecentChats: recentRows,
         workspaceBadgeById,
         streamingChatIdSet,
         completedChatIds,
       }),
-    [groupBy, visibleRecentChats, workspaceBadgeById, streamingChatIdSet, completedChatIds],
+    [groupBy, recentRows, workspaceBadgeById, streamingChatIdSet, completedChatIds],
   );
 
   // Opening a chat (or watching it finish while open) counts as seeing the
@@ -309,10 +311,7 @@ export function Sidebar({
     childActivityByParentId,
     linkedChannelsByParentId: linkedByParentId,
     selectedChannelId,
-    openMenuChannelId: channelActions.openMenuChannelId,
-    completedChannelIds: channelActions.completedChannelIds,
-    onChannelSelect: channelActions.handleChannelSelect,
-    onChannelDropdownClick: channelActions.handleChannelDropdownClick,
+    channelActions,
   };
 
   return (
@@ -366,6 +365,9 @@ export function Sidebar({
               hasAnyContent={hasAnyContent}
               pinnedChats={visiblePinnedChats}
               recentChats={visibleRecentChats}
+              pinnedRows={pinnedRows}
+              recentRows={recentRows}
+              isRecentsCollapsed={isRecentsCollapsed}
               hasVisibleContent={hasVisibleContent}
               recentChatSections={recentChatSections}
               rowProps={rowProps}

@@ -1,12 +1,13 @@
+// @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Channel, ChannelMemberActivity } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
 import {
   buildRecentChatSections,
-  channelActivityKind,
   partitionLinkedChannels,
   type MachineChannel,
 } from './sidebarGrouping';
+import { channelActivityKind } from './useSidebarActivity';
 
 const NOW = new Date(2026, 6, 12, 12);
 

@@ -114,10 +114,10 @@ export function SidebarActivityList({
               channel={entry.channel}
               machineBadge={machineBadge(entry.machineId)}
               isActive={entry.channel.id === rowProps.selectedChannelId}
-              isCompleted={rowProps.completedChannelIds.has(entry.channel.id)}
-              isDropdownOpen={rowProps.openMenuChannelId === entry.channel.id}
-              onSelect={rowProps.onChannelSelect}
-              onDropdownClick={rowProps.onChannelDropdownClick}
+              isCompleted={rowProps.channelActions.completedChannelIds.has(entry.channel.id)}
+              isDropdownOpen={rowProps.channelActions.openMenuChannelId === entry.channel.id}
+              onSelect={rowProps.channelActions.handleChannelSelect}
+              onDropdownClick={rowProps.channelActions.handleChannelDropdownClick}
             />
           ),
         )

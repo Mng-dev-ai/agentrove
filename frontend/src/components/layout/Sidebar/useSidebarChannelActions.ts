@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type MouseEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, type MouseEvent, type RefObject } from 'react';
 import type { NavigateFunction } from 'react-router-dom';
 import { permissionNotifyEvent, useBackgroundNotify } from '@/hooks/useBackgroundNotify';
 import { useMountEffect } from '@/hooks/useMountEffect';
@@ -111,12 +111,16 @@ export function useSidebarChannelActions({
     [],
   );
 
-  return {
-    completedChannelIds,
-    openMenuChannelId,
-    handleChannelSelect,
-    handleChannelDropdownClick,
-  };
+  // Stable while nothing changes, so memoized child lists that take it don't re-render
+  return useMemo(
+    () => ({
+      completedChannelIds,
+      openMenuChannelId,
+      handleChannelSelect,
+      handleChannelDropdownClick,
+    }),
+    [completedChannelIds, openMenuChannelId, handleChannelSelect, handleChannelDropdownClick],
+  );
 }
 
 export type SidebarChannelActions = ReturnType<typeof useSidebarChannelActions>;

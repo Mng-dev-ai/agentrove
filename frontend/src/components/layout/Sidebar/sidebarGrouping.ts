@@ -1,10 +1,6 @@
-import type { Channel, ChannelMemberActivity } from '@/types/channel.types';
+import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
-import type {
-  SidebarActivityKind,
-  SidebarGroupBy,
-  SidebarStatusFilter,
-} from '@/store/sidebarFilters';
+import type { SidebarGroupBy, SidebarStatusFilter } from '@/store/sidebarFilters';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { formatDayLabel } from '@/utils/date';
 
@@ -145,12 +141,4 @@ export function partitionLinkedChannels(
     else linkedByParentId.set(parentId, [entry]);
   }
   return { linkedByParentId, topLevel };
-}
-
-// A channel counts once: needs-you while any member waits on the user, else running
-// while any member has a turn going.
-export function channelActivityKind(activity: ChannelMemberActivity): SidebarActivityKind | null {
-  if (activity.waiting_member_ids.length > 0) return 'needs-you';
-  if (activity.member_ids.length > 0) return 'running';
-  return null;
 }
