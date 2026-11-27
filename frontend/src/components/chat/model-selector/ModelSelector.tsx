@@ -14,7 +14,6 @@ import { AGENT_ICONS } from '@/components/ui/icons/providerIcons';
 import { AgentFilterChips } from '@/components/chat/model-selector/AgentFilterChips';
 import { formatNumberCompact } from '@/utils/format';
 import type { AgentKind, Model } from '@/types/chat.types';
-import { favoritesFirst, listedModels } from './modelOrder';
 import styles from './ModelSelector.module.scss';
 
 export interface ModelSelectorProps {
@@ -58,10 +57,12 @@ export const ModelSelector = memo(function ModelSelector({
   const [agentFilter, setAgentFilter] = useState<AgentKind | null>(null);
 
   const agentModelIds = agents?.modelIds;
-  const filteredModels = useMemo(
-    () => listedModels(models, agentModelIds ?? [selectedModelId], favoriteModelIds),
-    [models, agentModelIds, selectedModelId, favoriteModelIds],
-  );
+  const filteredModels = useMemo(() => {
+    const inUseIds = agentModelIds ?? [selectedModelId];
+    return models.filter(
+      (m) => !m.legacy || inUseIds.includes(m.model_id) || favoriteModelIds.includes(m.model_id),
+    );
+  }, [models, agentModelIds, selectedModelId, favoriteModelIds]);
 
   const favoriteIdSet = useMemo(() => new Set(favoriteModelIds), [favoriteModelIds]);
 
@@ -77,10 +78,12 @@ export const ModelSelector = memo(function ModelSelector({
     const visibleModels = agentFilter
       ? filteredModels.filter((m) => m.agent_kind === agentFilter)
       : filteredModels;
-    const { favorites: favoriteModels, rest: restModels } = favoritesFirst(
-      visibleModels,
-      favoriteModelIds,
-    );
+    // Favorites ordered by when each model was starred, not alphabetically.
+    const modelById = new Map(visibleModels.map((m) => [m.model_id, m]));
+    const favoriteModels = favoriteModelIds
+      .map((id) => modelById.get(id))
+      .filter((m): m is Model => m !== undefined);
+    const restModels = visibleModels.filter((m) => !favoriteIdSet.has(m.model_id));
 
     const items: DropdownItemType<Model>[] = favoriteModels.map((model) => ({
       type: 'item',
@@ -89,7 +92,7 @@ export const ModelSelector = memo(function ModelSelector({
     if (favoriteModels.length > 0 && restModels.length > 0) items.push({ type: 'divider' });
     restModels.forEach((model) => items.push({ type: 'item', data: model }));
     return items;
-  }, [filteredModels, agentFilter, favoriteModelIds]);
+  }, [filteredModels, agentFilter, favoriteModelIds, favoriteIdSet]);
 
   // Reopen with the full list — a lingering agent filter would hide the selected model's row.
   const handleOpenChange = useCallback((isOpen: boolean) => {

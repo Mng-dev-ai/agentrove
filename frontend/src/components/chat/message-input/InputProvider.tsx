@@ -48,7 +48,6 @@ export function InputProvider({
   children,
 }: InputProps & { children: ReactNode }) {
   const { fileStructure, builtinSlashCommands, personas } = useChatContext();
-  // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const chatMachineId = useChatMachineId(chatId);
   const modelMachineId = machineId ?? chatMachineId;

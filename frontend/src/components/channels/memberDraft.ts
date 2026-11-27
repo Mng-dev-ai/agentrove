@@ -149,8 +149,8 @@ export function memberRequest(
 export type MemberSetting = 'thinkingMode' | 'persona' | 'permissionMode';
 export type SharedMemberSettings = Pick<MemberDraft, MemberSetting>;
 
-// A member of a group thread being composed: the composer toolbar's settings apply to it
-// unless it overrides them.
+// A member of a group thread being composed: the shared settings (the New thread modal's
+// "All agents") apply to it unless it overrides them.
 export interface GroupMember {
   key: string;
   modelId: string;

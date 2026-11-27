@@ -27,7 +27,6 @@ import { MachineWorkspaceSelector } from '@/components/chat/workspace-selector/M
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
 import { BranchWorktreeSelector } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
 import {
-  clearMemberOverrides,
   groupMemberRequests,
   newGroupMember,
   type GroupMember,
@@ -190,28 +189,6 @@ function NewThreadDialog() {
       if (list.length === 1) selectModel(list[0].modelId);
     },
     [targetMachineId, selectModel],
-  );
-
-  // A toolbar change sets that setting for every member
-  useEffect(
-    () =>
-      useChatSettingsStore.subscribe((state, prev) => {
-        const current = useNewThreadStore.getState().members;
-        if (!current) return;
-        const key = DEFAULT_CHAT_SETTINGS_KEY;
-        let list = current.list;
-        if (state.thinkingModeByChat[key] !== prev.thinkingModeByChat[key]) {
-          list = clearMemberOverrides(list, 'thinkingMode');
-        }
-        if (state.personaByChat[key] !== prev.personaByChat[key]) {
-          list = clearMemberOverrides(list, 'persona');
-        }
-        if (state.permissionModeByChat[key] !== prev.permissionModeByChat[key]) {
-          list = clearMemberOverrides(list, 'permissionMode');
-        }
-        if (list !== current.list) useNewThreadStore.getState().setMembers({ ...current, list });
-      }),
-    [],
   );
 
   const handleFileAttach = useCallback((action: SetStateAction<File[]>) => {
