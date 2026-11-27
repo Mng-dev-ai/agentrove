@@ -94,19 +94,11 @@ class ChannelMemberRead(BaseModel):
     display_name: str
 
 
-@with_config(ConfigDict(extra="allow"))
-class PermissionOption(TypedDict):
-    kind: str
-    name: str
-    option_id: str
-    permission_mode: str | None
-
-
 class ToolPermissionRequest(TypedDict):
     request_id: str
     tool_name: str
     tool_input: dict[str, Any]
-    options: list[PermissionOption]
+    options: list[dict[str, Any]]
 
 
 class ChannelPermissionRequest(TypedDict):

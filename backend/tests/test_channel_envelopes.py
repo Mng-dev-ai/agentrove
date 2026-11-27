@@ -36,6 +36,12 @@ CHANNEL_ENVELOPES: list[dict[str, Any]] = json.loads(
 ENVELOPE_KINDS = set(get_args(ChannelEnvelopeKind))
 ACTIVITY_NOTICES = {"asked", "completed"}
 MODEL_ID = "opencode:google-vertex/claude-sonnet-4-6@default"
+UNLABELLED_OPTION = {
+    "kind": "allow_once",
+    "name": None,
+    "option_id": None,
+    "permission_mode": None,
+}
 
 
 class PublishedEnvelopes:
@@ -179,9 +185,14 @@ async def test_rest_catch_up_returns_the_fixture_payloads_unchanged(
     state = channel_engine.states[UUID(created.json()["id"])]
     state.paused = True
     request = fixture_payload("channel_permission_request")
+    unlabelled = request | {
+        "request": request["request"]
+        | {"request_id": "perm-2", "options": [UNLABELLED_OPTION]}
+    }
     activity = fixture_payload("channel_member_activity")
     monkeypatch.setattr(state_module, "ACTIVITY_EPOCH", activity["epoch"])
-    state.permissions[(uuid4(), request["request"]["request_id"])] = request
+    for pending in (request, unlabelled):
+        state.permissions[(uuid4(), pending["request"]["request_id"])] = pending
     state.activity_version = activity["version"]
     state.waiting_member_ids = activity["waiting_member_ids"]
     state.elicitation_requests = activity["elicitations"]
@@ -191,5 +202,7 @@ async def test_rest_catch_up_returns_the_fixture_payloads_unchanged(
     permissions = await client.get(f"{base}/permissions", headers=headers)
     member_activity = await client.get(f"{base}/member-activity", headers=headers)
 
-    assert permissions.text == json.dumps([request], separators=(",", ":"))
+    assert permissions.text == json.dumps(
+        [request, unlabelled], separators=(",", ":")
+    )
     assert member_activity.text == json.dumps(activity, separators=(",", ":"))
