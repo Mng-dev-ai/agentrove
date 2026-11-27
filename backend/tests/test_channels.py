@@ -1698,11 +1698,15 @@ async def test_first_post_with_generate_title_names_the_channel_and_announces_it
     chat_ids = [member.chat_id for member in channel_state.channel.members]
     entry = event_of("channel_renamed")
     prompts: list[str] = []
+    title_chat_ids: list[UUID | None] = []
     posted_at: list[str] = []
     chat_events: list[tuple[UUID, dict[str, Any]]] = []
 
-    async def generate_title(_self: AgentService, prompt: str, *_: Any) -> str:
+    async def generate_title(
+        _self: AgentService, prompt: str, _user: User, chat: Chat | None = None
+    ) -> str:
         prompts.append(prompt)
+        title_chat_ids.append(chat and chat.id)
         posted_at.append((await client.get(base, headers=headers)).json()["updated_at"])
         title: str = entry["name"]
         return title
@@ -1723,6 +1727,7 @@ async def test_first_post_with_generate_title_names_the_channel_and_announces_it
 
     after = (await client.get(base, headers=headers)).json()
     assert prompts == ["Plan the release"]
+    assert title_chat_ids == [channel_service.anchor_chat_id(channel_state.channel)]
     assert channel_state.channel.name == after["name"] == entry["name"]
     assert [after["updated_at"]] == posted_at
     assert list(

@@ -48,6 +48,7 @@ from app.services.storage import StorageService
 from app.services.chat import SEARCH_MAX_ROWS, ChatService
 from app.services.chat_events import ChatEventPublisher
 from app.services.db import BaseDbService
+from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
 
 NEWCOMER_HISTORY = 20
@@ -462,12 +463,17 @@ class ChannelService(BaseDbService[Channel]):
         )
         self._name_tasks.add(task)
         task.add_done_callback(self._name_tasks.discard)
+        task.add_done_callback(self.engine.task_done)
 
     async def _generate_name(self, state: ChannelState, content: str) -> None:
         channel = state.channel
         original = channel.name
+        try:
+            chat = await self.anchor_chat(channel)
+        except ChatException:
+            return
         name = await AgentService(self.session_factory).generate_title(
-            content, User(id=channel.user_id)
+            content, User(id=channel.user_id), chat=chat
         )
         if not name:
             return
