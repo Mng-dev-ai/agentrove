@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FieldMessage } from '@/components/ui/primitives/FieldMessage/FieldMessage';
-import { useUIStore } from '@/store/uiStore';
+import { selectAppliedTheme, useUIStore } from '@/store/uiStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
 import styles from './Mermaid.module.scss';
 
@@ -94,7 +94,7 @@ const sanitizeSvg = async (svg: string): Promise<string> => {
 };
 
 export function Mermaid({ content }: MermaidProps) {
-  const palette = useUIStore((state) => state.theme);
+  const palette = useUIStore(selectAppliedTheme);
   const resolvedTheme = useResolvedTheme();
   const [showPreview, setShowPreview] = useState(true);
   const [state, setState] = useState<RenderState>({ status: 'idle' });

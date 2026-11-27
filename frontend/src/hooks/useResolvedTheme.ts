@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react';
-import { useUIStore } from '@/store/uiStore';
+import { selectAppliedTheme, useUIStore } from '@/store/uiStore';
 import { DARK_PALETTES } from '@/utils/theme';
 import type { ResolvedTheme } from '@/types/ui.types';
 
@@ -34,7 +34,7 @@ function getServerSnapshot(): boolean {
 }
 
 export function useResolvedTheme(): ResolvedTheme {
-  const theme = useUIStore((state) => state.theme);
+  const theme = useUIStore(selectAppliedTheme);
   const prefersDark = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (theme === 'system') {

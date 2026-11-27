@@ -17,6 +17,7 @@ beforeEach(() => {
   localStorage.clear();
   useUIStore.setState({
     theme: 'dark',
+    themePreview: null,
     sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
     openTabs: ['agent:primary'],
     visibleLayout: [['agent:primary']],
@@ -438,6 +439,16 @@ describe('split chat', () => {
     expect(state().visibleLayout).toEqual([['agent:primary']]);
     expect(state().activeAgentTile).toBe('agent:primary');
     expect(state().pendingFileOpen).toBeNull();
+  });
+});
+
+describe('setThemePreview', () => {
+  it('keeps the preview out of the persisted slice', () => {
+    state().setTheme('nord');
+    state().setThemePreview('dracula');
+    const persisted = JSON.parse(localStorage.getItem('ui-storage') ?? '{}').state;
+    expect(persisted.theme).toBe('nord');
+    expect(persisted).not.toHaveProperty('themePreview');
   });
 });
 

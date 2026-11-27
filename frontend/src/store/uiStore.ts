@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
+  Theme,
   ThemeState,
   UIState,
   UIActions,
@@ -283,6 +284,10 @@ type SessionPanelState = Pick<
   'sessionPanelOpen' | 'splitSessionPanelChatIds' | 'splitChatIds'
 >;
 
+export function selectAppliedTheme(state: ThemeState): Theme {
+  return state.themePreview ?? state.theme;
+}
+
 export function sessionPanelOpenFor(state: SessionPanelState, agentTile: AgentTileId): boolean {
   const slot = splitSlotOfTile(agentTile);
   if (!slot) return state.sessionPanelOpen;
@@ -333,6 +338,8 @@ export const useUIStore = create<UIStoreState>()(
           return { theme: THEME_CYCLE[(i + 1) % THEME_CYCLE.length] };
         }),
       setTheme: (theme) => set({ theme }),
+      themePreview: null,
+      setThemePreview: (themePreview) => set({ themePreview }),
       sidebarOpen: getInitialSidebarState(),
       setSidebarOpen: (isOpen) => set({ sidebarOpen: isOpen }),
       sidebarWidth: DEFAULT_SIDEBAR_WIDTH,

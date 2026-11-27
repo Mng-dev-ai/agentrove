@@ -1,12 +1,12 @@
 import { useCallback } from 'react';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
-import { useUIStore } from '@/store/uiStore';
+import { selectAppliedTheme, useUIStore } from '@/store/uiStore';
 import { THEME_DATA } from '@/styles/editorThemes';
 import type { Palette } from '@/types/ui.types';
 
 export function useEditorTheme() {
   const resolvedTheme = useResolvedTheme();
-  const rawTheme = useUIStore((s) => s.theme);
+  const rawTheme = useUIStore(selectAppliedTheme);
   const palette: Palette = rawTheme === 'system' ? resolvedTheme : rawTheme;
   const themeName = `custom-${palette}`;
 

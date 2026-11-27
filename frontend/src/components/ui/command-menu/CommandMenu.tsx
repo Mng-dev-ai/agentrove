@@ -181,7 +181,7 @@ export function CommandMenu() {
               {mode === 'branches'
                 ? '↵ Switch branch · Esc to close'
                 : mode === 'themes'
-                  ? '↵ Set theme · Esc to close'
+                  ? '↑↓ Preview · ↵ Set theme · Esc to close'
                   : isPanelMode(mode)
                     ? `${modKey}[ or ${modKey}] change filter · Esc to close`
                     : `↑↓ Select · ↵ Open · ${modKey}[ or ${modKey}] change filter · Esc to close`}
