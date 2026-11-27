@@ -21,6 +21,7 @@ import type {
   PermissionRequest,
 } from '@/types/chat.types';
 import type { QueueProcessingData, StreamEnvelope, StreamState } from '@/types/stream.types';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { useMessageCache } from '@/hooks/useMessageCache';
 import { streamService } from '@/services/streamService';
 import type { StreamOptions } from '@/services/streamService';
@@ -461,7 +462,9 @@ export function useStreamCallbacks({
       }
 
       // Off-screen completions would leave search stale for up to staleTime.
-      queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.machine.chatsSearchAll(LOCAL_MACHINE_ID),
+      });
 
       // Server mutates title/updated_at/context during the turn — refresh even if off-screen.
       if (targetChatId) {
@@ -521,8 +524,12 @@ export function useStreamCallbacks({
 
       if (chatId) {
         if (currentChat?.parent_chat_id) {
-          queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
-          queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
+          });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.machine.workspaces(LOCAL_MACHINE_ID),
+          });
         }
         // Aggregation is a post-stream background task — wait before refetch.
         timerIdsRef.current.push(

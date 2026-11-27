@@ -15,8 +15,7 @@ type SettingsWrite =
   | { update: (settings: UserSettings) => UserSettingsUpdate; read?: UserSettings };
 
 export const settingsQuery = (machineId: string) => ({
-  queryKey:
-    machineId === LOCAL_MACHINE_ID ? [queryKeys.settings] : queryKeys.machine.settings(machineId),
+  queryKey: queryKeys.machine.settings(machineId),
   queryFn: () => settingsService.getSettings(machineId),
   staleTime: 30_000,
   retry: retryTransientOnce,

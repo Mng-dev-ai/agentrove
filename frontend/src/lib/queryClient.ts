@@ -20,11 +20,12 @@ export const queryClient = new QueryClient({
 function shouldPersistQuery(query: Query): boolean {
   if (!defaultShouldDehydrateQuery(query)) return false;
   const key = query.queryKey;
-  if (key[0] === queryKeys.chats && key[1] === 'infinite') return true;
   if (key[0] === queryKeys.auth.user) return true;
-  if (key.length === 1 && key[0] === queryKeys.workspaces[0]) return true;
   if (key[0] === queryKeys.channelsAll[0] && key[1] !== LOCAL_MACHINE_ID) return true;
-  return key[0] === 'machine' && key[2] === 'chats' && key[3] === 'page';
+  if (key[0] !== 'machine') return false;
+  if (key[1] === LOCAL_MACHINE_ID && key[2] === 'workspaces' && key.length === 3) return true;
+  if (key[1] === LOCAL_MACHINE_ID && key[2] === 'chats' && key[3] === 'infinite') return true;
+  return key[2] === 'chats' && key[3] === 'page';
 }
 
 export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
@@ -33,6 +34,6 @@ export const persistOptions: Omit<PersistQueryClientOptions, 'queryClient'> = {
     key: 'agentrove-query-cache',
   }),
   dehydrateOptions: { shouldDehydrateQuery: shouldPersistQuery },
-  // Bump on response-shape changes. v2 purges v1 that briefly cached settings (secrets).
-  buster: 'v3',
+  // Bump on response-shape or key changes. v2 purges v1 that briefly cached settings (secrets).
+  buster: 'v4',
 };

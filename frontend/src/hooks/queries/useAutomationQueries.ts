@@ -13,11 +13,8 @@ import type {
   AutomationUpdateRequest,
 } from '@/types/automation.types';
 
-const automationsKey = (machineId: string) =>
-  machineId === LOCAL_MACHINE_ID ? queryKeys.automations : queryKeys.machine.automations(machineId);
-
 function invalidateAutomations(queryClient: QueryClient, machineId: string) {
-  void queryClient.invalidateQueries({ queryKey: automationsKey(machineId) });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.machine.automations(machineId) });
 }
 
 export interface MachineAutomation {
@@ -50,7 +47,7 @@ export const useAutomationsAcrossMachines = (
   );
   return useQueries({
     queries: [LOCAL_MACHINE_ID, ...remoteIds].map((machineId) => ({
-      queryKey: automationsKey(machineId),
+      queryKey: queryKeys.machine.automations(machineId),
       queryFn: () => automationService.listAutomations(machineId),
       staleTime: 30_000,
       retry: retryTransientOnce,
@@ -98,9 +95,7 @@ export const useRunAutomationMutation = createMutation<
     void queryClient.invalidateQueries({
       queryKey: data.channel_id
         ? queryKeys.channels(variables.machineId)
-        : variables.machineId === LOCAL_MACHINE_ID
-          ? [queryKeys.chats]
-          : queryKeys.machine.chats(variables.machineId),
+        : queryKeys.machine.chats(variables.machineId),
     });
   },
 );

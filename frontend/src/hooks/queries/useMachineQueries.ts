@@ -116,7 +116,7 @@ export const useMachineActiveStreamsQuery = (machineId: string, enabled: boolean
 export const useMachineChatsTotalQuery = (machineId: string, enabled: boolean) => {
   const online = useMachineOnline(machineId);
   return useQuery({
-    queryKey: [...queryKeys.machine.chats(machineId), 'total'] as const,
+    queryKey: queryKeys.machine.chatsTotal(machineId),
     queryFn: () => chatService.listChats(machineId, { page: 1, per_page: 1 }),
     select: (data) => data.total,
     enabled: enabled && online,

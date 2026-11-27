@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { permissionNotifyEvent, useBackgroundNotify } from './useBackgroundNotify';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { useUIStore } from '@/store/uiStore';
 import type { TileId } from '@/types/ui.types';
 import type { UserSettings } from '@/types/user.types';
@@ -39,7 +40,7 @@ function setRoute(path: string) {
 }
 
 function setNotificationSettings(over: Partial<UserSettings> = {}) {
-  queryClient.setQueryData([queryKeys.settings], {
+  queryClient.setQueryData(queryKeys.machine.settings(LOCAL_MACHINE_ID), {
     notifications_enabled: true,
     notify_permission_requests: true,
     notify_questions: true,

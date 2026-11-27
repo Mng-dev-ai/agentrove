@@ -13,14 +13,18 @@ function successfulQuery(key: readonly unknown[]): Query {
 
 describe('shouldPersistQuery', () => {
   it.each([
-    ['the infinite chats list', ['chats', 'infinite'], true],
+    ['the infinite chats list', ['machine', 'local', 'chats', 'infinite'], true],
     ['the auth user', ['auth-user'], true],
-    ['the top-level workspaces list', ['workspaces'], true],
+    ['the top-level workspaces list', ['machine', 'local', 'workspaces'], true],
     ['a machine chat page', ['machine', 'm1', 'chats', 'page', 1], true],
     ['machine settings', ['machine', 'm1', 'settings'], false],
     ['messages', ['messages', 'chat-1'], false],
-    ['settings, which carry secrets', ['settings'], false],
-    ['a nested workspaces resource', ['workspaces', 'ws-1', 'resources', 'chat-1'], false],
+    ['settings, which carry secrets', ['machine', 'local', 'settings'], false],
+    [
+      'a nested workspaces resource',
+      ['machine', 'local', 'workspaces', 'ws-1', 'resources'],
+      false,
+    ],
   ])('%s → %s', (_label, key, expected) => {
     expect(shouldPersist(successfulQuery(key))).toBe(expected);
   });

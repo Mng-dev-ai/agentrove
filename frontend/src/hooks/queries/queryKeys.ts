@@ -2,10 +2,7 @@ import type { PullRequestFilters } from '@/types/github.types';
 import type { DiffMode } from '@/types/sandbox.types';
 
 export const queryKeys = {
-  chats: 'chats',
-  chatsSearch: (query: string) => ['chats', 'search', query] as const,
-  chatsSearchAll: ['chats', 'search'] as const,
-  chatsRecent: ['chats', 'recent'] as const,
+  chatAll: ['chat'] as const,
   chat: (chatId?: string) => ['chat', chatId] as const,
   messages: (chatId?: string) => ['messages', chatId] as const,
   messageRender: (messageId: string) => ['message-render', messageId] as const,
@@ -14,7 +11,6 @@ export const queryKeys = {
   auth: {
     user: 'auth-user',
   },
-  settings: 'settings',
   sandbox: {
     fileContent: (sandboxId?: string, filePath?: string) =>
       ['sandbox', sandboxId, 'file-content', filePath] as const,
@@ -68,8 +64,6 @@ export const queryKeys = {
         exclude,
       ] as const,
   },
-  workspaces: ['workspaces'] as const,
-  workspaceResources: (workspaceId?: string) => ['workspaces', workspaceId, 'resources'] as const,
   machine: {
     all: (machineId: string) => ['machine', machineId] as const,
     instance: (machineId: string) => ['machine', machineId, 'instance'] as const,
@@ -79,11 +73,20 @@ export const queryKeys = {
     settings: (machineId: string) => ['machine', machineId, 'settings'] as const,
     models: (machineId: string) => ['machine', machineId, 'models'] as const,
     chats: (machineId: string) => ['machine', machineId, 'chats'] as const,
+    chatsInfiniteAll: (machineId: string) => ['machine', machineId, 'chats', 'infinite'] as const,
+    chatsInfinite: (
+      machineId: string,
+      perPage: number,
+      workspaceId: string,
+      pinned: boolean | null,
+    ) => ['machine', machineId, 'chats', 'infinite', perPage, workspaceId, pinned] as const,
+    chatsRecent: (machineId: string) => ['machine', machineId, 'chats', 'recent'] as const,
     chatsSearch: (machineId: string, query: string) =>
       ['machine', machineId, 'chats', 'search', query] as const,
     chatsSearchAll: (machineId: string) => ['machine', machineId, 'chats', 'search'] as const,
     chatsPage: (machineId: string, page: number) =>
       ['machine', machineId, 'chats', 'page', page] as const,
+    chatsTotal: (machineId: string) => ['machine', machineId, 'chats', 'total'] as const,
     activeStreams: (machineId: string) => ['machine', machineId, 'active-streams'] as const,
     automations: (machineId: string) => ['machine', machineId, 'automations'] as const,
     memories: (machineId: string, workspaceId: string | null) =>
@@ -92,16 +95,12 @@ export const queryKeys = {
     inbox: (machineId: string) => ['machine', machineId, 'inbox'] as const,
     rateLimits: (machineId: string) => ['machine', machineId, 'rate-limits'] as const,
   },
-  inbox: ['inbox'] as const,
-  memories: (workspaceId: string | null) => ['memories', workspaceId] as const,
-  memoriesAll: ['memories'] as const,
-  automations: ['automations'] as const,
   channels: (machineId: string) => ['channels', machineId] as const,
   channelsAll: ['channels'] as const,
+  channelAll: ['channel'] as const,
   channel: (channelId?: string) => ['channel', channelId] as const,
   channelMessageActivity: (channelId: string, messageId: string) =>
     ['channel', channelId, 'activity', messageId] as const,
-  models: 'models',
   devices: ['devices'] as const,
   github: {
     repos: (query: string) => ['github-repos', query] as const,

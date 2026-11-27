@@ -16,13 +16,10 @@ import { queryKeys } from './queryKeys';
 
 const EMPTY_WORKSPACES: Workspace[] = [];
 
-const workspacesKey = (machineId: string) =>
-  machineId === LOCAL_MACHINE_ID ? queryKeys.workspaces : queryKeys.machine.workspaces(machineId);
-
 const selectWorkspaces = (data: PaginatedResponse<Workspace>) => data.items;
 
 export const workspacesQuery = (machineId: string) => ({
-  queryKey: workspacesKey(machineId),
+  queryKey: queryKeys.machine.workspaces(machineId),
   queryFn: () => workspaceService.listWorkspaces(machineId),
   select: selectWorkspaces,
   staleTime: 30_000,
@@ -47,10 +44,7 @@ export const useWorkspaceResourcesQuery = (
 ) => {
   const online = useMachineOnline(machineId);
   return useQuery({
-    queryKey:
-      machineId === LOCAL_MACHINE_ID
-        ? queryKeys.workspaceResources(workspaceId)
-        : queryKeys.machine.workspaceResources(machineId, workspaceId),
+    queryKey: queryKeys.machine.workspaceResources(machineId, workspaceId),
     queryFn: () => workspaceService.getWorkspaceResources(machineId, workspaceId!),
     enabled: enabled && online && !!workspaceId,
     staleTime: 30_000,
@@ -60,7 +54,7 @@ export const useWorkspaceResourcesQuery = (
 export const useCreateWorkspaceMutation = createMutation<Workspace, Error, CreateWorkspaceRequest>(
   (data) => workspaceService.createWorkspace(data),
   (queryClient) => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(LOCAL_MACHINE_ID) });
   },
 );
 
@@ -72,15 +66,10 @@ export const useUpdateWorkspaceMutation = createMutation<
   ({ machineId, workspaceId, data }) =>
     workspaceService.updateWorkspace(machineId, workspaceId, data),
   (queryClient, _data, { machineId }) => {
-    queryClient.invalidateQueries({ queryKey: workspacesKey(machineId) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(machineId) });
     // Search results embed workspace_name, so a rename leaves a stale label
     // visible until the search query naturally refetches.
-    queryClient.invalidateQueries({
-      queryKey:
-        machineId === LOCAL_MACHINE_ID
-          ? queryKeys.chatsSearchAll
-          : queryKeys.machine.chatsSearchAll(machineId),
-    });
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.chatsSearchAll(machineId) });
   },
 );
 
@@ -91,7 +80,7 @@ export const useDeleteWorkspaceMutation = createMutation<
 >(
   ({ machineId, workspaceId }) => workspaceService.deleteWorkspace(machineId, workspaceId),
   async (queryClient, _data, { machineId, workspaceId }) => {
-    const allCachedChats = queryClient.getQueriesData<Chat>({ queryKey: ['chat'] });
+    const allCachedChats = queryClient.getQueriesData<Chat>({ queryKey: queryKeys.chatAll });
     for (const [, chat] of allCachedChats) {
       if (chat?.workspace_id === workspaceId) {
         queryClient.removeQueries({ queryKey: queryKeys.chat(chat.id) });
@@ -101,7 +90,7 @@ export const useDeleteWorkspaceMutation = createMutation<
       }
     }
 
-    const cachedChannels = queryClient.getQueriesData<Channel>({ queryKey: ['channel'] });
+    const cachedChannels = queryClient.getQueriesData<Channel>({ queryKey: queryKeys.channelAll });
     for (const [, channel] of cachedChannels) {
       if (channel?.workspace_id === workspaceId) {
         queryClient.removeQueries({ queryKey: queryKeys.channel(channel.id) });
@@ -110,11 +99,8 @@ export const useDeleteWorkspaceMutation = createMutation<
     }
 
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: workspacesKey(machineId) }),
-      queryClient.invalidateQueries({
-        queryKey:
-          machineId === LOCAL_MACHINE_ID ? [queryKeys.chats] : queryKeys.machine.chats(machineId),
-      }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(machineId) }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(machineId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll }),
     ]);
   },

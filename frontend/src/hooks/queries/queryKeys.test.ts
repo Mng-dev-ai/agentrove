@@ -8,7 +8,12 @@ const SB = 'sb1';
 
 // [xAll name, prefixKey, fullKey]
 const CONTRACT: ReadonlyArray<readonly [string, readonly unknown[], readonly unknown[]]> = [
-  ['chatsSearchAll', queryKeys.chatsSearchAll, queryKeys.chatsSearch('q')],
+  ['chatAll', queryKeys.chatAll, queryKeys.chat('c1')],
+  [
+    'chatsInfiniteAll',
+    queryKeys.machine.chatsInfiniteAll('m1'),
+    queryKeys.machine.chatsInfinite('m1', 25, 'all', null),
+  ],
   [
     'chatsSearchAll',
     queryKeys.machine.chatsSearchAll('m1'),
@@ -42,7 +47,7 @@ const CONTRACT: ReadonlyArray<readonly [string, readonly unknown[], readonly unk
   ],
   ['pullsAll', queryKeys.github.pullsAll('o', 'r', 'c'), queryKeys.github.pulls('o', 'r', 'c')],
   ['channelsAll', queryKeys.channelsAll, queryKeys.channels('m1')],
-  ['memoriesAll', queryKeys.memoriesAll, queryKeys.memories('ws1')],
+  ['channelAll', queryKeys.channelAll, queryKeys.channel('ch1')],
   ['memoriesAll', queryKeys.machine.memoriesAll('m1'), queryKeys.machine.memories('m1', 'ws1')],
 ];
 

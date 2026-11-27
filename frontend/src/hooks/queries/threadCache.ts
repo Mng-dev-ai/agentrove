@@ -1,6 +1,7 @@
 import type { InfiniteData, Query, QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import type { PaginatedChats } from '@/types/api.types';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Channel } from '@/types/channel.types';
 import type { LastThread } from '@/types/ui.types';
 
@@ -28,7 +29,7 @@ export function evictThread(queryClient: QueryClient, { kind, id }: LastThread):
     return;
   }
   queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
-    { queryKey: [queryKeys.chats, 'infinite'] },
+    { queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID) },
     (data) =>
       data?.pages.some((page) => hasChat(page, id))
         ? { ...data, pages: data.pages.map((page) => withoutChat(page, id)) }

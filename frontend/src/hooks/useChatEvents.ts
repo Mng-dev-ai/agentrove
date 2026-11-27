@@ -26,8 +26,12 @@ export function useChatEvents(options?: { enabled?: boolean }) {
         );
       },
       invalidateChatLists: () => {
-        void queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
-        void queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.machine.workspaces(LOCAL_MACHINE_ID),
+        });
       },
       // patchChatInCache already renamed every local list.
       invalidateRenamedChatLists: () => {},
