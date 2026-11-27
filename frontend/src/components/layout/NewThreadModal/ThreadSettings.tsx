@@ -177,7 +177,8 @@ export function ThreadSettings({
   const drafts = members.map((member) => groupMemberDraft(member, shared));
   const names = resolveMemberNames(drafts, models);
   const isGroup = members.length > 1;
-  const mixed = mixedMemberSettings(members, shared);
+  // A lone agent runs on the shared settings, so nothing reads as mixed
+  const mixed = mixedMemberSettings(isGroup ? members : [], shared);
   const personaOptions = getPersonaOptions(personas);
 
   // Shared settings follow the first agent that supports each one
@@ -219,7 +220,7 @@ export function ThreadSettings({
           options={getThinkingModesForAgent(thinkingModel.agent_kind, thinkingModel)}
           value={sharedEffort.value}
           valueLabel={sharedEffort.label}
-          isMixed={isGroup && mixed.thinkingMode}
+          isMixed={mixed.thinkingMode}
           onPick={(value) => setShared('thinkingMode', { thinkingMode: value })}
         />
       )}
@@ -229,7 +230,7 @@ export function ThreadSettings({
           options={personaOptions}
           value={sharedPersona.value}
           valueLabel={sharedPersona.label}
-          isMixed={isGroup && mixed.persona}
+          isMixed={mixed.persona}
           onPick={(value) => setShared('persona', { persona: value })}
         />
       )}
@@ -239,7 +240,7 @@ export function ThreadSettings({
           options={permissionOptions(first.agent_kind)}
           value={getPermissionModeOption(shared.permissionMode, first.agent_kind).value}
           valueLabel={getPermissionModeOption(shared.permissionMode, first.agent_kind).label}
-          isMixed={isGroup && mixed.permissionMode}
+          isMixed={mixed.permissionMode}
           onPick={(value) => setShared('permissionMode', { permissionMode: value })}
         />
       )}

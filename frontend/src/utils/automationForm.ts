@@ -94,15 +94,31 @@ export function isChannelForm(form: AutomationForm): boolean {
   return form.agents.length > 1 || form.singleMemberChannel;
 }
 
+// Every change to the agent list goes through here: a group clears the one-member-channel
+// flag, and one agent takes its own effective settings as the shared ones.
+export function withAgents(form: AutomationForm, agents: GroupMember[]): AutomationForm {
+  if (agents.length > 1) return { ...form, agents, singleMemberChannel: false };
+  const [agent] = agents;
+  return {
+    ...form,
+    agents: [{ ...agent, overrides: {} }],
+    shared: { ...form.shared, ...agent.overrides },
+  };
+}
+
 export function automationRequest(
   form: AutomationForm,
   models: Model[],
   personas: Persona[],
   enabled: boolean,
 ): AutomationCreateRequest {
-  // A channel run ignores the top-level agent fields; they follow the first agent so the
-  // backend's model check on create passes.
-  const modelId = form.agents[0].modelId;
+  const members = isChannelForm(form)
+    ? groupMemberRequests(form.agents, form.shared, models, personas).requests
+    : null;
+  // A channel run ignores the top-level agent fields; they follow the first member as sent,
+  // so the backend's model check on create passes. A chat's model is never resolved here:
+  // the dialog only reseeds it where a swap can't be silent.
+  const modelId = members ? members[0].model_id : form.agents[0].modelId;
   // Coerce raw form settings to the model's agent, same as normal sends — a stale mode
   // from another agent family would fail at run time.
   const agentFields = buildAgentChatFields(
@@ -130,8 +146,6 @@ export function automationRequest(
     worktree: agentFields.worktree ?? false,
     selected_persona_name: agentFields.selected_persona_name,
     enabled,
-    channel_members: isChannelForm(form)
-      ? groupMemberRequests(form.agents, form.shared, models, personas).requests
-      : null,
+    channel_members: members,
   };
 }

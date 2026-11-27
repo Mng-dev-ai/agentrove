@@ -45,6 +45,7 @@ interface AutomationEditDialogProps {
   onClose: () => void;
   onSubmit: () => void;
   onChange: <K extends keyof AutomationForm>(field: K, value: AutomationForm[K]) => void;
+  onAgentsChange: (agents: GroupMember[]) => void;
 }
 
 export function AutomationEditDialog({
@@ -59,6 +60,7 @@ export function AutomationEditDialog({
   onClose,
   onSubmit,
   onChange,
+  onAgentsChange,
 }: AutomationEditDialogProps) {
   const { data: models = [] } = useModelsQuery({ machineId: form.machineId });
   const isLocal = form.machineId === LOCAL_MACHINE_ID;
@@ -81,9 +83,9 @@ export function AutomationEditDialog({
   useEffect(() => {
     if (isChannel || (isEditing && !isLocal)) return;
     if (models.length > 0 && !models.some((m) => m.model_id === firstAgent.modelId)) {
-      onChange('agents', [patchGroupMember(firstAgent, { modelId: models[0].model_id })]);
+      onAgentsChange([patchGroupMember(firstAgent, { modelId: models[0].model_id })]);
     }
-  }, [models, firstAgent, isChannel, isLocal, isEditing, onChange]);
+  }, [models, firstAgent, isChannel, isLocal, isEditing, onAgentsChange]);
 
   // Workspace only exists on one machine; re-seed on machine change. No remote-edit
   // guard — workspaces come from the owning machine, so missing id means deleted.
@@ -93,10 +95,6 @@ export function AutomationEditDialog({
     }
   }, [workspaces, form.workspace_id, onChange]);
 
-  const setAgents = (agents: GroupMember[]) => {
-    onChange('agents', agents);
-    if (agents.length > 1) onChange('singleMemberChannel', false);
-  };
   const agentsHint =
     form.agents.length > 1
       ? `Each run starts a new group thread with these ${form.agents.length} agents.`
@@ -148,6 +146,8 @@ export function AutomationEditDialog({
                   onChange={(e) => {
                     onChange('machineId', e.target.value);
                     onChange('workspace_id', '');
+                    // Models are per machine: start over from its default single agent
+                    onAgentsChange([newGroupMember('')]);
                   }}
                   className={styles.select}
                   aria-label="Machine"
@@ -189,17 +189,19 @@ export function AutomationEditDialog({
               <ModelSelector
                 machineId={form.machineId}
                 selectedModelId={firstAgent.modelId}
-                onModelChange={(modelId) => setAgents([patchGroupMember(firstAgent, { modelId })])}
+                onModelChange={(modelId) =>
+                  onAgentsChange([patchGroupMember(firstAgent, { modelId })])
+                }
                 dropdownPosition="bottom"
                 compact={false}
                 variant="field"
                 agents={{
                   modelIds: form.agents.map((agent) => agent.modelId),
-                  onAdd: (modelId) => setAgents([...form.agents, newGroupMember(modelId)]),
+                  onAdd: (modelId) => onAgentsChange([...form.agents, newGroupMember(modelId)]),
                   onRemove: (modelId) => {
                     const index = form.agents.map((agent) => agent.modelId).lastIndexOf(modelId);
                     if (form.agents.length > 1)
-                      setAgents(form.agents.filter((_, i) => i !== index));
+                      onAgentsChange(form.agents.filter((_, i) => i !== index));
                   },
                 }}
               />
@@ -210,7 +212,7 @@ export function AutomationEditDialog({
                 personas={personas}
                 disabled={false}
                 variant="field"
-                onChange={setAgents}
+                onChange={onAgentsChange}
                 onSharedChange={(patch) => onChange('shared', { ...form.shared, ...patch })}
               />
             </div>

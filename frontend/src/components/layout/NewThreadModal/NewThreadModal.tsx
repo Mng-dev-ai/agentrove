@@ -199,9 +199,18 @@ function NewThreadDialog() {
   );
   const setMembers = useCallback(
     (list: GroupMember[]) => {
-      useNewThreadStore.getState().setMembers({ machineId: targetMachineId, list });
-      // One member is the chat flow, whose model is the persisted default
-      if (list.length === 1) selectModel(list[0].modelId);
+      // One member is the chat flow, whose model and settings are the persisted defaults:
+      // a group shrinking to one keeps what that agent had by making it the defaults.
+      if (list.length > 1) {
+        useNewThreadStore.getState().setMembers({ machineId: targetMachineId, list });
+        return;
+      }
+      const [member] = list;
+      setDefaultSettings(member.overrides);
+      selectModel(member.modelId);
+      useNewThreadStore
+        .getState()
+        .setMembers({ machineId: targetMachineId, list: [{ ...member, overrides: {} }] });
     },
     [targetMachineId, selectModel],
   );

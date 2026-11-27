@@ -21,7 +21,13 @@ import {
 } from '@/hooks/queries/useAutomationQueries';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { describeCron } from '@/utils/automationSchedule';
-import { automationRequest, createDefaultForm, formFromAutomation } from '@/utils/automationForm';
+import {
+  automationRequest,
+  createDefaultForm,
+  formFromAutomation,
+  withAgents,
+} from '@/utils/automationForm';
+import type { GroupMember } from '@/components/channels/memberDraft';
 import { lazyNamed } from '@/utils/lazyNamed';
 import type {
   Automation,
@@ -116,6 +122,10 @@ export function AutomationsSettingsTab() {
     <K extends keyof AutomationForm>(field: K, value: AutomationForm[K]) => {
       setForm((prev) => ({ ...prev, [field]: value }));
     },
+    [],
+  );
+  const handleAgentsChange = useCallback(
+    (agents: GroupMember[]) => setForm((prev) => withAgents(prev, agents)),
     [],
   );
 
@@ -314,6 +324,7 @@ export function AutomationsSettingsTab() {
             onClose={() => setIsDialogOpen(false)}
             onSubmit={() => void handleSave()}
             onChange={handleFormChange}
+            onAgentsChange={handleAgentsChange}
           />
         </Suspense>
       )}
