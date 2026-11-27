@@ -28,6 +28,7 @@ import type { PaginatedChats } from '@/types/api.types';
 import { logger } from '@/utils/logger';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
+import { evictThread } from './threadCache';
 
 const CHATS_PER_PAGE = 25;
 const RECENT_CHATS_PER_PAGE = 100;
@@ -435,20 +436,7 @@ export const useDeleteChatMutation = createMutation<string[], Error, string>(
     return subThreadIds;
   },
   (queryClient, subThreadIds, chatId) => {
-    queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
-      { queryKey: [queryKeys.chats, 'infinite'] },
-      (oldData) => {
-        if (!oldData) return oldData;
-        return {
-          ...oldData,
-          pages: oldData.pages.map((page) => ({
-            ...page,
-            items: page.items.filter((chat) => chat.id !== chatId),
-            total: Math.max(0, page.total - 1),
-          })),
-        };
-      },
-    );
+    evictThread(queryClient, { kind: 'chat', id: chatId });
 
     // One pass: find parent if sub-thread, collect cached children if deleting a parent.
     let parentId = queryClient.getQueryData<Chat>(queryKeys.chat(chatId))?.parent_chat_id;
@@ -479,18 +467,6 @@ export const useDeleteChatMutation = createMutation<string[], Error, string>(
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
     queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
     queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
-    const machineId = chatMachineId(chatId);
-    if (machineId !== LOCAL_MACHINE_ID) {
-      queryClient.setQueriesData<PaginatedChats>(
-        { queryKey: queryKeys.machine.chatsPageAll(machineId) },
-        (page) =>
-          page && {
-            ...page,
-            items: page.items.filter((chat) => chat.id !== chatId),
-            total: Math.max(0, page.total - 1),
-          },
-      );
-    }
     // After the last chatMachineId reader: forgetting drops the chat's origin.
     invalidateMachineChats(queryClient, chatId);
     forgetChat(chatId);

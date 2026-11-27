@@ -26,6 +26,7 @@ import {
   WorkspaceSurface,
   WorkspaceTile,
 } from '@/components/layout/WorkspaceSurface/WorkspaceSurface';
+import { evictThread } from '@/hooks/queries/threadCache';
 import { isNotFoundError } from '@/pages/HomePage/rootTarget';
 import { SubThreadDialog } from './SubThreadDialog';
 
@@ -43,11 +44,14 @@ export function ChatPage() {
   const { currentChat, chatError, fetchedMessages, hasFetchedMessages, messagesQuery } =
     useChatData(chatId);
 
-  // The record keeps the gone chat's id, so / skips it even while a stale list still has it
+  // Evicted from the lists before /, so / can't offer it again while they are stale
+  const queryClient = useQueryClient();
   const isChatGone = isNotFoundError(chatError);
   useEffect(() => {
-    if (isChatGone) navigate('/', { replace: true });
-  }, [isChatGone, navigate]);
+    if (!isChatGone || !chatId) return;
+    evictThread(queryClient, { kind: 'chat', id: chatId });
+    navigate('/', { replace: true });
+  }, [isChatGone, chatId, queryClient, navigate]);
 
   // Share AgentPane's chat-query cache; also drive split close-on-error.
   const splitQuery1 = useChatQuery(splitChatIds[0], {
@@ -121,7 +125,6 @@ export function ChatPage() {
     }
   }, [chatId, isMobile, splitChatIds, isWorkspaceLoaded]);
 
-  const queryClient = useQueryClient();
   // Marks seen (last_viewed_at + clears sidebar unread).
   useEffect(() => {
     if (chatId) void markChatViewed(queryClient, chatId);

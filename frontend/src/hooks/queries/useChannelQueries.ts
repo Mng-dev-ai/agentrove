@@ -10,6 +10,7 @@ import {
 } from '@tanstack/react-query';
 import { channelService } from '@/services/channelService';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { evictThread } from '@/hooks/queries/threadCache';
 import { createMutation } from '@/hooks/queries/createMutation';
 import { listLoadState, retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useChannelStore } from '@/store/channelStore';
@@ -179,10 +180,7 @@ export const useDeleteChannelMutation = createMutation<void, Error, string>(
     // The server deletes every chat of the channel; layout is keyed by the channel id.
     for (const id of [channelId, ...chatIds]) forgetChat(id);
     forgetChannelOrigin(channelId);
-    // Stripped now, so nothing picks the channel from a list before the refetch lands
-    queryClient.setQueriesData<Channel[]>({ queryKey: queryKeys.channelsAll }, (channels) =>
-      channels?.filter((cached) => cached.id !== channelId),
-    );
+    evictThread(queryClient, { kind: 'channel', id: channelId });
     return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
   },
 );

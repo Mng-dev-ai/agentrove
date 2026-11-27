@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { Sidebar } from '@/components/layout/Sidebar/Sidebar';
 import { useLayoutSidebar } from '@/components/layout/Layout/layoutState';
@@ -7,6 +8,7 @@ import { CommandMenu } from '@/components/ui/command-menu/CommandMenu';
 import { ChatProvider } from '@/contexts/ChatContext';
 import { useCommandMenu } from '@/hooks/useCommandMenu';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
+import { evictThread } from '@/hooks/queries/threadCache';
 import { useChannelQuery, useMachinesChannels } from '@/hooks/queries/useChannelQueries';
 import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
@@ -26,9 +28,16 @@ export function HomePage() {
   const { pinnedChats, recentChats, isLoadingChats, isLoadingPinned } =
     useSidebarChatLists(workspaces);
   const { machineChannels, isLoading: isLoadingChannels } = useMachinesChannels(true);
+  const lastThreadStatus = lastThread ? recordedThreadStatus(recordQuery) : 'gone';
+  // A recorded thread that answers 404 leaves the lists too, so a stale list can't send the
+  // user back to it after the fallback thread turns out to be gone as well
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (lastThread && lastThreadStatus === 'gone') evictThread(queryClient, lastThread);
+  }, [lastThread, lastThreadStatus, queryClient]);
   const target = resolveRootTarget({
     lastThread,
-    lastThreadStatus: lastThread ? recordedThreadStatus(recordQuery) : 'gone',
+    lastThreadStatus,
     chats: [...pinnedChats, ...recentChats],
     channels: machineChannels.map(({ channel }) => channel),
     isLoadingThreads: isLoadingChats || isLoadingPinned || isLoadingChannels,
