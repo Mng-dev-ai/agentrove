@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
-import { resolveRootTarget } from './rootTarget';
+import { recordedThreadStatus, resolveRootTarget } from './rootTarget';
 
 const chat = (id: string, updatedAt: string) => ({ id, updated_at: updatedAt }) as Chat;
 const channel = (id: string, updatedAt: string) => ({ id, updated_at: updatedAt }) as Channel;
@@ -11,6 +11,7 @@ const chats = [
   chat('gone-chat', '2026-07-03T10:00:00Z'),
 ];
 const channels = [channel('newest-channel', '2026-07-02T10:00:00Z')];
+const httpError = (status: number) => Object.assign(new Error('failed'), { status });
 
 describe('resolveRootTarget', () => {
   it('opens the recorded thread while it exists', () => {
@@ -73,5 +74,34 @@ describe('resolveRootTarget', () => {
         isLoadingThreads: false,
       }),
     ).toEqual({ kind: 'empty' });
+  });
+
+  it('opens the recorded thread when it fails with anything but a 404', () => {
+    for (const error of [new Error('Machine is not connected'), httpError(503)]) {
+      expect(
+        resolveRootTarget({
+          lastThread: { kind: 'chat', id: 'remote-chat' },
+          lastThreadStatus: recordedThreadStatus({ data: undefined, error }),
+          chats,
+          channels,
+          isLoadingThreads: false,
+        }),
+      ).toEqual({ kind: 'thread', path: '/chat/remote-chat' });
+    }
+  });
+
+  it('never opens a recorded thread that answers 404, even with stale data cached', () => {
+    expect(
+      resolveRootTarget({
+        lastThread: { kind: 'chat', id: 'gone-chat' },
+        lastThreadStatus: recordedThreadStatus({
+          data: chat('gone-chat', '2026-07-03T10:00:00Z'),
+          error: httpError(404),
+        }),
+        chats,
+        channels,
+        isLoadingThreads: false,
+      }),
+    ).toEqual({ kind: 'thread', path: '/channels/newest-channel' });
   });
 });

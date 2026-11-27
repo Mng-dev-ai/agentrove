@@ -26,6 +26,7 @@ import {
   WorkspaceSurface,
   WorkspaceTile,
 } from '@/components/layout/WorkspaceSurface/WorkspaceSurface';
+import { isNotFoundError } from '@/pages/HomePage/rootTarget';
 import { SubThreadDialog } from './SubThreadDialog';
 
 export function ChatPage() {
@@ -39,7 +40,14 @@ export function ChatPage() {
   const isMobile = useIsMobile();
   const isWorkspaceLoaded = useUIStore((s) => s.currentWorkspaceChatId === chatId);
 
-  const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
+  const { currentChat, chatError, fetchedMessages, hasFetchedMessages, messagesQuery } =
+    useChatData(chatId);
+
+  // The record keeps the gone chat's id, so / skips it even while a stale list still has it
+  const isChatGone = isNotFoundError(chatError);
+  useEffect(() => {
+    if (isChatGone) navigate('/', { replace: true });
+  }, [isChatGone, navigate]);
 
   // Share AgentPane's chat-query cache; also drive split close-on-error.
   const splitQuery1 = useChatQuery(splitChatIds[0], {

@@ -4,13 +4,25 @@ import type { LastThread } from '@/types/ui.types';
 
 export type RootTarget = { kind: 'loading' } | { kind: 'thread'; path: string } | { kind: 'empty' };
 
+type ThreadStatus = 'exists' | 'pending' | 'gone';
+
 interface RootTargetInput {
   lastThread: LastThread | null;
   // Whether the recorded thread still answers; 'gone' also covers no record
-  lastThreadStatus: 'exists' | 'pending' | 'gone';
+  lastThreadStatus: ThreadStatus;
   chats: Pick<Chat, 'id' | 'updated_at'>[];
   channels: Pick<Channel, 'id' | 'updated_at'>[];
   isLoadingThreads: boolean;
+}
+
+export const isNotFoundError = (error: unknown): boolean =>
+  (error as { status?: number } | null)?.status === 404;
+
+// Only a 404 means gone, and it outranks cached data. Any other error (a machine not yet
+// online, a 5xx) still opens the thread, whose page shows that state and recovers.
+export function recordedThreadStatus(query: { data: unknown; error: unknown }): ThreadStatus {
+  if (isNotFoundError(query.error)) return 'gone';
+  return query.data || query.error ? 'exists' : 'pending';
 }
 
 export function threadPath({ kind, id }: LastThread): string {

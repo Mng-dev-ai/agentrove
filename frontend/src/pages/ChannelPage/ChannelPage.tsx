@@ -21,6 +21,7 @@ import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { channelMachineId } from '@/store/machineOrigin';
 import { useOnlineRemoteMachineIds } from '@/store/machineStore';
+import { isNotFoundError } from '@/pages/HomePage/rootTarget';
 import type { Channel } from '@/types/channel.types';
 import type { TileId } from '@/types/ui.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -100,7 +101,7 @@ export function ChannelPage() {
   const channelWorkspaces = useWorkspacesList({ machineId: channelMachine });
   const onlineMachineIds = useOnlineRemoteMachineIds();
   const queryClient = useQueryClient();
-  const isChannelGone = (error as (Error & { status?: number }) | null)?.status === 404;
+  const isChannelGone = isNotFoundError(error);
 
   useEffect(() => {
     if (isChannelGone) navigate('/', { replace: true });

@@ -12,7 +12,7 @@ import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { useNewThreadStore } from '@/store/newThreadStore';
 import { useUIStore } from '@/store/uiStore';
-import { resolveRootTarget } from './rootTarget';
+import { recordedThreadStatus, resolveRootTarget } from './rootTarget';
 import styles from './HomePage.module.scss';
 
 export function HomePage() {
@@ -28,14 +28,7 @@ export function HomePage() {
   const { machineChannels, isLoading: isLoadingChannels } = useMachinesChannels(true);
   const target = resolveRootTarget({
     lastThread,
-    // An error outranks data: a cached channel list can seed a channel that now answers 404
-    lastThreadStatus: !lastThread
-      ? 'gone'
-      : recordQuery.isError
-        ? 'gone'
-        : recordQuery.data
-          ? 'exists'
-          : 'pending',
+    lastThreadStatus: lastThread ? recordedThreadStatus(recordQuery) : 'gone',
     chats: [...pinnedChats, ...recentChats],
     channels: machineChannels.map(({ channel }) => channel),
     isLoadingThreads: isLoadingChats || isLoadingPinned || isLoadingChannels,

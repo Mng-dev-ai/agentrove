@@ -179,6 +179,10 @@ export const useDeleteChannelMutation = createMutation<void, Error, string>(
     // The server deletes every chat of the channel; layout is keyed by the channel id.
     for (const id of [channelId, ...chatIds]) forgetChat(id);
     forgetChannelOrigin(channelId);
+    // Stripped now, so nothing picks the channel from a list before the refetch lands
+    queryClient.setQueriesData<Channel[]>({ queryKey: queryKeys.channelsAll }, (channels) =>
+      channels?.filter((cached) => cached.id !== channelId),
+    );
     return queryClient.invalidateQueries({ queryKey: queryKeys.channelsAll });
   },
 );
