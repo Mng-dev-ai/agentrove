@@ -15,6 +15,7 @@ export function useChatEvents(options?: { enabled?: boolean }) {
     if (!enabled) return;
 
     return subscribeChatEvents(queryClient, {
+      machineId: LOCAL_MACHINE_ID,
       logContext: 'useChatEvents',
       createSource: () => chatService.createChatEventsSource(LOCAL_MACHINE_ID),
       getActiveStreams: () => chatService.getActiveStreams(LOCAL_MACHINE_ID),

@@ -140,7 +140,8 @@ export type ChatEvent =
       selected_persona_name?: string;
       checkpoint_id: string | null;
     }
-  | { kind: 'title_updated'; chat_id: string; title: string };
+  | { kind: 'title_updated'; chat_id: string; title: string }
+  | { kind: 'channel_created'; channel_id: string; parent_chat_id: string | null };
 
 export interface ChatRequest {
   prompt: string;
