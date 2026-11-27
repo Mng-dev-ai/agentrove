@@ -84,7 +84,6 @@ export const queryKeys = {
     chatsSearchAll: (machineId: string) => ['machine', machineId, 'chats', 'search'] as const,
     chatsPage: (machineId: string, page: number) =>
       ['machine', machineId, 'chats', 'page', page] as const,
-    chatsPageAll: (machineId: string) => ['machine', machineId, 'chats', 'page'] as const,
     activeStreams: (machineId: string) => ['machine', machineId, 'active-streams'] as const,
     automations: (machineId: string) => ['machine', machineId, 'automations'] as const,
     memories: (machineId: string, workspaceId: string | null) =>

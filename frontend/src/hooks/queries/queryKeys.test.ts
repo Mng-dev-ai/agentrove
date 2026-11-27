@@ -14,7 +14,6 @@ const CONTRACT: ReadonlyArray<readonly [string, readonly unknown[], readonly unk
     queryKeys.machine.chatsSearchAll('m1'),
     queryKeys.machine.chatsSearch('m1', 'q'),
   ],
-  ['chatsPageAll', queryKeys.machine.chatsPageAll('m1'), queryKeys.machine.chatsPage('m1', 2)],
   ['fileContentAll', queryKeys.sandbox.fileContentAll(SB), queryKeys.sandbox.fileContent(SB, '/f')],
   [
     'filesMetadataAll',

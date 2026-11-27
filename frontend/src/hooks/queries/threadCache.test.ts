@@ -3,8 +3,6 @@
 import { QueryClient, type InfiniteData } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-import { useMachineStore } from '@/store/machineStore';
-import { assignChatsToMachine } from '@/store/machineOrigin';
 import type { PaginatedChats } from '@/types/api.types';
 import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
@@ -40,10 +38,6 @@ beforeEach(() => {
 
 describe('evictThread', () => {
   it('drops a gone chat or channel from every cached list and keeps the rest', () => {
-    useMachineStore.setState({
-      machines: [{ id: 'm1', name: 'VPS', url: 'https://vps.test', pairing: null }],
-    });
-    assignChatsToMachine('m1', ['remote-gone']);
     evictThread(queryClient, { kind: 'chat', id: 'local-gone' });
     evictThread(queryClient, { kind: 'chat', id: 'remote-gone' });
     evictThread(queryClient, { kind: 'channel', id: 'channel-gone' });
@@ -56,5 +50,11 @@ describe('evictThread', () => {
         .getQueryData<Channel[]>(queryKeys.channels(LOCAL_MACHINE_ID))
         ?.map((channel) => channel.id),
     ).toEqual(['channel-kept']);
+  });
+
+  it('drops a chat from a machine page without knowing which machine it came from', () => {
+    evictThread(queryClient, { kind: 'chat', id: 'remote-gone' });
+
+    expect(ids(queryClient.getQueryData<PaginatedChats>(remotePageKey))).toEqual(['remote-kept']);
   });
 });

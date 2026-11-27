@@ -1,10 +1,12 @@
-import type { InfiniteData, QueryClient } from '@tanstack/react-query';
+import type { InfiniteData, Query, QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/queryKeys';
-import { chatMachineId } from '@/store/machineOrigin';
 import type { PaginatedChats } from '@/types/api.types';
 import type { Channel } from '@/types/channel.types';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { LastThread } from '@/types/ui.types';
+
+// queryKeys.machine.chatsPage(<any machine>, <any page>)
+const isMachineChatsPage = ({ queryKey }: Query) =>
+  queryKey[0] === 'machine' && queryKey[2] === 'chats' && queryKey[3] === 'page';
 
 const hasChat = (page: PaginatedChats, chatId: string) =>
   page.items.some((chat) => chat.id === chatId);
@@ -32,11 +34,10 @@ export function evictThread(queryClient: QueryClient, { kind, id }: LastThread):
         ? { ...data, pages: data.pages.map((page) => withoutChat(page, id)) }
         : data,
   );
-  const machineId = chatMachineId(id);
-  if (machineId !== LOCAL_MACHINE_ID) {
-    queryClient.setQueriesData<PaginatedChats>(
-      { queryKey: queryKeys.machine.chatsPageAll(machineId) },
-      (page) => (page && hasChat(page, id) ? withoutChat(page, id) : page),
-    );
-  }
+  // Every machine's pages, not the chat's origin: a reload can restore persisted pages for
+  // a chat whose origin was already forgotten
+  queryClient.setQueriesData<PaginatedChats>(
+    { queryKey: ['machine'], predicate: isMachineChatsPage },
+    (page) => (page && hasChat(page, id) ? withoutChat(page, id) : page),
+  );
 }
