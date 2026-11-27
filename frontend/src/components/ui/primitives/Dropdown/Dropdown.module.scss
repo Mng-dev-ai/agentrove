@@ -36,33 +36,10 @@
 
 // triggerVariant="field" — full-width bordered control that matches the Select primitive
 .trigger-field {
-  @include type.type-default;
-  @include controls.focus-ring;
-  display: flex;
-  height: var(--space-8);
-  width: 100%;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-2);
-  border: 1px solid var(--theme-border);
-  border-radius: var(--radius-lg);
-  background-color: var(--theme-surface-tertiary);
-  padding-inline: var(--space-3);
-  text-align: left;
-  color: var(--theme-text-primary);
-  transition: border-color var(--duration-instant);
-
-  @include responsive.hover {
-    border-color: var(--theme-border-hover);
-  }
+  @include controls.field-trigger;
 
   &:global(.#{state.$state-open}) {
     border-color: var(--theme-border-hover);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
   }
 }
 

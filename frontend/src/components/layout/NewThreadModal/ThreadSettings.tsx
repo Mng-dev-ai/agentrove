@@ -8,11 +8,7 @@ import { useDropdown } from '@/hooks/useDropdown';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePanelFit, usePanelInlineShift } from '@/hooks/usePanelFit';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
-import {
-  useChatSettingsStore,
-  DEFAULT_CHAT_SETTINGS_KEY,
-  DEFAULT_PERSONA,
-} from '@/store/chatSettingsStore';
+import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
 import {
   getThinkingModeOption,
   getThinkingModesForAgent,
@@ -21,10 +17,7 @@ import {
   MODES_BY_AGENT,
   getPermissionModeOption,
 } from '@/components/chat/permission-mode-selector/permissionModes';
-import {
-  FAST_MODE_OPTIONS,
-  useFastModeOption,
-} from '@/components/chat/fast-mode-selector/fastModes';
+import { FAST_MODE_OPTIONS } from '@/components/chat/fast-mode-selector/fastModes';
 import {
   getPersonaOption,
   getPersonaOptions,
@@ -145,21 +138,28 @@ interface ThreadSettingsProps {
   shared: SharedMemberSettings;
   personas: Persona[];
   disabled: boolean;
+  variant: 'pill' | 'field';
   onChange: (members: GroupMember[]) => void;
+  onSharedChange: (patch: Partial<SharedMemberSettings>) => void;
+  // Shown for one agent when given; channel members take no fast mode
+  fastMode?: { value: boolean; onChange: (enabled: boolean) => void };
 }
 
-// The New thread modal's settings pill. One agent gets a plain list; a group gets a side
-// list of "All agents" (the shared settings) and each agent with its own overrides.
+// The settings control of the New thread modal and the automation dialog. One agent gets a
+// plain list; a group gets a side list of "All agents" (the shared settings) and each agent
+// with its own overrides.
 export function ThreadSettings({
   machineId,
   members,
   shared,
   personas,
   disabled,
+  variant,
   onChange,
+  onSharedChange,
+  fastMode,
 }: ThreadSettingsProps) {
   const { data: models = [] } = useModelsQuery({ machineId });
-  const fastMode = useFastModeOption(undefined);
   const isMobile = useIsMobile();
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -195,12 +195,11 @@ export function ThreadSettings({
     getThinkingModeOption(shared.thinkingMode, thinkingModel.agent_kind, thinkingModel);
   const sharedPersona = getPersonaOption(shared.persona, personaOptions);
 
-  // Clearing first, since the store ignores a pick that equals the current shared value
-  const setShared = (setting: MemberSetting, apply: () => void) => {
+  // Clearing first, since the modal's store ignores a pick that equals the current value
+  const setShared = (setting: MemberSetting, patch: Partial<SharedMemberSettings>) => {
     onChange(clearMemberOverrides(members, setting));
-    apply();
+    onSharedChange(patch);
   };
-  const store = useChatSettingsStore.getState();
 
   const effortPart = sharedEffort && (mixed.thinkingMode ? 'Mixed' : sharedEffort.label);
   const personaPart =
@@ -221,9 +220,7 @@ export function ThreadSettings({
           value={sharedEffort.value}
           valueLabel={sharedEffort.label}
           isMixed={isGroup && mixed.thinkingMode}
-          onPick={(value) =>
-            setShared('thinkingMode', () => store.setThinkingMode(DEFAULT_CHAT_SETTINGS_KEY, value))
-          }
+          onPick={(value) => setShared('thinkingMode', { thinkingMode: value })}
         />
       )}
       {personaModel && (
@@ -233,9 +230,7 @@ export function ThreadSettings({
           value={sharedPersona.value}
           valueLabel={sharedPersona.label}
           isMixed={isGroup && mixed.persona}
-          onPick={(value) =>
-            setShared('persona', () => store.setPersona(DEFAULT_CHAT_SETTINGS_KEY, value))
-          }
+          onPick={(value) => setShared('persona', { persona: value })}
         />
       )}
       {first && (
@@ -245,15 +240,10 @@ export function ThreadSettings({
           value={getPermissionModeOption(shared.permissionMode, first.agent_kind).value}
           valueLabel={getPermissionModeOption(shared.permissionMode, first.agent_kind).label}
           isMixed={isGroup && mixed.permissionMode}
-          onPick={(value) =>
-            setShared('permissionMode', () =>
-              store.setPermissionMode(DEFAULT_CHAT_SETTINGS_KEY, value),
-            )
-          }
+          onPick={(value) => setShared('permissionMode', { permissionMode: value })}
         />
       )}
-      {/* Channel members take no fast mode */}
-      {!isGroup && first && supportsFastMode(first, first.agent_kind) && (
+      {fastMode && !isGroup && first && supportsFastMode(first, first.agent_kind) && (
         <SettingRow
           label="Fast mode"
           options={FAST_MODE_OPTIONS.map((mode) => ({
@@ -261,8 +251,8 @@ export function ThreadSettings({
             label: mode.label,
           }))}
           value={String(fastMode.value)}
-          valueLabel={fastMode.label}
-          onPick={(value) => store.setFastMode(DEFAULT_CHAT_SETTINGS_KEY, value === 'true')}
+          valueLabel={FAST_MODE_OPTIONS[fastMode.value ? 1 : 0].label}
+          onPick={(value) => fastMode.onChange(value === 'true')}
         />
       )}
     </>
@@ -485,10 +475,17 @@ export function ThreadSettings({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label={`Settings${sharedSummary ? `: ${sharedSummary}` : ''}`}
-        className={styles.trigger}
+        className={styles[`trigger--${variant}`]}
       >
         <Settings2 aria-hidden />
-        {sharedSummary && <span className={styles['trigger-label']}>{sharedSummary}</span>}
+        {variant === 'field' ? (
+          <>
+            <span className={styles['trigger-label']}>{sharedSummary || 'Settings'}</span>
+            <ChevronDown aria-hidden className={styles['trigger-chevron']} />
+          </>
+        ) : (
+          sharedSummary && <span className={styles['trigger-label']}>{sharedSummary}</span>
+        )}
       </Button>
       {isOpen && !disabled && (
         <div

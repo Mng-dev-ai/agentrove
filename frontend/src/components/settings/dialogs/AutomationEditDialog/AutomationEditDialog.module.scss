@@ -1,5 +1,4 @@
 @use '@/styles/globals/typography' as type;
-@use '@/styles/globals/responsive' as responsive;
 
 .dialog {
   overflow: visible;
@@ -48,14 +47,10 @@
   gap: var(--space-2);
 }
 
-.field-row {
+.agents {
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  gap: var(--space-3);
-
-  @include responsive.media('sm-down') {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: var(--space-2);
 }
 
 .control-row {

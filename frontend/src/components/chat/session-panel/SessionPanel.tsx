@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import toast from 'react-hot-toast';
-import { MemberPopover } from '@/components/channels/MemberChips';
+import { MemberPopover } from '@/components/channels/MemberPopover';
 import {
   memberDraftFrom,
   memberRequest,

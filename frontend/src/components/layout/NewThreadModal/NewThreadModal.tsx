@@ -62,6 +62,7 @@ import {
 import { useWorkspacesList, useWorkspaceResourcesQuery } from '@/hooks/queries/useWorkspaceQueries';
 import { useFilesMetadataQuery, useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
 import { useModelSelection, useModelMap, useModelsQuery } from '@/hooks/queries/useModelQueries';
+import { useFastModeOption } from '@/components/chat/fast-mode-selector/fastModes';
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import { buildFileStructureFromSandboxFiles } from '@/utils/file';
@@ -73,6 +74,19 @@ const DEFAULT_MEMBER_KEY = 'default-member';
 // Base-branch intent is workspace-scoped, so switching workspace resets it.
 const clearDefaultWorktreeBase = () =>
   useChatSettingsStore.getState().setWorktreeBaseBranch(DEFAULT_CHAT_SETTINGS_KEY, undefined);
+
+// The modal's shared settings are the remembered toolbar defaults
+function setDefaultSettings(patch: Partial<SharedMemberSettings>) {
+  const store = useChatSettingsStore.getState();
+  if (patch.thinkingMode !== undefined)
+    store.setThinkingMode(DEFAULT_CHAT_SETTINGS_KEY, patch.thinkingMode);
+  if (patch.persona !== undefined) store.setPersona(DEFAULT_CHAT_SETTINGS_KEY, patch.persona);
+  if (patch.permissionMode !== undefined)
+    store.setPermissionMode(DEFAULT_CHAT_SETTINGS_KEY, patch.permissionMode);
+}
+
+const setDefaultFastMode = (enabled: boolean) =>
+  useChatSettingsStore.getState().setFastMode(DEFAULT_CHAT_SETTINGS_KEY, enabled);
 
 function threadTitle(prompt: string): string {
   return prompt.replace(/\s+/g, ' ').slice(0, 80);
@@ -178,6 +192,7 @@ function NewThreadDialog() {
   }, [storedMembers, targetMachineId, selectedModelId]);
   const isGroup = members.length > 1;
   const { thinkingMode, persona, permissionMode } = useChatSettings(undefined);
+  const fastMode = useFastModeOption(undefined);
   const shared = useMemo<SharedMemberSettings>(
     () => ({ thinkingMode, persona, permissionMode }),
     [thinkingMode, persona, permissionMode],
@@ -413,7 +428,10 @@ function NewThreadDialog() {
               shared={shared}
               personas={personas}
               disabled={isLoading}
+              variant="pill"
               onChange={setMembers}
+              onSharedChange={setDefaultSettings}
+              fastMode={{ value: fastMode.value, onChange: setDefaultFastMode }}
             />
           </NewThreadComposer>
         </InputProvider>

@@ -1,7 +1,7 @@
 import type { PermissionMode } from '@/store/chatSettingsStore';
 import type { ScheduleForm } from '@/utils/automationSchedule';
 import type { ChannelMemberCreateRequest } from '@/types/channel.types';
-import type { MemberDraft } from '@/components/channels/memberDraft';
+import type { GroupMember, SharedMemberSettings } from '@/components/channels/memberDraft';
 
 export interface AutomationChannelMember {
   model_id: string;
@@ -52,23 +52,20 @@ export interface AutomationRunResponse {
   channel_id?: string | null;
 }
 
-export type AutomationTarget = 'chat' | 'channel';
-
 export type AutomationUpdateRequest = Partial<AutomationCreateRequest>;
 
-// Inputbar settings an automation replays; shared edit-dialog form shape.
+// Inputbar settings an automation replays; shared edit-dialog form shape. One agent is a
+// chat automation, several a channel automation.
 export interface AutomationForm {
   name: string;
   prompt: string;
-  model_id: string;
   workspace_id: string;
-  target: AutomationTarget;
-  members: MemberDraft[];
+  agents: GroupMember[];
+  shared: SharedMemberSettings;
+  // A stored channel automation with one member stays a channel while it has one agent
+  singleMemberChannel: boolean;
   schedule: ScheduleForm;
   timezone: string;
-  permission_mode: PermissionMode;
-  thinking_mode: string;
   worktree: boolean;
-  persona_name: string;
   machineId: string;
 }

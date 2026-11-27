@@ -12,8 +12,28 @@
   min-width: 0;
 }
 
-.trigger {
+.trigger--pill {
   @include controls.pill-trigger;
+}
+
+.trigger--field {
+  @include controls.field-trigger;
+
+  svg {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    flex-shrink: 0;
+    color: var(--theme-text-tertiary);
+  }
+
+  &[aria-expanded='true'] {
+    border-color: var(--theme-border-hover);
+  }
+
+  .trigger-chevron {
+    margin-inline-start: auto;
+    color: var(--theme-text-quaternary);
+  }
 }
 
 .trigger-label {

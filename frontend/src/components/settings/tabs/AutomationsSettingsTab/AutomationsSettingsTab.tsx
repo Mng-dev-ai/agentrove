@@ -19,21 +19,9 @@ import {
   useDeleteAutomationMutation,
   useRunAutomationMutation,
 } from '@/hooks/queries/useAutomationQueries';
-import {
-  DEFAULT_PERMISSION_MODE,
-  DEFAULT_THINKING_MODE,
-  DEFAULT_WORKTREE,
-  DEFAULT_PERSONA,
-} from '@/store/chatSettingsStore';
-import { useModelMap, useModelsQuery } from '@/hooks/queries/useModelQueries';
-import { memberDraftFrom, memberRequest, newMemberDraft } from '@/components/channels/memberDraft';
-import { buildAgentChatFields } from '@/utils/chatRequest';
-import {
-  buildCronExpression,
-  describeCron,
-  parseCronExpression,
-  DEFAULT_SCHEDULE,
-} from '@/utils/automationSchedule';
+import { useModelsQuery } from '@/hooks/queries/useModelQueries';
+import { describeCron } from '@/utils/automationSchedule';
+import { automationRequest, createDefaultForm, formFromAutomation } from '@/utils/automationForm';
 import { lazyNamed } from '@/utils/lazyNamed';
 import type {
   Automation,
@@ -56,45 +44,6 @@ const AutomationEditDialog = lazyNamed(
 );
 
 type AutomationListItem = MachineAutomation;
-
-function createDefaultForm(machineId: string): AutomationForm {
-  return {
-    name: '',
-    prompt: '',
-    model_id: '',
-    workspace_id: '',
-    target: 'chat',
-    members: [newMemberDraft()],
-    schedule: { ...DEFAULT_SCHEDULE },
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    permission_mode: DEFAULT_PERMISSION_MODE,
-    thinking_mode: DEFAULT_THINKING_MODE,
-    worktree: DEFAULT_WORKTREE,
-    persona_name: DEFAULT_PERSONA,
-    machineId,
-  };
-}
-
-function formFromItem(item: AutomationListItem): AutomationForm {
-  const { automation } = item;
-  return {
-    name: automation.name,
-    prompt: automation.prompt,
-    model_id: automation.model_id,
-    workspace_id: automation.workspace_id,
-    target: automation.channel_members ? 'channel' : 'chat',
-    members: automation.channel_members?.map(memberDraftFrom) ?? [newMemberDraft()],
-    schedule: parseCronExpression(automation.cron_expression),
-    // Keep the zone the schedule was authored in — editing from another
-    // timezone must not silently shift the automation's wall-clock time.
-    timezone: automation.timezone,
-    permission_mode: automation.permission_mode,
-    thinking_mode: automation.thinking_mode ?? '',
-    worktree: automation.worktree,
-    persona_name: automation.selected_persona_name,
-    machineId: item.machineId,
-  };
-}
 
 function requestFromAutomation(automation: Automation): AutomationCreateRequest {
   return {
@@ -154,7 +103,6 @@ export function AutomationsSettingsTab() {
   const [form, setForm] = useState<AutomationForm>(() => createDefaultForm(LOCAL_MACHINE_ID));
   const [formError, setFormError] = useState<string | null>(null);
   const formMachineId = editingItem?.machineId ?? form.machineId;
-  const modelMap = useModelMap({ machineId: formMachineId });
   const { data: formModels = [] } = useModelsQuery({ machineId: formMachineId });
   const { data: formMachineSettings } = useSettingsQuery({
     machineId: formMachineId,
@@ -182,7 +130,7 @@ export function AutomationsSettingsTab() {
     const item = items?.[index];
     if (!item) return;
     setEditingItem(item);
-    setForm(formFromItem(item));
+    setForm(formFromAutomation(item.automation, item.machineId));
     setFormError(null);
     setIsDialogOpen(true);
   };
@@ -197,39 +145,12 @@ export function AutomationsSettingsTab() {
   };
 
   const handleSave = async () => {
-    const personas = formPersonas;
-    // Coerce raw form settings to the selected model's agent, same as normal
-    // sends — a stale mode from another agent family would fail at run time.
-    const agentFields = buildAgentChatFields(
-      form.model_id,
-      modelMap,
-      {
-        permissionMode: form.permission_mode,
-        thinkingMode: form.thinking_mode,
-        worktree: form.worktree,
-        // Automations don't expose a Fast mode control yet.
-        fastMode: false,
-        persona: form.persona_name,
-      },
-      personas,
+    const data = automationRequest(
+      form,
+      formModels,
+      formPersonas,
+      editingItem?.automation.enabled ?? true,
     );
-    const data: AutomationCreateRequest = {
-      name: form.name.trim(),
-      prompt: form.prompt,
-      model_id: form.model_id,
-      workspace_id: form.workspace_id,
-      cron_expression: buildCronExpression(form.schedule),
-      timezone: form.timezone,
-      permission_mode: agentFields.permission_mode,
-      thinking_mode: agentFields.thinking_mode || null,
-      worktree: agentFields.worktree ?? false,
-      selected_persona_name: agentFields.selected_persona_name,
-      enabled: editingItem?.automation.enabled ?? true,
-      channel_members:
-        form.target === 'channel'
-          ? form.members.map((member) => memberRequest(member, formModels, personas))
-          : null,
-    };
     const machineId = editingItem?.machineId ?? form.machineId;
     try {
       const saved = editingItem
@@ -305,7 +226,7 @@ export function AutomationsSettingsTab() {
     <>
       <ListManagementTab<AutomationListItem>
         title="Automations"
-        description="Scheduled prompts that start a new chat with your chosen model, workspace, and settings, or a new channel with your chosen members — e.g. check email daily or triage errors every 6 hours."
+        description="Scheduled prompts that start a new thread with your chosen agents, workspace, and settings — e.g. check email daily or triage errors every 6 hours."
         items={items}
         emptyIcon={Clock}
         emptyText="No automations configured yet"
