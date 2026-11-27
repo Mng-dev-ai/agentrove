@@ -6,13 +6,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useNotificationPermissionPrompt } from './useNotificationPermissionPrompt';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { UserSettings } from '@/types/user.types';
 
 const requestPermission = vi.fn(async () => 'default' as NotificationPermission);
 let queryClient: QueryClient;
 
 function setSettings(notificationsEnabled: boolean) {
-  queryClient.setQueryData([queryKeys.settings], {
+  queryClient.setQueryData(queryKeys.machine.settings(LOCAL_MACHINE_ID), {
     notifications_enabled: notificationsEnabled,
   } as UserSettings);
 }

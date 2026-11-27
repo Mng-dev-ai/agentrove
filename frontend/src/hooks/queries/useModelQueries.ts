@@ -13,8 +13,7 @@ const EMPTY_MODEL_MAP = new Map<string, Model>();
 
 function modelsQuery(machineId: string) {
   return {
-    queryKey:
-      machineId === LOCAL_MACHINE_ID ? [queryKeys.models] : queryKeys.machine.models(machineId),
+    queryKey: queryKeys.machine.models(machineId),
     queryFn: () => modelService.getModels(machineId),
   };
 }

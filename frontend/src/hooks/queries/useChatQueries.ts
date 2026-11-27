@@ -36,10 +36,10 @@ const GLOBAL_WORKSPACE_SENTINEL = 'all';
 
 export const MESSAGE_PAGE_SIZE = 20;
 
-// Global infinite chats: key[3]=GLOBAL_WORKSPACE_SENTINEL, key[4]=null (unpinned).
+// Global infinite chats: key[5]=GLOBAL_WORKSPACE_SENTINEL, key[6]=null (unpinned).
 function isGlobalChatsQuery(query: Query): boolean {
   const key = query.queryKey;
-  return key.length >= 5 && key[3] === GLOBAL_WORKSPACE_SENTINEL && key[4] === null;
+  return key.length >= 7 && key[5] === GLOBAL_WORKSPACE_SENTINEL && key[6] === null;
 }
 
 function invalidateMachineChats(queryClient: QueryClient, chatId: string) {
@@ -54,13 +54,12 @@ export const infiniteChatsQueryKey = (options?: {
   workspaceId?: string;
   pinned?: boolean;
 }) =>
-  [
-    queryKeys.chats,
-    'infinite',
+  queryKeys.machine.chatsInfinite(
+    LOCAL_MACHINE_ID,
     options?.perPage ?? CHATS_PER_PAGE,
     options?.workspaceId ?? GLOBAL_WORKSPACE_SENTINEL,
     options?.pinned ?? null,
-  ] as const;
+  );
 
 export const useInfiniteChatsQuery = (options?: {
   perPage?: number;
@@ -100,7 +99,7 @@ export const useInfiniteChatsQuery = (options?: {
 // client-side like files. Includes sub-threads (the top-level-only sidebar doesn't).
 export const useRecentChatsQuery = (enabled: boolean) => {
   return useQuery({
-    queryKey: queryKeys.chatsRecent,
+    queryKey: queryKeys.machine.chatsRecent(LOCAL_MACHINE_ID),
     queryFn: () =>
       chatService.listChats(LOCAL_MACHINE_ID, {
         page: 1,
@@ -118,7 +117,7 @@ export const useSearchChatsQuery = (
 ) => {
   const trimmed = query.trim();
   return useQuery({
-    queryKey: queryKeys.chatsSearch(trimmed),
+    queryKey: queryKeys.machine.chatsSearch(LOCAL_MACHINE_ID, trimmed),
     queryFn: () => chatService.searchChats(LOCAL_MACHINE_ID, trimmed),
     enabled: trimmed.length >= 2,
     placeholderData: keepPreviousData,
@@ -222,7 +221,7 @@ export const useRateLimitsQuery = (chatId: string) => {
 // for local creates; second-pass invalidations are intentional (don't suppress).
 export function invalidateSubThreadListsContaining(queryClient: QueryClient, chatId: string): void {
   const lists = queryClient.getQueriesData<Chat[]>({
-    queryKey: ['chat'],
+    queryKey: queryKeys.chatAll,
     predicate: (query) => query.queryKey[2] === 'sub-threads',
   });
   for (const [queryKey, subThreads] of lists) {
@@ -234,14 +233,16 @@ export function invalidateSubThreadListsContaining(queryClient: QueryClient, cha
 
 export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat): Promise<void> {
   queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
-  queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
+  queryClient.invalidateQueries({ queryKey: queryKeys.machine.chatsRecent(LOCAL_MACHINE_ID) });
 
   if (newChat.parent_chat_id) {
     // Sub-thread create bumps parent updated_at (workspace ordering).
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.subThreads(newChat.parent_chat_id) }),
-      queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.workspaces }),
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
+      }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(LOCAL_MACHINE_ID) }),
     ]);
     return;
   }
@@ -249,7 +250,10 @@ export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat):
   invalidateSubThreadListsContaining(queryClient, newChat.id);
 
   queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
-    { queryKey: [queryKeys.chats, 'infinite'], predicate: isGlobalChatsQuery },
+    {
+      queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
+      predicate: isGlobalChatsQuery,
+    },
     (oldData) => {
       if (!oldData) return oldData;
       if (oldData.pages.some((page) => page.items.some((chat) => chat.id === newChat.id))) {
@@ -265,11 +269,11 @@ export async function applyCreatedChat(queryClient: QueryClient, newChat: Chat):
   );
 
   queryClient.invalidateQueries({
-    queryKey: [queryKeys.chats, 'infinite'],
+    queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
     predicate: (query) => !isGlobalChatsQuery(query),
   });
 
-  queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+  queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(LOCAL_MACHINE_ID) });
 }
 
 function patchQueryData<T>(query: Query<T> | undefined, update: (data: T) => T): void {
@@ -288,7 +292,7 @@ export function patchChatInCache(
   const cache = queryClient.getQueryCache();
   patchQueryData(cache.find<Chat>({ queryKey: queryKeys.chat(chatId), exact: true }), patch);
   for (const [queryKey] of queryClient.getQueriesData<InfiniteData<PaginatedChats>>({
-    queryKey: [queryKeys.chats, 'infinite'],
+    queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
   })) {
     patchQueryData(cache.find<InfiniteData<PaginatedChats>>({ queryKey, exact: true }), (data) => ({
       ...data,
@@ -299,7 +303,10 @@ export function patchChatInCache(
     }));
   }
   patchQueryData(
-    cache.find<PaginatedChats>({ queryKey: queryKeys.chatsRecent, exact: true }),
+    cache.find<PaginatedChats>({
+      queryKey: queryKeys.machine.chatsRecent(LOCAL_MACHINE_ID),
+      exact: true,
+    }),
     (data) => ({
       ...data,
       items: data.items.map((chat) => (chat.id === chatId ? patch(chat) : chat)),
@@ -356,7 +363,7 @@ export const useUpdateChatMutation = createMutation<
     queryClient.setQueryData(queryKeys.chat(updatedChat.id), updatedChat);
 
     queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
-      { queryKey: [queryKeys.chats, 'infinite'] },
+      { queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID) },
       (oldData) => {
         if (!oldData) return oldData;
         return {
@@ -375,21 +382,24 @@ export const useUpdateChatMutation = createMutation<
 
     // Patch + invalidate, not either alone: the patch renames cached entries instantly,
     // the refetch fixes membership — updated_at bumps can pull in an uncached chat.
-    queryClient.setQueryData<PaginatedChats>(queryKeys.chatsRecent, (oldData) => {
-      if (!oldData) return oldData;
-      return {
-        ...oldData,
-        items: oldData.items.map((chat) =>
-          chat.id === updatedChat.id
-            ? { ...updatedChat, sub_thread_count: chat.sub_thread_count }
-            : chat,
-        ),
-      };
-    });
-    queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
+    queryClient.setQueryData<PaginatedChats>(
+      queryKeys.machine.chatsRecent(LOCAL_MACHINE_ID),
+      (oldData) => {
+        if (!oldData) return oldData;
+        return {
+          ...oldData,
+          items: oldData.items.map((chat) =>
+            chat.id === updatedChat.id
+              ? { ...updatedChat, sub_thread_count: chat.sub_thread_count }
+              : chat,
+          ),
+        };
+      },
+    );
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.chatsRecent(LOCAL_MACHINE_ID) });
 
-    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-    queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(LOCAL_MACHINE_ID) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.chatsSearchAll(LOCAL_MACHINE_ID) });
     invalidateMachineChats(queryClient, updatedChat.id);
 
     if (updatedChat.parent_chat_id) {
@@ -407,9 +417,9 @@ export const usePinChatMutation = createMutation<Chat, Error, { chatId: string; 
 
     // Pin changes sort (pinned_at/updated_at) and may move chats into/out of cached pages.
     queryClient.invalidateQueries({
-      queryKey: [queryKeys.chats, 'infinite'],
+      queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
     });
-    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(LOCAL_MACHINE_ID) });
     invalidateMachineChats(queryClient, updatedChat.id);
   },
 );
@@ -441,7 +451,9 @@ export const useDeleteChatMutation = createMutation<string[], Error, string>(
     // One pass: find parent if sub-thread, collect cached children if deleting a parent.
     let parentId = queryClient.getQueryData<Chat>(queryKeys.chat(chatId))?.parent_chat_id;
     const childIds = new Set(subThreadIds);
-    const allCachedEntries = queryClient.getQueriesData<Chat | Chat[]>({ queryKey: ['chat'] });
+    const allCachedEntries = queryClient.getQueriesData<Chat | Chat[]>({
+      queryKey: queryKeys.chatAll,
+    });
     for (const [key, data] of allCachedEntries) {
       if (!parentId && Array.isArray(data) && data.some((sub) => sub.id === chatId)) {
         parentId = key[1] as string;
@@ -463,10 +475,12 @@ export const useDeleteChatMutation = createMutation<string[], Error, string>(
     queryClient.removeQueries({ queryKey: queryKeys.messages(chatId) });
     queryClient.removeQueries({ queryKey: queryKeys.contextUsage(chatId) });
     queryClient.removeQueries({ queryKey: queryKeys.subThreads(chatId) });
-    queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.chatsRecent });
-    queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-    queryClient.invalidateQueries({ queryKey: queryKeys.chatsSearchAll });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
+    });
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.chatsRecent(LOCAL_MACHINE_ID) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(LOCAL_MACHINE_ID) });
+    queryClient.invalidateQueries({ queryKey: queryKeys.machine.chatsSearchAll(LOCAL_MACHINE_ID) });
     // After the last chatMachineId reader: forgetting drops the chat's origin.
     invalidateMachineChats(queryClient, chatId);
     forgetChat(chatId);
@@ -486,14 +500,8 @@ export const useDeleteAllChatsMutation = () => {
       const results = await Promise.allSettled(
         machineIds.map(async (id) => {
           await chatService.deleteAllChats(id);
-          if (id === LOCAL_MACHINE_ID) {
-            // Prefix ['chats'] also clears chatsSearch.
-            queryClient.removeQueries({ queryKey: [queryKeys.chats] });
-            queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
-          } else {
-            queryClient.removeQueries({ queryKey: queryKeys.machine.chats(id) });
-            queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(id) });
-          }
+          queryClient.removeQueries({ queryKey: queryKeys.machine.chats(id) });
+          queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(id) });
           // Only the server knows which chats the wipe kept as channel members, so a
           // machine whose channel list fails to load keeps its state.
           let survivingChannels: Channel[];
@@ -546,8 +554,10 @@ export const useCreateSubThreadMutation = (parentChatId: string) => {
       queryClient.setQueryData(queryKeys.chat(newChat.id), newChat);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.subThreads(parentChatId) }),
-        queryClient.invalidateQueries({ queryKey: [queryKeys.chats, 'infinite'] }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.workspaces }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
+        }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(LOCAL_MACHINE_ID) }),
       ]);
       // Remote parent isn't in local infinite query — refresh so sub_thread_count unlocks expand.
       invalidateMachineChats(queryClient, parentChatId);

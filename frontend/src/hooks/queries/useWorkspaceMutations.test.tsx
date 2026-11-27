@@ -16,9 +16,9 @@ const OTHER_MACHINE_ID = 'machine-2';
 const WORKSPACE_ID = 'ws-1';
 
 const KEYS = {
-  localWorkspaces: queryKeys.workspaces,
-  localChats: [queryKeys.chats, 'infinite'],
-  localSearch: queryKeys.chatsSearch('foo'),
+  localWorkspaces: queryKeys.machine.workspaces(LOCAL_MACHINE_ID),
+  localChats: queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID),
+  localSearch: queryKeys.machine.chatsSearch(LOCAL_MACHINE_ID, 'foo'),
   machineWorkspaces: queryKeys.machine.workspaces(MACHINE_ID),
   machineChats: queryKeys.machine.chatsPage(MACHINE_ID, 1),
   machineSearch: queryKeys.machine.chatsSearch(MACHINE_ID, 'foo'),

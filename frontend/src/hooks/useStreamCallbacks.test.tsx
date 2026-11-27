@@ -103,7 +103,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   clearAllStreamState();
   queryClient = new QueryClient();
-  queryClient.setQueryData([queryKeys.settings], { notifications_enabled: false });
+  queryClient.setQueryData(queryKeys.machine.settings(LOCAL_MACHINE_ID), {
+    notifications_enabled: false,
+  });
   seedCache('c1', [makeMessage('a1')]);
   vi.spyOn(chatService, 'markChatViewed').mockResolvedValue();
   useChatSettingsStore.setState({ permissionModeByChat: {} });

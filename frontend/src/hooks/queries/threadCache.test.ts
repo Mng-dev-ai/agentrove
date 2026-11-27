@@ -20,7 +20,7 @@ const page = (ids: string[]): PaginatedChats =>
 const ids = (data: PaginatedChats | undefined) => data?.items.map((chat) => chat.id);
 
 let queryClient: QueryClient;
-const localKey = [queryKeys.chats, 'infinite', { perPage: 20 }];
+const localKey = [...queryKeys.machine.chatsInfiniteAll(LOCAL_MACHINE_ID), { perPage: 20 }];
 const remotePageKey = queryKeys.machine.chatsPage('m1', 1);
 
 beforeEach(() => {

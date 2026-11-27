@@ -8,18 +8,8 @@ import { listLoadState, retryTransientOnce, type ListLoadState } from '@/hooks/q
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Memory, MemoryCreateRequest, MemoryUpdateRequest } from '@/types/memory.types';
 
-const memoriesKey = (machineId: string, workspaceId: string | null) =>
-  machineId === LOCAL_MACHINE_ID
-    ? queryKeys.memories(workspaceId)
-    : queryKeys.machine.memories(machineId, workspaceId);
-
 function invalidateMemories(queryClient: QueryClient, machineId: string) {
-  void queryClient.invalidateQueries({
-    queryKey:
-      machineId === LOCAL_MACHINE_ID
-        ? queryKeys.memoriesAll
-        : queryKeys.machine.memoriesAll(machineId),
-  });
+  void queryClient.invalidateQueries({ queryKey: queryKeys.machine.memoriesAll(machineId) });
 }
 
 export interface MachineMemory {
@@ -60,7 +50,7 @@ export const useMemoriesAcrossMachines = (
   );
   return useQueries({
     queries: machineIds.map((machineId) => ({
-      queryKey: memoriesKey(machineId, workspaceId),
+      queryKey: queryKeys.machine.memories(machineId, workspaceId),
       queryFn: () => memoryService.listMemories(workspaceId, machineId),
       staleTime: 30_000,
       retry: retryTransientOnce,

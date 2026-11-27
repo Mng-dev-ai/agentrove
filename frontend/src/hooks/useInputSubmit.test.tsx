@@ -20,6 +20,7 @@ vi.mock('@/utils/sideQuestion', async (importOriginal) => ({
 
 import { useInputSubmit } from './useInputSubmit';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { queryClient as appQueryClient } from '@/lib/queryClient';
 import { useChatSettingsStore } from '@/store/chatSettingsStore';
 import { useMessageQueueStore } from '@/store/messageQueueStore';
@@ -113,7 +114,7 @@ beforeEach(() => {
   vi.restoreAllMocks();
   vi.clearAllMocks();
   testQueryClient.clear();
-  appQueryClient.setQueryData([queryKeys.settings], {
+  appQueryClient.setQueryData(queryKeys.machine.settings(LOCAL_MACHINE_ID), {
     auto_steer_queued_messages: false,
   } as UserSettings);
   queueMessage.mockResolvedValue({ id: 'queued-id', send_now_failed: false, started: false });

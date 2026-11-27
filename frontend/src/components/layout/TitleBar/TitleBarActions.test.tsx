@@ -8,6 +8,7 @@ import { TitleBarActions } from './TitleBarActions';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { inboxService } from '@/services/inboxService';
 import { useAuthStore } from '@/store/authStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
 vi.mock('@/services/inboxService', () => ({ inboxService: { listInbox: vi.fn() } }));
 
@@ -30,7 +31,9 @@ async function renderActions(unreadCount: number) {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  await waitFor(() => expect(client.getQueryState(queryKeys.inbox)?.status).toBe('success'));
+  await waitFor(() =>
+    expect(client.getQueryState(queryKeys.machine.inbox(LOCAL_MACHINE_ID))?.status).toBe('success'),
+  );
 }
 
 describe('TitleBarActions inbox button', () => {

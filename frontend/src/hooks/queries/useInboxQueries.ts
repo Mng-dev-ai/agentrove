@@ -44,9 +44,7 @@ async function appendNextInboxPage(queryClient: QueryClient, machineId: string, 
 }
 
 function invalidateInbox(queryClient: QueryClient, machineId: string) {
-  return queryClient.invalidateQueries({
-    queryKey: machineId === LOCAL_MACHINE_ID ? queryKeys.inbox : queryKeys.machine.inbox(machineId),
-  });
+  return queryClient.invalidateQueries({ queryKey: queryKeys.machine.inbox(machineId) });
 }
 
 function withoutItem(page: InboxList, itemId: string): InboxList {
@@ -54,10 +52,9 @@ function withoutItem(page: InboxList, itemId: string): InboxList {
 }
 
 async function removeInboxItem(queryClient: QueryClient, machineId: string, itemId: string) {
-  const isLocal = machineId === LOCAL_MACHINE_ID;
-  const queryKey = isLocal ? queryKeys.inbox : queryKeys.machine.inbox(machineId);
+  const queryKey = queryKeys.machine.inbox(machineId);
   await queryClient.cancelQueries({ queryKey });
-  if (isLocal) {
+  if (machineId === LOCAL_MACHINE_ID) {
     queryClient.setQueryData<InfiniteData<InboxList>>(
       queryKey,
       (data) => data && { ...data, pages: data.pages.map((page) => withoutItem(page, itemId)) },
@@ -85,7 +82,7 @@ export const useInboxAcrossMachines = () => {
   const remoteIds = useOnlineRemoteMachineIds();
 
   const local = useInfiniteQuery({
-    queryKey: queryKeys.inbox,
+    queryKey: queryKeys.machine.inbox(LOCAL_MACHINE_ID),
     queryFn: ({ pageParam }) => inboxService.listInbox(pageParam, LOCAL_MACHINE_ID),
     getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
     initialPageParam: undefined as string | undefined,

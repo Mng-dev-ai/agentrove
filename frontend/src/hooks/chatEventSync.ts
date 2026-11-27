@@ -99,7 +99,7 @@ export function subscribeChatEvents(queryClient: QueryClient, origin: ChatEventO
     // Missed events while feed was down — refetch lists/caches and re-register streams.
     onResync: () => {
       origin.invalidateChatLists();
-      void queryClient.invalidateQueries({ queryKey: ['chat'] });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.chatAll });
       resyncActiveStreams(origin.getActiveStreams, () => cancelled, origin.logContext);
     },
     logContext: origin.logContext,
