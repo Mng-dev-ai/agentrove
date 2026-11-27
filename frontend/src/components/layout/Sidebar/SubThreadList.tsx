@@ -7,7 +7,7 @@ import {
   type MouseEvent,
   type ReactNode,
 } from 'react';
-import { Hash, MoreHorizontal } from 'lucide-react';
+import { MoreHorizontal } from 'lucide-react';
 import { useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
@@ -21,7 +21,8 @@ import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
 import { stateClasses } from '@/config/stateClasses';
 import type { Channel } from '@/types/channel.types';
-import type { Chat } from '@/types/chat.types';
+import type { AgentKind, Chat } from '@/types/chat.types';
+import { ChannelRowLeading } from './SidebarChannelItem';
 import { useChannelRowStatus } from './useChannelRowStatus';
 import type { MachineChannel } from './sidebarGrouping';
 import type { SidebarChannelActions } from './useSidebarChannelActions';
@@ -34,8 +35,7 @@ interface NestedRowProps {
   isCurrent: boolean;
   isRevealed: boolean;
   isEmphasized: boolean;
-  icon: ReactNode;
-  status: ChatStatusTone | null;
+  leading: ReactNode;
   title: string;
   tooltip: string;
   timestamp: string;
@@ -46,16 +46,13 @@ interface NestedRowProps {
   onMouseLeave: () => void;
 }
 
-// Nested counterpart of SidebarRow, shared by sub-thread and linked channel rows. Same
-// status language as top-level rows: red dot = needs you, braille spinner = running,
-// green dot = done, persistent on the leading icon (visible on hover).
+// Nested counterpart of SidebarRow, shared by sub-thread and linked channel rows.
 function NestedRow({
   isActive,
   isCurrent,
   isRevealed,
   isEmphasized,
-  icon,
-  status,
+  leading,
   title,
   tooltip,
   timestamp,
@@ -65,7 +62,6 @@ function NestedRow({
   onMouseEnter,
   onMouseLeave,
 }: NestedRowProps) {
-  const statusLabel = status ? CHAT_STATUS_LABEL[status] : undefined;
   // Keep the active row visible when navigation lands on an off-screen row
   const rowRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -88,35 +84,7 @@ function NestedRow({
           aria-current={isCurrent ? 'page' : undefined}
           className={styles['subthread-select']}
         >
-          {(icon != null || status != null) && (
-            <span
-              className={styles['leading-slot']}
-              role={statusLabel ? 'img' : undefined}
-              aria-label={statusLabel}
-            >
-              {status === 'running' ? (
-                <AsciiSpinner className={styles['subthread-spinner']} />
-              ) : (
-                icon != null && (
-                  <span
-                    className={clsx(
-                      styles['leading-icon'],
-                      !isRevealed && styles['leading-icon--muted'],
-                    )}
-                  >
-                    {icon}
-                  </span>
-                )
-              )}
-              {status && status !== 'running' && (
-                <ChatStatusDot
-                  tone={status}
-                  className={clsx(icon != null && styles['status-corner'])}
-                  ringClassName={styles['status-ring']}
-                />
-              )}
-            </span>
-          )}
+          {leading}
           <span className={clsx(styles.title, isEmphasized && styles['title--emphasis'])}>
             {title}
           </span>
@@ -138,6 +106,45 @@ function NestedRow({
         <MoreHorizontal className={styles['dropdown-icon']} />
       </Button>
     </div>
+  );
+}
+
+interface SubThreadLeadingProps {
+  icon: ReactNode;
+  status: ChatStatusTone | null;
+  isRevealed: boolean;
+}
+
+// Same status language as top-level rows: red dot = needs you, braille spinner =
+// running, green dot = done, persistent on the leading icon (visible on hover).
+function SubThreadLeading({ icon, status, isRevealed }: SubThreadLeadingProps) {
+  if (icon == null && status == null) return null;
+  const statusLabel = status ? CHAT_STATUS_LABEL[status] : undefined;
+  return (
+    <span
+      className={styles['leading-slot']}
+      role={statusLabel ? 'img' : undefined}
+      aria-label={statusLabel}
+    >
+      {status === 'running' ? (
+        <AsciiSpinner className={styles['subthread-spinner']} />
+      ) : (
+        icon != null && (
+          <span
+            className={clsx(styles['leading-icon'], !isRevealed && styles['leading-icon--muted'])}
+          >
+            {icon}
+          </span>
+        )
+      )}
+      {status && status !== 'running' && (
+        <ChatStatusDot
+          tone={status}
+          className={clsx(icon != null && styles['status-corner'])}
+          ringClassName={styles['status-ring']}
+        />
+      )}
+    </span>
   );
 }
 
@@ -171,18 +178,24 @@ const SubThreadRow = memo(function SubThreadRow({
   onMouseLeave,
 }: SubThreadRowProps) {
   const agentKind = useChatAgentKind(thread.id, thread.session_agent_kind, thread.last_model_id);
+  const isRevealed = isHovered || isActive || isDropdownOpen;
   return (
     <NestedRow
       isActive={isActive}
       isCurrent={isCurrent}
-      isRevealed={isHovered || isActive || isDropdownOpen}
+      isRevealed={isRevealed}
       isEmphasized={isActive}
-      icon={agentKind && <ProviderIcon agentKind={agentKind} />}
-      status={chatStatusTone({
-        blocked: isBlocked,
-        streaming: isStreaming,
-        completed: isCompleted,
-      })}
+      leading={
+        <SubThreadLeading
+          icon={agentKind && <ProviderIcon agentKind={agentKind} />}
+          status={chatStatusTone({
+            blocked: isBlocked,
+            streaming: isStreaming,
+            completed: isCompleted,
+          })}
+          isRevealed={isRevealed}
+        />
+      }
       title={stripMarkdownTitle(thread.title)}
       tooltip={thread.title}
       timestamp={getRelativeTime(thread.updated_at)}
@@ -196,7 +209,8 @@ const SubThreadRow = memo(function SubThreadRow({
 });
 
 interface LinkedChannelRowProps {
-  channel: Channel;
+  entry: MachineChannel;
+  channelAgentKinds: (entry: MachineChannel) => AgentKind[];
   isActive: boolean;
   isCompleted: boolean;
   isHovered: boolean;
@@ -208,7 +222,8 @@ interface LinkedChannelRowProps {
 }
 
 const LinkedChannelRow = memo(function LinkedChannelRow({
-  channel,
+  entry,
+  channelAgentKinds,
   isActive,
   isCompleted,
   isHovered,
@@ -218,6 +233,7 @@ const LinkedChannelRow = memo(function LinkedChannelRow({
   onMouseEnter,
   onMouseLeave,
 }: LinkedChannelRowProps) {
+  const { channel } = entry;
   const { status, isUnread } = useChannelRowStatus(channel, isActive, isCompleted);
   return (
     <NestedRow
@@ -225,10 +241,15 @@ const LinkedChannelRow = memo(function LinkedChannelRow({
       isCurrent={isActive}
       isRevealed={isHovered || isActive || isDropdownOpen}
       isEmphasized={isActive || isUnread}
-      icon={<Hash />}
-      status={status}
+      leading={
+        <ChannelRowLeading
+          status={status}
+          agentKinds={channelAgentKinds(entry)}
+          memberCount={channel.members.length}
+        />
+      }
       title={channel.name}
-      tooltip={channel.name}
+      tooltip={`${channel.name} · ${channel.members.map((member) => member.display_name).join(', ')}`}
       timestamp={getRelativeTime(channel.updated_at)}
       dropdownLabel="Channel options"
       onSelect={() => onSelect(channel.id)}
@@ -243,6 +264,7 @@ interface SubThreadListProps {
   parentChatId: string;
   hasSubThreads: boolean;
   linkedChannels: MachineChannel[];
+  channelAgentKinds: (entry: MachineChannel) => AgentKind[];
   selectedChannelId: string | null;
   channelActions: SidebarChannelActions;
   selectedChatId: string | null;
@@ -259,6 +281,7 @@ export const SubThreadList = memo(function SubThreadList({
   parentChatId,
   hasSubThreads,
   linkedChannels,
+  channelAgentKinds,
   selectedChannelId,
   channelActions,
   selectedChatId,
@@ -281,14 +304,15 @@ export const SubThreadList = memo(function SubThreadList({
   const handleMouseEnter = useCallback((id: string) => setHoveredId(id), []);
   const handleMouseLeave = useCallback(() => setHoveredId(null), []);
 
-  const channelRows = linkedChannels.map(({ channel }) => (
+  const channelRows = linkedChannels.map((entry) => (
     <LinkedChannelRow
-      key={channel.id}
-      channel={channel}
-      isActive={channel.id === selectedChannelId}
-      isCompleted={channelActions.completedChannelIds.has(channel.id)}
-      isHovered={hoveredId === channel.id}
-      isDropdownOpen={channelActions.openMenuChannelId === channel.id}
+      key={entry.channel.id}
+      entry={entry}
+      channelAgentKinds={channelAgentKinds}
+      isActive={entry.channel.id === selectedChannelId}
+      isCompleted={channelActions.completedChannelIds.has(entry.channel.id)}
+      isHovered={hoveredId === entry.channel.id}
+      isDropdownOpen={channelActions.openMenuChannelId === entry.channel.id}
       onSelect={channelActions.handleChannelSelect}
       onDropdownClick={channelActions.handleChannelDropdownClick}
       onMouseEnter={handleMouseEnter}

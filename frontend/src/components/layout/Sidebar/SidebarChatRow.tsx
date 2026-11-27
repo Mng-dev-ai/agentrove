@@ -112,6 +112,7 @@ export function SidebarChatRow({
           parentChatId={chat.id}
           hasSubThreads={chat.sub_thread_count > 0}
           linkedChannels={linkedChannels}
+          channelAgentKinds={rowProps.channelAgentKinds}
           selectedChannelId={selectedChannelId}
           channelActions={channelActions}
           selectedChatId={selectedChatId}
