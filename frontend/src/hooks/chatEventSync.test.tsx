@@ -28,11 +28,19 @@ import { assignChatsToMachine } from '@/store/machineOrigin';
 import { useMachineStore } from '@/store/machineStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
+import chatEvents from '@/test/chatEvents.json';
 import type { Chat, ChatEvent } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
 const MACHINE_ID = 'machine-1';
 const OTHER_MACHINE_ID = 'machine-2';
+const FIXTURE_EVENTS = chatEvents as ChatEvent[];
+const OPENS_TAB: Record<ChatEvent['kind'], boolean> = {
+  chat_created: true,
+  stream_started: true,
+  title_updated: false,
+  channel_created: false,
+};
 
 class FakeEventSource {
   readyState = 1;
@@ -282,6 +290,64 @@ describe('chat events from a remote origin', () => {
 
     await waitFor(() => expect(isInvalidated(remote.chatsKey)).toBe(true));
     await waitFor(() => expect(machineStreams).toHaveBeenCalledTimes(2));
+    expect(trackedStreams()).toEqual([]);
+  });
+});
+
+describe('backend chat event fixture', () => {
+  const local = ORIGINS[0];
+
+  it('has an entry for exactly the kinds in the ChatEvent union', () => {
+    expect([...new Set(FIXTURE_EVENTS.map((event) => event.kind))].sort()).toEqual(
+      Object.keys(OPENS_TAB).sort(),
+    );
+  });
+
+  it.each(FIXTURE_EVENTS)('applies a $kind fixture event', async (event) => {
+    seedLists(local);
+    queryClient.setQueryData(local.channelsKey, []);
+    const eventChatId =
+      event.kind === 'chat_created' ? event.chat.id : 'chat_id' in event ? event.chat_id : null;
+    if (event.kind === 'title_updated') {
+      queryClient.setQueryData(queryKeys.chat(event.chat_id), makeChat(event.chat_id));
+    }
+    const source = await mount(local);
+
+    source.emit(JSON.stringify(event));
+
+    expect(useUIStore.getState().chatTabs).toEqual(OPENS_TAB[event.kind] ? [eventChatId] : []);
+    switch (event.kind) {
+      case 'chat_created':
+        expect(queryClient.getQueryData(queryKeys.chat(event.chat.id))).toEqual(event.chat);
+        break;
+      case 'stream_started':
+        expect(trackedStreams()).toEqual([{ chatId: event.chat_id, messageId: event.message_id }]);
+        break;
+      case 'title_updated':
+        expect(queryClient.getQueryData<Chat>(queryKeys.chat(event.chat_id))?.title).toBe(
+          event.title,
+        );
+        break;
+      case 'channel_created':
+        expect(isInvalidated(local.channelsKey)).toBe(true);
+        break;
+    }
+  });
+
+  it('ignores an unknown kind', async () => {
+    seedLists(local);
+    queryClient.setQueryData(local.channelsKey, []);
+    queryClient.setQueryData(queryKeys.chat(chatId), makeChat(chatId));
+    const source = await mount(local);
+
+    expect(() =>
+      source.emit(JSON.stringify({ kind: 'chat_future', chat_id: chatId, title: 'x' })),
+    ).not.toThrow();
+
+    expect(queryClient.getQueryData(queryKeys.chat(chatId))).toEqual(makeChat(chatId));
+    expect(isInvalidated(local.chatsKey)).toBe(false);
+    expect(isInvalidated(local.channelsKey)).toBe(false);
+    expect(useUIStore.getState().chatTabs).toEqual([]);
     expect(trackedStreams()).toEqual([]);
   });
 });

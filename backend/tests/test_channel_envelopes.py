@@ -59,7 +59,8 @@ def fixture_payload(kind: str, notice: str | None = None) -> dict[str, Any]:
         entry["payload"]
         for entry in CHANNEL_ENVELOPES
         if entry["kind"] == kind
-        and ACTIVITY_NOTICES & entry["payload"].keys() == ({notice} if notice else set())
+        and ACTIVITY_NOTICES & entry["payload"].keys()
+        == ({notice} if notice else set())
     ]
     return payload
 

@@ -10,13 +10,17 @@ import { queryKeys } from '@/hooks/queries/queryKeys';
 import { clearAllStreamState } from '@/hooks/stream/streamRegistry';
 import { chatService } from '@/services/chatService';
 import { streamConnection } from '@/services/streamConnection';
-import { streamService } from '@/services/streamService';
+import { streamService, type ChannelNotice } from '@/services/streamService';
+import { useChannelStore } from '@/store/channelStore';
 import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
+import { useChannelQueueStore } from '@/store/messageQueueStore';
 import { useStreamStore } from '@/store/streamStore';
+import type { ChannelEnvelope } from '@/types/channel.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Chat, Message, PermissionOption } from '@/types/chat.types';
 import type { QueueProcessingData, StreamEnvelope } from '@/types/stream.types';
 import { makeMessage, readMessagePages, seedMessagePages, wireEnvelope } from '@/test/fixtures';
+import channelEnvelopes from '@/test/channelEnvelopes.json';
 import streamEnvelopes from '@/test/streamEnvelopes.json';
 import { useStreamCallbacks } from './useStreamCallbacks';
 
@@ -28,6 +32,8 @@ vi.mock('@/services/streamConnection', () => ({
 // streamService registers its raw-data handler once, when the module loads.
 const deliverRawEnvelope = vi.mocked(streamConnection.configure).mock.calls[0][0].onEnvelopeData;
 const ENVELOPE_IDS: EnvelopeIds = { chatId: 'c1', messageId: 'a1', streamId: 's1', seq: 1 };
+const CHANNEL_ENVELOPES = channelEnvelopes as ChannelEnvelope[];
+const CHANNEL_ID = CHANNEL_ENVELOPES[0].channelId;
 const ALLOW_OPTION: PermissionOption = {
   kind: 'allow_once',
   name: 'Allow',
@@ -45,6 +51,16 @@ function envelope(body: EnvelopeBody, overrides: Partial<EnvelopeIds> = {}): Str
 
 const text = (value: string, overrides?: Partial<EnvelopeIds>) =>
   envelope({ kind: 'assistant_text', payload: { text: value } }, overrides);
+
+function channelEntry<K extends ChannelEnvelope['kind']>(
+  kind: K,
+  notice?: 'asked' | 'completed',
+): Extract<ChannelEnvelope, { kind: K }> {
+  return CHANNEL_ENVELOPES.find(
+    (entry): entry is Extract<ChannelEnvelope, { kind: K }> =>
+      entry.kind === kind && (!notice || notice in entry.payload),
+  )!;
+}
 
 const handlers = {
   onPermissionRequest: vi.fn(),
@@ -560,5 +576,70 @@ describe('onQueueProcess', () => {
     await flushTimers();
     expect(result.current.messages[1].content_text).toBe('tail');
     expect(result.current.messages[3].content_text).toBe('fresh');
+  });
+});
+
+describe('channel envelopes', () => {
+  const notices: ChannelNotice[] = [];
+  let stopNotices: () => void;
+
+  beforeEach(() => {
+    notices.length = 0;
+    stopNotices = streamService.onChannelNotice((notice) => notices.push(notice));
+    useChannelStore.setState({ channels: {}, activity: {}, completedChannelIds: new Set() });
+    useChannelStore.getState().holdChannel(CHANNEL_ID);
+    const queued = channelEntry('channel_queue_sent').payload.id;
+    useChannelQueueStore.setState({
+      queues: new Map([
+        [
+          CHANNEL_ID,
+          [{ id: queued, key: queued, content: 'q', queuedAt: 0, synced: true, sendingNow: false }],
+        ],
+      ]),
+    });
+  });
+
+  afterEach(() => stopNotices());
+
+  it('routes every backend channel envelope from raw stream data to its store and notice', () => {
+    for (const entry of CHANNEL_ENVELOPES) deliverRawEnvelope(JSON.stringify(entry));
+
+    const message = channelEntry('channel_message').payload.message;
+    const held = useChannelStore.getState().channels[CHANNEL_ID];
+    expect(held.messages).toEqual({ [message.id]: message });
+    expect(held.permissions).toEqual([]);
+    expect(useChannelStore.getState().activity[CHANNEL_ID]).toEqual(
+      channelEntry('channel_member_activity', 'completed').payload,
+    );
+    expect(useChannelQueueStore.getState().queues.has(CHANNEL_ID)).toBe(false);
+    expect(notices).toEqual([
+      channelEntry('channel_permission_request'),
+      {
+        kind: 'channel_asked',
+        channelId: CHANNEL_ID,
+        payload: channelEntry('channel_member_activity', 'asked').payload.asked,
+      },
+      {
+        kind: 'channel_completed',
+        channelId: CHANNEL_ID,
+        payload: channelEntry('channel_member_activity', 'completed').payload.completed,
+      },
+    ]);
+  });
+
+  it('ignores an unknown channel envelope kind', () => {
+    const before = useChannelStore.getState();
+    const queues = useChannelQueueStore.getState().queues;
+
+    expect(() =>
+      deliverRawEnvelope(
+        JSON.stringify({ channelId: CHANNEL_ID, kind: 'channel_future', payload: {} }),
+      ),
+    ).not.toThrow();
+
+    expect(useChannelStore.getState().channels[CHANNEL_ID]).toBe(before.channels[CHANNEL_ID]);
+    expect(useChannelStore.getState().activity).toBe(before.activity);
+    expect(useChannelQueueStore.getState().queues).toBe(queues);
+    expect(notices).toEqual([]);
   });
 });

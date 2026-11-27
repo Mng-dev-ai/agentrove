@@ -1,12 +1,22 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useChannelStore } from './channelStore';
+import channelEnvelopes from '@/test/channelEnvelopes.json';
 import type {
+  ChannelEnvelope,
   ChannelMemberActivity,
   ChannelMessage,
   ChannelPermissionRequest,
 } from '@/types/channel.types';
 
 const CH = 'ch1';
+const FIXTURE_ENVELOPES = channelEnvelopes as ChannelEnvelope[];
+const APPLIED_BY_STORE: Record<ChannelEnvelope['kind'], boolean> = {
+  channel_message: true,
+  channel_permission_request: true,
+  channel_permission_resolved: true,
+  channel_member_activity: true,
+  channel_queue_sent: false,
+};
 
 const message = (id: string, seq: number, version: number, content = id): ChannelMessage => ({
   id,
@@ -165,5 +175,37 @@ describe('channel activity', () => {
 
     store().syncActivity(CH, activity('e2', 1, ['m2']));
     expect(store().activity[CH].member_ids).toEqual(['m2']);
+  });
+});
+
+describe('backend channel envelope fixture', () => {
+  it('has an entry for exactly the kinds in the ChannelEnvelope union', () => {
+    expect([...new Set(FIXTURE_ENVELOPES.map((entry) => entry.kind))].sort()).toEqual(
+      Object.keys(APPLIED_BY_STORE).sort(),
+    );
+  });
+
+  it('applies every store-bound fixture envelope to the held channel', () => {
+    const channelId = FIXTURE_ENVELOPES[0].channelId;
+    store().holdChannel(channelId);
+    for (const entry of FIXTURE_ENVELOPES) {
+      if (entry.kind === 'channel_queue_sent') continue;
+      store().applyEnvelope(entry);
+      const held = store().channels[channelId];
+      switch (entry.kind) {
+        case 'channel_message':
+          expect(held.messages[entry.payload.message.id]).toEqual(entry.payload.message);
+          break;
+        case 'channel_permission_request':
+          expect(held.permissions).toEqual([entry.payload]);
+          break;
+        case 'channel_permission_resolved':
+          expect(held.permissions).toEqual([]);
+          break;
+        case 'channel_member_activity':
+          expect(store().activity[channelId]).toBe(entry.payload);
+          break;
+      }
+    }
   });
 });

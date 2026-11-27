@@ -107,6 +107,8 @@ interface ChannelEnvelopeBase<K extends string, P> {
   payload: P;
 }
 
+// Mirrors ChannelEnvelopeKind in backend/app/services/channels/publisher.py;
+// frontend/src/test/channelEnvelopes.json holds both sides to the same shapes.
 export type ChannelEnvelope =
   | ChannelEnvelopeBase<'channel_message', { message: ChannelMessage }>
   | ChannelEnvelopeBase<'channel_permission_request', ChannelPermissionRequest>

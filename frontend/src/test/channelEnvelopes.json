@@ -66,6 +66,54 @@
     "kind": "channel_member_activity",
     "payload": {
       "epoch": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": 2,
+      "member_ids": [],
+      "waiting_member_ids": ["00000000-0000-4000-8000-000000000004"],
+      "elicitations": [
+        {
+          "member_id": "00000000-0000-4000-8000-000000000004",
+          "chat_id": "00000000-0000-4000-8000-000000000005",
+          "request": {
+            "request_id": "elicit-1",
+            "message": "Which branch?",
+            "tool_call_id": "tool-9",
+            "requested_schema": {
+              "type": "object",
+              "x-unnamed": true,
+              "properties": {
+                "branch": {
+                  "type": "string",
+                  "enum": ["main", "dev"]
+                }
+              },
+              "required": ["branch"]
+            },
+            "x_unnamed": "kept"
+          }
+        }
+      ],
+      "retrying_member_ids": [],
+      "member_errors": {},
+      "unavailable_members": {},
+      "asked": {
+        "title": "#Review",
+        "body": "claude-sonnet-4.6-google-vertex asks: Which branch?"
+      }
+    }
+  },
+  {
+    "channelId": "00000000-0000-4000-8000-000000000002",
+    "kind": "channel_permission_resolved",
+    "payload": {
+      "member_id": "00000000-0000-4000-8000-000000000004",
+      "request_id": "perm-1"
+    }
+  },
+  {
+    "channelId": "00000000-0000-4000-8000-000000000002",
+    "kind": "channel_member_activity",
+    "payload": {
+      "epoch": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
       "version": 3,
       "member_ids": [],
       "waiting_member_ids": ["00000000-0000-4000-8000-000000000004"],
@@ -101,42 +149,9 @@
   },
   {
     "channelId": "00000000-0000-4000-8000-000000000002",
-    "kind": "channel_member_activity",
+    "kind": "channel_queue_sent",
     "payload": {
-      "epoch": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
-      "version": 2,
-      "member_ids": [],
-      "waiting_member_ids": ["00000000-0000-4000-8000-000000000004"],
-      "elicitations": [
-        {
-          "member_id": "00000000-0000-4000-8000-000000000004",
-          "chat_id": "00000000-0000-4000-8000-000000000005",
-          "request": {
-            "request_id": "elicit-1",
-            "message": "Which branch?",
-            "tool_call_id": "tool-9",
-            "requested_schema": {
-              "type": "object",
-              "x-unnamed": true,
-              "properties": {
-                "branch": {
-                  "type": "string",
-                  "enum": ["main", "dev"]
-                }
-              },
-              "required": ["branch"]
-            },
-            "x_unnamed": "kept"
-          }
-        }
-      ],
-      "retrying_member_ids": [],
-      "member_errors": {},
-      "unavailable_members": {},
-      "asked": {
-        "title": "#Review",
-        "body": "claude-sonnet-4.6-google-vertex asks: Which branch?"
-      }
+      "id": "queued-1"
     }
   },
   {
@@ -179,21 +194,6 @@
         "title": "#Review",
         "body": "Reviewer: Hello team"
       }
-    }
-  },
-  {
-    "channelId": "00000000-0000-4000-8000-000000000002",
-    "kind": "channel_permission_resolved",
-    "payload": {
-      "member_id": "00000000-0000-4000-8000-000000000004",
-      "request_id": "perm-1"
-    }
-  },
-  {
-    "channelId": "00000000-0000-4000-8000-000000000002",
-    "kind": "channel_queue_sent",
-    "payload": {
-      "id": "queued-1"
     }
   }
 ]
