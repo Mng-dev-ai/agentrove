@@ -171,3 +171,9 @@ export interface SlashCommand {
   label: string;
   description?: string;
 }
+
+// The thread the user last had open; `/` reopens it.
+export interface LastThread {
+  kind: 'chat' | 'channel';
+  id: string;
+}

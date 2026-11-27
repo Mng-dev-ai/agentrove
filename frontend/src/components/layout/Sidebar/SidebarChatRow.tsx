@@ -1,7 +1,8 @@
-import type { Chat } from '@/types/chat.types';
+import type { AgentKind, Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import type { MachineBadge } from './SidebarChatItem';
 import { SidebarChatItem } from './SidebarChatItem';
+import { SidebarChannelItem } from './SidebarChannelItem';
 import type { MachineChannel } from './sidebarGrouping';
 import { SubThreadList } from './SubThreadList';
 import type { SidebarChannelActions } from './useSidebarChannelActions';
@@ -19,7 +20,9 @@ export interface ChatRowProps {
   blockedChatIdSet: Set<string>;
   completedChatIdSet: Set<string>;
   workspaceBadgeById: Map<string, WorkspaceBadge>;
+  machineBadge: (machineId: string) => MachineBadge | undefined;
   machineBadgeForChat: (chatId: string) => MachineBadge | undefined;
+  channelAgentKinds: (entry: MachineChannel) => AgentKind[];
   onChatSelect: (chatId: string) => void;
   onOpenInSplit?: (chatId: string) => void;
   canOpenChatInSplit: (chatId: string) => boolean;
@@ -122,5 +125,28 @@ export function SidebarChatRow({
         />
       )}
     </div>
+  );
+}
+
+export function SidebarChannelRow({
+  entry,
+  rowProps,
+}: {
+  entry: MachineChannel;
+  rowProps: ChatRowProps;
+}) {
+  const { channel, machineId } = entry;
+  const { channelActions, selectedChannelId } = rowProps;
+  return (
+    <SidebarChannelItem
+      channel={channel}
+      agentKinds={rowProps.channelAgentKinds(entry)}
+      machineBadge={rowProps.machineBadge(machineId)}
+      isActive={channel.id === selectedChannelId}
+      isCompleted={channelActions.completedChannelIds.has(channel.id)}
+      isDropdownOpen={channelActions.openMenuChannelId === channel.id}
+      onSelect={channelActions.handleChannelSelect}
+      onDropdownClick={channelActions.handleChannelDropdownClick}
+    />
   );
 }

@@ -38,7 +38,7 @@ import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import styles from './App.module.scss';
 
-const LandingPage = lazyNamed(() => import('@/pages/LandingPage/LandingPage'), 'LandingPage');
+const HomePage = lazyNamed(() => import('@/pages/HomePage/HomePage'), 'HomePage');
 const ChatPage = lazyNamed(() => import('@/pages/ChatPage/ChatPage'), 'ChatPage');
 const ChannelPage = lazyNamed(() => import('@/pages/ChannelPage/ChannelPage'), 'ChannelPage');
 const InboxPage = lazyNamed(() => import('@/pages/InboxPage/InboxPage'), 'InboxPage');
@@ -150,7 +150,7 @@ function AppContent() {
               <LoadingScreen />
             ) : (
               <Layout>
-                <LandingPage />
+                <HomePage />
               </Layout>
             )
           }

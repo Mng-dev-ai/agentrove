@@ -3,6 +3,7 @@ import type { MentionItem, SlashCommand } from '@/types/ui.types';
 import type { ComposerSelection } from '@/store/uiStore';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
 import type { DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
+import type { ComposerMembers } from './Input';
 
 export interface InputState {
   message: string;
@@ -22,6 +23,7 @@ export interface InputState {
   isDragging: boolean;
   placeholders: readonly string[];
   selectedModelId: string;
+  members?: ComposerMembers;
   dropdownPosition: DropdownPosition;
   attachedFiles: File[] | null;
   attachedSelections: ComposerSelection[];

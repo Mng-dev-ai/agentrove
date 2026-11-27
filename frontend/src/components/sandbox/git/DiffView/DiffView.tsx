@@ -54,8 +54,6 @@ const WORKER_HIGHLIGHTER_OPTIONS: WorkerInitializationRenderOptions = { theme: D
 interface DiffViewProps {
   // Binds sandbox/cwd and jump targeting so multi-chat tiles don't cross-talk.
   chatId: string | undefined;
-  // Landing page supplies sandbox directly (workspace root; no review comments).
-  sandboxId?: string;
   // Background tiles stay mounted — visibility detects a switch onto this view.
   isVisible: boolean;
 }
@@ -68,14 +66,10 @@ export const DiffView = memo(function DiffView(props: DiffViewProps) {
   return <DiffViewContent {...props} />;
 });
 
-const DiffViewContent = memo(function DiffViewContent({
-  chatId,
-  sandboxId: workspaceSandboxId,
-  isVisible,
-}: DiffViewProps) {
+const DiffViewContent = memo(function DiffViewContent({ chatId, isVisible }: DiffViewProps) {
   const theme = useResolvedTheme();
   const { data: chat } = useChatQuery(chatId);
-  const sandboxId = chat?.sandbox_id ?? workspaceSandboxId;
+  const sandboxId = chat?.sandbox_id;
   const cwd = chat?.worktree_cwd ?? undefined;
   // Expanded by default; set tracks user-collapsed exceptions.
   const [collapsedFiles, toggleCollapsed, setCollapsedFiles] = useToggleSet<string>();

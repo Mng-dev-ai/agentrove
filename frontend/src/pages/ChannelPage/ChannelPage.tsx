@@ -90,6 +90,7 @@ export function ChannelPage() {
     const ui = useUIStore.getState();
     ui.closeSplitChat();
     ui.loadWorkspace(channelId);
+    ui.setLastThread({ kind: 'channel', id: channelId });
     return () => useUIStore.getState().stashWorkspace();
   }, [channelId]);
 

@@ -66,7 +66,10 @@ export function ChatPage() {
   useLayoutEffect(() => {
     const ui = useUIStore.getState();
     const workspaceAlreadyLive = ui.currentWorkspaceChatId === chatId;
-    if (chatId) ui.loadWorkspaceForChat(chatId);
+    if (chatId) {
+      ui.loadWorkspaceForChat(chatId);
+      ui.setLastThread({ kind: 'chat', id: chatId });
+    }
     if (prevChatIdForResetRef.current !== chatId) {
       prevChatIdForResetRef.current = chatId;
       if (chatId && ui.splitChatIds.includes(chatId)) {

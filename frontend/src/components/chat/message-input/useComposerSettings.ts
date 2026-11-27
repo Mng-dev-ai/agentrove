@@ -20,7 +20,9 @@ export function useComposerSettings() {
     // (e.g. Claude's Haiku has none), so the base per-agent list isn't enough.
     showThinking: agentKind ? getThinkingModesForAgent(agentKind, selectedModel).length > 0 : true,
     showPersona: personas.length > 0 && (!agentKind || supportsPersona(selectedModel, agentKind)),
-    showFastMode: supportsFastMode(selectedModel, agentKind),
+    // Channel members take no fast mode
+    showFastMode:
+      (state.members?.memberModelIds.length ?? 0) < 2 && supportsFastMode(selectedModel, agentKind),
   };
 }
 

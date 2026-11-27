@@ -11,6 +11,7 @@ import type {
   AgentTileId,
   SplitSlot,
   WorkspaceLayout,
+  LastThread,
 } from '@/types/ui.types';
 import { MAX_CHAT_PANES } from '@/types/ui.types';
 import type { DiffMode } from '@/types/sandbox.types';
@@ -35,6 +36,7 @@ import {
 } from '@/store/sidebarFilters';
 import { THEME_CYCLE } from '@/utils/theme';
 
+const SIDEBAR_SECTIONS = ['pinned', 'recents'] as const;
 export const MIN_SIDEBAR_WIDTH = 220;
 export const MAX_SIDEBAR_WIDTH = 560;
 export const DEFAULT_SIDEBAR_WIDTH = 300;
@@ -79,7 +81,7 @@ export interface ChatTextSelection {
 
 export type ComposerSelection = EditorCodeSelection | ChatTextSelection;
 
-export type SidebarSection = 'channels' | 'pinned' | 'recents';
+export type SidebarSection = (typeof SIDEBAR_SECTIONS)[number];
 
 export type MenuPosition = { top: number } & ({ left: number } | { right: number });
 
@@ -107,6 +109,8 @@ type UIStoreState = ThemeState &
     setSidebarActivityView: (view: SidebarActivityKind | null) => void;
     collapsedSidebarSections: SidebarSection[];
     toggleSidebarSection: (section: SidebarSection) => void;
+    lastThread: LastThread | null;
+    setLastThread: (thread: LastThread) => void;
     chatMenu: ChatMenu | null;
     setChatMenu: (menu: ChatMenu | null) => void;
     toggleChatMenu: (menu: ChatMenu) => void;
@@ -154,9 +158,6 @@ type UIStoreState = ThemeState &
     addComposerSelection: (chatId: string, selection: ComposerSelection) => void;
     removeComposerSelection: (chatId: string, index: number) => void;
     clearComposerSelections: (chatId: string) => void;
-    // Landing workspace sandbox for git shortcuts before a chat exists.
-    workspaceSandboxId: string | null;
-    setWorkspaceSandboxId: (sandboxId: string | null) => void;
     // Title-bar working set (explicitly opened); sidebar is the full archive.
     chatTabs: string[];
     openChatTab: (chatId: string) => void;
@@ -352,6 +353,8 @@ export const useUIStore = create<UIStoreState>()(
       setSidebarFilters: (filters) => set({ sidebarFilters: filters }),
       sidebarActivityView: null,
       setSidebarActivityView: (view) => set({ sidebarActivityView: view }),
+      lastThread: null,
+      setLastThread: (lastThread) => set({ lastThread }),
       collapsedSidebarSections: [],
       toggleSidebarSection: (section) =>
         set((state) => ({
@@ -440,9 +443,6 @@ export const useUIStore = create<UIStoreState>()(
         set((state) => ({
           composerSelectionsByChat: { ...state.composerSelectionsByChat, [chatId]: [] },
         })),
-
-      workspaceSandboxId: null,
-      setWorkspaceSandboxId: (sandboxId) => set({ workspaceSandboxId: sandboxId }),
 
       chatTabs: [],
       openChatTab: (chatId) => {
@@ -691,6 +691,8 @@ export const useUIStore = create<UIStoreState>()(
           ),
           chatTabs: state.chatTabs.filter((id) => !isForgotten(id)),
           splitSessionPanelChatIds: state.splitSessionPanelChatIds.filter((id) => !isForgotten(id)),
+          lastThread:
+            state.lastThread && isForgotten(state.lastThread.id) ? null : state.lastThread,
         });
         clearTerminalStorage(isForgotten);
       },
@@ -845,6 +847,7 @@ export const useUIStore = create<UIStoreState>()(
         // Status filters are session-only (empty at mount) — don't persist them.
         sidebarFilters: { ...state.sidebarFilters, statuses: [] },
         collapsedSidebarSections: state.collapsedSidebarSections,
+        lastThread: state.lastThread,
         splitChatIds: state.splitChatIds,
         splitSessionPanelChatIds: state.splitSessionPanelChatIds,
         // Live workspace + currentWorkspaceChatId so refresh doesn't reset layout.
@@ -863,6 +866,11 @@ export const useUIStore = create<UIStoreState>()(
           ...current,
           ...stored,
           sidebarFilters: { ...EMPTY_SIDEBAR_FILTERS, ...stored?.sidebarFilters },
+          // Stored state can name sections the sidebar no longer has
+          collapsedSidebarSections: ((stored?.collapsedSidebarSections ?? []) as string[]).filter(
+            (section): section is SidebarSection =>
+              (SIDEBAR_SECTIONS as readonly string[]).includes(section),
+          ),
         };
       },
     },

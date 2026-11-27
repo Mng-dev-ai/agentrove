@@ -14,6 +14,7 @@ interface PersonaDropdownControlProps {
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
   onInlineSelect?: () => void;
+  mixed?: boolean;
 }
 
 export interface PersonaDropdownProps extends PersonaDropdownControlProps {
@@ -32,6 +33,7 @@ export const PersonaDropdown = memo(function PersonaDropdown({
   compact = true,
   variant = 'default',
   onInlineSelect,
+  mixed = false,
 }: PersonaDropdownProps) {
   const items = useMemo(() => getPersonaOptions(personas), [personas]);
 
@@ -45,6 +47,7 @@ export const PersonaDropdown = memo(function PersonaDropdown({
       items={items}
       getItemKey={(item) => item.value}
       getItemLabel={(item) => item.label}
+      getItemShortLabel={mixed ? () => 'Mixed' : undefined}
       onSelect={(item) => onChange(item.value)}
       leftIcon={UserCircle}
       ariaLabel="Persona"

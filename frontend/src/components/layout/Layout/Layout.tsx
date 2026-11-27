@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { useQueryClient } from '@tanstack/react-query';
 import { Header, type HeaderProps } from '@/components/layout/Header/Header';
 import { TitleBar } from '@/components/layout/TitleBar/TitleBar';
+import { NewThreadModal } from '@/components/layout/NewThreadModal/NewThreadModal';
 import { Link } from '@/components/ui/primitives/Link/Link';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
@@ -118,6 +119,7 @@ export function Layout({ children, isAuthPage = false }: LayoutProps) {
             {children}
           </main>
         </div>
+        <NewThreadModal />
       </div>
     </LayoutContext.Provider>
   );

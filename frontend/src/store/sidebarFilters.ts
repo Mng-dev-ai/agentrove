@@ -7,7 +7,8 @@ export type SidebarStatusFilter = 'unread' | 'running' | 'done' | 'needs-you';
 export type SidebarActivityKind = 'running' | 'needs-you';
 export type SidebarSourceFilter = 'all' | string;
 export type SidebarGroupBy = 'none' | 'date' | 'workspace' | 'status';
-export type FilterCategory = 'status' | 'agent' | 'source' | 'workspace' | 'groupBy';
+export type SidebarThreadType = 'all' | 'single' | 'group';
+export type FilterCategory = 'status' | 'agent' | 'source' | 'workspace' | 'threadType' | 'groupBy';
 
 export const STATUS_OPTIONS: { value: SidebarStatusFilter; label: string }[] = [
   { value: 'unread', label: 'Unread' },
@@ -26,6 +27,12 @@ export const AGENT_OPTIONS: { value: AgentKind; label: string }[] = [
   { value: 'opencode', label: 'OpenCode' },
 ];
 
+export const THREAD_TYPE_OPTIONS: { value: SidebarThreadType; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'single', label: 'Single agent' },
+  { value: 'group', label: 'Group' },
+];
+
 export const GROUP_BY_OPTIONS: { value: SidebarGroupBy; label: string }[] = [
   { value: 'none', label: 'None' },
   { value: 'date', label: 'Date' },
@@ -39,6 +46,7 @@ export interface SidebarFilters {
   agentKind: AgentKind | null;
   source: SidebarSourceFilter;
   workspaceId: string | null;
+  threadType: SidebarThreadType;
   // Presentation only — excluded from active count, kept on clear.
   groupBy: SidebarGroupBy;
 }
@@ -49,6 +57,7 @@ export const EMPTY_SIDEBAR_FILTERS: SidebarFilters = {
   agentKind: null,
   source: 'all',
   workspaceId: null,
+  threadType: 'all',
   groupBy: 'none',
 };
 
@@ -66,6 +75,7 @@ export function countActiveSidebarFilters(filters: SidebarFilters): number {
     filters.statuses.length +
     (filters.agentKind ? 1 : 0) +
     (filters.source !== 'all' ? 1 : 0) +
-    (filters.workspaceId ? 1 : 0)
+    (filters.workspaceId ? 1 : 0) +
+    (filters.threadType !== 'all' ? 1 : 0)
   );
 }

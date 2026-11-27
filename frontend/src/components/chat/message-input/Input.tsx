@@ -13,6 +13,14 @@ import { InputProvider } from './InputProvider';
 import { useInputContext } from '@/hooks/useInputContext';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
 import type { DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
+import type { ModelChecklist } from '@/components/chat/model-selector/ModelSelector';
+import type { MemberSetting } from '@/components/channels/memberDraft';
+
+// A new thread's member picker; the toolbar settings apply to every member
+export interface ComposerMembers extends ModelChecklist {
+  // Settings some member overrides, which the toolbar shows as mixed
+  mixed: Record<MemberSetting, boolean>;
+}
 
 export interface InputProps {
   message: string;
@@ -26,10 +34,11 @@ export interface InputProps {
   placeholder?: string;
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
+  members?: ComposerMembers;
   dropdownPosition?: DropdownPosition;
   showAttachedFilesPreview?: boolean;
   contextUsage?: ContextUsageInfo;
-  // Landing hosts branch selection in its own composer control, so its footer hides it.
+  // The New thread modal hosts branch selection in its own control, so its footer hides it.
   showBranch?: boolean;
   // Text on its own row above the controls even when it would fit beside them
   stacked?: boolean;

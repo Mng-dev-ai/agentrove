@@ -34,6 +34,7 @@ export function ModelControls() {
         disabled={state.isLoading}
         variant="text"
         machineId={state.machineId}
+        checklist={state.members}
       />
 
       {showThinking && (
@@ -47,6 +48,7 @@ export function ModelControls() {
             dropdownAlign="right"
             disabled={state.isLoading}
             variant="text"
+            mixed={state.members?.mixed.thinkingMode}
           />
         </>
       )}
@@ -108,6 +110,7 @@ export function ComposerFooter() {
               dropdownAlign="right"
               disabled={state.isLoading}
               variant="text"
+              mixed={state.members?.mixed.permissionMode}
             />
 
             {showPersona && (
@@ -119,6 +122,7 @@ export function ComposerFooter() {
                   dropdownAlign="right"
                   disabled={state.isLoading}
                   variant="text"
+                  mixed={state.members?.mixed.persona}
                 />
               </>
             )}

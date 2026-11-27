@@ -17,6 +17,7 @@ interface ThinkingModeControlProps {
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
   onInlineSelect?: () => void;
+  mixed?: boolean;
 }
 
 export interface ThinkingModeDropdownProps extends ThinkingModeControlProps {
@@ -35,6 +36,7 @@ export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
   compact = true,
   variant = 'default',
   onInlineSelect,
+  mixed = false,
 }: ThinkingModeDropdownProps) {
   const resolvedAgentKind = agentKind ?? 'claude';
 
@@ -51,6 +53,7 @@ export const ThinkingModeDropdown = memo(function ThinkingModeDropdown({
       items={modes}
       getItemKey={(mode) => mode.value}
       getItemLabel={(mode) => mode.label}
+      getItemShortLabel={mixed ? () => 'Mixed' : undefined}
       onSelect={(mode) => onChange(mode.value)}
       leftIcon={Brain}
       ariaLabel="Thinking mode"

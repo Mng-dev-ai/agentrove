@@ -145,3 +145,82 @@ export function memberRequest(
     display_name: member.customName || undefined,
   };
 }
+
+export type MemberSetting = 'thinkingMode' | 'persona' | 'permissionMode';
+export type SharedMemberSettings = Pick<MemberDraft, MemberSetting>;
+
+// A member of a group thread being composed: the composer toolbar's settings apply to it
+// unless it overrides them.
+export interface GroupMember {
+  key: string;
+  modelId: string;
+  customName: string | null;
+  overrides: Partial<SharedMemberSettings>;
+}
+
+export function newGroupMember(modelId: string): GroupMember {
+  return { key: crypto.randomUUID(), modelId, customName: null, overrides: {} };
+}
+
+export function groupMemberDraft(member: GroupMember, shared: SharedMemberSettings): MemberDraft {
+  return {
+    key: member.key,
+    customName: member.customName,
+    modelId: member.modelId,
+    ...shared,
+    ...member.overrides,
+  };
+}
+
+export function groupMemberRequests(
+  members: GroupMember[],
+  shared: SharedMemberSettings,
+  models: Model[],
+  personas: Persona[],
+): { requests: ChannelMemberCreateRequest[]; names: MemberName[] } {
+  const drafts = members.map((member) => groupMemberDraft(member, shared));
+  return {
+    requests: drafts.map((draft) => memberRequest(draft, models, personas)),
+    names: resolveMemberNames(drafts, models),
+  };
+}
+
+export function mixedMemberSettings(
+  members: GroupMember[],
+  shared: SharedMemberSettings,
+): Record<MemberSetting, boolean> {
+  const isMixed = (setting: MemberSetting) =>
+    members.some(
+      ({ overrides }) => overrides[setting] !== undefined && overrides[setting] !== shared[setting],
+    );
+  return {
+    thinkingMode: isMixed('thinkingMode'),
+    persona: isMixed('persona'),
+    permissionMode: isMixed('permissionMode'),
+  };
+}
+
+export function patchGroupMember(member: GroupMember, patch: Partial<MemberDraft>): GroupMember {
+  const overrides = { ...member.overrides };
+  if (patch.thinkingMode !== undefined) overrides.thinkingMode = patch.thinkingMode;
+  if (patch.persona !== undefined) overrides.persona = patch.persona;
+  if (patch.permissionMode !== undefined) overrides.permissionMode = patch.permissionMode;
+  return {
+    ...member,
+    modelId: patch.modelId ?? member.modelId,
+    customName: patch.customName !== undefined ? patch.customName : member.customName,
+    overrides,
+  };
+}
+
+export function clearMemberOverrides(
+  members: GroupMember[],
+  setting: MemberSetting,
+): GroupMember[] {
+  return members.map((member) => {
+    if (member.overrides[setting] === undefined) return member;
+    const overrides = { ...member.overrides };
+    delete overrides[setting];
+    return { ...member, overrides };
+  });
+}

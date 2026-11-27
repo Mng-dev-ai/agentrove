@@ -11,6 +11,7 @@ import {
   countActiveSidebarFilters,
   GROUP_BY_OPTIONS,
   STATUS_OPTIONS,
+  THREAD_TYPE_OPTIONS,
   type FilterCategory,
   type SidebarFilters,
   type SidebarStatusFilter,
@@ -107,6 +108,8 @@ export function SidebarFilterMenu({
   const workspaceSummary = filters.workspaceId
     ? (workspaceOptions.find((w) => w.id === filters.workspaceId)?.name ?? '1 selected')
     : 'All';
+  const threadTypeSummary =
+    THREAD_TYPE_OPTIONS.find((o) => o.value === filters.threadType)?.label ?? 'All';
   const groupBySummary = GROUP_BY_OPTIONS.find((o) => o.value === filters.groupBy)?.label ?? 'None';
 
   return (
@@ -168,6 +171,14 @@ export function SidebarFilterMenu({
                 active={filters.workspaceId !== null}
                 expanded={submenu?.view === 'workspace'}
                 onOpen={(e) => openSubmenu('workspace', e)}
+                onLeave={scheduleSubmenuClose}
+              />
+              <FilterCategoryRow
+                label="Type"
+                summary={threadTypeSummary}
+                active={filters.threadType !== 'all'}
+                expanded={submenu?.view === 'threadType'}
+                onOpen={(e) => openSubmenu('threadType', e)}
                 onLeave={scheduleSubmenuClose}
               />
               {/* Divider sets grouping apart from the rows above — it changes

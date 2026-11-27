@@ -4,6 +4,7 @@ import type { Palette } from '@/types/ui.types';
 import { CUSTOM_PALETTE_TOKENS, DARK_PALETTES } from '@/utils/theme';
 
 const TERMINAL_KEY_PREFIX = 'terminal:';
+// Older releases stored pre-chat terminals under this scope; their keys outlive the page.
 export const LANDING_TERMINAL_SCOPE_PREFIX = 'landing-';
 
 // xterm paints its own canvas, so it can't read surface-secondary CSS vars.

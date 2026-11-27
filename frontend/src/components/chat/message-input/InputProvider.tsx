@@ -22,7 +22,7 @@ import type { InputProps } from './Input';
 import { getAgentKindForModelId, supportsUsageUpdates, type Chat } from '@/types/chat.types';
 import { canAskSideQuestion, SIDE_QUESTION_SLASH_COMMAND } from '@/utils/sideQuestion';
 
-// Stable fallback so chat-less composers (landing page) don't churn the selector.
+// Stable fallback so chat-less composers (New thread) don't churn the selector.
 const NO_SELECTIONS: ComposerSelection[] = [];
 const NO_CHATS: Chat[] = [];
 
@@ -38,6 +38,7 @@ export function InputProvider({
   placeholder,
   selectedModelId,
   onModelChange,
+  members,
   dropdownPosition = 'auto',
   showAttachedFilesPreview = true,
   contextUsage,
@@ -211,6 +212,7 @@ export function InputProvider({
       isDragging,
       placeholders,
       selectedModelId,
+      members,
       dropdownPosition,
       attachedFiles,
       attachedSelections,
@@ -244,6 +246,7 @@ export function InputProvider({
       isDragging,
       placeholders,
       selectedModelId,
+      members,
       dropdownPosition,
       attachedFiles,
       attachedSelections,

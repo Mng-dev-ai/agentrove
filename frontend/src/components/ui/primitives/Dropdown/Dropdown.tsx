@@ -38,6 +38,12 @@ export interface DropdownProps<T> {
   // Kept whole after the label, which truncates first
   triggerSuffix?: string;
   onSelect: (item: T) => void;
+  // Multi-select: which rows are ticked, in place of matching `value`
+  isItemSelected?: (item: T) => boolean;
+  // Multi-select keeps the panel open across picks
+  closeOnSelect?: boolean;
+  // Shown before the trigger label at every width
+  triggerLeading?: ReactNode;
   renderItem?: (item: T, isSelected: boolean) => ReactNode;
   leftIcon?: ComponentType<SVGProps<SVGSVGElement>>;
   // CSS width for the panel (e.g. '10rem'), not a class name
@@ -146,6 +152,7 @@ type DropdownOptionsProps<T> = Pick<
   | 'items'
   | 'getItemKey'
   | 'getItemLabel'
+  | 'isItemSelected'
   | 'renderItem'
   | 'itemClassName'
   | 'searchable'
@@ -163,6 +170,7 @@ function DropdownOptions<T>({
   items,
   getItemKey,
   getItemLabel,
+  isItemSelected,
   renderItem,
   itemClassName,
   searchable = false,
@@ -263,7 +271,9 @@ function DropdownOptions<T>({
           }
 
           const item = entry.data;
-          const isSelected = getItemKey(item) === getItemKey(value);
+          const isSelected = isItemSelected
+            ? isItemSelected(item)
+            : getItemKey(item) === getItemKey(value);
           return (
             <SelectItem
               key={getItemKey(item)}
@@ -318,6 +328,8 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
     getItemShortLabel,
     triggerSuffix,
     onSelect,
+    closeOnSelect = true,
+    triggerLeading,
     leftIcon: LeftIcon,
     width = '10rem',
     dropdownPosition = 'bottom',
@@ -369,6 +381,7 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
             )}
           />
         )}
+        {triggerLeading}
         {/* Visibility lives on the tooltip wrapper (the flex item) so a hidden label doesn't
             leave a zero-width slot that still consumes the trigger's gap. */}
         <FloatingTooltip
@@ -414,7 +427,7 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
             {...props}
             onPick={(item) => {
               onSelect(item);
-              setIsOpen(false);
+              if (closeOnSelect) setIsOpen(false);
             }}
           />
         </div>
@@ -424,7 +437,7 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
 }
 
 const Dropdown = memo(function Dropdown<T>(props: DropdownProps<T>) {
-  const { onInlineSelect, onSelect, ariaLabel } = props;
+  const { onInlineSelect, onSelect, closeOnSelect = true, ariaLabel } = props;
   if (!onInlineSelect) return <DropdownPopover {...props} />;
   return (
     <div role="listbox" aria-label={ariaLabel} data-inline-options className={styles.inline}>
@@ -433,7 +446,7 @@ const Dropdown = memo(function Dropdown<T>(props: DropdownProps<T>) {
         selectionStyle="check"
         onPick={(item) => {
           onSelect(item);
-          onInlineSelect();
+          if (closeOnSelect) onInlineSelect();
         }}
       />
     </div>

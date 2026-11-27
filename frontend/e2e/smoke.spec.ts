@@ -45,8 +45,8 @@ test('production desktop bundle loads chat, editor and diff view', async ({ page
   await page.getByLabel('Email address').fill(ADMIN_EMAIL);
   await page.getByLabel('Password').fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('/');
 
+  // `/` reopens the newest thread, so the URL may already be the chat's
   await page.getByText(CHAT_TITLE).first().click();
   await page.waitForURL(/\/chat\/[0-9a-f-]+$/);
   await expect(page.getByRole('textbox', { name: 'Message input' })).toBeVisible();

@@ -146,7 +146,7 @@ interface BranchWorktreeSelectorProps {
   disabled?: boolean;
 }
 
-// Landing composer control: worktree on/off plus, when the workspace is a git repo,
+// New thread composer control: worktree on/off plus, when the workspace is a git repo,
 // the branch to check out (worktree off) or cut the new worktree from (worktree on).
 export const BranchWorktreeSelector = memo(function BranchWorktreeSelector({
   disabled = false,
