@@ -39,10 +39,9 @@ export function useBackgroundNotify(): (
         ? matchPath('/chat/:chatId', targetPath)?.params.chatId
         : undefined;
       if (!targetChatId && targetPath === pathname && document.hasFocus()) return;
-      // Only the workspace routes mount tiles — elsewhere (settings, auth) the
+      // Only the chat route mounts chat tiles — elsewhere (settings, auth) the
       // persisted layout paints nothing, so it can't suppress anything.
-      const paintsTiles = Boolean(routeChatId || matchPath('/', pathname));
-      if (paintsTiles && targetChatId && document.hasFocus()) {
+      if (routeChatId && targetChatId && document.hasFocus()) {
         const { visibleLayout, focusedTile, splitChatIds } = useUIStore.getState();
         const painted = paintedChatIds(
           paintedLayout(visibleLayout, focusedTile, isMobileViewport()).flat(),

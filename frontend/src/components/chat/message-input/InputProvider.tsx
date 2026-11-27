@@ -22,7 +22,7 @@ import type { InputProps } from './Input';
 import { getAgentKindForModelId, supportsUsageUpdates, type Chat } from '@/types/chat.types';
 import { canAskSideQuestion, SIDE_QUESTION_SLASH_COMMAND } from '@/utils/sideQuestion';
 
-// Stable fallback so chat-less composers (landing page) don't churn the selector.
+// Stable fallback so chat-less composers (New thread) don't churn the selector.
 const NO_SELECTIONS: ComposerSelection[] = [];
 const NO_CHATS: Chat[] = [];
 
@@ -41,7 +41,6 @@ export function InputProvider({
   dropdownPosition = 'auto',
   showAttachedFilesPreview = true,
   contextUsage,
-  showBranch = true,
   chatId,
   machineId,
   showLoadingSpinner = false,
@@ -49,7 +48,6 @@ export function InputProvider({
   children,
 }: InputProps & { children: ReactNode }) {
   const { fileStructure, builtinSlashCommands, personas } = useChatContext();
-  // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const chatMachineId = useChatMachineId(chatId);
   const modelMachineId = machineId ?? chatMachineId;
@@ -207,7 +205,6 @@ export function InputProvider({
       showFileUpload,
       showDrawingModal,
       showLoadingSpinner,
-      showBranch,
       isDragging,
       placeholders,
       selectedModelId,
@@ -240,7 +237,6 @@ export function InputProvider({
       showFileUpload,
       showDrawingModal,
       showLoadingSpinner,
-      showBranch,
       isDragging,
       placeholders,
       selectedModelId,

@@ -7,6 +7,7 @@ import type { Message } from '@/types/chat.types';
 
 interface UseChatDataResult {
   currentChat: ReturnType<typeof useChatQuery>['data'];
+  chatError: ReturnType<typeof useChatQuery>['error'];
   fetchedMessages: Message[];
   hasFetchedMessages: boolean;
   messagesQuery: ReturnType<typeof useInfiniteMessagesQuery>;
@@ -41,6 +42,7 @@ export function useChatData(chatId: string | undefined): UseChatDataResult {
 
   return {
     currentChat: chatQuery.data,
+    chatError: chatQuery.error,
     fetchedMessages,
     hasFetchedMessages: fetchedMessages.length > 0,
     messagesQuery,

@@ -7,7 +7,6 @@ import { supportsFastMode, supportsPersona } from '@/types/chat.types';
 
 export function useComposerSettings() {
   const state = useInputState();
-  // `/models/` is auth-protected; gate so the public landing composer doesn't 401.
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const modelMap = useModelMap({ enabled: isAuthenticated, machineId: state.machineId });
   const { personas } = useChatContext();

@@ -1,11 +1,12 @@
 import { useState, type MouseEvent } from 'react';
-import { Hash } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
+import { ProviderIconStack } from '@/components/ui/icons/ProviderIconStack';
 import { getRelativeTime } from '@/utils/date';
 import { CHAT_STATUS_LABEL } from '@/utils/message';
 import type { Channel } from '@/types/channel.types';
+import type { AgentKind } from '@/types/chat.types';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
 import { SidebarRowPreview, type MachineBadge } from './SidebarChatItem';
 import { describeMachine } from './sidebarHelpers';
@@ -14,6 +15,7 @@ import styles from './SidebarChannelItem.module.scss';
 
 interface SidebarChannelItemProps {
   channel: Channel;
+  agentKinds: AgentKind[];
   machineBadge: MachineBadge | undefined;
   isActive: boolean;
   isCompleted: boolean;
@@ -24,6 +26,7 @@ interface SidebarChannelItemProps {
 
 export function SidebarChannelItem({
   channel,
+  agentKinds,
   machineBadge,
   isActive,
   isCompleted,
@@ -55,23 +58,31 @@ export function SidebarChannelItem({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         leading={
-          <span
-            className={styles['status-slot']}
-            role={statusLabel ? 'img' : undefined}
-            aria-label={statusLabel}
-          >
-            {status === 'running' ? (
-              <AsciiSpinner className={styles.spinner} />
-            ) : (
-              <Hash className={styles.icon} />
-            )}
-            {status && status !== 'running' && (
-              <ChatStatusDot
-                tone={status}
-                className={styles['status-corner']}
-                ringClassName={styles['status-ring']}
-              />
-            )}
+          <span className={styles.leading}>
+            <span
+              className={styles['status-slot']}
+              role={statusLabel ? 'img' : undefined}
+              aria-label={statusLabel}
+            >
+              {status === 'running' ? (
+                <AsciiSpinner className={styles.spinner} />
+              ) : (
+                <ProviderIconStack agentKinds={agentKinds} />
+              )}
+              {status && status !== 'running' && (
+                <ChatStatusDot
+                  tone={status}
+                  className={styles['status-corner']}
+                  ringClassName={styles['status-ring']}
+                />
+              )}
+            </span>
+            <span
+              className={styles['member-count']}
+              aria-label={`${channel.members.length} members`}
+            >
+              {channel.members.length}
+            </span>
           </span>
         }
         title={

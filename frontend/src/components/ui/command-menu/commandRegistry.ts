@@ -14,6 +14,7 @@ import {
   Palette,
   Settings,
 } from 'lucide-react';
+import { useNewThreadStore } from '@/store/newThreadStore';
 import { useUIStore } from '@/store/uiStore';
 import { useChatStore } from '@/store/chatStore';
 import { sandboxService } from '@/services/sandboxService';
@@ -218,8 +219,7 @@ export function formatShortcut(key: string): string {
   return IS_MAC_PLATFORM ? `⌘⇧${label}` : `Ctrl+Shift+${label}`;
 }
 
-// The sandbox a git action targets. Resolved from the active pane's chat context
-// (or the selected workspace on the landing page), decoupled from whether a chat exists.
+// The sandbox a git action targets, resolved from the active pane's chat context.
 export interface GitTarget {
   sandboxId?: string;
   worktreeCwd?: string;
@@ -241,14 +241,9 @@ function getActiveChat(queryClient: QueryClient): Chat | null {
 }
 
 // Git target for the global keyboard-shortcut path, which has no chat context.
-// Prefers the active chat; on the landing page (no chat) it falls back to the
-// selected workspace's sandbox so branch/pull/push shortcuts still resolve.
 export function resolveActiveGitTarget(queryClient: QueryClient): GitTarget {
   const chat = getActiveChat(queryClient);
-  if (chat?.sandbox_id) {
-    return { sandboxId: chat.sandbox_id, worktreeCwd: chat.worktree_cwd ?? undefined };
-  }
-  return { sandboxId: useUIStore.getState().workspaceSandboxId ?? undefined };
+  return { sandboxId: chat?.sandbox_id, worktreeCwd: chat?.worktree_cwd ?? undefined };
 }
 
 function executeGitRemoteCommand(
@@ -289,7 +284,7 @@ export function executeCommand(
     // Toggling is scoped to the active pane (the chat the user last interacted with).
     ui.toggleView(cmd.id, toggle);
   } else if (cmd.id === 'new-thread') {
-    navigate('/');
+    useNewThreadStore.getState().open();
   } else if (cmd.id === 'new-sub-thread') {
     const chat = getActiveChat(queryClient);
     if (!chat || chat.parent_chat_id || chat.channel_id) {

@@ -1,6 +1,6 @@
 import { memo, useRef, type ComponentType, type SVGProps } from 'react';
 import clsx from 'clsx';
-import { Check, ChevronDown } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useDropdown } from '@/hooks/useDropdown';
 import { usePanelInlineShift } from '@/hooks/usePanelFit';
@@ -30,7 +30,7 @@ export const ToggleDropdown = memo(function ToggleDropdown({
   width,
   disabled = false,
 }: ToggleDropdownProps) {
-  // Hand-styled for the landing composer (not Dropdown) to match the workspace selector.
+  // Hand-styled (not Dropdown) to match the New thread modal's other footer pills.
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const panelRef = useRef<HTMLDivElement>(null);
   const panelTransform = usePanelInlineShift(panelRef, isOpen);
@@ -48,7 +48,6 @@ export const ToggleDropdown = memo(function ToggleDropdown({
       >
         {TriggerIcon && <TriggerIcon className={styles['trigger-icon']} />}
         <span className={styles['trigger-label']}>{selected.label}</span>
-        <ChevronDown className={styles.chevron} />
       </Button>
 
       {isOpen && (

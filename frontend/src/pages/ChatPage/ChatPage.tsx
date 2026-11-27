@@ -26,6 +26,8 @@ import {
   WorkspaceSurface,
   WorkspaceTile,
 } from '@/components/layout/WorkspaceSurface/WorkspaceSurface';
+import { evictThread } from '@/hooks/queries/threadCache';
+import { isNotFoundError } from '@/pages/HomePage/rootTarget';
 import { SubThreadDialog } from './SubThreadDialog';
 
 export function ChatPage() {
@@ -39,7 +41,17 @@ export function ChatPage() {
   const isMobile = useIsMobile();
   const isWorkspaceLoaded = useUIStore((s) => s.currentWorkspaceChatId === chatId);
 
-  const { currentChat, fetchedMessages, hasFetchedMessages, messagesQuery } = useChatData(chatId);
+  const { currentChat, chatError, fetchedMessages, hasFetchedMessages, messagesQuery } =
+    useChatData(chatId);
+
+  // Evicted from the lists before /, so / can't offer it again while they are stale
+  const queryClient = useQueryClient();
+  const isChatGone = isNotFoundError(chatError);
+  useEffect(() => {
+    if (!isChatGone || !chatId) return;
+    evictThread(queryClient, { kind: 'chat', id: chatId });
+    navigate('/', { replace: true });
+  }, [isChatGone, chatId, queryClient, navigate]);
 
   // Share AgentPane's chat-query cache; also drive split close-on-error.
   const splitQuery1 = useChatQuery(splitChatIds[0], {
@@ -66,7 +78,10 @@ export function ChatPage() {
   useLayoutEffect(() => {
     const ui = useUIStore.getState();
     const workspaceAlreadyLive = ui.currentWorkspaceChatId === chatId;
-    if (chatId) ui.loadWorkspaceForChat(chatId);
+    if (chatId) {
+      ui.loadWorkspaceForChat(chatId);
+      ui.setLastThread({ kind: 'chat', id: chatId });
+    }
     if (prevChatIdForResetRef.current !== chatId) {
       prevChatIdForResetRef.current = chatId;
       if (chatId && ui.splitChatIds.includes(chatId)) {
@@ -110,7 +125,6 @@ export function ChatPage() {
     }
   }, [chatId, isMobile, splitChatIds, isWorkspaceLoaded]);
 
-  const queryClient = useQueryClient();
   // Marks seen (last_viewed_at + clears sidebar unread).
   useEffect(() => {
     if (chatId) void markChatViewed(queryClient, chatId);

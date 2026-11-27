@@ -1,8 +1,9 @@
 import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { useQueryClient } from '@tanstack/react-query';
-import { Header, type HeaderProps } from '@/components/layout/Header/Header';
+import { Header } from '@/components/layout/Header/Header';
 import { TitleBar } from '@/components/layout/TitleBar/TitleBar';
+import { NewThreadModal } from '@/components/layout/NewThreadModal/NewThreadModal';
 import { Link } from '@/components/ui/primitives/Link/Link';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
@@ -60,8 +61,9 @@ function ServerUnreachableBanner() {
   );
 }
 
-export interface LayoutProps extends HeaderProps {
+export interface LayoutProps {
   children: ReactNode;
+  isAuthPage?: boolean;
 }
 
 export function Layout({ children, isAuthPage = false }: LayoutProps) {
@@ -103,7 +105,7 @@ export function Layout({ children, isAuthPage = false }: LayoutProps) {
           Skip to main content
         </Link>
         <TitleBar />
-        <Header isAuthPage={isAuthPage} />
+        {isAuthPage && <Header />}
         <ServerUnreachableBanner />
 
         <div className={styles.body}>
@@ -118,6 +120,7 @@ export function Layout({ children, isAuthPage = false }: LayoutProps) {
             {children}
           </main>
         </div>
+        <NewThreadModal />
       </div>
     </LayoutContext.Provider>
   );

@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Channel, ChannelMemberActivity } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
 import {
-  buildRecentChatSections,
+  buildRecentSections,
   channelActivityKind,
+  mergeSidebarThreads,
   partitionLinkedChannels,
+  threadId,
   type MachineChannel,
 } from './sidebarGrouping';
 
@@ -48,6 +50,7 @@ function machineChannel(
   id: string,
   machineId: string,
   parentChatId: string | null | undefined,
+  over: Partial<Channel> = {},
 ): MachineChannel {
   const channel: Channel = {
     id,
@@ -60,29 +63,110 @@ function machineChannel(
     members: [],
     anchor_chat_id: `${id}-anchor`,
     activity: memberActivity(),
+    ...over,
   };
   if (parentChatId !== undefined) channel.parent_chat_id = parentChatId;
   return { channel, machineId };
 }
 
-type GroupingInput = Parameters<typeof buildRecentChatSections>[0];
+type GroupingInput = Parameters<typeof buildRecentSections>[0];
 
 function group(
   groupBy: GroupingInput['groupBy'],
   chats: Chat[],
   over: Partial<GroupingInput> = {},
 ): [string | null, string[]][] {
-  return buildRecentChatSections({
+  return buildRecentSections({
     groupBy,
-    visibleRecentChats: chats,
+    visibleRecentThreads: chats.map((chat) => ({ kind: 'chat', chat })),
     workspaceBadgeById: new Map(),
-    streamingChatIdSet: new Set(),
-    completedChatIds: new Set(),
+    runningIds: new Set(),
+    completedIds: new Set(),
     ...over,
-  }).map(({ label, chats }) => [label, chats.map(({ id }) => id)]);
+  }).map(({ label, threads }) => [label, threads.map(threadId)]);
 }
 
-describe('buildRecentChatSections date grouping', () => {
+type MergeInput = Parameters<typeof mergeSidebarThreads>[0];
+
+function merge(over: Partial<MergeInput>): { pinned: string[]; recents: string[] } {
+  const { pinned, recents } = mergeSidebarThreads({
+    pinnedChats: [],
+    recentChats: [],
+    channels: [],
+    recentsFloor: null,
+    selectedChannelId: null,
+    threadType: 'all',
+    ...over,
+  });
+  return { pinned: pinned.map(threadId), recents: recents.map(threadId) };
+}
+
+const at = (hour: number) => new Date(2026, 6, 12, hour);
+
+describe('mergeSidebarThreads', () => {
+  const pinnedChats = [
+    chat('pinned-chat-new', at(1), { pinned_at: at(9).toISOString() }),
+    chat('pinned-chat-old', at(2), { pinned_at: at(5).toISOString() }),
+  ];
+  const recentChats = [chat('chat-10', at(10)), chat('chat-6', at(6)), chat('chat-4', at(4))];
+  const channels = [
+    machineChannel('pinned-channel', 'local', null, {
+      updated_at: at(1).toISOString(),
+      pinned_at: at(7).toISOString(),
+    }),
+    machineChannel('channel-8', 'vps', null, { updated_at: at(8).toISOString() }),
+    machineChannel('channel-5', 'local', null, { updated_at: at(5).toISOString() }),
+    machineChannel('channel-2', 'local', null, { updated_at: at(2).toISOString() }),
+  ];
+
+  it('orders pinned by pin time and recents by update time across both kinds', () => {
+    expect(merge({ pinnedChats, recentChats, channels })).toEqual({
+      pinned: ['pinned-chat-new', 'pinned-channel', 'pinned-chat-old'],
+      recents: ['chat-10', 'channel-8', 'chat-6', 'channel-5', 'chat-4', 'channel-2'],
+    });
+  });
+
+  it('holds back unpinned channels older than the oldest loaded chat while pages remain', () => {
+    expect(
+      merge({ pinnedChats, recentChats, channels, recentsFloor: at(4).toISOString() }),
+    ).toEqual({
+      pinned: ['pinned-chat-new', 'pinned-channel', 'pinned-chat-old'],
+      recents: ['chat-10', 'channel-8', 'chat-6', 'channel-5', 'chat-4'],
+    });
+  });
+
+  it('keeps the selected channel below the cutoff', () => {
+    expect(
+      merge({
+        recentChats,
+        channels,
+        recentsFloor: at(4).toISOString(),
+        selectedChannelId: 'channel-2',
+      }).recents,
+    ).toEqual(['chat-10', 'channel-8', 'chat-6', 'channel-5', 'chat-4', 'channel-2']);
+  });
+
+  it('narrows to one kind by thread type', () => {
+    expect(merge({ pinnedChats, recentChats, channels, threadType: 'single' })).toEqual({
+      pinned: ['pinned-chat-new', 'pinned-chat-old'],
+      recents: ['chat-10', 'chat-6', 'chat-4'],
+    });
+    expect(
+      merge({
+        pinnedChats,
+        recentChats,
+        channels,
+        threadType: 'group',
+        recentsFloor: at(4).toISOString(),
+      }),
+    ).toEqual({
+      pinned: ['pinned-channel'],
+      recents: ['channel-8', 'channel-5', 'channel-2'],
+    });
+  });
+});
+
+describe('buildRecentSections date grouping', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(NOW);
@@ -120,7 +204,7 @@ describe('buildRecentChatSections date grouping', () => {
   });
 });
 
-describe('buildRecentChatSections workspace grouping', () => {
+describe('buildRecentSections workspace grouping', () => {
   it('groups by workspace in most-recent order, resolving badge names', () => {
     expect(
       group(
@@ -150,7 +234,7 @@ describe('buildRecentChatSections workspace grouping', () => {
   });
 });
 
-describe('buildRecentChatSections status grouping', () => {
+describe('buildRecentSections status grouping', () => {
   it('assigns each chat to its highest-precedence status group and orders by urgency', () => {
     expect(
       group(
@@ -163,8 +247,8 @@ describe('buildRecentChatSections status grouping', () => {
           chat('running-and-unread', NOW, { unread: true }),
         ],
         {
-          streamingChatIdSet: new Set(['running', 'running-and-unread']),
-          completedChatIds: new Set(['done']),
+          runningIds: new Set(['running', 'running-and-unread']),
+          completedIds: new Set(['done']),
         },
       ),
     ).toEqual([

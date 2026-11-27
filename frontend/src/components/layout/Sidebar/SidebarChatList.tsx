@@ -1,32 +1,32 @@
-import type { ReactNode } from 'react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { clearSidebarFilters, type SidebarFilters } from '@/store/sidebarFilters';
-import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import type { ListLoadState } from '@/hooks/queries/listLoad';
-import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
+import { SidebarChannelRow, SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
 import { SidebarFilterMenu } from './SidebarFilterMenu';
 import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
-import type { SidebarChatSection } from './sidebarGrouping';
+import type { SidebarSection, SidebarThread } from './sidebarGrouping';
 import styles from './SidebarChatList.module.scss';
 
 interface SidebarChatListProps {
-  channels: ReactNode;
-  isLoadingChats: boolean;
+  isLoading: boolean;
   threadsLoad: ListLoadState;
   pinnedLoad: ListLoadState;
   recentsLoad: ListLoadState;
+  channelsLoad: ListLoadState;
   hasAnyContent: boolean;
-  pinnedChats: Chat[];
-  recentChats: Chat[];
+  hasChannels: boolean;
+  // Whether each section has threads matching the filters, collapsed or not
+  hasPinned: boolean;
+  hasRecents: boolean;
   // What each section renders; Sidebar nests linked channels under exactly these rows
-  pinnedRows: Chat[];
-  recentRows: Chat[];
+  pinnedRows: SidebarThread[];
+  recentRows: SidebarThread[];
   isRecentsCollapsed: boolean;
   hasVisibleContent: boolean;
-  recentChatSections: SidebarChatSection[];
+  recentSections: SidebarSection[];
   rowProps: ChatRowProps;
   filters: SidebarFilters;
   onChangeFilters: (filters: SidebarFilters) => void;
@@ -39,20 +39,32 @@ interface SidebarChatListProps {
   onShowLess: () => void;
 }
 
+function SidebarThreadRow({ thread, rowProps }: { thread: SidebarThread; rowProps: ChatRowProps }) {
+  return thread.kind === 'chat' ? (
+    <SidebarChatRow chat={thread.chat} rowProps={rowProps} />
+  ) : (
+    <SidebarChannelRow entry={thread} rowProps={rowProps} />
+  );
+}
+
+const rowKey = (thread: SidebarThread) =>
+  thread.kind === 'chat' ? `chat:${thread.chat.id}` : `channel:${thread.channel.id}`;
+
 export function SidebarChatList({
-  channels,
-  isLoadingChats,
+  isLoading,
   threadsLoad,
   pinnedLoad,
   recentsLoad,
+  channelsLoad,
   hasAnyContent,
-  pinnedChats,
-  recentChats,
+  hasChannels,
+  hasPinned,
+  hasRecents,
   pinnedRows,
   recentRows,
   isRecentsCollapsed,
   hasVisibleContent,
-  recentChatSections,
+  recentSections,
   rowProps,
   filters,
   onChangeFilters,
@@ -64,119 +76,122 @@ export function SidebarChatList({
   canShowLess,
   onShowLess,
 }: SidebarChatListProps) {
+  const channelsError = !hasChannels && channelsLoad.loadFailed && (
+    <LoadErrorState variant="inline" message="Couldn't load channels" load={channelsLoad} />
+  );
+
+  if (!hasAnyContent) {
+    if (isLoading) return null;
+    return (
+      <div>
+        <SidebarSectionHeader title="Threads" />
+        {threadsLoad.loadFailed ? (
+          <LoadErrorState variant="inline" message="Couldn't load threads" load={threadsLoad} />
+        ) : (
+          !channelsLoad.loadFailed && <p className={styles.empty}>No threads yet</p>
+        )}
+        {channelsError}
+      </div>
+    );
+  }
+
   return (
-    <>
-      {channels}
-      {!hasAnyContent ? (
-        threadsLoad.loadFailed ? (
-          <div>
-            <SidebarSectionHeader title="Threads" />
-            <LoadErrorState variant="inline" message="Couldn't load threads" load={threadsLoad} />
-          </div>
-        ) : isLoadingChats ? null : (
-          <div>
-            <SidebarSectionHeader title="Threads" />
-            <p className={styles.empty}>No threads yet. Start one with New thread.</p>
-          </div>
-        )
-      ) : (
-        <div>
-          {pinnedChats.length === 0 && pinnedLoad.loadFailed && (
-            <div className={styles.section}>
-              <SidebarSectionHeader title="Pinned" />
-              <LoadErrorState
-                variant="inline"
-                message="Couldn't load pinned threads"
-                load={pinnedLoad}
-              />
-            </div>
-          )}
+    <div>
+      {!hasPinned && pinnedLoad.loadFailed && (
+        <div className={styles.section}>
+          <SidebarSectionHeader title="Pinned" />
+          <LoadErrorState
+            variant="inline"
+            message="Couldn't load pinned threads"
+            load={pinnedLoad}
+          />
+        </div>
+      )}
 
-          {pinnedChats.length > 0 && (
-            <div className={styles.section}>
-              <SidebarSectionHeader title="Pinned" section="pinned" />
-              {pinnedRows.map((chat) => (
-                <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
-              ))}
-            </div>
-          )}
+      {hasPinned && (
+        <div className={styles.section}>
+          <SidebarSectionHeader title="Pinned" section="pinned" />
+          {pinnedRows.map((thread) => (
+            <SidebarThreadRow key={rowKey(thread)} thread={thread} rowProps={rowProps} />
+          ))}
+        </div>
+      )}
 
-          {/* Header always renders so the filter menu stays reachable when filters empty the list. */}
+      {/* Header always renders so the filter menu stays reachable when filters empty the list. */}
+      <div>
+        <SidebarSectionHeader title="Recents" section="recents">
+          <SidebarFilterMenu
+            filters={filters}
+            onChange={onChangeFilters}
+            workspaceBadgeById={workspaceBadgeById}
+            machineOptions={machineOptions}
+          />
+        </SidebarSectionHeader>
+        {channelsError}
+        {isRecentsCollapsed ? (
+          recentRows.map((thread) => (
+            <SidebarThreadRow key={rowKey(thread)} thread={thread} rowProps={rowProps} />
+          ))
+        ) : !hasRecents && recentsLoad.loadFailed ? (
+          <LoadErrorState variant="inline" message="Couldn't load threads" load={recentsLoad} />
+        ) : hasRecents ? (
           <div>
-            <SidebarSectionHeader title="Recents" section="recents">
-              <SidebarFilterMenu
-                filters={filters}
-                onChange={onChangeFilters}
-                workspaceBadgeById={workspaceBadgeById}
-                machineOptions={machineOptions}
-              />
-            </SidebarSectionHeader>
-            {isRecentsCollapsed ? (
-              recentRows.map((chat) => (
-                <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
-              ))
-            ) : recentChats.length === 0 && recentsLoad.loadFailed ? (
-              <LoadErrorState variant="inline" message="Couldn't load threads" load={recentsLoad} />
-            ) : recentChats.length > 0 ? (
-              <div>
-                {recentChatSections.map((section) => (
-                  <div key={section.key} className={section.label ? styles.section : undefined}>
-                    {section.label && <div className={styles['group-label']}>{section.label}</div>}
-                    {section.chats.map((chat) => (
-                      <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
-                    ))}
-                  </div>
+            {recentSections.map((section) => (
+              <div key={section.key} className={section.label ? styles.section : undefined}>
+                {section.label && <div className={styles['group-label']}>{section.label}</div>}
+                {section.threads.map((thread) => (
+                  <SidebarThreadRow key={rowKey(thread)} thread={thread} rowProps={rowProps} />
                 ))}
               </div>
-            ) : !hasVisibleContent ? (
-              // Filters only narrow loaded pages — Show more may still surface matches.
-              <div className={styles['no-match']}>
-                <p className={styles['no-match-text']}>No chats match the current filters</p>
-                <Button
-                  variant="unstyled"
-                  onClick={() => onChangeFilters(clearSidebarFilters(filters))}
-                  className={styles['clear-filters']}
-                >
-                  Clear filters
-                </Button>
-              </div>
-            ) : null}
+            ))}
           </div>
-          {/* Outside Recents: a remote page of only pinned chats still needs Show more. */}
-          {(hasMore || canShowLess) && (
-            <div className={styles['more-toggles']}>
-              {hasMore && (
-                <Button
-                  variant="unstyled"
-                  type="button"
-                  onClick={onLoadMore}
-                  disabled={isFetchingMore}
-                  className={styles['more-toggle']}
-                >
-                  {isFetchingMore ? (
-                    <>
-                      <Spinner size="xs" />
-                      Loading…
-                    </>
-                  ) : (
-                    'Show more'
-                  )}
-                </Button>
+        ) : !hasVisibleContent ? (
+          // Filters only narrow loaded pages — Show more may still surface matches.
+          <div className={styles['no-match']}>
+            <p className={styles['no-match-text']}>No threads match the current filters</p>
+            <Button
+              variant="unstyled"
+              onClick={() => onChangeFilters(clearSidebarFilters(filters))}
+              className={styles['clear-filters']}
+            >
+              Clear filters
+            </Button>
+          </div>
+        ) : null}
+      </div>
+      {/* Outside Recents: a remote page of only pinned chats still needs Show more. */}
+      {(hasMore || canShowLess) && (
+        <div className={styles['more-toggles']}>
+          {hasMore && (
+            <Button
+              variant="unstyled"
+              type="button"
+              onClick={onLoadMore}
+              disabled={isFetchingMore}
+              className={styles['more-toggle']}
+            >
+              {isFetchingMore ? (
+                <>
+                  <Spinner size="xs" />
+                  Loading…
+                </>
+              ) : (
+                'Show more'
               )}
-              {canShowLess && (
-                <Button
-                  variant="unstyled"
-                  type="button"
-                  onClick={onShowLess}
-                  className={styles['more-toggle']}
-                >
-                  Show less
-                </Button>
-              )}
-            </div>
+            </Button>
+          )}
+          {canShowLess && (
+            <Button
+              variant="unstyled"
+              type="button"
+              onClick={onShowLess}
+              className={styles['more-toggle']}
+            >
+              Show less
+            </Button>
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

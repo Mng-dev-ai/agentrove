@@ -6,10 +6,8 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import type { Chat } from '@/types/chat.types';
 import { stripMarkdownTitle } from '@/utils/format';
-import { SidebarChannelItem } from './SidebarChannelItem';
-import type { MachineBadge } from './SidebarChatItem';
-import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
-import type { SidebarActivityEntry } from './useSidebarActivity';
+import { SidebarChannelRow, SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
+import type { SidebarThread } from './sidebarGrouping';
 import type { SidebarActivityKind } from '@/store/sidebarFilters';
 import listStyles from './SidebarChatList.module.scss';
 import styles from './SidebarActivity.module.scss';
@@ -71,9 +69,8 @@ function ActivityRow({ chat, rowProps }: { chat: Chat; rowProps: ChatRowProps })
 
 interface SidebarActivityListProps {
   view: SidebarActivityKind;
-  entries: SidebarActivityEntry[];
+  entries: SidebarThread[];
   rowProps: ChatRowProps;
-  machineBadge: (machineId: string) => MachineBadge | undefined;
   onClose: () => void;
 }
 
@@ -83,7 +80,6 @@ export function SidebarActivityList({
   view,
   entries,
   rowProps,
-  machineBadge,
   onClose,
 }: SidebarActivityListProps) {
   return (
@@ -109,16 +105,7 @@ export function SidebarActivityList({
           entry.kind === 'chat' ? (
             <ActivityRow key={entry.chat.id} chat={entry.chat} rowProps={rowProps} />
           ) : (
-            <SidebarChannelItem
-              key={entry.channel.id}
-              channel={entry.channel}
-              machineBadge={machineBadge(entry.machineId)}
-              isActive={entry.channel.id === rowProps.selectedChannelId}
-              isCompleted={rowProps.channelActions.completedChannelIds.has(entry.channel.id)}
-              isDropdownOpen={rowProps.channelActions.openMenuChannelId === entry.channel.id}
-              onSelect={rowProps.channelActions.handleChannelSelect}
-              onDropdownClick={rowProps.channelActions.handleChannelDropdownClick}
-            />
+            <SidebarChannelRow key={entry.channel.id} entry={entry} rowProps={rowProps} />
           ),
         )
       )}

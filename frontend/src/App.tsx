@@ -6,7 +6,6 @@ import { lazyNamed } from '@/utils/lazyNamed';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDesktopZoom } from '@/hooks/useDesktopZoom';
 import { useAppBadge } from '@/hooks/useAppBadge';
-import { Layout } from '@/components/layout/Layout/Layout';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useOnlineRemoteMachineIds } from '@/store/machineStore';
@@ -38,7 +37,7 @@ import { DesktopDragRegion } from '@/components/layout/TitleBar/TitleBar';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import styles from './App.module.scss';
 
-const LandingPage = lazyNamed(() => import('@/pages/LandingPage/LandingPage'), 'LandingPage');
+const HomePage = lazyNamed(() => import('@/pages/HomePage/HomePage'), 'HomePage');
 const ChatPage = lazyNamed(() => import('@/pages/ChatPage/ChatPage'), 'ChatPage');
 const ChannelPage = lazyNamed(() => import('@/pages/ChannelPage/ChannelPage'), 'ChannelPage');
 const InboxPage = lazyNamed(() => import('@/pages/InboxPage/InboxPage'), 'InboxPage');
@@ -146,13 +145,13 @@ function AppContent() {
         <Route
           path="/"
           element={
-            showLoading ? (
-              <LoadingScreen />
-            ) : (
-              <Layout>
-                <LandingPage />
-              </Layout>
-            )
+            <AuthRoute
+              isAuthenticated={isSessionAuthenticated}
+              requireAuth={true}
+              showLoading={showLoading}
+            >
+              <HomePage />
+            </AuthRoute>
           }
         />
         <Route

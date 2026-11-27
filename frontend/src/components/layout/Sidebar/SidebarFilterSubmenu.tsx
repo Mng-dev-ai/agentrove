@@ -5,6 +5,7 @@ import {
   AGENT_OPTIONS,
   GROUP_BY_OPTIONS,
   STATUS_OPTIONS,
+  THREAD_TYPE_OPTIONS,
   type FilterCategory,
   type SidebarFilters,
   type SidebarStatusFilter,
@@ -118,6 +119,17 @@ export function SidebarFilterSubmenu({
           ))}
         </>
       )}
+
+      {view === 'threadType' &&
+        THREAD_TYPE_OPTIONS.map(({ value, label }) => (
+          <FilterOptionRow
+            key={value}
+            selected={filters.threadType === value}
+            onSelect={() => onSelectAndClose({ threadType: value })}
+          >
+            {label}
+          </FilterOptionRow>
+        ))}
 
       {view === 'groupBy' &&
         GROUP_BY_OPTIONS.map(({ value, label }) => (

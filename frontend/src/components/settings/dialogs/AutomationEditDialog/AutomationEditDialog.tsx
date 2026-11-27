@@ -22,7 +22,7 @@ import {
 } from '@/components/chat/permission-mode-selector/permissionModes';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { MemberChips } from '@/components/channels/CreateChannelDialog';
+import { MemberChips } from '@/components/channels/MemberChips';
 import { resolveMemberNames } from '@/components/channels/memberDraft';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { machineName } from '@/store/machineStore';

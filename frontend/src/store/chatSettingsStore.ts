@@ -44,7 +44,7 @@ interface ChatSettingsState {
   worktreeBaseBranchByChat: Record<string, string | undefined>;
   // Codex-only 1.5x tier; other agents ignore it.
   fastModeByChat: Record<string, boolean>;
-  // Global landing-composer choice; null follows the default machine.
+  // The New thread modal's run location; null follows the default machine.
   targetMachineId: string | null;
   personaByChat: Record<string, string>;
   setPermissionMode: (chatId: string, mode: PermissionMode) => void;

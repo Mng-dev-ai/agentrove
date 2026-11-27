@@ -1,17 +1,6 @@
-import {
-  useCallback,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-  type RefObject,
-} from 'react';
+import { useRef, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { ChevronDown, Plus, Trash2 } from 'lucide-react';
-import toast from 'react-hot-toast';
-import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
-import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
-import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
@@ -22,54 +11,19 @@ import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { ThinkingModeDropdown } from '@/components/chat/thinking-mode-selector/ThinkingModeSelector';
 import { PersonaDropdown } from '@/components/chat/persona-selector/PersonaSelector';
 import { PermissionModeDropdown } from '@/components/chat/permission-mode-selector/PermissionModeSelector';
-import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
-import { MachineWorkspaceSelector } from '@/components/chat/workspace-selector/MachineWorkspaceSelector';
-import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
-import { BranchWorktreeDropdown } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
 import { useDropdown } from '@/hooks/useDropdown';
 import { usePanelFit } from '@/hooks/usePanelFit';
-import { useModelsQuery } from '@/hooks/queries/useModelQueries';
-import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
-import { useGitBranchesQuery } from '@/hooks/queries/useSandboxQueries';
-import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { useCreateChannelMutation } from '@/hooks/queries/useChannelQueries';
-import { DEFAULT_WORKTREE } from '@/store/chatSettingsStore';
-import { useAuthStore } from '@/store/authStore';
-import { machineName, machineStatus, useTargetMachineId } from '@/store/machineStore';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { stateClasses } from '@/config/stateClasses';
 import type { Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
 import {
   MEMBER_NAME_MAX_LENGTH,
-  memberRequest,
   newMemberDraft,
   resolveMember,
-  resolveMemberNames,
   type MemberDraft,
   type MemberName,
 } from './memberDraft';
-import styles from './CreateChannelDialog.module.scss';
-
-function useContentOverflows(
-  scrollerRef: RefObject<HTMLElement | null>,
-  contentRef: RefObject<HTMLElement | null>,
-): boolean {
-  const [overflows, setOverflows] = useState(false);
-
-  useLayoutEffect(() => {
-    const scroller = scrollerRef.current;
-    const content = contentRef.current;
-    if (!scroller || !content) return;
-    const measure = () => setOverflows(content.offsetHeight > scroller.clientHeight);
-    const observer = new ResizeObserver(measure);
-    observer.observe(scroller);
-    observer.observe(content);
-    return () => observer.disconnect();
-  }, [scrollerRef, contentRef]);
-
-  return overflows;
-}
+import styles from './MemberChips.module.scss';
 
 interface MemberPopoverProps {
   machineId: string;
@@ -298,183 +252,5 @@ export function MemberChips({
         <Plus className={styles['add-icon']} />
       </Button>
     </div>
-  );
-}
-
-interface CreateChannelDialogProps {
-  defaultWorkspaceId: string | null;
-  onClose: () => void;
-  onCreated: (channelId: string) => void;
-}
-
-export function CreateChannelDialog({
-  defaultWorkspaceId,
-  onClose,
-  onCreated,
-}: CreateChannelDialogProps) {
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const targetMachineId = useTargetMachineId();
-  const { data: models = [] } = useModelsQuery({
-    enabled: isAuthenticated,
-    machineId: targetMachineId,
-  });
-  const isRemote = targetMachineId !== LOCAL_MACHINE_ID;
-  const { data: settings } = useSettingsQuery({
-    machineId: targetMachineId,
-    enabled: isAuthenticated,
-  });
-  const personas = settings?.personas ?? [];
-  const workspaces = useWorkspacesList({ machineId: targetMachineId, enabled: isAuthenticated });
-
-  const [name, setName] = useState('');
-  const [workspaceIdByMachine, setWorkspaceIdByMachine] = useState<Record<string, string | null>>({
-    [LOCAL_MACHINE_ID]: defaultWorkspaceId,
-  });
-  const workspaceId = workspaceIdByMachine[targetMachineId] ?? null;
-  const [worktree, setWorktree] = useState(DEFAULT_WORKTREE);
-  const [branchPick, setBranchPick] = useState<{ workspaceId: string; name: string } | null>(null);
-  const [members, setMembers] = useState<MemberDraft[]>(() => [newMemberDraft()]);
-  const createChannel = useCreateChannelMutation();
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const bodyContentRef = useRef<HTMLDivElement>(null);
-  const bodyOverflows = useContentOverflows(bodyRef, bodyContentRef);
-
-  const sandboxId = workspaces.find((workspace) => workspace.id === workspaceId)?.sandbox_id;
-  const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId);
-  const hasBranches = !!branchesData?.is_git_repo && branchesData.branches.length > 0;
-  const selectedBranch = branchPick?.workspaceId === workspaceId ? branchPick.name : null;
-  const branch = hasBranches ? (selectedBranch ?? branchesData.current_branch) : null;
-
-  const handleWorkspaceChange = useCallback(
-    (nextWorkspaceId: string | null) => {
-      setWorkspaceIdByMachine((prev) => ({ ...prev, [targetMachineId]: nextWorkspaceId }));
-    },
-    [targetMachineId],
-  );
-
-  const memberNames = resolveMemberNames(members, models);
-  const hasInvalidMemberName = memberNames.some((memberName) => memberName.error);
-
-  const handleCreate = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) {
-      toast.error('Please enter a channel name');
-      return;
-    }
-    if (isRemote && machineStatus(targetMachineId) !== 'online') {
-      toast.error(`${machineName(targetMachineId)} is not connected`);
-      return;
-    }
-    if (!workspaceId) {
-      toast.error('Please select a workspace');
-      return;
-    }
-    if (models.length === 0) {
-      toast.error('No models available');
-      return;
-    }
-
-    const requestMembers = members.map((member) => memberRequest(member, models, personas));
-
-    try {
-      const channel = await createChannel.mutateAsync({
-        machineId: targetMachineId,
-        data: {
-          workspace_id: workspaceId,
-          name: trimmedName,
-          worktree,
-          branch,
-          members: requestMembers,
-        },
-      });
-      onClose();
-      onCreated(channel.id);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to create channel');
-    }
-  };
-
-  return (
-    <BaseModal isOpen={true} onClose={onClose} size="md" className={styles.dialog}>
-      <ModalHeader
-        title="New channel"
-        description="A shared thread where several agents reply together."
-        onClose={onClose}
-      />
-      <div ref={bodyRef} className={clsx(styles.body, bodyOverflows && styles['body--scroll'])}>
-        <div ref={bodyContentRef} className={styles['body-content']}>
-          <div className={styles.fields}>
-            <div>
-              <label className={styles['field-label']} htmlFor="channel-name">
-                Name
-              </label>
-              <Input
-                id="channel-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="design-review"
-                maxLength={255}
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <span className={styles['field-label']}>Workspace</span>
-              <div className={styles['workspace-field']}>
-                {isRemote ? (
-                  <MachineWorkspaceSelector
-                    machineId={targetMachineId}
-                    selectedWorkspaceId={workspaceId}
-                    onWorkspaceChange={handleWorkspaceChange}
-                    disabled={createChannel.isPending}
-                  />
-                ) : (
-                  <WorkspaceSelector
-                    selectedWorkspaceId={workspaceId}
-                    onWorkspaceChange={handleWorkspaceChange}
-                    enabled={isAuthenticated}
-                  />
-                )}
-                <RunLocationSelector disabled={createChannel.isPending} />
-              </div>
-            </div>
-
-            <div>
-              <span className={styles['field-label']}>Branch</span>
-              <div className={styles['branch-field']}>
-                <BranchWorktreeDropdown
-                  branchesData={sandboxId ? branchesData : undefined}
-                  worktree={worktree}
-                  onWorktreeChange={setWorktree}
-                  branch={branch ?? ''}
-                  onBranchChange={(name) => workspaceId && setBranchPick({ workspaceId, name })}
-                  dropdownPosition="auto"
-                />
-              </div>
-            </div>
-
-            <div>
-              <span className={styles['field-label']}>Members</span>
-              <MemberChips
-                machineId={targetMachineId}
-                members={members}
-                memberNames={memberNames}
-                models={models}
-                personas={personas}
-                onChange={setMembers}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <DialogFooter
-        onCancel={onClose}
-        onSave={handleCreate}
-        saveLabel="Create"
-        saving={createChannel.isPending}
-        disabled={!workspaceId || hasInvalidMemberName}
-      />
-    </BaseModal>
   );
 }

@@ -14,6 +14,7 @@ vi.mock('@/hooks/useIsMobile', () => ({ useIsMobile: () => false }));
 vi.mock('@/hooks/useChatData', () => ({
   useChatData: () => ({
     currentChat: undefined,
+    chatError: null,
     fetchedMessages: [],
     hasFetchedMessages: true,
     messagesQuery: {},

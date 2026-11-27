@@ -126,7 +126,7 @@ export interface SplitViewActions {
   toggleView: (view: ViewType, toggle: boolean, agentTile?: AgentTileId) => void;
   addViewToSplit: (view: ViewType, direction: SplitDirection, agentTile?: AgentTileId) => void;
   removeTab: (tileId: TileId) => void;
-  // Single agent view; tears down split chats (landing page).
+  // Single agent view; tears down split chats (when the open chat is forgotten).
   resetWorkspace: () => void;
   // Stash outgoing + restore incoming chat tabs (chat navigation).
   loadWorkspaceForChat: (chatId: string) => void;
@@ -170,4 +170,10 @@ export interface SlashCommand {
   value: string;
   label: string;
   description?: string;
+}
+
+// The thread the user last had open; `/` reopens it.
+export interface LastThread {
+  kind: 'chat' | 'channel';
+  id: string;
 }

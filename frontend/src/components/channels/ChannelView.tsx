@@ -1,4 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import { Tooltip } from '@/components/ui/Tooltip/Tooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -35,6 +36,7 @@ import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChannelLive } from '@/hooks/useChannelLive';
 import { useClipboard } from '@/hooks/useClipboard';
 import { useSmoothText } from '@/hooks/useSmoothText';
+import { useMountEffect } from '@/hooks/useMountEffect';
 import { elicitationService } from '@/services/elicitationService';
 import { permissionService } from '@/services/permissionService';
 import {
@@ -390,7 +392,16 @@ export function ChannelView({ channel }: { channel: Channel }) {
   const machineId = useChatMachineId(channel.anchor_chat_id);
   const machineOnline = useMachineStatus(machineId) === 'online';
   const machineLabel = useMachineName(machineId);
-  const [draft, setDraft] = useState('');
+  const location = useLocation();
+  // A first message that failed to post from the New thread modal lands here to retry
+  const [draft, setDraft] = useState(
+    () => (location.state as { initialDraft?: string } | null)?.initialDraft ?? '',
+  );
+  // Router state survives a reload, which would restore the draft after it was sent
+  const navigate = useNavigate();
+  useMountEffect(() => {
+    if (draft) navigate(location, { replace: true, state: null });
+  });
   const { copiedMessageId, handleCopy } = useClipboard({ chatId: channel.id });
 
   const messagesById = useChannelStore(

@@ -4,6 +4,7 @@ import type {
   SidebarActivityKind,
   SidebarGroupBy,
   SidebarStatusFilter,
+  SidebarThreadType,
 } from '@/store/sidebarFilters';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { formatDayLabel } from '@/utils/date';
@@ -13,15 +14,19 @@ export interface MachineChannel {
   machineId: string;
 }
 
-export interface SidebarChatSection {
+export type SidebarThread =
+  | { kind: 'chat'; chat: Chat }
+  | { kind: 'channel'; channel: Channel; machineId: string };
+
+export interface SidebarSection {
   key: string;
   label: string | null;
-  chats: Chat[];
+  threads: SidebarThread[];
 }
 
 type RecentStatusGroup = Exclude<SidebarStatusFilter, 'needs-you'> | 'other';
 
-// Group order mirrors the row badge precedence in SidebarChatItem, so a chat
+// Group order mirrors the row badge precedence in SidebarChatItem, so a thread
 // lands in the group matching its visible badge; most urgent groups first.
 const STATUS_GROUP_ORDER: { key: RecentStatusGroup; label: string }[] = [
   { key: 'running', label: 'Running' },
@@ -30,36 +35,108 @@ const STATUS_GROUP_ORDER: { key: RecentStatusGroup; label: string }[] = [
   { key: 'other', label: 'Other' },
 ];
 
+export function threadId(thread: SidebarThread): string {
+  return thread.kind === 'chat' ? thread.chat.id : thread.channel.id;
+}
+
+export function threadUpdatedAt(thread: SidebarThread): string {
+  return thread.kind === 'chat' ? thread.chat.updated_at : thread.channel.updated_at;
+}
+
+function threadPinnedAt(thread: SidebarThread): number {
+  const pinnedAt = thread.kind === 'chat' ? thread.chat.pinned_at : thread.channel.pinned_at;
+  return pinnedAt ? Date.parse(pinnedAt) : 0;
+}
+
+function threadWorkspaceId(thread: SidebarThread): string {
+  return thread.kind === 'chat' ? thread.chat.workspace_id : thread.channel.workspace_id;
+}
+
+function isThreadUnread(thread: SidebarThread): boolean {
+  return thread.kind === 'chat' ? thread.chat.unread : !!thread.channel.unread;
+}
+
+interface MergeContext {
+  pinnedChats: Chat[];
+  recentChats: Chat[];
+  // Top-level channels; channels load whole, chats page by page
+  channels: MachineChannel[];
+  // updated_at of the oldest loaded recent chat while more chat pages remain
+  recentsFloor: string | null;
+  selectedChannelId: string | null;
+  threadType: SidebarThreadType;
+}
+
+// One list of both kinds. An unpinned channel older than the oldest loaded chat waits for
+// that page, so a later page never slots chats above it; the open channel always shows.
+export function mergeSidebarThreads({
+  pinnedChats,
+  recentChats,
+  channels,
+  recentsFloor,
+  selectedChannelId,
+  threadType,
+}: MergeContext): { pinned: SidebarThread[]; recents: SidebarThread[] } {
+  const chatThreads: SidebarThread[] =
+    threadType === 'group' ? [] : recentChats.map((chat) => ({ kind: 'chat', chat }));
+  const pinnedChatThreads: SidebarThread[] =
+    threadType === 'group' ? [] : pinnedChats.map((chat) => ({ kind: 'chat', chat }));
+  const channelThreads: SidebarThread[] =
+    threadType === 'single'
+      ? []
+      : channels.map(({ channel, machineId }) => ({ kind: 'channel', channel, machineId }));
+  // Without chats in the list, no later page can reorder it
+  const floor = recentsFloor && threadType !== 'group' ? Date.parse(recentsFloor) : -Infinity;
+  const recentChannels = channelThreads.filter(
+    (thread) =>
+      thread.kind === 'channel' &&
+      !thread.channel.pinned_at &&
+      (thread.channel.id === selectedChannelId || Date.parse(thread.channel.updated_at) >= floor),
+  );
+  const pinnedChannels = channelThreads.filter(
+    (thread) => thread.kind === 'channel' && thread.channel.pinned_at,
+  );
+  const byUpdatedAt = (a: SidebarThread, b: SidebarThread) =>
+    Date.parse(threadUpdatedAt(b)) - Date.parse(threadUpdatedAt(a));
+  return {
+    pinned: [...pinnedChatThreads, ...pinnedChannels].sort(
+      (a, b) => threadPinnedAt(b) - threadPinnedAt(a),
+    ),
+    recents: [...chatThreads, ...recentChannels].sort(byUpdatedAt),
+  };
+}
+
 interface GroupingContext {
   groupBy: SidebarGroupBy;
-  visibleRecentChats: Chat[];
+  visibleRecentThreads: SidebarThread[];
   workspaceBadgeById: Map<string, WorkspaceBadge>;
-  streamingChatIdSet: Set<string>;
-  completedChatIds: Set<string>;
+  // Chat and channel ids share one id space
+  runningIds: Set<string>;
+  completedIds: Set<string>;
 }
 
 // Always returns a sections list so the JSX renders one shape — ungrouped is a
 // single headerless section. Groups keep the flat list's recency order:
-// date and workspace groups appear in order of their most recent chat; status
+// date and workspace groups appear in order of their most recent thread; status
 // groups follow badge urgency. Pinned stays flat — it's a small, curated list.
-export function buildRecentChatSections({
+export function buildRecentSections({
   groupBy,
-  visibleRecentChats,
+  visibleRecentThreads,
   workspaceBadgeById,
-  streamingChatIdSet,
-  completedChatIds,
-}: GroupingContext): SidebarChatSection[] {
+  runningIds,
+  completedIds,
+}: GroupingContext): SidebarSection[] {
   if (groupBy === 'date') {
-    const groups = new Map<number, SidebarChatSection>();
+    const groups = new Map<number, SidebarSection>();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    for (const chat of visibleRecentChats) {
-      const chatDate = new Date(chat.updated_at);
-      chatDate.setHours(0, 0, 0, 0);
-      const key = chatDate.getTime();
+    for (const thread of visibleRecentThreads) {
+      const threadDate = new Date(threadUpdatedAt(thread));
+      threadDate.setHours(0, 0, 0, 0);
+      const key = threadDate.getTime();
       let group = groups.get(key);
       if (!group) {
         const label =
@@ -67,63 +144,53 @@ export function buildRecentChatSections({
             ? 'Today'
             : key === yesterday.getTime()
               ? 'Yesterday'
-              : formatDayLabel(chatDate, today);
-        group = { key: String(key), label, chats: [] };
+              : formatDayLabel(threadDate, today);
+        group = { key: String(key), label, threads: [] };
         groups.set(key, group);
       }
-      group.chats.push(chat);
+      group.threads.push(thread);
     }
     return Array.from(groups.values());
   }
   if (groupBy === 'workspace') {
-    const groups = new Map<string, SidebarChatSection>();
-    for (const chat of visibleRecentChats) {
-      let group = groups.get(chat.workspace_id);
+    const groups = new Map<string, SidebarSection>();
+    for (const thread of visibleRecentThreads) {
+      const workspaceId = threadWorkspaceId(thread);
+      let group = groups.get(workspaceId);
       if (!group) {
         group = {
-          key: chat.workspace_id,
+          key: workspaceId,
           // Briefly unresolved while a machine's workspaces query loads
-          label: workspaceBadgeById.get(chat.workspace_id)?.name ?? 'Unknown workspace',
-          chats: [],
+          label: workspaceBadgeById.get(workspaceId)?.name ?? 'Unknown workspace',
+          threads: [],
         };
-        groups.set(chat.workspace_id, group);
+        groups.set(workspaceId, group);
       }
-      group.chats.push(chat);
+      group.threads.push(thread);
     }
     return Array.from(groups.values());
   }
   if (groupBy === 'status') {
-    const byStatus = new Map<RecentStatusGroup, Chat[]>();
-    for (const chat of visibleRecentChats) {
-      const status = streamingChatIdSet.has(chat.id)
+    const byStatus = new Map<RecentStatusGroup, SidebarThread[]>();
+    for (const thread of visibleRecentThreads) {
+      const id = threadId(thread);
+      const status = runningIds.has(id)
         ? 'running'
-        : completedChatIds.has(chat.id)
+        : completedIds.has(id)
           ? 'done'
-          : chat.unread
+          : isThreadUnread(thread)
             ? 'unread'
             : 'other';
       const list = byStatus.get(status);
-      if (list) list.push(chat);
-      else byStatus.set(status, [chat]);
+      if (list) list.push(thread);
+      else byStatus.set(status, [thread]);
     }
     return STATUS_GROUP_ORDER.flatMap(({ key, label }) => {
-      const chats = byStatus.get(key);
-      return chats ? [{ key, label, chats }] : [];
+      const threads = byStatus.get(key);
+      return threads ? [{ key, label, threads }] : [];
     });
   }
-  return [{ key: 'all', label: null, chats: visibleRecentChats }];
-}
-
-// A collapsed section still renders its open chats, so the current selection never disappears
-export function renderedSectionChats(
-  chats: Chat[],
-  isCollapsed: boolean,
-  openChatIds: { selectedChatId: string | null; splitChatIds: string[] },
-): Chat[] {
-  if (!isCollapsed) return chats;
-  return chats.filter(
-    (chat) => chat.id === openChatIds.selectedChatId || openChatIds.splitChatIds.includes(chat.id),
-  );
+  return [{ key: 'all', label: null, threads: visibleRecentThreads }];
 }
 
 // A linked channel nests under its parent chat only while that chat's row is rendered

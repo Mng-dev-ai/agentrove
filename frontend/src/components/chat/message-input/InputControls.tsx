@@ -62,11 +62,7 @@ export function ComposerFooter() {
   const { sandboxId, worktreeCwd } = useChatContext();
   const { data: branchesData } = useGitBranchesQuery(sandboxId, !!sandboxId, worktreeCwd);
 
-  const showBranch =
-    state.showBranch &&
-    !!sandboxId &&
-    !!branchesData?.is_git_repo &&
-    branchesData.branches.length > 0;
+  const showBranch = !!sandboxId && !!branchesData?.is_git_repo && branchesData.branches.length > 0;
 
   if (isMobile && !showBranch && !state.contextUsage) {
     return <div className={clsx(styles.footer, styles['footer--bare'])} />;

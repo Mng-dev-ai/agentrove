@@ -1,16 +1,9 @@
-import { ArrowLeft } from 'lucide-react';
-import { useNavigate, useMatch } from 'react-router-dom';
-import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { THEME_CYCLE, getThemeMeta } from '@/utils/theme';
 import type { Theme } from '@/types/ui.types';
 import styles from './Header.module.scss';
-
-export interface HeaderProps {
-  isAuthPage?: boolean;
-}
 
 function ThemeToggleButton({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
   // Icon is the current theme (matches profile menu); tooltip names the next.
@@ -33,58 +26,16 @@ function ThemeToggleButton({ theme, onToggle }: { theme: Theme; onToggle: () => 
   );
 }
 
-function AuthButtons({ onLogin, onSignup }: { onLogin: () => void; onSignup: () => void }) {
-  return (
-    <div className={styles['auth-buttons']}>
-      <Button onClick={onLogin} variant="unstyled" className={styles['auth-login']}>
-        Log in
-      </Button>
-      <Button onClick={onSignup} variant="unstyled" className={styles['auth-signup']}>
-        Get Started
-      </Button>
-    </div>
-  );
-}
-
-export function Header({ isAuthPage = false }: HeaderProps) {
-  const navigate = useNavigate();
-  const isChatPage = useMatch('/chat/:chatId');
-  const isChannelPage = useMatch('/channels/:channelId');
-  const isLandingPage = useMatch('/');
-  const isSettingsPage = useMatch('/settings');
-  const isInboxPage = useMatch('/inbox');
+// Only the auth pages show this header: every signed-in page has a TitleBar and sidebar.
+export function Header() {
   const theme = useUIStore((state) => state.theme);
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-
-  // Sidebar pages use TitleBar + Sidebar footer instead of Header.
-  const isSidebarPage =
-    isChatPage || isChannelPage || isLandingPage || isSettingsPage || isInboxPage;
-
-  if (!isAuthPage && isAuthenticated && isSidebarPage) return null;
 
   return (
     <header className={styles.header}>
       {/* pt carries the iOS top inset here too — TitleBar (which normally owns it) is null on these pages */}
       <div className={styles.row}>
-        <div className={styles.left}>
-          {isAuthPage && (
-            <Button
-              onClick={() => navigate('/')}
-              variant="unstyled"
-              className={styles['back-button']}
-              aria-label="Back to home"
-            >
-              <ArrowLeft className={styles.icon} />
-              <span>Home</span>
-            </Button>
-          )}
-        </div>
-
         <div className={styles.right}>
           <ThemeToggleButton theme={theme} onToggle={() => useUIStore.getState().toggleTheme()} />
-          {!isAuthPage && !isAuthenticated && (
-            <AuthButtons onLogin={() => navigate('/login')} onSignup={() => navigate('/signup')} />
-          )}
         </div>
       </div>
     </header>

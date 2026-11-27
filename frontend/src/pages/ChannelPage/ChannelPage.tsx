@@ -21,6 +21,8 @@ import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import { channelMachineId } from '@/store/machineOrigin';
 import { useOnlineRemoteMachineIds } from '@/store/machineStore';
+import { evictThread } from '@/hooks/queries/threadCache';
+import { isNotFoundError } from '@/pages/HomePage/rootTarget';
 import type { Channel } from '@/types/channel.types';
 import type { TileId } from '@/types/ui.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -90,6 +92,7 @@ export function ChannelPage() {
     const ui = useUIStore.getState();
     ui.closeSplitChat();
     ui.loadWorkspace(channelId);
+    ui.setLastThread({ kind: 'channel', id: channelId });
     return () => useUIStore.getState().stashWorkspace();
   }, [channelId]);
 
@@ -99,11 +102,14 @@ export function ChannelPage() {
   const channelWorkspaces = useWorkspacesList({ machineId: channelMachine });
   const onlineMachineIds = useOnlineRemoteMachineIds();
   const queryClient = useQueryClient();
-  const isChannelGone = (error as (Error & { status?: number }) | null)?.status === 404;
+  const isChannelGone = isNotFoundError(error);
 
+  // Evicted from the lists before /, so / can't offer it again while they are stale
   useEffect(() => {
-    if (isChannelGone) navigate('/', { replace: true });
-  }, [isChannelGone, navigate]);
+    if (!isChannelGone || !channelId) return;
+    evictThread(queryClient, { kind: 'channel', id: channelId });
+    navigate('/', { replace: true });
+  }, [isChannelGone, channelId, queryClient, navigate]);
 
   useEffect(() => {
     void queryClient.invalidateQueries({

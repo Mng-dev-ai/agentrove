@@ -116,10 +116,10 @@ export function DesktopDragRegion() {
 export function TitleBar() {
   const isChatPage = useMatch('/chat/:chatId');
   const isChannelPage = useMatch('/channels/:channelId');
-  const isLandingPage = useMatch('/');
+  const isRootPage = useMatch('/');
   const isInboxPage = useMatch('/inbox');
-  const hasWorkspaceViews = isChatPage || isChannelPage || isLandingPage;
-  const showSidebar = hasWorkspaceViews || isInboxPage;
+  const hasWorkspaceViews = isChatPage || isChannelPage;
+  const showSidebar = hasWorkspaceViews || isInboxPage || isRootPage;
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const sidebarOpen = useUIStore((state) => state.sidebarOpen);
   const isMobile = useIsMobile();
@@ -146,11 +146,7 @@ export function TitleBar() {
   const routedChatId = isChatPage?.params.chatId;
   const showPaneHeaders = isAuthenticated && !!routedChatId && !isMobile;
   const showTabs =
-    isAuthenticated &&
-    (isChatPage || isLandingPage) &&
-    !docked &&
-    !isMobile &&
-    workingSetTabs.length > 0;
+    isAuthenticated && isChatPage && !docked && !isMobile && workingSetTabs.length > 0;
 
   const left = (
     // When docked, merges into the sidebar header (border-r, no hairline).
@@ -206,7 +202,7 @@ export function TitleBar() {
             <div className={styles['title-area']}>
               {isAuthenticated && isChannelPage && <ChannelHeader />}
             </div>
-            {/* No per-view tabs — switcher opens/closes views (landing needs it too). */}
+            {/* No per-view tabs — switcher opens/closes views. */}
             {hasWorkspaceViews && <ViewSwitcher />}
           </div>
         </>

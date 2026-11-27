@@ -28,6 +28,7 @@ import type { PaginatedChats } from '@/types/api.types';
 import { logger } from '@/utils/logger';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
+import { evictThread } from './threadCache';
 
 const CHATS_PER_PAGE = 25;
 const RECENT_CHATS_PER_PAGE = 100;
@@ -435,20 +436,7 @@ export const useDeleteChatMutation = createMutation<string[], Error, string>(
     return subThreadIds;
   },
   (queryClient, subThreadIds, chatId) => {
-    queryClient.setQueriesData<InfiniteData<PaginatedChats>>(
-      { queryKey: [queryKeys.chats, 'infinite'] },
-      (oldData) => {
-        if (!oldData) return oldData;
-        return {
-          ...oldData,
-          pages: oldData.pages.map((page) => ({
-            ...page,
-            items: page.items.filter((chat) => chat.id !== chatId),
-            total: Math.max(0, page.total - 1),
-          })),
-        };
-      },
-    );
+    evictThread(queryClient, { kind: 'chat', id: chatId });
 
     // One pass: find parent if sub-thread, collect cached children if deleting a parent.
     let parentId = queryClient.getQueryData<Chat>(queryKeys.chat(chatId))?.parent_chat_id;
@@ -503,7 +491,7 @@ export const useDeleteAllChatsMutation = () => {
             queryClient.removeQueries({ queryKey: [queryKeys.chats] });
             queryClient.invalidateQueries({ queryKey: queryKeys.workspaces });
           } else {
-            queryClient.invalidateQueries({ queryKey: queryKeys.machine.chats(id) });
+            queryClient.removeQueries({ queryKey: queryKeys.machine.chats(id) });
             queryClient.invalidateQueries({ queryKey: queryKeys.machine.workspaces(id) });
           }
           // Only the server knows which chats the wipe kept as channel members, so a

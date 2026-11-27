@@ -3,6 +3,7 @@ import type { MentionItem, SlashCommand } from '@/types/ui.types';
 import type { ComposerSelection } from '@/store/uiStore';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
 import type { DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
+import type { SendButtonStatus } from './SendButton';
 
 export interface InputState {
   message: string;
@@ -18,7 +19,6 @@ export interface InputState {
   showFileUpload: boolean;
   showDrawingModal: boolean;
   showLoadingSpinner: boolean;
-  showBranch: boolean;
   isDragging: boolean;
   placeholders: readonly string[];
   selectedModelId: string;
@@ -75,3 +75,9 @@ export interface InputContextValue {
 export const InputContext = createContext<InputContextValue | null>(null);
 export const InputStateContext = createContext<InputState | null>(null);
 export const InputActionsContext = createContext<InputActions | null>(null);
+
+export function composerSendStatus(state: InputState): SendButtonStatus {
+  if (state.isStreaming) return state.hasContent ? 'ready' : 'streaming';
+  if (state.isLoading) return 'loading';
+  return state.hasContent ? 'ready' : 'idle';
+}

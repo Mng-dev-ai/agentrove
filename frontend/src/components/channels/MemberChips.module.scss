@@ -5,49 +5,6 @@
 @use '@/styles/globals/state-classes' as state;
 @use '@/styles/globals/zlayer' as z;
 
-.dialog {
-  display: flex;
-  max-height: calc(100dvh - 2 * var(--space-4));
-  flex-direction: column;
-  overflow: visible;
-}
-
-.body {
-  min-height: 0;
-  flex: 1;
-
-  &--scroll {
-    overflow-y: auto;
-  }
-}
-
-.body-content {
-  padding: var(--space-5);
-}
-
-.fields {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-.field-label {
-  @include type.type-section-header;
-  display: block;
-  margin-bottom: var(--space-1-5);
-}
-
-// Offsets the picker trigger's inner padding so its label lines up with the inputs.
-.workspace-field {
-  display: flex;
-  margin-left: calc(var(--space-1-5) * -1);
-}
-
-.branch-field {
-  display: flex;
-  margin-left: calc(var(--space-1-5) * -1);
-}
-
 .members {
   position: relative;
   display: flex;

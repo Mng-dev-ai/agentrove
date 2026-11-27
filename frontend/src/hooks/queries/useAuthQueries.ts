@@ -3,6 +3,10 @@ import type { UseMutationOptions, UseQueryOptions } from '@tanstack/react-query'
 import { authService } from '@/services/authService';
 import type { AuthResponse, User } from '@/types/user.types';
 import { clearAllStreamState } from '@/hooks/stream/streamRegistry';
+import { useChatStore } from '@/store/chatStore';
+import { useNewThreadStore } from '@/store/newThreadStore';
+import { useUIStore } from '@/store/uiStore';
+import { PENDING_NEW_CHAT_KEY } from '@/types/ui.types';
 import { createMutation } from './createMutation';
 import { queryKeys } from './queryKeys';
 
@@ -103,7 +107,12 @@ export const useLogoutMutation = createMutation<void, Error, void>(
   async (queryClient) => {
     await queryClient.cancelQueries();
     queryClient.clear();
-    // SPA logout doesn't reload — the next session must not inherit buffers.
+    // SPA logout doesn't reload — the next session must not inherit buffers, the New
+    // thread draft or the last thread.
     clearAllStreamState();
+    useNewThreadStore.getState().close();
+    useNewThreadStore.getState().clearDraft();
+    useChatStore.getState().setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, []);
+    useUIStore.setState({ lastThread: null });
   },
 );

@@ -64,10 +64,19 @@
     color: var(--theme-text-primary);
   }
 
+  &--agent {
+    @include type.type-meta(600);
+  }
+
   @include controls.inline-options {
     @include type.type-body;
     color: var(--theme-text-primary);
   }
+}
+
+.item-count {
+  @include type.type-meta;
+  color: var(--theme-text-tertiary);
 }
 
 .item-context {
@@ -111,6 +120,16 @@
   }
 }
 
+// Always present in its own column so badges and stars align; full strength on the
+// hovered or keyboard-focused row
+.add-button {
+  [role='option']:hover &,
+  [role='option']:focus-visible &,
+  &:focus-visible {
+    color: var(--theme-text-primary);
+  }
+}
+
 .favorite-icon {
   height: var(--space-3);
   width: var(--space-3);
@@ -123,4 +142,12 @@
   &--active {
     fill: currentColor;
   }
+}
+
+.hint {
+  @include type.type-meta;
+  margin: 0;
+  border-top: 1px solid var(--theme-border);
+  padding: var(--space-2) var(--space-3);
+  color: var(--theme-text-tertiary);
 }

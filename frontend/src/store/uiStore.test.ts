@@ -473,6 +473,37 @@ describe('persist migration', () => {
   });
 });
 
+describe('persisted sidebar state', () => {
+  it('loads stored filters without a thread type as All and drops a retired section', async () => {
+    localStorage.setItem(
+      'ui-storage',
+      JSON.stringify({
+        version: 1,
+        state: {
+          sidebarFilters: {
+            agentKind: 'codex',
+            source: 'all',
+            workspaceId: null,
+            groupBy: 'workspace',
+          },
+          collapsedSidebarSections: ['channels', 'pinned'],
+        },
+      }),
+    );
+    await useUIStore.persist.rehydrate();
+
+    expect(state().sidebarFilters).toEqual({
+      statuses: [],
+      agentKind: 'codex',
+      source: 'all',
+      workspaceId: null,
+      groupBy: 'workspace',
+      threadType: 'all',
+    });
+    expect(state().collapsedSidebarSections).toEqual(['pinned']);
+  });
+});
+
 describe('removeTab', () => {
   it('never closes the base agent tab', () => {
     const before = state();

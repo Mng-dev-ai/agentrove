@@ -115,17 +115,6 @@ describe('useBackgroundNotify', () => {
     expect(notify).toHaveBeenCalledTimes(1);
   });
 
-  it('suppresses a split chat painted on the landing route', async () => {
-    vi.spyOn(document, 'hasFocus').mockReturnValue(true);
-    setRoute('/');
-    setLayout({ visibleLayout: [['agent:primary', 'agent:split-1']], splitChatIds: ['chat-2'] });
-    const { result } = renderNotify();
-
-    result.current.notifyBackground('/chat/chat-2', 'notify_completions', notify);
-    await flush();
-    expect(notify).not.toHaveBeenCalled();
-  });
-
   it('suppresses a split chat that is painted on screen', async () => {
     vi.spyOn(document, 'hasFocus').mockReturnValue(true);
     setRoute('/chat/chat-1');

@@ -1,6 +1,5 @@
 import { memo, type Dispatch, type SetStateAction } from 'react';
 import { SendButton } from './SendButton';
-import type { SendButtonStatus } from './SendButton';
 import { AttachButton } from './AttachButton';
 import { EnhanceButton } from './EnhanceButton';
 import { Textarea } from './Textarea';
@@ -10,6 +9,7 @@ import { ComposerAttachmentSlots } from './ComposerAttachmentSlots';
 import { SelectionAttachments } from './SelectionAttachments';
 import { InputSuggestionsPanel } from './InputSuggestionsPanel';
 import { InputProvider } from './InputProvider';
+import { composerSendStatus } from './InputContext';
 import { useInputContext } from '@/hooks/useInputContext';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
 import type { DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
@@ -29,10 +29,6 @@ export interface InputProps {
   dropdownPosition?: DropdownPosition;
   showAttachedFilesPreview?: boolean;
   contextUsage?: ContextUsageInfo;
-  // Landing hosts branch selection in its own composer control, so its footer hides it.
-  showBranch?: boolean;
-  // Text on its own row above the controls even when it would fit beside them
-  stacked?: boolean;
   chatId?: string;
   machineId?: string;
   showLoadingSpinner?: boolean;
@@ -42,28 +38,19 @@ export interface InputProps {
 export const Input = memo(function Input(props: InputProps) {
   return (
     <InputProvider {...props}>
-      <InputLayout stacked={props.stacked} />
+      <InputLayout />
     </InputProvider>
   );
 });
 
-function InputLayout({ stacked }: { stacked?: boolean }) {
+function InputLayout() {
   const { state, actions, meta } = useInputContext();
 
-  const sendStatus: SendButtonStatus = state.isStreaming
-    ? state.hasContent
-      ? 'ready'
-      : 'streaming'
-    : state.isLoading
-      ? 'loading'
-      : state.hasContent
-        ? 'ready'
-        : 'idle';
+  const sendStatus = composerSendStatus(state);
 
   return (
     <ComposerField
       ref={meta.formRef}
-      stacked={stacked}
       onSubmit={actions.handleSubmit}
       message={state.message}
       placeholders={state.placeholders}

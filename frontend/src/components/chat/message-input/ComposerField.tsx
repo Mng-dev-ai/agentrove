@@ -6,7 +6,6 @@ import styles from './ComposerField.module.scss';
 
 interface ComposerFieldProps {
   ref?: Ref<HTMLFormElement>;
-  stacked?: boolean;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   message: string;
   // Longest first; the field shows the first one its text width fits
@@ -22,7 +21,6 @@ interface ComposerFieldProps {
 
 export function ComposerField({
   ref,
-  stacked = false,
   onSubmit,
   message,
   placeholders,
@@ -75,7 +73,7 @@ export function ComposerField({
     <form ref={ref} onSubmit={onSubmit} className={styles.composer}>
       <div {...dragHandlers} className={clsx(styles.field, isDragging && stateClasses.DRAGGING)}>
         {attachments}
-        <div className={clsx(styles.row, (stacked || multiline) && styles['row--multiline'])}>
+        <div className={clsx(styles.row, multiline && styles['row--multiline'])}>
           <div className={styles.leading}>{leading}</div>
           <div ref={textRef} className={styles.text}>
             {textarea(placeholders[Math.min(placeholderIndex, placeholders.length - 1)])}

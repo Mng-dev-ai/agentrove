@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { useMatch } from 'react-router-dom';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import {
@@ -39,7 +38,6 @@ export function ViewSwitcher({ agentTile }: { agentTile?: AgentTileId }) {
   const paneTile = agentTile ?? activeAgentTile;
   const splitChatIds = useUIStore((s) => s.splitChatIds);
   const visibleLayout = useUIStore((s) => s.visibleLayout);
-  const isLandingPage = useMatch('/');
   const isMobile = useIsMobile();
   const sessionPanelOpen = useSessionPanelOpen(paneTile);
   // Phones show one view at a time; an open session panel covers the workspace.
@@ -87,22 +85,18 @@ export function ViewSwitcher({ agentTile }: { agentTile?: AgentTileId }) {
           </FloatingTooltip>
         );
       })}
-      {!isLandingPage && (
-        <>
-          <div className={styles.divider} />
-          <FloatingTooltip content={SESSION_PANEL_TOOLTIP}>
-            <Button
-              variant="unstyled"
-              onClick={() => useUIStore.getState().toggleSessionPanel(paneTile)}
-              className={styles['view-button']}
-              aria-label="Toggle session panel"
-              aria-pressed={sessionPanelOpen}
-            >
-              <SessionPanelIcon className={styles.icon} />
-            </Button>
-          </FloatingTooltip>
-        </>
-      )}
+      <div className={styles.divider} />
+      <FloatingTooltip content={SESSION_PANEL_TOOLTIP}>
+        <Button
+          variant="unstyled"
+          onClick={() => useUIStore.getState().toggleSessionPanel(paneTile)}
+          className={styles['view-button']}
+          aria-label="Toggle session panel"
+          aria-pressed={sessionPanelOpen}
+        >
+          <SessionPanelIcon className={styles.icon} />
+        </Button>
+      </FloatingTooltip>
     </div>
   );
 }

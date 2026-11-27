@@ -1,10 +1,17 @@
 @use '@/styles/globals/typography' as type;
 
+.leading {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+}
+
 .status-slot {
   position: relative;
   display: flex;
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  height: var(--space-4);
+  min-width: var(--space-3-5);
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
@@ -25,9 +32,8 @@
   box-shadow: 0 0 0 1px var(--theme-surface-secondary);
 }
 
-.icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
-  flex-shrink: 0;
-  color: var(--theme-text-tertiary);
+.member-count {
+  @include type.type-meta;
+  color: var(--theme-text-quaternary);
+  font-variant-numeric: tabular-nums;
 }

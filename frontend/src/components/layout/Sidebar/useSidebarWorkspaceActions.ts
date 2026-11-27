@@ -9,6 +9,7 @@ import {
   useUpdateWorkspaceMutation,
 } from '@/hooks/queries/useWorkspaceQueries';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
+import { useNewThreadStore } from '@/store/newThreadStore';
 import { useUIStore, type MenuPosition } from '@/store/uiStore';
 import { useChatOrigins } from '@/store/machineOrigin';
 import { mutateWithToast } from './sidebarHelpers';
@@ -84,13 +85,13 @@ export function useSidebarWorkspaceActions({
 
   const handleNewWorkspaceThread = useCallback(
     (workspaceId: string, machineId: string) => {
-      // Landing composer switches to the owning machine and preselects this workspace.
-      navigate('/', { state: { workspaceId, machineId } });
+      // The modal switches to the owning machine and preselects this workspace.
+      useNewThreadStore.getState().open({ workspaceId, machineId });
       if (isMobile) {
         useUIStore.getState().setSidebarOpen(false);
       }
     },
-    [navigate, isMobile],
+    [isMobile],
   );
 
   const openWorkspaceMenu = useCallback(

@@ -1,5 +1,4 @@
 @use '@/styles/globals/colors' as colors;
-@use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/zlayer' as z;
@@ -18,13 +17,7 @@
   display: flex;
   height: var(--space-10);
   align-items: center;
-  justify-content: space-between;
-}
-
-.left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
+  justify-content: flex-end;
 }
 
 .right {
@@ -58,54 +51,5 @@
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
     color: var(--theme-text-primary);
-  }
-}
-
-.back-button {
-  @include type.type-default;
-  @include anim.transition-colors;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  border-radius: var(--radius-lg);
-  padding: var(--space-1-5) var(--space-2);
-  color: var(--theme-text-tertiary);
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    color: var(--theme-text-primary);
-  }
-}
-
-.auth-buttons {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.auth-login {
-  @include type.type-default(500);
-  @include anim.transition-colors;
-  border-radius: var(--radius-lg);
-  padding: var(--space-1-5) var(--space-3);
-  color: var(--theme-text-secondary);
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    color: var(--theme-text-primary);
-  }
-}
-
-.auth-signup {
-  @include type.type-default(500);
-  @include anim.transition-colors;
-  border-radius: var(--radius-lg);
-  padding: var(--space-1-5) var(--space-3);
-  // Inverted: primary-text fill with the base surface as the label color
-  background-color: var(--theme-text-primary);
-  color: var(--theme-surface-secondary);
-
-  @include responsive.hover {
-    opacity: 0.8;
   }
 }

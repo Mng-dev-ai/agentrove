@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { useInboxAcrossMachines } from '@/hooks/queries/useInboxQueries';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useNewThreadStore } from '@/store/newThreadStore';
 import { useUIStore } from '@/store/uiStore';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
 import styles from './TitleBar.module.scss';
@@ -65,7 +66,7 @@ export function TitleBarActions() {
           size="icon"
           className={styles['icon-button']}
           onClick={() => {
-            navigate('/');
+            useNewThreadStore.getState().open();
             closeMobileDrawer();
           }}
           aria-label="New thread"

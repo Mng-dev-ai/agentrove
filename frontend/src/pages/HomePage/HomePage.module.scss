@@ -1,0 +1,27 @@
+@use '@/styles/globals/typography' as type;
+
+.empty {
+  display: flex;
+  height: 100%;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  background-color: var(--theme-surface);
+  text-align: center;
+}
+
+.title {
+  @include type.type-large(500);
+  margin: 0;
+  color: var(--theme-text-primary);
+}
+
+.text {
+  @include type.type-default;
+  max-width: var(--space-96);
+  margin: 0 0 var(--space-2);
+  color: var(--theme-text-tertiary);
+}

@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { resolveChatAgentKind, type Chat } from '@/types/chat.types';
+import {
+  getAgentKindForModelId,
+  resolveChatAgentKind,
+  type AgentKind,
+  type Chat,
+} from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
 import { useShowMoreUntilMatch, useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useMachinesChannels } from '@/hooks/queries/useChannelQueries';
 import { useUIStore } from '@/store/uiStore';
+import { channelActivity, useChannelStore } from '@/store/channelStore';
 import { useModelStore } from '@/store/modelStore';
 import { useMachinesModelMaps } from '@/hooks/queries/useModelQueries';
 import { useStreamStore } from '@/store/streamStore';
@@ -18,14 +24,15 @@ import { UserProfileMenu } from '@/components/layout/UserProfileMenu/UserProfile
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import { SidebarActivityBar, SidebarActivityList } from './SidebarActivity';
 import { SidebarChannelMenu } from './SidebarChannelMenu';
-import { SidebarChannels } from './SidebarChannels';
 import { SidebarChatList } from './SidebarChatList';
 import { SidebarOverlays } from './SidebarOverlays';
 import { type ChatRowProps } from './SidebarChatRow';
 import {
-  buildRecentChatSections,
+  buildRecentSections,
+  mergeSidebarThreads,
   partitionLinkedChannels,
-  renderedSectionChats,
+  type MachineChannel,
+  type SidebarThread,
 } from './sidebarGrouping';
 import { useSidebarChannelActions } from './useSidebarChannelActions';
 import { useSidebarChatActions } from './useSidebarChatActions';
@@ -134,7 +141,8 @@ export function Sidebar({
     scrollContainerRef,
   });
 
-  const hasAnyContent = pinnedChats.length > 0 || recentChats.length > 0;
+  const hasAnyContent =
+    pinnedChats.length > 0 || recentChats.length > 0 || machineChannels.length > 0;
 
   // Status filters OR together (any selected badge state matches); source and
   // workspace AND with them. Ownership comes from the machine origin map (set at
@@ -144,6 +152,7 @@ export function Sidebar({
   const modelByChat = useModelStore((state) => state.modelByChat);
   const modelMaps = useMachinesModelMaps(isAuthenticated);
   const connections = useMachineStore((state) => state.connections);
+  const liveChannelActivity = useChannelStore((state) => state.activity);
   const hasActiveFilters = countActiveSidebarFilters(filters) > 0;
   const chatMatchesFilters = useCallback(
     (chat: Chat) => {
@@ -178,6 +187,34 @@ export function Sidebar({
       modelByChat,
     ],
   );
+  const channelAgentKinds = useCallback(
+    ({ channel, machineId }: MachineChannel): AgentKind[] =>
+      channel.members.map(
+        (member) =>
+          modelMaps.get(machineId)?.get(member.model_id)?.agent_kind ??
+          getAgentKindForModelId(member.model_id),
+      ),
+    [modelMaps],
+  );
+  const { completedChannelIds } = channelActions;
+  // A channel matches the agent filter when any member runs that agent
+  const channelMatchesFilters = useCallback(
+    (entry: MachineChannel) => {
+      const { channel, machineId } = entry;
+      if (filters.workspaceId && channel.workspace_id !== filters.workspaceId) return false;
+      if (filters.agentKind && !channelAgentKinds(entry).includes(filters.agentKind)) return false;
+      if (filters.source !== 'all' && machineId !== filters.source) return false;
+      if (filters.statuses.length === 0) return true;
+      const activity = channelActivity(liveChannelActivity[channel.id], channel.activity);
+      return (
+        (filters.statuses.includes('unread') && !!channel.unread) ||
+        (filters.statuses.includes('running') && activity.member_ids.length > 0) ||
+        (filters.statuses.includes('done') && completedChannelIds.has(channel.id)) ||
+        (filters.statuses.includes('needs-you') && activity.waiting_member_ids.length > 0)
+      );
+    },
+    [filters, channelAgentKinds, liveChannelActivity, completedChannelIds],
+  );
   const visiblePinnedChats = useMemo(
     () => (hasActiveFilters ? pinnedChats.filter(chatMatchesFilters) : pinnedChats),
     [hasActiveFilters, pinnedChats, chatMatchesFilters],
@@ -186,14 +223,42 @@ export function Sidebar({
     () => (hasActiveFilters ? recentChats.filter(chatMatchesFilters) : recentChats),
     [hasActiveFilters, recentChats, chatMatchesFilters],
   );
-  const hasVisibleContent = visiblePinnedChats.length > 0 || visibleRecentChats.length > 0;
+  const visibleChannels = useMemo(
+    () => (hasActiveFilters ? machineChannels.filter(channelMatchesFilters) : machineChannels),
+    [hasActiveFilters, machineChannels, channelMatchesFilters],
+  );
+  const recentsFloor = chatLists.hasMore
+    ? (recentChats[recentChats.length - 1]?.updated_at ?? null)
+    : null;
+  const merged = useMemo(
+    () =>
+      mergeSidebarThreads({
+        pinnedChats: visiblePinnedChats,
+        recentChats: visibleRecentChats,
+        channels: visibleChannels,
+        recentsFloor,
+        selectedChannelId,
+        threadType: filters.threadType,
+      }),
+    [
+      visiblePinnedChats,
+      visibleRecentChats,
+      visibleChannels,
+      recentsFloor,
+      selectedChannelId,
+      filters.threadType,
+    ],
+  );
+  const hasVisibleContent = merged.pinned.length > 0 || merged.recents.length > 0;
   // Running, done and needs-you come from this session's streams, which sit on the newest
   // pages: fetching older pages for them alone would spend every round for nothing.
   const pagingCanMatch =
-    hasActiveFilters && (filters.statuses.length === 0 || filters.statuses.includes('unread'));
+    hasActiveFilters &&
+    filters.threadType !== 'group' &&
+    (filters.statuses.length === 0 || filters.statuses.includes('unread'));
   const showMore = useShowMoreUntilMatch(
     chatLists,
-    visiblePinnedChats.length + visibleRecentChats.length,
+    merged.pinned.length + merged.recents.length,
     pagingCanMatch ? filters : null,
   );
 
@@ -214,36 +279,39 @@ export function Sidebar({
     [machineBadge, chatOrigins],
   );
 
-  // The rows SidebarChatList renders: linked channels nest under exactly these
+  // A collapsed section still renders its open threads, so the current selection never
+  // disappears
   const collapsedSections = useUIStore((state) => state.collapsedSidebarSections);
   const isPinnedCollapsed = collapsedSections.includes('pinned');
   const isRecentsCollapsed = collapsedSections.includes('recents');
-  const pinnedRows = useMemo(
-    () =>
-      renderedSectionChats(visiblePinnedChats, isPinnedCollapsed, { selectedChatId, splitChatIds }),
-    [visiblePinnedChats, isPinnedCollapsed, selectedChatId, splitChatIds],
+  const isOpenThread = useCallback(
+    (thread: SidebarThread) =>
+      thread.kind === 'chat'
+        ? thread.chat.id === selectedChatId || splitChatIds.includes(thread.chat.id)
+        : thread.channel.id === selectedChannelId,
+    [selectedChatId, splitChatIds, selectedChannelId],
   );
-  const recentRows = useMemo(
-    () =>
-      renderedSectionChats(visibleRecentChats, isRecentsCollapsed, {
-        selectedChatId,
-        splitChatIds,
-      }),
-    [visibleRecentChats, isRecentsCollapsed, selectedChatId, splitChatIds],
-  );
-  const { linkedByParentId, topLevel: topLevelChannels } = useMemo(
-    () =>
-      partitionLinkedChannels(
-        machineChannels,
-        new Map(
-          [...pinnedRows, ...recentRows].map((chat) => [
-            chat.id,
-            chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID,
-          ]),
-        ),
+  // Linked channels nest under exactly the chat rows rendered, so only the rest join the list
+  const { pinnedRows, recentRows, linkedByParentId } = useMemo(() => {
+    const pinnedShown = isPinnedCollapsed ? merged.pinned.filter(isOpenThread) : merged.pinned;
+    const recentShown = isRecentsCollapsed ? merged.recents.filter(isOpenThread) : merged.recents;
+    const renderedChatMachines = new Map(
+      [...pinnedShown, ...recentShown].flatMap((thread) =>
+        thread.kind === 'chat'
+          ? [[thread.chat.id, chatOrigins.get(thread.chat.id) ?? LOCAL_MACHINE_ID] as const]
+          : [],
       ),
-    [pinnedRows, recentRows, machineChannels, chatOrigins],
-  );
+    );
+    const partition = partitionLinkedChannels(machineChannels, renderedChatMachines);
+    const topLevelIds = new Set(partition.topLevel.map(({ channel }) => channel.id));
+    const isTopLevel = (thread: SidebarThread) =>
+      thread.kind === 'chat' || topLevelIds.has(thread.channel.id);
+    return {
+      pinnedRows: pinnedShown.filter(isTopLevel),
+      recentRows: recentShown.filter(isTopLevel),
+      linkedByParentId: partition.linkedByParentId,
+    };
+  }, [merged, isPinnedCollapsed, isRecentsCollapsed, isOpenThread, machineChannels, chatOrigins]);
   // A selected nested channel opens its parent's child list, as a selected sub-thread does
   const selectedChannelParentId = [...linkedByParentId].find(([, linked]) =>
     linked.some(({ channel }) => channel.id === selectedChannelId),
@@ -264,16 +332,35 @@ export function Sidebar({
   );
 
   const groupBy = filters.groupBy;
-  const recentChatSections = useMemo(
+  const runningChannelIds = useMemo(
     () =>
-      buildRecentChatSections({
+      machineChannels
+        .filter(
+          ({ channel }) =>
+            channelActivity(liveChannelActivity[channel.id], channel.activity).member_ids.length >
+            0,
+        )
+        .map(({ channel }) => channel.id),
+    [machineChannels, liveChannelActivity],
+  );
+  const recentSections = useMemo(
+    () =>
+      buildRecentSections({
         groupBy,
-        visibleRecentChats: recentRows,
+        visibleRecentThreads: recentRows,
         workspaceBadgeById,
-        streamingChatIdSet,
-        completedChatIds,
+        runningIds: new Set([...streamingChatIdSet, ...runningChannelIds]),
+        completedIds: new Set([...completedChatIds, ...completedChannelIds]),
       }),
-    [groupBy, recentRows, workspaceBadgeById, streamingChatIdSet, completedChatIds],
+    [
+      groupBy,
+      recentRows,
+      workspaceBadgeById,
+      streamingChatIdSet,
+      runningChannelIds,
+      completedChatIds,
+      completedChannelIds,
+    ],
   );
 
   // Opening a chat (or watching it finish while open) counts as seeing the
@@ -299,7 +386,9 @@ export function Sidebar({
     blockedChatIdSet,
     completedChatIdSet: completedChatIds,
     workspaceBadgeById,
+    machineBadge,
     machineBadgeForChat,
+    channelAgentKinds,
     onChatSelect: chatActions.handleChatSelect,
     onOpenInSplit: chatActions.showSplitAffordance ? chatActions.handleOpenInSplit : undefined,
     canOpenChatInSplit: chatActions.canOpenChatInSplit,
@@ -339,43 +428,31 @@ export function Sidebar({
               view={activityView}
               entries={entriesByKind[activityView]}
               rowProps={rowProps}
-              machineBadge={machineBadge}
               onClose={() => setActivityView(null)}
             />
           ) : (
             <SidebarChatList
-              channels={
-                <SidebarChannels
-                  workspaces={workspaces}
-                  workspaceId={selectedChatWorkspaceId ?? undefined}
-                  filters={filters}
-                  machineBadge={machineBadge}
-                  selectedChannelId={selectedChannelId}
-                  machineChannels={topLevelChannels}
-                  hasNestedChannels={linkedByParentId.size > 0}
-                  isLoadingChannels={isLoadingChannels}
-                  load={channelsLoad}
-                  channelActions={channelActions}
-                />
-              }
-              isLoadingChats={isLoadingChats}
+              isLoading={isLoadingChats || isLoadingChannels}
               threadsLoad={threadsLoad}
               pinnedLoad={pinnedLoad}
               recentsLoad={recentsLoad}
+              channelsLoad={channelsLoad}
               hasAnyContent={hasAnyContent}
-              pinnedChats={visiblePinnedChats}
-              recentChats={visibleRecentChats}
+              hasChannels={machineChannels.length > 0}
+              hasPinned={merged.pinned.length > 0}
+              hasRecents={merged.recents.length > 0}
               pinnedRows={pinnedRows}
               recentRows={recentRows}
               isRecentsCollapsed={isRecentsCollapsed}
               hasVisibleContent={hasVisibleContent}
-              recentChatSections={recentChatSections}
+              recentSections={recentSections}
               rowProps={rowProps}
               filters={filters}
               onChangeFilters={(next) => useUIStore.getState().setSidebarFilters(next)}
               workspaceBadgeById={workspaceBadgeById}
               machineOptions={machineOptions}
-              hasMore={showMore.hasMore}
+              // Chat pages add no rows to a group-only list
+              hasMore={showMore.hasMore && filters.threadType !== 'group'}
               isFetchingMore={showMore.isFetchingMore}
               onLoadMore={showMore.loadMore}
               canShowLess={showMore.canShowLess}

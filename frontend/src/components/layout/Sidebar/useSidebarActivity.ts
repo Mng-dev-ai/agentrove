@@ -2,26 +2,22 @@ import { useMemo } from 'react';
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { chatQuery } from '@/hooks/queries/useChatQueries';
 import { channelActivity, useChannelStore } from '@/store/channelStore';
-import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
 import type { SidebarActivityKind } from '@/store/sidebarFilters';
-import { channelActivityKind, type MachineChannel } from './sidebarGrouping';
+import {
+  channelActivityKind,
+  threadUpdatedAt,
+  type MachineChannel,
+  type SidebarThread,
+} from './sidebarGrouping';
 
 export interface ChildActivity {
   running: number;
   needsYou: number;
 }
 
-export type SidebarActivityEntry =
-  | { kind: 'chat'; chat: Chat }
-  | { kind: 'channel'; channel: Channel; machineId: string };
-
 function loadedChats(results: UseQueryResult<Chat>[]): Chat[] {
   return results.flatMap((result) => (result.data ? [result.data] : []));
-}
-
-function entryUpdatedAt(entry: SidebarActivityEntry): string {
-  return entry.kind === 'chat' ? entry.chat.updated_at : entry.channel.updated_at;
 }
 
 function addChildActivity(
@@ -62,7 +58,7 @@ export function useSidebarActivity(
         channelActivityKind(channelActivity(liveActivity[channel.id], channel.activity)),
       ]),
     );
-    const entriesByKind: Record<SidebarActivityKind, SidebarActivityEntry[]> = {
+    const entriesByKind: Record<SidebarActivityKind, SidebarThread[]> = {
       'needs-you': [],
       running: [],
     };
@@ -84,7 +80,7 @@ export function useSidebarActivity(
       }
     }
     for (const entries of Object.values(entriesByKind)) {
-      entries.sort((a, b) => entryUpdatedAt(b).localeCompare(entryUpdatedAt(a)));
+      entries.sort((a, b) => threadUpdatedAt(b).localeCompare(threadUpdatedAt(a)));
     }
     return { entriesByKind, childActivityByParentId };
   }, [chats, blockedChatIdSet, machineChannels, linkedChannelsByParentId, liveActivity]);

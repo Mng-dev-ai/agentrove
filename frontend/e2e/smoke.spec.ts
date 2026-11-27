@@ -41,14 +41,14 @@ test.afterEach(() => {
 
 test('production desktop bundle loads chat, editor and diff view', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Log in' }).click();
+  await page.waitForURL('/login');
   await page.getByLabel('Email address').fill(ADMIN_EMAIL);
   await page.getByLabel('Password').fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await page.waitForURL('/');
 
-  await page.getByText(CHAT_TITLE).first().click();
+  // `/` reopens the newest thread, which is the seeded chat
   await page.waitForURL(/\/chat\/[0-9a-f-]+$/);
+  await expect(page.getByText(CHAT_TITLE).first()).toBeAttached();
   await expect(page.getByRole('textbox', { name: 'Message input' })).toBeVisible();
 
   const editorToggle = page.getByRole('button', { name: 'Toggle Editor view' });
