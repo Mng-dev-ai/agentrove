@@ -770,15 +770,15 @@ class ChatService(BaseDbService[Chat]):
 
     @staticmethod
     async def _delete_linked_channels(
-        user_id: UUID, parent_chat_id: UUID | None
+        user_id: UUID, parent_chat_ids: list[UUID]
     ) -> None:
         # Avoid circular import with channels/service.py.
         from app.services.channels.service import channel_service
 
-        await channel_service.delete_linked(user_id, parent_chat_id)
+        await channel_service.delete_linked(user_id, parent_chat_ids)
 
     async def delete_chat(self, chat_id: UUID, user: User) -> None:
-        await self._delete_linked_channels(user.id, chat_id)
+        await self._delete_linked_channels(user.id, [chat_id])
         async with self.write_session() as db:
             result = await db.execute(
                 select(Chat)
@@ -837,7 +837,7 @@ class ChatService(BaseDbService[Chat]):
             await db.commit()
             await self.release_deleted_chats(deleted_ids)
             # A channel linked since the first sweep committed before the delete.
-            await self._delete_linked_channels(user.id, chat_id)
+            await self._delete_linked_channels(user.id, [chat_id])
 
             if sandbox_id:
                 git_service = GitService(sandbox)
@@ -847,7 +847,19 @@ class ChatService(BaseDbService[Chat]):
                     )
 
     async def delete_all_chats(self, user: User) -> int:
-        await self._delete_linked_channels(user.id, None)
+        async with self.session_factory() as db:
+            live_ids = list(
+                (
+                    await db.scalars(
+                        select(Chat.id).filter(
+                            Chat.user_id == user.id,
+                            Chat.deleted_at.is_(None),
+                            Chat.is_visible(),
+                        )
+                    )
+                ).all()
+            )
+        await self._delete_linked_channels(user.id, live_ids)
         async with self.write_session() as db:
             chat_query = select(Chat.id, Chat.workspace_id, Chat.worktree_cwd).filter(
                 Chat.user_id == user.id,
@@ -904,7 +916,7 @@ class ChatService(BaseDbService[Chat]):
             await db.commit()
             await self.release_deleted_chats(chat_ids)
             # A channel linked since the first sweep committed before the delete.
-            await self._delete_linked_channels(user.id, None)
+            await self._delete_linked_channels(user.id, chat_ids)
 
             for ws in workspaces:
                 if ws.sandbox_id:

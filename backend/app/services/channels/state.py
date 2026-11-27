@@ -10,7 +10,9 @@ from app.models.schemas.channel import ChannelMemberState, MemberOutcome
 
 ACTIVITY_EPOCH = uuid4().hex
 UNKNOWN_MODEL = "Model {model_id} is unknown on this instance"
-RoundProgress = Literal["settled", "still running", "interrupted by a user message"]
+RoundProgress = Literal[
+    "settled", "still running", "interrupted by a user message", "stopped", "deleted"
+]
 
 
 class TurnStatus(Enum):
@@ -84,6 +86,8 @@ class ChannelState:
     outcomes: dict[UUID, MemberOutcome] = field(default_factory=dict)
     # The current round was started by the parent chat and its report is not built yet.
     report_due: bool = False
+    # The final report of the parent's last round, until its delivery is acknowledged.
+    final_report: ChannelReport | None = None
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
     waiting_member_ids: list[str] = field(default_factory=list)

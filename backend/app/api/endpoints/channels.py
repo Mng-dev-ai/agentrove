@@ -116,6 +116,10 @@ async def post_message(
     channel = await channel_service.get(channel_id, user)
     if report_to_parent and channel.parent_chat_id is None:
         raise HTTPException(400, "report_to_parent requires a linked channel")
+    if report_to_parent and user.agent_chat_id != channel.parent_chat_id:
+        raise HTTPException(
+            403, "Only the channel's parent chat can set report_to_parent"
+        )
     try:
         attachments = await channel_service.save_attachments(channel, attached_files)
     except (StorageException, SandboxException) as exc:
@@ -229,7 +233,12 @@ async def send_queued_message_now(
 async def stop_channel(
     channel_id: UUID, user: User = Depends(get_current_user)
 ) -> Response:
-    await channel_engine.stop(await channel_service.get(channel_id, user))
+    channel = await channel_service.get(channel_id, user)
+    await channel_engine.stop(
+        channel,
+        by_parent=channel.parent_chat_id is not None
+        and user.agent_chat_id == channel.parent_chat_id,
+    )
     return Response(status_code=204)
 
 

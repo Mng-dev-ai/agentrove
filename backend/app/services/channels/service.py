@@ -205,7 +205,7 @@ class ChannelService(BaseDbService[Channel]):
             try:
                 await self.prepare_worktree(channel)
             except Exception:
-                await self._delete_locked(state)
+                await self._delete_locked(state, parent_deleted=False)
                 raise
         return channel
 
@@ -628,28 +628,27 @@ class ChannelService(BaseDbService[Channel]):
             user_id=str(channel.user_id),
         )
 
-    async def delete(self, channel: Channel) -> None:
+    async def delete(self, channel: Channel, *, parent_deleted: bool = False) -> None:
         state = self.engine.state(channel)
         async with state.control:
             # Whoever held control before us may already have deleted it.
             if self.engine.states.get(channel.id) is state:
-                await self._delete_locked(state)
+                await self._delete_locked(state, parent_deleted=parent_deleted)
 
-    async def delete_linked(self, user_id: UUID, parent_chat_id: UUID | None) -> None:
+    async def delete_linked(self, user_id: UUID, parent_chat_ids: list[UUID]) -> None:
         query = select(Channel).where(
-            Channel.user_id == user_id,
-            Channel.parent_chat_id.is_not(None)
-            if parent_chat_id is None
-            else Channel.parent_chat_id == parent_chat_id,
+            Channel.user_id == user_id, Channel.parent_chat_id.in_(parent_chat_ids)
         )
         async with self.session_factory() as db:
             channels = list((await db.scalars(query)).all())
         for channel in channels:
-            await self.delete(channel)
+            await self.delete(channel, parent_deleted=True)
 
-    async def _delete_locked(self, state: ChannelState) -> None:
+    async def _delete_locked(
+        self, state: ChannelState, *, parent_deleted: bool
+    ) -> None:
         channel = state.channel
-        await self.engine.teardown(state)
+        await self.engine.teardown(state, parent_deleted=parent_deleted)
         if channel.worktree:
             chat = await self.anchor_chat(channel)
             if chat.worktree_cwd:

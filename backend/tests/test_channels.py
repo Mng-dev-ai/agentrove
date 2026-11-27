@@ -2805,9 +2805,7 @@ async def test_deleting_a_parent_chat_deletes_its_linked_channel(
     assert set(channel_engine.states) == {unlinked.id}
 
 
-async def settle_round(
-    state: ChannelState, runtime: ScriptedTurns, wake: SubThreadWake
-) -> None:
+async def run_round(state: ChannelState, runtime: ScriptedTurns) -> None:
     if state.timer is not None:
         state.timer.cancel()
         await asyncio.gather(state.timer, return_exceptions=True)
@@ -2815,6 +2813,12 @@ async def settle_round(
     state.paused = False
     state.quiet_until = 0
     await channel_engine.wake(state)
+
+
+async def settle_round(
+    state: ChannelState, runtime: ScriptedTurns, wake: SubThreadWake
+) -> None:
+    await run_round(state, runtime)
     await asyncio.gather(*wake._tasks)
 
 
@@ -2831,6 +2835,10 @@ async def test_linked_channel_wakes_its_parent_for_the_rounds_the_parent_posted(
     parent = await create_chat_row(db_session, user, workspace)
     parent.last_model_id = TEST_MODEL_ID
     await db_session.commit()
+    parent_token = create_mcp_access_token(
+        str(user.id), user.hashed_password, frozenset(), str(parent.id)
+    )
+    parent_headers = {"Authorization": f"Bearer {parent_token}"}
     monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 0)
     wake = SubThreadWake()
     monkeypatch.setattr(channel_engine_module, "subthread_wake", wake)
@@ -2850,7 +2858,7 @@ async def test_linked_channel_wakes_its_parent_for_the_rounds_the_parent_posted(
         posted = await client.post(
             f"/api/v1/channels/{linked.channel.id}/messages",
             data={"content": "Review this", "report_to_parent": "true"},
-            headers=headers,
+            headers=parent_headers,
         )
         assert posted.status_code == 201, posted.text
         queued = await client.post(
@@ -2890,3 +2898,35 @@ async def test_linked_channel_wakes_its_parent_for_the_rounds_the_parent_posted(
         assert posted.status_code == 201, posted.text
         await settle_round(state, channel_runtime, wake)
     assert initiate.await_count == 2
+
+    posted = await client.post(
+        f"/api/v1/channels/{linked.channel.id}/messages",
+        data={"content": "Review this", "report_to_parent": "true"},
+        headers=parent_headers,
+    )
+    assert posted.status_code == 201, posted.text
+    stopped = await client.post(
+        f"/api/v1/channels/{linked.channel.id}/stop", headers=headers
+    )
+    assert stopped.status_code == 204, stopped.text
+    await settle_round(linked, channel_runtime, wake)
+    assert initiate.await_count == 3
+    prompt = initiate.call_args.args[0].prompt
+    assert f"- #Review (channel_id: {linked.channel.id}, stopped)" in prompt
+    assert linked.channel.owed_report_device_ids is None
+
+    monkeypatch.setattr(wake_module, "WAKE_DEBOUNCE_SECONDS", 3600)
+    for _ in range(2):
+        posted = await client.post(
+            f"/api/v1/channels/{linked.channel.id}/messages",
+            data={"content": "Review this", "report_to_parent": "true"},
+            headers=parent_headers,
+        )
+        assert posted.status_code == 201, posted.text
+        await wake._flush(str(parent.id))
+        assert initiate.await_count == 3
+        await run_round(linked, channel_runtime)
+    await wake._flush(str(parent.id))
+    assert initiate.await_count == 4
+    assert ", settled)" in initiate.call_args.args[0].prompt
+    await wake.shutdown()

@@ -3097,6 +3097,19 @@ async def test_mcp_reaches_member_chats_only_of_channels_linked_to_the_caller(
         assert created.status_code == 201, created.text
         channels[name] = created.json()
     linked_id = channels["linked"]["id"]
+    for chat_id in (str(other.id), None):
+        token = create_mcp_access_token(
+            str(user.id), user.hashed_password, frozenset(), chat_id
+        )
+        refused_post = await client.post(
+            f"/api/v1/channels/{linked_id}/messages",
+            data={
+                "content": "Wake a parent that is not mine",
+                "report_to_parent": "true",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert refused_post.status_code == 403, refused_post.text
     posted = await client.post(
         f"/api/v1/channels/{linked_id}/messages",
         data={"content": f"{MARKER_ELICITATION} choose"},

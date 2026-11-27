@@ -271,7 +271,7 @@ class WorkspaceService(BaseDbService[Workspace]):
         # stays consistent even if those fire-and-forget cleanups fail.
         workspace = await self.get_workspace(workspace_id, user)
         for channel in await channel_service.list_channels(user, workspace_id):
-            await channel_service.delete(channel)
+            await channel_service.delete(channel, parent_deleted=True)
         async with self.write_session() as db:
             workspace = await db.merge(workspace)
             now = datetime.now(timezone.utc)
@@ -316,7 +316,7 @@ class WorkspaceService(BaseDbService[Workspace]):
             # A channel created since the first sweep committed before the
             # soft-delete; it needs the sandbox, so it goes before the teardown.
             for channel in await channel_service.list_channels(user, workspace_id):
-                await channel_service.delete(channel)
+                await channel_service.delete(channel, parent_deleted=True)
 
             if workspace.sandbox_id:
                 provider = SandboxProvider.create_provider(

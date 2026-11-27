@@ -43,6 +43,18 @@ CHANNEL_OPENING = (
     "These channels you posted to have an update for you "
     "(sent automatically by Agentrove, not typed by the user):"
 )
+CHANNEL_GUIDANCE = (
+    "Read a channel's discussion with get_channel_messages(channel_id). A blocked "
+    "member resumes once it is answered: call get_pending_requests with that member's "
+    "chat_id to read each request and respond_to_request to answer it. Answer "
+    "yourself only what your task context settles; put any question or permission "
+    "that needs the user's judgement to the user instead. A member that gave up "
+    "tries again when you post to the channel. A stopped channel runs again when "
+    "you post to it."
+)
+DELETED_CHANNEL_GUIDANCE = (
+    "A deleted channel's messages and member chats are gone and cannot be read."
+)
 
 
 @dataclass(frozen=True)
@@ -357,7 +369,11 @@ class SubThreadWake:
     async def _take_channels(
         self, db: AsyncSession, parent: Chat
     ) -> list[ChannelReport]:
-        reports = list(self._channels.pop(str(parent.id), {}).values())
+        reports = [
+            current
+            for report in self._channels.pop(str(parent.id), {}).values()
+            if (current := await self._current_channel_report(report)) is not None
+        ]
         active = await PairingService.active_device_ids(
             db,
             parent.user_id,
@@ -372,14 +388,19 @@ class SubThreadWake:
         )
 
     @staticmethod
+    async def _current_channel_report(report: ChannelReport) -> ChannelReport | None:
+        # Avoid circular import with channels/engine.py.
+        from app.services.channels.engine import channel_engine
+
+        return await channel_engine.current_report(report)
+
+    @staticmethod
     async def _channel_reports_delivered(reports: list[ChannelReport]) -> None:
         # Avoid circular import with channels/engine.py.
         from app.services.channels.engine import channel_engine
 
         for report in reports:
-            state = channel_engine.states.get(UUID(report.channel_id))
-            if state is not None:
-                await channel_engine.report_delivered(state)
+            await channel_engine.report_delivered(report)
 
     async def _report_delivered(
         self, children: list[ChildResult], channels: list[ChannelReport]
@@ -544,6 +565,8 @@ class SubThreadWake:
                     f"- #{channel.name} (channel_id: {channel.channel_id}, "
                     f"{channel.progress})"
                 )
+                if channel.progress == "deleted":
+                    continue
                 for member in channel.members:
                     state = member.state
                     status = (
@@ -556,16 +579,16 @@ class SubThreadWake:
                         f"  - {member.name} (chat_id: {member.chat_id}): "
                         f"{status}{detail}"
                     )
+            guidance = []
+            if any(channel.progress != "deleted" for channel in channels):
+                guidance.append(CHANNEL_GUIDANCE)
+            if any(channel.progress == "deleted" for channel in channels):
+                guidance.append(DELETED_CHANNEL_GUIDANCE)
             sections.append(
                 f"{CHANNEL_OPENING}\n\n"
                 + "\n".join(lines)
-                + "\n\nRead a channel's discussion with get_channel_messages"
-                "(channel_id). A blocked member resumes once it is answered: call "
-                "get_pending_requests with that member's chat_id to read each request "
-                "and respond_to_request to answer it. Answer yourself only what your "
-                "task context settles; put any question or permission that needs the "
-                "user's judgement to the user instead. A member that gave up tries "
-                "again when you post to the channel."
+                + "\n\n"
+                + " ".join(guidance)
             )
         return "\n\n".join(sections)
 
@@ -595,7 +618,9 @@ class SubThreadWake:
             for channel in channels:
                 title = SubThreadWake._notice_title(channel.name)
                 lines.append(
-                    f"- **[#{title}](/channels/{channel.channel_id})** "
+                    f"- **#{title}** (deleted)"
+                    if channel.progress == "deleted"
+                    else f"- **[#{title}](/channels/{channel.channel_id})** "
                     f"({channel.progress})"
                 )
             sections.append("\n".join(lines))
