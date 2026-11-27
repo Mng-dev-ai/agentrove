@@ -22,7 +22,7 @@ import { getRelativeTime } from '@/utils/date';
 import { stateClasses } from '@/config/stateClasses';
 import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
-import { useChannelRowStatus } from './sidebarHelpers';
+import { useChannelRowStatus } from './useChannelRowStatus';
 import type { MachineChannel } from './sidebarGrouping';
 import type { SidebarChannelActions } from './useSidebarChannelActions';
 import styles from './SubThreadList.module.scss';

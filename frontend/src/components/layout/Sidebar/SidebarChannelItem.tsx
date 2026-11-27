@@ -8,7 +8,8 @@ import { CHAT_STATUS_LABEL } from '@/utils/message';
 import type { Channel } from '@/types/channel.types';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
 import { SidebarRowPreview, type MachineBadge } from './SidebarChatItem';
-import { describeMachine, useChannelRowStatus } from './sidebarHelpers';
+import { describeMachine } from './sidebarHelpers';
+import { useChannelRowStatus } from './useChannelRowStatus';
 import styles from './SidebarChannelItem.module.scss';
 
 interface SidebarChannelItemProps {

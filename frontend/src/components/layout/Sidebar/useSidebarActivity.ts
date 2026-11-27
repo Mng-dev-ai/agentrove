@@ -2,10 +2,10 @@ import { useMemo } from 'react';
 import { useQueries, type UseQueryResult } from '@tanstack/react-query';
 import { chatQuery } from '@/hooks/queries/useChatQueries';
 import { channelActivity, useChannelStore } from '@/store/channelStore';
-import type { Channel, ChannelMemberActivity } from '@/types/channel.types';
+import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
 import type { SidebarActivityKind } from '@/store/sidebarFilters';
-import type { MachineChannel } from './sidebarGrouping';
+import { channelActivityKind, type MachineChannel } from './sidebarGrouping';
 
 export interface ChildActivity {
   running: number;
@@ -33,14 +33,6 @@ function addChildActivity(
   if (kind === 'needs-you') activity.needsYou += 1;
   else activity.running += 1;
   byParentId.set(parentId, activity);
-}
-
-// A channel counts once: needs-you while any member waits on the user, else running
-// while any member has a turn going.
-export function channelActivityKind(activity: ChannelMemberActivity): SidebarActivityKind | null {
-  if (activity.waiting_member_ids.length > 0) return 'needs-you';
-  if (activity.member_ids.length > 0) return 'running';
-  return null;
 }
 
 // Every running or blocked thread and channel, sub-threads and linked channels of
