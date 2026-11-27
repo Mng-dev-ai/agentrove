@@ -2780,6 +2780,43 @@ async def test_channel_parent_must_be_the_owners_top_level_chat(
     }
 
 
+async def test_creating_a_channel_announces_it_on_the_owners_chat_feed(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_data: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, workspace = owner
+    parent = await create_chat_row(db_session, user, workspace)
+    chat_events: list[tuple[UUID, dict[str, Any]]] = []
+
+    async def record_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
+        chat_events.append((user_id, payload))
+
+    monkeypatch.setattr(
+        ChatService, "publish_user_chat_event", staticmethod(record_chat_event)
+    )
+
+    created = await client.post(
+        "/api/v1/channels",
+        json=channel_data | {"parent_chat_id": str(parent.id)},
+        headers=headers,
+    )
+
+    assert created.status_code == 201, created.text
+    assert chat_events == [
+        (
+            user.id,
+            {
+                "kind": "channel_created",
+                "channel_id": created.json()["id"],
+                "parent_chat_id": str(parent.id),
+            },
+        )
+    ]
+
+
 async def test_deleting_a_parent_chat_deletes_its_linked_channel(
     client: AsyncClient,
     db_session: AsyncSession,

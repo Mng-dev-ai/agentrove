@@ -207,6 +207,16 @@ class ChannelService(BaseDbService[Channel]):
             except Exception:
                 await self._delete_locked(state, parent_deleted=False)
                 raise
+        await ChatService.publish_user_chat_event(
+            user.id,
+            {
+                "kind": "channel_created",
+                "channel_id": str(channel.id),
+                "parent_chat_id": (
+                    str(channel.parent_chat_id) if channel.parent_chat_id else None
+                ),
+            },
+        )
         return channel
 
     @staticmethod

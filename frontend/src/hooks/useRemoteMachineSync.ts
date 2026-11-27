@@ -40,10 +40,12 @@ export function useRemoteMachineSync(machineId: string): void {
       });
 
     const unsubscribe = subscribeChatEvents(queryClient, {
+      machineId,
       logContext: 'useRemoteMachineSync',
       createSource: () => chatService.createChatEventsSource(machineId),
       getActiveStreams: () => getOwnedStreams(machineId),
       claim: (event) => {
+        if (event.kind === 'channel_created') return true;
         if (event.kind === 'chat_created') {
           assignChatRecordsToMachine(machineId, [event.chat]);
           return chatMachineId(event.chat.id) === machineId;

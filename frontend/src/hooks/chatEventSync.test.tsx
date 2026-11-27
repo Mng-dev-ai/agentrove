@@ -29,6 +29,7 @@ import { useMachineStore } from '@/store/machineStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import type { Chat, ChatEvent } from '@/types/chat.types';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
 const MACHINE_ID = 'machine-1';
 const OTHER_MACHINE_ID = 'machine-2';
@@ -65,6 +66,7 @@ const ORIGINS = [
     own: () => {},
     chatsKey: [queryKeys.chats, 'infinite'] as QueryKey,
     workspacesKey: queryKeys.workspaces as QueryKey,
+    channelsKey: queryKeys.channels(LOCAL_MACHINE_ID) as QueryKey,
     renameRefetchesChats: false,
   },
   {
@@ -76,6 +78,7 @@ const ORIGINS = [
     own: (chatId: string) => assignChatsToMachine(MACHINE_ID, [chatId]),
     chatsKey: queryKeys.machine.chats(MACHINE_ID) as QueryKey,
     workspacesKey: queryKeys.machine.workspaces(MACHINE_ID) as QueryKey,
+    channelsKey: queryKeys.channels(MACHINE_ID) as QueryKey,
     renameRefetchesChats: true,
   },
 ];
@@ -207,6 +210,20 @@ describe.each(ORIGINS)('chat events from a $name origin', (origin) => {
     expect(isInvalidated(origin.workspacesKey)).toBe(true);
     expect(isInvalidated(queryKeys.chat(chatId))).toBe(true);
     expect(isInvalidated(queryKeys.subThreads('parent'))).toBe(true);
+  });
+
+  it('refetches its channel list on a created channel without opening a tab', async () => {
+    seedLists(origin);
+    queryClient.setQueryData(origin.channelsKey, []);
+    const source = await mount(origin);
+
+    source.emit(
+      JSON.stringify({ kind: 'channel_created', channel_id: 'channel-1', parent_chat_id: chatId }),
+    );
+
+    expect(isInvalidated(origin.channelsKey)).toBe(true);
+    expect(isInvalidated(origin.chatsKey)).toBe(false);
+    expect(useUIStore.getState().chatTabs).toEqual([]);
   });
 
   it('refetches lists and chats and re-registers active streams on resync', async () => {

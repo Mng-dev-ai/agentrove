@@ -17,6 +17,7 @@ import type { ActiveStreamSnapshot } from '@/types/stream.types';
 // What a backend (local, or one paired machine) contributes to chat-event handling;
 // everything else in this file is shared by every origin.
 export interface ChatEventOrigin {
+  machineId: string;
   logContext: string;
   createSource: () => Promise<AuthEventSource>;
   getActiveStreams: () => Promise<ActiveStreamSnapshot[]>;
@@ -42,6 +43,11 @@ function applyChatEvent(
     return;
   }
   if (!origin.claim(parsed)) return;
+
+  if (parsed.kind === 'channel_created') {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.channels(origin.machineId) });
+    return;
+  }
 
   if (parsed.kind === 'chat_created') {
     origin.applyCreatedChat(parsed.chat);
