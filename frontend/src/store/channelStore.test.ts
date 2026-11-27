@@ -3,6 +3,7 @@ import { useChannelStore } from './channelStore';
 import channelEnvelopes from '@/test/channelEnvelopes.json';
 import {
   CHANNEL_ACTIVITY_NOTICES,
+  CHANNEL_ELICITATION_KEYS,
   CHANNEL_NOTICE_KEYS,
   CHANNEL_PAYLOAD_KEYS,
   ELICITATION_REQUEST_KEYS,
@@ -199,7 +200,9 @@ describe('backend channel envelope fixture', () => {
       expect(notices).toEqual([]);
       return;
     }
-    for (const { request } of entry.payload.elicitations ?? []) {
+    for (const elicitation of entry.payload.elicitations ?? []) {
+      expect(Object.keys(elicitation)).toEqual(Object.keys(CHANNEL_ELICITATION_KEYS));
+      const { request } = elicitation;
       expect(Object.keys(request).filter((key) => key in ELICITATION_REQUEST_KEYS)).toEqual(
         Object.keys(ELICITATION_REQUEST_KEYS),
       );

@@ -1,7 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/hooks/queries/queryKeys';
 import type { PaginatedMessages } from '@/types/api.types';
-import type { ChannelCompletion, ChannelEnvelope } from '@/types/channel.types';
+import type {
+  ChannelCompletion,
+  ChannelElicitationRequest,
+  ChannelEnvelope,
+} from '@/types/channel.types';
 import type {
   ChatEvent,
   ElicitationRequest,
@@ -74,6 +78,12 @@ export const TOOL_PERMISSION_REQUEST_KEYS = {
   tool_input: true,
   options: true,
 } satisfies Record<keyof ToolPermissionRequest, true>;
+
+export const CHANNEL_ELICITATION_KEYS = {
+  member_id: true,
+  chat_id: true,
+  request: true,
+} satisfies Record<keyof ChannelElicitationRequest, true>;
 
 export const ELICITATION_REQUEST_KEYS = {
   request_id: true,
