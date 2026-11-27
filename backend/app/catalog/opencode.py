@@ -2805,6 +2805,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/inclusionai/ling-3.2-flash:free": ModelInfo(
         "Ling 3.2 Flash (free) (Openrouter)", AgentKind.OPENCODE, 1_048_576
     ),
+    "opencode:openrouter/inclusionai/lingsante-3.1-air-vl": ModelInfo(
+        "LingSante 3.1 Air VL (Openrouter)", AgentKind.OPENCODE, 131_072
+    ),
     "opencode:openrouter/inference-net/schematron-v2-small": ModelInfo(
         "Schematron V2 Small (Openrouter)", AgentKind.OPENCODE, 128_000
     ),
@@ -2993,6 +2996,12 @@ MODELS: dict[str, ModelInfo] = {
     ),
     "opencode:openrouter/moondream/moondream3.1-9b-a2b": ModelInfo(
         "Moondream 3.1 (Openrouter)", AgentKind.OPENCODE, 32_000
+    ),
+    "opencode:openrouter/moonshotai/kimi-k2": ModelInfo(
+        "Kimi K2 0711 (Openrouter)", AgentKind.OPENCODE, 131_072
+    ),
+    "opencode:openrouter/moonshotai/kimi-k2-0905": ModelInfo(
+        "Kimi K2 Instruct 0905 (Openrouter)", AgentKind.OPENCODE, 262_144
     ),
     "opencode:openrouter/moonshotai/kimi-k2.5": ModelInfo(
         "Kimi K2.5 (Openrouter)", AgentKind.OPENCODE, 262_144, legacy=True
@@ -3841,7 +3850,7 @@ MODELS: dict[str, ModelInfo] = {
         "GLM-4.5V (Openrouter)", AgentKind.OPENCODE, 65_536, legacy=True
     ),
     "opencode:openrouter/z-ai/glm-4.6": ModelInfo(
-        "GLM-4.6 (Openrouter)", AgentKind.OPENCODE, 204_800, legacy=True
+        "GLM-4.6 (Openrouter)", AgentKind.OPENCODE, 202_752, legacy=True
     ),
     "opencode:openrouter/z-ai/glm-4.6v": ModelInfo(
         "GLM-4.6V (Openrouter)", AgentKind.OPENCODE, 131_072
