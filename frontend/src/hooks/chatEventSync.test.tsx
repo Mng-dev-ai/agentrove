@@ -29,6 +29,7 @@ import { useMachineStore } from '@/store/machineStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import chatEvents from '@/test/chatEvents.json';
+import { CHAT_EVENT_KEYS } from '@/test/fixtures';
 import type { Chat, ChatEvent } from '@/types/chat.types';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 
@@ -299,8 +300,12 @@ describe('backend chat event fixture', () => {
 
   it('has an entry for exactly the kinds in the ChatEvent union', () => {
     expect([...new Set(FIXTURE_EVENTS.map((event) => event.kind))].sort()).toEqual(
-      Object.keys(OPENS_TAB).sort(),
+      Object.keys(CHAT_EVENT_KEYS).sort(),
     );
+  });
+
+  it.each(FIXTURE_EVENTS)('carries exactly the keys of a $kind event', (event) => {
+    expect(Object.keys(event)).toEqual(CHAT_EVENT_KEYS[event.kind]);
   });
 
   it.each(FIXTURE_EVENTS)('applies a $kind fixture event', async (event) => {

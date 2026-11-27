@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useChannelStore } from './channelStore';
 import channelEnvelopes from '@/test/channelEnvelopes.json';
+import {
+  CHANNEL_ACTIVITY_NOTICES,
+  CHANNEL_NOTICE_KEYS,
+  CHANNEL_PAYLOAD_KEYS,
+} from '@/test/fixtures';
 import type {
   ChannelEnvelope,
   ChannelMemberActivity,
@@ -10,13 +15,6 @@ import type {
 
 const CH = 'ch1';
 const FIXTURE_ENVELOPES = channelEnvelopes as ChannelEnvelope[];
-const APPLIED_BY_STORE: Record<ChannelEnvelope['kind'], boolean> = {
-  channel_message: true,
-  channel_permission_request: true,
-  channel_permission_resolved: true,
-  channel_member_activity: true,
-  channel_queue_sent: false,
-};
 
 const message = (id: string, seq: number, version: number, content = id): ChannelMessage => ({
   id,
@@ -181,8 +179,26 @@ describe('channel activity', () => {
 describe('backend channel envelope fixture', () => {
   it('has an entry for exactly the kinds in the ChannelEnvelope union', () => {
     expect([...new Set(FIXTURE_ENVELOPES.map((entry) => entry.kind))].sort()).toEqual(
-      Object.keys(APPLIED_BY_STORE).sort(),
+      Object.keys(CHANNEL_PAYLOAD_KEYS).sort(),
     );
+  });
+
+  it.each(FIXTURE_ENVELOPES)('carries exactly the payload keys of a $kind envelope', (entry) => {
+    expect(Object.keys(entry)).toEqual(['channelId', 'kind', 'payload']);
+    const keys = Object.keys(entry.payload);
+    const notices = keys.filter((key) => (CHANNEL_ACTIVITY_NOTICES as string[]).includes(key));
+    expect(keys.filter((key) => !notices.includes(key))).toEqual(CHANNEL_PAYLOAD_KEYS[entry.kind]);
+    if (entry.kind !== 'channel_member_activity') {
+      expect(notices).toEqual([]);
+      return;
+    }
+    expect(notices.length).toBeLessThanOrEqual(1);
+    for (const notice of notices) {
+      expect(keys[keys.length - 1]).toBe(notice);
+      expect(Object.keys(entry.payload[notice as 'asked' | 'completed']!)).toEqual(
+        CHANNEL_NOTICE_KEYS,
+      );
+    }
   });
 
   it('applies every store-bound fixture envelope to the held channel', () => {
