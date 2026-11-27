@@ -11,7 +11,7 @@ import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useOnlineRemoteMachineIds } from '@/store/machineStore';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
-import { useUIStore } from '@/store/uiStore';
+import { selectAppliedTheme, useUIStore } from '@/store/uiStore';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { prefetchChatOpen } from '@/hooks/queries/useChatQueries';
 import { LoadingScreen } from '@/components/ui/LoadingScreen/LoadingScreen';
@@ -218,7 +218,7 @@ function revealAppWindow() {
 
 export default function App() {
   const resolvedTheme = useResolvedTheme();
-  const theme = useUIStore((state) => state.theme);
+  const theme = useUIStore(selectAppliedTheme);
   // Web/mobile ready immediately; desktop waits for sidecar port.
   const [shellReady, setShellReady] = useState(!isTauri());
   const [desktopError, setDesktopError] = useState<string | null>(null);

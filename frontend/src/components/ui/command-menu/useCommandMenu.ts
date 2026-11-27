@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUIStore } from '@/store/uiStore';
-import { type ThemeMeta } from '@/utils/theme';
+import { THEMES, type ThemeMeta } from '@/utils/theme';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
 import type { ViewType, SplitDirection, Theme } from '@/types/ui.types';
 import { useCommandMenuData } from './useCommandMenuData';
@@ -82,7 +82,9 @@ export function useCommandMenu() {
       lastMouseRef.current = null;
       setMode(next);
       setQuery('');
-      setActiveIndex(0);
+      setActiveIndex(
+        next === 'themes' ? THEMES.findIndex((t) => t.value === useUIStore.getState().theme) : 0,
+      );
       focusModeInput(next);
     },
     [focusModeInput],
@@ -101,7 +103,11 @@ export function useCommandMenu() {
   );
 
   useEffect(() => {
-    if (!isOpen) return;
+    // Reset on close so a reopen never renders (and previews) the last session's themes row.
+    if (!isOpen) {
+      setMode('all');
+      return;
+    }
     const ui = useUIStore.getState();
     switchMode(ui.pendingMenuMode ?? 'all');
     ui.setPendingMenuMode(null);
@@ -218,6 +224,12 @@ export function useCommandMenu() {
   useEffect(() => {
     activeItemRef.current?.scrollIntoView({ block: 'nearest' });
   }, [activeIndex]);
+
+  const previewTheme =
+    isOpen && mode === 'themes' ? (filteredThemes[activeIndex]?.value ?? null) : null;
+  useEffect(() => {
+    useUIStore.getState().setThemePreview(previewTheme);
+  }, [previewTheme]);
 
   useEffect(() => {
     if (!isOpen) return;

@@ -5,7 +5,7 @@ import '@xterm/xterm/css/xterm.css';
 
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { useResolvedTheme } from '@/hooks/useResolvedTheme';
-import { useUIStore } from '@/store/uiStore';
+import { selectAppliedTheme, useUIStore } from '@/store/uiStore';
 import { resolveSandboxClient, resolveSandboxWs } from '@/lib/api';
 
 import { useXterm } from '@/hooks/useXterm';
@@ -42,7 +42,7 @@ export function TerminalTab({
   onClosed,
 }: TerminalTabProps) {
   const resolvedTheme = useResolvedTheme();
-  const rawTheme = useUIStore((s) => s.theme);
+  const rawTheme = useUIStore(selectAppliedTheme);
   // Only `system` needs resolving; every other theme is itself a palette
   const palette: Palette = rawTheme === 'system' ? resolvedTheme : rawTheme;
   const [sessionState, setSessionState] = useState<SessionState>('idle');

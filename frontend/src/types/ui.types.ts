@@ -61,8 +61,10 @@ export interface MentionItem {
 
 export interface ThemeState {
   theme: Theme;
+  themePreview: Theme | null;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
+  setThemePreview: (theme: Theme | null) => void;
 }
 
 export interface ModelSelectionState {
