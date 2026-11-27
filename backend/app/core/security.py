@@ -95,7 +95,7 @@ def create_mcp_access_token(
     user_id: str,
     hashed_password: str,
     device_ids: frozenset[UUID],
-    chat_id: str | None = None,
+    chat_id: str | None,
 ) -> str:
     # Minted for the stdio MCP server of a host-workspace session — audience must
     # match the JWTStrategy in user_manager.py (fastapi-users default) so the

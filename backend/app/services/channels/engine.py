@@ -33,6 +33,7 @@ from app.services.channels.state import (
     ChannelReport,
     ChannelState,
     MemberRetry,
+    ParentRound,
     MemberTurn,
     RoundProgress,
     TurnStatus,
@@ -209,15 +210,15 @@ class ChannelEngine(BaseDbService[Channel]):
                     await self.cancel_active(state, turns)
                     message = await self.send(state, content, attachments, device_ids)
                     if report_to_parent:
-                        state.final_report = None
-                        owed = state.channel.owed_report_device_ids
-                        await self.set_owed_report(
+                        running = state.parent_round
+                        await self.set_parent_round(
                             state,
-                            device_ids | (owed or frozenset())
-                            if state.report_due
-                            else device_ids,
+                            ParentRound(
+                                device_ids | running.device_ids
+                                if running is not None and running.final is None
+                                else device_ids
+                            ),
                         )
-                        state.report_due = True
             finally:
                 try:
                     await self.cancel_turns(turns)
@@ -227,21 +228,24 @@ class ChannelEngine(BaseDbService[Channel]):
                         self.schedule(state)
             return message
 
-    async def set_owed_report(
-        self, state: ChannelState, device_ids: frozenset[UUID] | None
+    async def set_parent_round(
+        self, state: ChannelState, parent_round: ParentRound | None
     ) -> None:
-        if device_ids == state.channel.owed_report_device_ids:
-            return
-        async with self.session_factory() as db:
-            await db.execute(
-                update(Channel)
-                .where(Channel.id == state.channel.id)
-                .values(
-                    owed_report_device_ids=device_ids, updated_at=Channel.updated_at
+        previous = state.parent_round.device_ids if state.parent_round else None
+        device_ids = parent_round.device_ids if parent_round else None
+        if device_ids != previous:
+            async with self.session_factory() as db:
+                await db.execute(
+                    update(Channel)
+                    .where(Channel.id == state.channel.id)
+                    .values(
+                        owed_report_device_ids=device_ids,
+                        updated_at=Channel.updated_at,
+                    )
                 )
-            )
-            await db.commit()
-        state.channel.owed_report_device_ids = device_ids
+                await db.commit()
+            state.channel.owed_report_device_ids = device_ids
+        state.parent_round = parent_round
 
     async def current_report(self, report: ChannelReport) -> ChannelReport | None:
         if report.progress == "deleted":
@@ -250,11 +254,14 @@ class ChannelEngine(BaseDbService[Channel]):
         if state is None:
             return None
         async with state.lock:
-            if report.progress != "still running":
-                return report if report is state.final_report else None
-            if not state.report_due:
+            parent_round = state.parent_round
+            if parent_round is None:
                 return None
-            current = state.parent_report("still running")
+            if report.progress != "still running":
+                return report if report is parent_round.final else None
+            if parent_round.final is not None:
+                return None
+            current = state.parent_report("still running", parent_round.device_ids)
             stuck = any(
                 member.state.state in ("blocked", "gave_up")
                 for member in current.members
@@ -266,18 +273,18 @@ class ChannelEngine(BaseDbService[Channel]):
         if state is None:
             return
         async with state.lock:
-            if report is state.final_report:
-                state.final_report = None
-                await self.set_owed_report(state, None)
+            if state.parent_round and report is state.parent_round.final:
+                await self.set_parent_round(state, None)
 
     @staticmethod
     def report_round(state: ChannelState, progress: RoundProgress) -> None:
-        if not state.report_due:
+        parent_round = state.parent_round
+        if parent_round is None or parent_round.final is not None:
             return
-        report = state.parent_report(progress)
+        report = state.parent_report(progress, parent_round.device_ids)
         subthread_wake.on_channel_report(str(state.channel.parent_chat_id), report)
-        state.final_report = None if progress == "still running" else report
-        state.report_due = state.final_report is None
+        if progress != "still running":
+            state.parent_round = ParentRound(parent_round.device_ids, report)
 
     async def cancel_active(self, state: ChannelState, turns: list[MemberTurn]) -> None:
         for turn in turns:
@@ -861,15 +868,11 @@ class ChannelEngine(BaseDbService[Channel]):
             turns = list(state.turns.values())
             await self.cancel_active(state, turns)
             if ended is None:
-                state.report_due = False
-                state.final_report = None
-                await self.set_owed_report(state, None)
+                await self.set_parent_round(state, None)
             else:
-                # A deleted channel also takes back a final report not yet delivered.
-                state.report_due = state.report_due or (
-                    ended == "deleted"
-                    and state.channel.owed_report_device_ids is not None
-                )
+                if ended == "deleted" and state.parent_round is not None:
+                    # Takes back a final report not yet acknowledged.
+                    state.parent_round = ParentRound(state.parent_round.device_ids)
                 self.report_round(state, ended)
             async with self.session_factory() as db:
                 for member in state.channel.members:
@@ -965,8 +968,9 @@ class ChannelEngine(BaseDbService[Channel]):
         messages: list[ChannelMessage],
         orphans: Sequence[Row[tuple[UUID, UUID, UUID]]],
     ) -> None:
+        owed = channel.owed_report_device_ids
         state = ChannelState(
-            channel, report_due=channel.owed_report_device_ids is not None
+            channel, parent_round=None if owed is None else ParentRound(owed)
         )
         self.states[channel.id] = state
         for message in messages:

@@ -469,7 +469,9 @@ async def test_host_agent_token_is_limited_to_the_mcp_client_routes(
     user = await create_user(email="mcp-token@example.com", username="mcptoken")
     tokens = await login(email="mcp-token@example.com")
     paired = (await pair_device(client, tokens["access_token"])).json()
-    token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    token = create_mcp_access_token(
+        str(user.id), user.hashed_password, frozenset(), None
+    )
     headers = {"Authorization": f"Bearer {token}"}
 
     allowed = await client.get("/api/v1/workspaces", headers=headers)
@@ -513,7 +515,7 @@ async def test_agent_token_without_host_marker_or_workspace_is_rejected(
         algorithm=get_settings().ALGORITHM,
     )
     host_token = create_mcp_access_token(
-        str(user.id), user.hashed_password, frozenset()
+        str(user.id), user.hashed_password, frozenset(), None
     )
 
     rejected = await client.get(
@@ -1572,7 +1574,10 @@ async def test_mcp_token_bound_to_device_dies_with_device(
     mcp_headers = {
         "Authorization": "Bearer "
         + create_mcp_access_token(
-            str(user.id), user.hashed_password, frozenset({UUID(paired["device_id"])})
+            str(user.id),
+            user.hashed_password,
+            frozenset({UUID(paired["device_id"])}),
+            None,
         )
     }
     workspaces = "/api/v1/workspaces"

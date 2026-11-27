@@ -673,6 +673,12 @@ class ChatService(BaseDbService[Chat]):
         *,
         include_channel: bool = False,
     ) -> Chat:
+        if not include_channel:
+            access = Chat.is_visible()
+        elif user.agent_token:
+            access = self._member_access(user)
+        else:
+            access = true()
         # Workspace eager-loaded for sandbox_id; messages via /messages. sub_thread_count is caller-side.
         query = (
             select(Chat)
@@ -680,7 +686,7 @@ class ChatService(BaseDbService[Chat]):
                 Chat.id == chat_id,
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),
-                (self._member_access(user) if include_channel else Chat.is_visible()),
+                access,
             )
             .options(
                 selectinload(Chat.workspace),
@@ -930,8 +936,6 @@ class ChatService(BaseDbService[Chat]):
 
     @staticmethod
     def _member_access(user: User) -> ColumnElement[bool]:
-        if not user.agent_token:
-            return true()
         if user.agent_chat_id is None:
             return Chat.is_visible()
         # An agent reaches its own member chat and the member chats of channels
@@ -951,9 +955,7 @@ class ChatService(BaseDbService[Chat]):
                     Chat.id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
-                    self._member_access(user)
-                    if user.agent_token
-                    else Chat.is_visible(),
+                    self._member_access(user),
                 )
             )
             if workspace_id is None:

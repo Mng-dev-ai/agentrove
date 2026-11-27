@@ -71,6 +71,13 @@ class ChannelReport:
     device_ids: frozenset[UUID]
 
 
+@dataclass(frozen=True)
+class ParentRound:
+    device_ids: frozenset[UUID]
+    # Built when the round ends; kept until its delivery is acknowledged.
+    final: ChannelReport | None = None
+
+
 @dataclass
 class ChannelState:
     channel: Channel
@@ -84,10 +91,8 @@ class ChannelState:
     elicitations: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     last_reply: tuple[str, ChannelMessage] | None = None
     outcomes: dict[UUID, MemberOutcome] = field(default_factory=dict)
-    # The current round was started by the parent chat and its report is not built yet.
-    report_due: bool = False
-    # The final report of the parent's last round, until its delivery is acknowledged.
-    final_report: ChannelReport | None = None
+    # The round the parent chat started, until its final report is acknowledged.
+    parent_round: ParentRound | None = None
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
     waiting_member_ids: list[str] = field(default_factory=list)
@@ -147,7 +152,9 @@ class ChannelState:
         state.outcome = self.outcomes.get(member.id)
         return state
 
-    def parent_report(self, progress: RoundProgress) -> ChannelReport:
+    def parent_report(
+        self, progress: RoundProgress, device_ids: frozenset[UUID]
+    ) -> ChannelReport:
         return ChannelReport(
             channel_id=str(self.channel.id),
             name=self.channel.name,
@@ -158,7 +165,7 @@ class ChannelState:
                 )
                 for member in self.channel.members
             ],
-            device_ids=self.channel.owed_report_device_ids or frozenset(),
+            device_ids=device_ids,
         )
 
     def give_fresh_attempts(self, audience: list[str] | None) -> None:

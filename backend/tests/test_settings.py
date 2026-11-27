@@ -239,7 +239,9 @@ async def test_agent_token_reads_and_writes_personas_only(
     user: User,
     headers: dict[str, str],
 ) -> None:
-    token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    token = create_mcp_access_token(
+        str(user.id), user.hashed_password, frozenset(), None
+    )
     agent_headers = {"Authorization": f"Bearer {token}"}
     personas = [{"name": "Reviewer", "content": "Review code."}]
     seeded = await client.patch(

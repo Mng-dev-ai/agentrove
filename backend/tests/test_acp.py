@@ -2616,7 +2616,7 @@ async def test_sandbox_token_only_opens_the_mcp_endpoint_while_its_session_lives
         ).status_code == 200
 
         host_token = create_mcp_access_token(
-            str(user.id), user.hashed_password, frozenset()
+            str(user.id), user.hashed_password, frozenset(), None
         )
         for rejected in (
             {},

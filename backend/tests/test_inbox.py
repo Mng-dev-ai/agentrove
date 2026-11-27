@@ -180,7 +180,7 @@ async def test_create_message_rejects_channel_member_chat(
     await register_device(client, headers)
     agent_headers = {
         "Authorization": "Bearer "
-        + create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+        + create_mcp_access_token(str(user.id), user.hashed_password, frozenset(), None)
     }
 
     response = await post_message(client, agent_headers, member_chat.id)

@@ -1,7 +1,7 @@
 """add channel parent chat, instructions and owed report
 
 Revision ID: c9e1a3b5d7f2
-Revises: b8d2f4a6c1e3
+Revises: c4e8a2d6f0b1
 """
 
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from app.db.types import GUID, UUIDSet
 
 revision = "c9e1a3b5d7f2"
-down_revision = "b8d2f4a6c1e3"
+down_revision = "c4e8a2d6f0b1"
 branch_labels = None
 depends_on = None
 

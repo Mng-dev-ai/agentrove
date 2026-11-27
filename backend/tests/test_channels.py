@@ -2580,7 +2580,9 @@ async def test_agent_tokens_cannot_change_members(
     channel_state: ChannelState,
 ) -> None:
     user = owner[1]
-    token = create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+    token = create_mcp_access_token(
+        str(user.id), user.hashed_password, frozenset(), None
+    )
     base = f"/api/v1/channels/{channel_state.channel.id}/members"
     member_path = f"{base}/{channel_state.channel.members[0].id}"
     for method, path, kwargs in (
