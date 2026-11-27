@@ -104,11 +104,14 @@
     border-right: 1px solid transparent;
 
     // The mobile sidebar overlays the page, so its header strip overlays the bar
-    // instead of squeezing the band past the viewport edge.
+    // instead of squeezing the band past the viewport edge. It paints its own fill
+    // so its controls never show over the band before the backdrop slides in.
     @include responsive.media('mobile') {
       position: absolute;
       inset-block: 0;
       left: 0;
+      border-right-color: colors.theme-color('border', 0.5);
+      background-color: var(--theme-surface-secondary);
     }
   }
 }
