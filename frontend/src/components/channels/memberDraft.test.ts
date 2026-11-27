@@ -22,6 +22,7 @@ import {
   resolveMember,
   resolveMemberNames,
   settingsModel,
+  withSupportedOverrides,
   type GroupMember,
   type SharedMemberSettings,
 } from './memberDraft';
@@ -203,6 +204,28 @@ describe('group thread members', () => {
       agentKind: 'cursor',
       model: undefined,
     });
+  });
+
+  it('keeps every override while the model list is still loading', () => {
+    const overrides = { thinkingMode: 'low', persona: 'Reviewer' };
+    const members = [
+      member('a', 'cursor:auto', { overrides }),
+      member('b', 'claude:opus', { overrides }),
+    ];
+
+    expect(withSupportedOverrides(members, [])).toEqual(members);
+    expect(promoteSoleMemberOverrides([members[0]], []).promoted).toEqual(overrides);
+  });
+
+  it('drops effort and persona overrides a listed model lacks', () => {
+    const overrides = { thinkingMode: 'low', persona: 'Reviewer' };
+
+    expect(withSupportedOverrides([member('a', 'cursor:auto', { overrides })], models)).toEqual([
+      member('a', 'cursor:auto'),
+    ]);
+    expect(
+      promoteSoleMemberOverrides([member('a', 'cursor:auto', { overrides })], models).promoted,
+    ).toEqual({});
   });
 
   it('routes popover edits to name, model or overrides and clears one setting for all', () => {

@@ -235,10 +235,12 @@ export function settingsModel(
 }
 
 // A stored member carries a default for settings its model lacks; that is no choice to
-// show, mix or promote, so only the settings the model has count as overrides.
+// show, mix or promote, so only the settings the model has count as overrides. Without a
+// model (the list still loading) nothing is known to be missing.
 export function withSupportedOverrides(members: GroupMember[], models: Model[]): GroupMember[] {
   return members.map((member) => {
-    const { hasThinking, supportsPersona } = resolveMember(member, models);
+    const { model, hasThinking, supportsPersona } = resolveMember(member, models);
+    if (!model) return member;
     const overrides = { ...member.overrides };
     if (!hasThinking) delete overrides.thinkingMode;
     if (!supportsPersona) delete overrides.persona;
