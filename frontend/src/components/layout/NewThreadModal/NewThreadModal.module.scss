@@ -64,28 +64,10 @@
   }
 }
 
+// The attach button's own padding sits outside the prompt's text edge
 .attach {
-  @include anim.transition-colors;
-  @include controls.focus-ring;
-  display: flex;
-  height: var(--space-7);
-  width: var(--space-7);
   align-self: flex-start;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-md);
-  margin-left: calc(var(--space-1-5) * -1);
-  color: var(--theme-text-tertiary);
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    color: var(--theme-text-primary);
-  }
-}
-
-.attach-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  margin-left: calc(var(--space-2) * -1);
 }
 
 // The dialog's own radius minus its border, since visible overflow leaves corners to us
@@ -125,6 +107,13 @@
 
     > div {
       position: static;
+    }
+
+    // Dropdown panels span the footer like the settings sheet; min-width outranks the
+    // panel's inline width
+    > div > [role='listbox'] {
+      left: var(--space-2);
+      min-width: calc(100% - var(--space-4));
     }
   }
 }

@@ -7,7 +7,7 @@ import {
   type SetStateAction,
 } from 'react';
 import clsx from 'clsx';
-import { Paperclip, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -19,7 +19,9 @@ import { Textarea } from '@/components/chat/message-input/Textarea';
 import { ComposerAttachmentSlots } from '@/components/chat/message-input/ComposerAttachmentSlots';
 import { InputSuggestionsPanel } from '@/components/chat/message-input/InputSuggestionsPanel';
 import { SendButton } from '@/components/chat/message-input/SendButton';
-import { ModelPicker } from '@/components/chat/model-selector/ModelPicker';
+import { AttachButton } from '@/components/chat/message-input/AttachButton';
+import { EnhanceButton } from '@/components/chat/message-input/EnhanceButton';
+import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
 import { MachineWorkspaceSelector } from '@/components/chat/workspace-selector/MachineWorkspaceSelector';
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
@@ -27,6 +29,7 @@ import { BranchWorktreeSelector } from '@/components/chat/worktree-selector/Bran
 import {
   clearMemberOverrides,
   groupMemberRequests,
+  newGroupMember,
   type GroupMember,
   type SharedMemberSettings,
 } from '@/components/channels/memberDraft';
@@ -63,6 +66,7 @@ import { useModelSelection, useModelMap, useModelsQuery } from '@/hooks/queries/
 import { useSettingsQuery } from '@/hooks/queries/useSettingsQueries';
 import { buildAgentChatFields } from '@/utils/chatRequest';
 import { buildFileStructureFromSandboxFiles } from '@/utils/file';
+import { ThreadSettings } from './ThreadSettings';
 import styles from './NewThreadModal.module.scss';
 
 const DEFAULT_MEMBER_KEY = 'default-member';
@@ -397,7 +401,24 @@ function NewThreadDialog() {
               />
             )}
             <BranchWorktreeSelector disabled={isLoading} />
-            <ModelPicker
+            <ModelSelector
+              selectedModelId={members[0]?.modelId ?? ''}
+              onModelChange={(modelId) => setMembers([newGroupMember(modelId)])}
+              dropdownPosition="auto"
+              disabled={isLoading}
+              compact={false}
+              variant="pill"
+              machineId={targetMachineId}
+              agents={{
+                modelIds: members.map((member) => member.modelId),
+                onAdd: (modelId) => setMembers([...members, newGroupMember(modelId)]),
+                onRemove: (modelId) => {
+                  const index = members.map((member) => member.modelId).lastIndexOf(modelId);
+                  if (members.length > 1) setMembers(members.filter((_, i) => i !== index));
+                },
+              }}
+            />
+            <ThreadSettings
               machineId={targetMachineId}
               members={members}
               shared={shared}
@@ -455,28 +476,31 @@ function NewThreadComposer({ onClose, children }: { onClose: () => void; childre
           onCloseDrawing={actions.closeDrawingModal}
           onSaveDrawing={actions.handleDrawingSave}
         />
-        <Button
-          type="button"
-          variant="unstyled"
-          disabled={state.isDisabled}
-          onClick={() => {
-            actions.resetDragState();
-            actions.setShowFileUpload(true);
-          }}
-          aria-label="Attach file"
-          className={styles.attach}
-        >
-          <Paperclip className={styles['attach-icon']} />
-        </Button>
+        <div className={styles.attach}>
+          <AttachButton
+            disabled={state.isDisabled}
+            onAttach={() => {
+              actions.resetDragState();
+              actions.setShowFileUpload(true);
+            }}
+          />
+        </div>
       </div>
       <div className={styles.footer}>
         <div className={styles.suggestions}>
           <InputSuggestionsPanel />
         </div>
         <div className={styles.pills}>{children}</div>
+        {state.hasMessage && (
+          <EnhanceButton
+            onEnhance={actions.handleEnhancePrompt}
+            isEnhancing={state.isEnhancing}
+            disabled={state.isLoading}
+          />
+        )}
         <SendButton
           status={sendStatus}
-          disabled={sendStatus === 'idle' || state.isDisabled}
+          disabled={sendStatus === 'idle' || state.isEnhancing || state.isDisabled}
           onClick={actions.handleSendClick}
           showLoadingSpinner={state.showLoadingSpinner}
         />

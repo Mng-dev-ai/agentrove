@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { Star } from 'lucide-react';
+import { Plus, Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/store/modelStore';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
+import { ProviderIconStack } from '@/components/ui/icons/ProviderIconStack';
 import { AGENT_ICONS } from '@/components/ui/icons/providerIcons';
 import { AgentFilterChips } from '@/components/chat/model-selector/AgentFilterChips';
 import { formatNumberCompact } from '@/utils/format';
@@ -22,10 +23,17 @@ export interface ModelSelectorProps {
   dropdownPosition?: DropdownPosition;
   disabled?: boolean;
   compact?: boolean;
-  variant?: 'default' | 'text' | 'field';
+  variant?: 'default' | 'text' | 'field' | 'pill';
   dropdownAlign?: 'left' | 'right';
   machineId?: string;
   onInlineSelect?: () => void;
+  // The New thread modal's agents, one model each (a model can repeat). A row's plus adds
+  // another agent; with several, a click adds or removes one and the panel stays open.
+  agents?: {
+    modelIds: readonly string[];
+    onAdd: (modelId: string) => void;
+    onRemove: (modelId: string) => void;
+  };
 }
 
 export const ModelSelector = memo(function ModelSelector({
@@ -38,6 +46,7 @@ export const ModelSelector = memo(function ModelSelector({
   variant = 'default',
   machineId,
   onInlineSelect,
+  agents,
 }: ModelSelectorProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: models = [], isLoading } = useModelsQuery({
@@ -48,9 +57,10 @@ export const ModelSelector = memo(function ModelSelector({
 
   const [agentFilter, setAgentFilter] = useState<AgentKind | null>(null);
 
+  const agentModelIds = agents?.modelIds;
   const filteredModels = useMemo(
-    () => listedModels(models, [selectedModelId], favoriteModelIds),
-    [models, selectedModelId, favoriteModelIds],
+    () => listedModels(models, agentModelIds ?? [selectedModelId], favoriteModelIds),
+    [models, agentModelIds, selectedModelId, favoriteModelIds],
   );
 
   const favoriteIdSet = useMemo(() => new Set(favoriteModelIds), [favoriteModelIds]);
@@ -106,24 +116,41 @@ export const ModelSelector = memo(function ModelSelector({
 
   const activeModel = selectedModel || filteredModels[0];
   const activeIcon = AGENT_ICONS[activeModel.agent_kind];
-
+  const agentCount = (modelId: string) =>
+    agents ? agents.modelIds.filter((id) => id === modelId).length : 0;
+  const isGroup = !!agents && agents.modelIds.length > 1;
+  const groupKinds = agents?.modelIds.flatMap((id) => {
+    const model = filteredModels.find((m) => m.model_id === id);
+    return model ? [model.agent_kind] : [];
+  });
   return (
     <Dropdown
       value={activeModel}
       items={groupedItems}
       getItemKey={(model) => model.model_id}
       getItemLabel={(model) => model.name}
-      onSelect={(model) => onModelChange(model.model_id)}
+      getItemShortLabel={isGroup ? () => `${agents.modelIds.length} agents` : undefined}
+      isItemSelected={agents && ((model) => agents.modelIds.includes(model.model_id))}
+      keepOpenOnSelect={isGroup}
+      onSelect={(model) => {
+        if (!isGroup) onModelChange(model.model_id);
+        else if (agents.modelIds.includes(model.model_id)) agents.onRemove(model.model_id);
+        else agents.onAdd(model.model_id);
+      }}
       leftIcon={activeIcon}
+      triggerIcon={
+        isGroup && groupKinds ? <ProviderIconStack agentKinds={groupKinds} /> : undefined
+      }
       ariaLabel="Model"
-      width="16rem"
+      // Wide enough for the agents hint on one line
+      width={agents ? '18rem' : '16rem'}
       dropdownPosition={dropdownPosition}
       disabled={disabled}
       compact={compact}
       searchable
       searchPlaceholder="Filter..."
       searchVariant="underline"
-      selectionStyle="accent"
+      selectionStyle={agents ? 'background' : 'accent'}
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
       onOpenChange={handleOpenChange}
@@ -139,22 +166,58 @@ export const ModelSelector = memo(function ModelSelector({
             )
           : undefined
       }
+      renderFooter={
+        agents
+          ? () => (
+              <p className={styles.hint}>
+                {isGroup
+                  ? `${agents.modelIds.length} agents · click a highlighted model to remove it`
+                  : 'Click to switch model · + adds it as another agent'}
+              </p>
+            )
+          : undefined
+      }
       renderItem={(model, isSelected) => {
         const isFavorite = favoriteIdSet.has(model.model_id);
+        const count = agentCount(model.model_id);
         return (
           <div className={styles.item}>
             <ProviderIcon agentKind={model.agent_kind} className={styles['item-icon']} />
             <FloatingTooltip content={model.name} className={styles['item-tooltip']}>
               <span
-                className={clsx(styles['item-label'], isSelected && styles['item-label--selected'])}
+                className={clsx(
+                  styles['item-label'],
+                  isSelected && styles['item-label--selected'],
+                  agents && isSelected && styles['item-label--agent'],
+                )}
               >
                 {model.name}
+                {count > 1 && <span className={styles['item-count']}> ×{count}</span>}
               </span>
             </FloatingTooltip>
             {model.context_window != null && model.context_window > 0 && (
               <span className={styles['item-context']}>
                 {formatNumberCompact(model.context_window)}
               </span>
+            )}
+            {agents && (
+              <Button
+                type="button"
+                variant="unstyled"
+                aria-label={`Add ${model.name} as another agent`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  agents.onAdd(model.model_id);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.stopPropagation();
+                  }
+                }}
+                className={clsx(styles['favorite-button'], styles['add-button'])}
+              >
+                <Plus className={styles['favorite-icon']} />
+              </Button>
             )}
             <Button
               type="button"

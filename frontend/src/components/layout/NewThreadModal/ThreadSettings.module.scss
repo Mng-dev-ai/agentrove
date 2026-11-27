@@ -1,0 +1,346 @@
+@use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/controls' as controls;
+@use '@/styles/globals/typography' as type;
+@use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/responsive' as responsive;
+@use '@/styles/globals/zlayer' as z;
+
+// Desktop anchors the panel to this pill; phones scroll the pill row, so there the
+// composer footer is the anchor (see NewThreadModal's .pills)
+.picker {
+  position: relative;
+  min-width: 0;
+}
+
+.trigger {
+  @include controls.pill-trigger;
+}
+
+.trigger-label {
+  @include type.type-overflow;
+  min-width: 0;
+}
+
+.panel {
+  @include z.z('dropdown');
+  @include anim.fade-in(var(--duration-fast));
+  position: absolute;
+  top: 100%;
+  left: 0;
+  display: flex;
+  width: var(--space-64);
+  max-height: min(27.5rem, 70vh);
+  flex-direction: column;
+  margin-top: var(--space-1-5);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-xl);
+  background-color: var(--theme-surface);
+  box-shadow: var(--shadow-strong);
+
+  &--top {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: var(--space-1-5);
+  }
+
+  // A fixed height, so switching entries never resizes the popover
+  &--split {
+    width: calc(var(--space-36) + var(--space-56));
+    height: var(--space-60);
+  }
+
+  @include responsive.media('sm-down') {
+    left: var(--space-2);
+    right: var(--space-2);
+    width: auto;
+  }
+}
+
+.single {
+  padding: var(--space-1-5);
+}
+
+.split {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.entries {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  padding: var(--space-1-5);
+
+  .split & {
+    width: var(--space-36);
+    flex-shrink: 0;
+    border-right: 1px solid var(--theme-border);
+  }
+}
+
+.entries-label {
+  @include type.type-meta(500);
+  margin: 0;
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--theme-text-quaternary);
+}
+
+.entry {
+  @include anim.transition-colors(var(--duration-fast));
+  @include controls.focus-ring;
+  position: relative;
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-0-5);
+  border-radius: var(--radius-md);
+  padding: var(--space-1-5) var(--space-2);
+  text-align: left;
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
+
+  &--active {
+    background-color: var(--theme-surface-hover);
+  }
+}
+
+.entry-name {
+  @include type.type-default;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-1-5);
+  color: var(--theme-text-primary);
+}
+
+.entry-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  color: var(--theme-text-secondary);
+}
+
+.entry-text {
+  @include type.type-overflow;
+  min-width: 0;
+}
+
+.entry-meta {
+  @include type.type-meta;
+  @include type.type-overflow;
+  color: var(--theme-text-tertiary);
+}
+
+.entry-chevron {
+  position: absolute;
+  top: 50%;
+  right: var(--space-2);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+  color: var(--theme-text-tertiary);
+  transform: translateY(-50%);
+}
+
+.detail {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  padding: var(--space-1-5);
+}
+
+.heading {
+  display: flex;
+  height: var(--space-7);
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: var(--space-2);
+}
+
+.heading-text {
+  @include type.type-meta(500);
+  @include type.type-overflow;
+  min-width: 0;
+  flex: 1;
+  color: var(--theme-text-tertiary);
+}
+
+.reset {
+  @include type.type-meta(500);
+  @include anim.transition-colors(var(--duration-fast));
+  @include controls.focus-ring;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
+    color: var(--theme-text-primary);
+  }
+}
+
+.back {
+  @include type.type-default(500);
+  @include controls.focus-ring;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--theme-border);
+  padding: var(--space-2-5) var(--space-3);
+  color: var(--theme-text-secondary);
+}
+
+.back-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.setting {
+  position: relative;
+}
+
+.row {
+  @include anim.transition-colors(var(--duration-fast));
+  @include controls.focus-ring;
+  display: flex;
+  height: var(--space-7);
+  width: 100%;
+  cursor: pointer;
+  align-items: center;
+  gap: var(--space-1-5);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-1-5) 0 var(--space-2);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
+
+  &[aria-expanded='true'] {
+    background-color: var(--theme-surface-hover);
+  }
+}
+
+.row-label {
+  @include type.type-default;
+  flex: 1;
+  text-align: left;
+  color: var(--theme-text-tertiary);
+}
+
+.row-value {
+  @include type.type-default(500);
+  @include type.type-overflow;
+  min-width: 0;
+  color: var(--theme-text-primary);
+
+  &--inherited {
+    @include type.type-default;
+    color: var(--theme-text-tertiary);
+  }
+}
+
+.row-mixed {
+  @include type.type-default;
+  color: var(--theme-text-quaternary);
+}
+
+.row-chevron {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+  color: var(--theme-text-quaternary);
+}
+
+.name-input {
+  @include type.type-default(500);
+  min-width: 0;
+  flex: 1;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  padding: var(--space-0-5) var(--space-1);
+  text-align: right;
+  color: var(--theme-text-primary);
+
+  &:hover,
+  &:focus {
+    border-color: var(--theme-border);
+    outline: none;
+  }
+
+  &[aria-invalid='true'] {
+    border-color: var(--theme-error-text);
+  }
+}
+
+.name-error {
+  @include type.type-meta;
+  padding: 0 var(--space-2) var(--space-1);
+}
+
+.menu {
+  @include z.z('dropdown');
+  @include anim.fade-in(var(--duration-fast));
+  position: absolute;
+  top: 100%;
+  right: 0;
+  display: flex;
+  min-width: var(--space-44);
+  flex-direction: column;
+  overflow-y: auto;
+  margin-top: var(--space-1);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface);
+  box-shadow: var(--shadow-strong);
+  padding: var(--space-1);
+
+  &--top {
+    top: auto;
+    bottom: 100%;
+    margin-top: 0;
+    margin-bottom: var(--space-1);
+  }
+}
+
+.option {
+  @include type.type-default;
+  @include anim.transition-colors(var(--duration-fast));
+  @include controls.focus-ring;
+  display: flex;
+  height: var(--space-7);
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  border-radius: var(--radius-md);
+  padding: 0 var(--space-2);
+  color: var(--theme-text-primary);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+  }
+}
+
+.option-meta {
+  color: var(--theme-text-tertiary);
+}
+
+.option-check {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.divider {
+  height: 1px;
+  margin: var(--space-1) var(--space-1);
+  background-color: colors.theme-color('border', 0.6);
+}
