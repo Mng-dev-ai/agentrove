@@ -63,3 +63,17 @@ class ChatCompletionResult(TypedDict):
     last_seq: int
     checkpoint_id: str | None
     worktree_cwd: str | None
+
+
+RateLimitStatus = Literal["allowed", "allowed_warning", "rejected"]
+
+
+class RateLimitWindow(TypedDict):
+    utilization: float | None
+    resets_at: int | None
+    status: RateLimitStatus
+
+
+class RateLimits(TypedDict):
+    windows: dict[str, RateLimitWindow]
+    is_using_overage: bool

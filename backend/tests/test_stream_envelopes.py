@@ -47,7 +47,7 @@ def test_fixture_covers_every_envelope_kind_and_every_system_shape() -> None:
     ]
     assert any("data" in payload for payload in system_payloads)
     assert any("context_usage" in payload for payload in system_payloads)
-    assert any("rate_limits" in payload for payload in system_payloads)
+    assert any("rate_limits_changed" in payload for payload in system_payloads)
 
 
 def test_snapshot_kinds_are_envelope_kinds() -> None:

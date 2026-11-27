@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import { extractAssistantText, type StreamContentBuffer } from '@/utils/stream';
 import { notifyStreamComplete } from '@/utils/notifications';
 import { queryKeys } from '@/hooks/queries/queryKeys';
+import { chatMachineId } from '@/store/machineOrigin';
 import { markChatViewed } from '@/hooks/queries/useChatQueries';
 import {
   invalidateGitState,
@@ -350,8 +351,10 @@ export function useStreamCallbacks({
           }
         }
 
-        if (payload.rate_limits && eventChatId) {
-          queryClient.setQueryData(queryKeys.rateLimits(eventChatId), payload.rate_limits);
+        if (payload.rate_limits_changed && eventChatId) {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.machine.rateLimits(chatMachineId(eventChatId)),
+          });
         }
 
         const worktreeCwd =

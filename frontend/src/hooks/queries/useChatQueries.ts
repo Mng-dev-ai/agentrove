@@ -18,7 +18,7 @@ import { channelService } from '@/services/channelService';
 import { chatService } from '@/services/chatService';
 import { retryTransientOnce } from '@/hooks/queries/listLoad';
 import { useMachineStore } from '@/store/machineStore';
-import { chatMachineId } from '@/store/machineOrigin';
+import { chatMachineId, useChatMachineId } from '@/store/machineOrigin';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { forgetChat, forgetChatsForMachine } from '@/store/forgetChat';
 import type { ComposerSelection } from '@/store/uiStore';
@@ -208,11 +208,13 @@ export const useContextUsageQuery = (
   });
 };
 
+// The limits belong to the machine's Claude login, so every chat on a machine shares one entry.
 export const useRateLimitsQuery = (chatId: string | undefined) => {
   return useQuery({
-    queryKey: queryKeys.rateLimits(chatId),
+    queryKey: queryKeys.machine.rateLimits(useChatMachineId(chatId)),
     queryFn: () => chatService.getRateLimits(chatId!),
     enabled: !!chatId,
+    staleTime: 0,
   });
 };
 

@@ -13,6 +13,7 @@ import { streamConnection } from '@/services/streamConnection';
 import { streamService } from '@/services/streamService';
 import { useChatSettingsStore, type PermissionMode } from '@/store/chatSettingsStore';
 import { useStreamStore } from '@/store/streamStore';
+import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import type { Chat, Message, PermissionOption } from '@/types/chat.types';
 import type { QueueProcessingData, StreamEnvelope } from '@/types/stream.types';
 import { makeMessage, readMessagePages, seedMessagePages, wireEnvelope } from '@/test/fixtures';
@@ -240,6 +241,8 @@ describe('side-effect envelopes', () => {
   // backend/tests/test_stream_envelopes.py holds StreamEnvelopeKind to the same file.
   it('carries every backend envelope kind from raw stream data to its handler', async () => {
     queryClient.setQueryData(queryKeys.chat('c1'), { id: 'c1', worktree_cwd: null } as Chat);
+    const rateLimitsKey = queryKeys.machine.rateLimits(LOCAL_MACHINE_ID);
+    queryClient.setQueryData(rateLimitsKey, { windows: {}, is_using_overage: false });
     const { result } = renderCallbacks();
     const sent = streamEnvelopes.map((entry) => ({ ...entry, ...ENVELOPE_IDS, seq: entry.seq }));
     const received: StreamEnvelope[] = [];
@@ -308,10 +311,8 @@ describe('side-effect envelopes', () => {
     );
     const usage = systemPayloads.find((payload) => payload.context_usage)!;
     expect(handlers.onContextUsageUpdate).toHaveBeenCalledWith(usage.context_usage, usage.chat_id);
-    const rateLimits = systemPayloads.find((payload) => payload.rate_limits)!;
-    expect(queryClient.getQueryData(queryKeys.rateLimits(rateLimits.chat_id))).toEqual(
-      rateLimits.rate_limits,
-    );
+    expect(systemPayloads.some((payload) => payload.rate_limits_changed)).toBe(true);
+    expect(queryClient.getQueryState(rateLimitsKey)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryData<Chat>(queryKeys.chat('c1'))?.worktree_cwd).toBe(
       systemPayloads.find((payload) => payload.data?.worktree_cwd)!.data?.worktree_cwd,
     );

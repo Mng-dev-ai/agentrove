@@ -3,12 +3,18 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field, replace
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, get_args
 
 from acp.schema import ToolCallProgress, ToolCallStart
 
 from app.catalog import MODELS
-from app.models.types import AgentKind, PermissionMode
+from app.models.types import (
+    AgentKind,
+    PermissionMode,
+    RateLimits,
+    RateLimitStatus,
+    RateLimitWindow,
+)
 from app.services.exceptions import AgentException
 
 if TYPE_CHECKING:
@@ -81,6 +87,9 @@ PERSONAS_SUPPORTED_AGENTS: frozenset[AgentKind] = frozenset(
     }
 )
 
+
+CLAUDE_RATE_LIMIT_META_KEY = "_claude/rateLimit"
+RATE_LIMIT_STATUSES: frozenset[str] = frozenset(get_args(RateLimitStatus))
 
 IMAGE_READ_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
@@ -370,6 +379,10 @@ class AgentAdapter:
     def parent_tool_id(self, tc: Any) -> str | None:
         return None
 
+    def rate_limits(self, meta: dict[str, Any] | None) -> RateLimits | None:
+        # Subscription rate limits carried in a usage_update's _meta.
+        return None
+
     def normalize_tool_call(self, tc: Any) -> tuple[str, dict[str, Any] | None] | None:
         # (name, input) for calls the agent labels or wraps in its own
         # envelope; None = the ACP `kind`/`title` and raw_input stand.
@@ -425,6 +438,37 @@ class ClaudeAgentAdapter(AgentAdapter):
     def parent_tool_id(self, tc: Any) -> str | None:
         parent_id = self._claude_meta(tc).get("parentToolUseId")
         return str(parent_id) if parent_id else None
+
+    def rate_limits(self, meta: dict[str, Any] | None) -> RateLimits | None:
+        info = (meta or {}).get(CLAUDE_RATE_LIMIT_META_KEY)
+        if not isinstance(info, dict):
+            return None
+        raw_windows = info.get("unifiedWindows")
+        if not isinstance(raw_windows, dict):
+            raw_windows = {info.get("rateLimitType"): info}
+        windows = {
+            name: window
+            for name, raw in raw_windows.items()
+            if isinstance(name, str)
+            and (window := self._rate_limit_window(raw)) is not None
+        }
+        return RateLimits(
+            windows=windows, is_using_overage=info.get("isUsingOverage") is True
+        )
+
+    @staticmethod
+    def _rate_limit_window(raw: Any) -> RateLimitWindow | None:
+        if not isinstance(raw, dict) or raw.get("status") not in RATE_LIMIT_STATUSES:
+            return None
+        utilization = raw.get("utilization")
+        resets_at = raw.get("resetsAt")
+        return RateLimitWindow(
+            utilization=(
+                float(utilization) if isinstance(utilization, int | float) else None
+            ),
+            resets_at=int(resets_at) if isinstance(resets_at, int | float) else None,
+            status=raw["status"],
+        )
 
     def extract_tool_result(self, tc: ToolCallProgress) -> Any:
         claude_meta = self._claude_meta(tc)

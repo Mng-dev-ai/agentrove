@@ -486,7 +486,7 @@ async def test_rate_limit_usage_emits_even_with_unchanged_tokens(
         headers,
         message_id,
         "system",
-        where=lambda event: "rate_limits" in event["render_payload"],
+        where=lambda event: "rate_limits_changed" in event["render_payload"],
     )
 
     expected = {
@@ -499,7 +499,10 @@ async def test_rate_limit_usage_emits_even_with_unchanged_tokens(
         },
         "is_using_overage": False,
     }
-    assert event["render_payload"] == {"rate_limits": expected, "chat_id": str(chat.id)}
+    assert event["render_payload"] == {
+        "rate_limits_changed": True,
+        "chat_id": str(chat.id),
+    }
     events_response = await client.get(
         f"/api/v1/chat/messages/{message_id}/events", headers=headers
     )

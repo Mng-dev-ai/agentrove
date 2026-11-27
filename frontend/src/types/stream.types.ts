@@ -5,7 +5,6 @@ import type {
   MessageAttachment,
   PermissionOption,
   PlanEntry,
-  RateLimits,
 } from './chat.types';
 import type { ToolEventPayload } from './tools.types';
 
@@ -21,7 +20,7 @@ interface StreamEnvelopeBase<K extends string, P> {
 }
 
 // `system` has two wire shapes. ACP session info and the turn's worktree nest
-// under `data`; context usage or rate limits sit at the top level beside `chat_id`. Nested
+// under `data`; context usage or a rate-limits change sits at the top level beside `chat_id`. Nested
 // `data.chat_id` / `data.context_usage` are tolerated legacy input that no
 // current backend emits.
 interface SystemDataPayload {
@@ -33,18 +32,18 @@ interface SystemDataPayload {
   };
   chat_id?: undefined;
   context_usage?: undefined;
-  rate_limits?: undefined;
+  rate_limits_changed?: undefined;
 }
 
 interface SystemContextUsagePayload {
   context_usage: ContextUsage;
   chat_id: string;
   data?: undefined;
-  rate_limits?: undefined;
+  rate_limits_changed?: undefined;
 }
 
 interface SystemRateLimitsPayload {
-  rate_limits: RateLimits;
+  rate_limits_changed: true;
   chat_id: string;
   data?: undefined;
   context_usage?: undefined;

@@ -10,7 +10,6 @@ export const queryKeys = {
   messages: (chatId?: string) => ['messages', chatId] as const,
   messageRender: (messageId: string) => ['message-render', messageId] as const,
   contextUsage: (chatId?: string) => ['chat', chatId, 'context-usage'] as const,
-  rateLimits: (chatId?: string) => ['chat', chatId, 'rate-limits'] as const,
   subThreads: (chatId?: string) => ['chat', chatId, 'sub-threads'] as const,
   auth: {
     user: 'auth-user',
@@ -91,6 +90,7 @@ export const queryKeys = {
       ['machine', machineId, 'memories', workspaceId] as const,
     memoriesAll: (machineId: string) => ['machine', machineId, 'memories'] as const,
     inbox: (machineId: string) => ['machine', machineId, 'inbox'] as const,
+    rateLimits: (machineId: string) => ['machine', machineId, 'rate-limits'] as const,
   },
   inbox: ['inbox'] as const,
   memories: (workspaceId: string | null) => ['memories', workspaceId] as const,

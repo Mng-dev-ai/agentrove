@@ -29,7 +29,7 @@ from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.queue import QueuedMessage
-from app.models.types import AgentKind, PermissionMode
+from app.models.types import AgentKind, PermissionMode, RateLimits
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -60,7 +60,6 @@ from app.services.streaming.scaffold import TurnScaffold
 from app.services.streaming.types import (
     PROMPT_SUGGESTIONS_RE,
     ChatStreamRequest,
-    RateLimits,
     StreamEnvelope,
     StreamEnvelopeKind,
     StreamEvent,
@@ -936,15 +935,13 @@ class ChatStreamRuntime:
 
     async def _emit_rate_limits(self, rate_limits: RateLimits) -> None:
         try:
-            merged = await merge_rate_limits(
-                self.cache, str(self.chat.user_id), rate_limits
-            )
+            await merge_rate_limits(self.cache, str(self.chat.user_id), rate_limits)
         except CacheError as exc:
             logger.debug("Rate limit update failed for chat %s: %s", self.chat_id, exc)
             return
         await self.emit_event(
             "system",
-            {"rate_limits": merged, "chat_id": self.chat_id},
+            {"rate_limits_changed": True, "chat_id": self.chat_id},
             apply_snapshot=False,
         )
 

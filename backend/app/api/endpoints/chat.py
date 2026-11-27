@@ -38,7 +38,7 @@ from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.db_models.chat import Chat, MessageAttachment
 from app.models.db_models.user import User
-from app.models.types import MessageAttachmentDict, PermissionMode
+from app.models.types import MessageAttachmentDict, PermissionMode, RateLimits
 from app.models.schemas.chat import (
     ActiveStreamStatus,
     AskCodeRequest,
@@ -94,7 +94,6 @@ from app.services.session_registry import session_registry
 from app.services.storage import StorageService
 from app.services.streaming.rate_limits import load_rate_limits
 from app.services.streaming.runtime import ChatStreamRuntime
-from app.services.streaming.types import RateLimits
 from app.services.turn_settings import resolve_turn_settings
 from app.utils.cache import CacheError, cache_connection
 from app.utils.parsing import parse_stream_cursors

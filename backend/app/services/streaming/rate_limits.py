@@ -2,7 +2,7 @@ import json
 import time
 
 from app.constants import RATE_LIMITS_FALLBACK_TTL_SECONDS, REDIS_KEY_USER_RATE_LIMITS
-from app.services.streaming.types import RateLimits
+from app.models.types import RateLimits
 from app.utils.cache import CacheStore
 
 
@@ -27,7 +27,7 @@ async def load_rate_limits(cache: CacheStore, user_id: str) -> RateLimits:
 
 async def merge_rate_limits(
     cache: CacheStore, user_id: str, update: RateLimits
-) -> RateLimits:
+) -> None:
     current = await load_rate_limits(cache, user_id)
     now = time.time()
     merged = _unexpired(
@@ -49,4 +49,3 @@ async def merge_rate_limits(
     await cache.setex(
         REDIS_KEY_USER_RATE_LIMITS.format(user_id=user_id), ttl, json.dumps(merged)
     )
-    return merged

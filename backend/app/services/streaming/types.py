@@ -10,7 +10,7 @@ from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 from app.models.db_models.enums import MessageStreamStatus
-from app.models.types import MessageAttachmentDict, PermissionMode
+from app.models.types import MessageAttachmentDict, PermissionMode, RateLimits
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 
 
@@ -140,20 +140,6 @@ class ToolPayload(TypedDict, total=False):
     images: list[ToolImage]
     error: str
     permission_mode: PermissionMode
-
-
-RateLimitStatus = Literal["allowed", "allowed_warning", "rejected"]
-
-
-class RateLimitWindow(TypedDict):
-    utilization: float | None
-    resets_at: int | None
-    status: RateLimitStatus
-
-
-class RateLimits(TypedDict):
-    windows: dict[str, RateLimitWindow]
-    is_using_overage: bool
 
 
 class StreamEvent(TypedDict, total=False):
