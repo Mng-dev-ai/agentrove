@@ -38,7 +38,7 @@ def test_fixture_envelopes_are_what_the_backend_builds() -> None:
         )
 
 
-def test_fixture_covers_every_envelope_kind_and_both_system_shapes() -> None:
+def test_fixture_covers_every_envelope_kind_and_every_system_shape() -> None:
     assert {envelope["kind"] for envelope in STREAM_ENVELOPES} == ENVELOPE_KINDS
     system_payloads = [
         envelope["payload"]
@@ -47,6 +47,7 @@ def test_fixture_covers_every_envelope_kind_and_both_system_shapes() -> None:
     ]
     assert any("data" in payload for payload in system_payloads)
     assert any("context_usage" in payload for payload in system_payloads)
+    assert any("rate_limits" in payload for payload in system_payloads)
 
 
 def test_snapshot_kinds_are_envelope_kinds() -> None:

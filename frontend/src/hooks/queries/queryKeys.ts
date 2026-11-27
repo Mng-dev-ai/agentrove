@@ -10,6 +10,7 @@ export const queryKeys = {
   messages: (chatId?: string) => ['messages', chatId] as const,
   messageRender: (messageId: string) => ['message-render', messageId] as const,
   contextUsage: (chatId?: string) => ['chat', chatId, 'context-usage'] as const,
+  rateLimits: (chatId?: string) => ['chat', chatId, 'rate-limits'] as const,
   subThreads: (chatId?: string) => ['chat', chatId, 'sub-threads'] as const,
   auth: {
     user: 'auth-user',

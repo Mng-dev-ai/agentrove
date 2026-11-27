@@ -350,6 +350,10 @@ export function useStreamCallbacks({
           }
         }
 
+        if (payload.rate_limits && eventChatId) {
+          queryClient.setQueryData(queryKeys.rateLimits(eventChatId), payload.rate_limits);
+        }
+
         const worktreeCwd =
           typeof nestedData?.worktree_cwd === 'string' ? nestedData.worktree_cwd : undefined;
         if (worktreeCwd && chatId) {

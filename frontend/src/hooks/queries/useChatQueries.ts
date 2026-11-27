@@ -208,6 +208,14 @@ export const useContextUsageQuery = (
   });
 };
 
+export const useRateLimitsQuery = (chatId: string | undefined) => {
+  return useQuery({
+    queryKey: queryKeys.rateLimits(chatId),
+    queryFn: () => chatService.getRateLimits(chatId!),
+    enabled: !!chatId,
+  });
+};
+
 // Shared by create-chat mutation + chat_created SSE. Dedup by id — both paths fire
 // for local creates; second-pass invalidations are intentional (don't suppress).
 export function invalidateSubThreadListsContaining(queryClient: QueryClient, chatId: string): void {

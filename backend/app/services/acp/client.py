@@ -48,6 +48,9 @@ from app.models.db_models.enums import ToolStatus
 from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.streaming.images import tool_image
 from app.services.streaming.types import (
+    RateLimits,
+    RateLimitStatus,
+    RateLimitWindow,
     StreamEvent,
     ToolImage,
     ToolPayload,
@@ -61,6 +64,9 @@ _SENTINEL = object()
 # claude-agent-acp fixed heartbeat forwarding in 0.63.0; retain the ID filter
 # as defense-in-depth for other or older adapters.
 _HEARTBEAT_TOOL_ID_RE = re.compile(r"-heartbeat-\d+$")
+
+CLAUDE_RATE_LIMIT_META_KEY = "_claude/rateLimit"
+RATE_LIMIT_STATUSES: frozenset[str] = frozenset(get_args(RateLimitStatus))
 
 # Valid ACP option_ids that match our PermissionMode literals directly.
 VALID_PERMISSION_MODES: frozenset[str] = frozenset(get_args(PermissionMode))
@@ -725,7 +731,43 @@ class AcpClientHandler:
             "input_tokens": usage.used,
             "context_window": usage.size,
         }
-        return StreamEvent(type="usage", data=self.usage)
+        event = StreamEvent(type="usage", data=self.usage)
+        rate_limits = self._rate_limits_from_meta(usage.field_meta)
+        if rate_limits is not None:
+            event["rate_limits"] = rate_limits
+        return event
+
+    @staticmethod
+    def _rate_limits_from_meta(meta: dict[str, Any] | None) -> RateLimits | None:
+        info = (meta or {}).get(CLAUDE_RATE_LIMIT_META_KEY)
+        if not isinstance(info, dict):
+            return None
+        raw_windows = info.get("unifiedWindows")
+        if not isinstance(raw_windows, dict):
+            raw_windows = {info.get("rateLimitType"): info}
+        windows = {
+            name: window
+            for name, raw in raw_windows.items()
+            if isinstance(name, str)
+            and (window := AcpClientHandler._rate_limit_window(raw)) is not None
+        }
+        return RateLimits(
+            windows=windows, is_using_overage=info.get("isUsingOverage") is True
+        )
+
+    @staticmethod
+    def _rate_limit_window(raw: Any) -> RateLimitWindow | None:
+        if not isinstance(raw, dict) or raw.get("status") not in RATE_LIMIT_STATUSES:
+            return None
+        utilization = raw.get("utilization")
+        resets_at = raw.get("resetsAt")
+        return RateLimitWindow(
+            utilization=(
+                float(utilization) if isinstance(utilization, int | float) else None
+            ),
+            resets_at=int(resets_at) if isinstance(resets_at, int | float) else None,
+            status=raw["status"],
+        )
 
     def _map_session_info(self, info: SessionInfoUpdate) -> StreamEvent | None:
         # session_id comes from the outer SessionNotification and is injected

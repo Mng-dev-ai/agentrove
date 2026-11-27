@@ -11,7 +11,7 @@ from uuid import UUID, uuid4
 import httpx
 import pytest
 import uvicorn
-from acp.schema import PermissionOption, ToolCallStart, ToolCallUpdate
+from acp.schema import PermissionOption, ToolCallStart, ToolCallUpdate, UsageUpdate
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import event as sa_event
@@ -24,6 +24,7 @@ from app.models.db_models.chat import Chat, Message, MessageEvent
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.memory import Memory
 from app.models.db_models.paired_device import PairedDevice
+from app.models.types import AgentKind
 from app.services.acp.client import AcpClientHandler
 from app.services.acp.session import AcpSession, AcpSessionConfig
 from app.services.exceptions import ChatException
@@ -339,6 +340,19 @@ async def send_message(
     return dict(response.json())
 
 
+def claude_rate_limit_usage(rate_limit: dict[str, Any]) -> StreamEvent:
+    event = AcpClientHandler(AgentKind.CLAUDE)._map_usage_update(
+        UsageUpdate(
+            session_update="usage_update",
+            used=1500,
+            size=TEST_CONTEXT_WINDOW,
+            field_meta={"_claude/rateLimit": rate_limit},
+        )
+    )
+    assert event is not None
+    return event
+
+
 def git_head(path: Path) -> str:
     return subprocess.run(
         ["git", "rev-parse", "HEAD"],
@@ -427,6 +441,141 @@ async def test_send_message_streams_full_turn_and_persists_final_snapshot(
         "tokens_used": 1500,
         "context_window": TEST_CONTEXT_WINDOW,
         "percentage": (1500 / TEST_CONTEXT_WINDOW) * 100,
+    }
+
+
+async def test_rate_limit_usage_emits_even_with_unchanged_tokens(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="resumed-rl")
+    resets_at = int(time.time()) + 3600
+    script: list[Any] = [
+        StreamEvent(
+            type="usage",
+            data={"input_tokens": 1500, "context_window": TEST_CONTEXT_WINDOW},
+        ),
+        claude_rate_limit_usage(
+            {
+                "status": "allowed",
+                "resetsAt": resets_at,
+                "rateLimitType": "seven_day",
+                "isUsingOverage": False,
+                "unifiedWindows": {
+                    "seven_day": {
+                        "utilization": 0.61,
+                        "resetsAt": resets_at,
+                        "status": "allowed",
+                    }
+                },
+            }
+        ),
+        BLOCK_FOREVER,
+    ]
+    acp_factory.queue(FakeAcpSession([script], session_id="resumed-rl"))
+
+    message_id = (await send_message(client, headers, chat))["message_id"]
+    event = await wait_for_message_event(
+        client,
+        headers,
+        message_id,
+        "system",
+        where=lambda event: "rate_limits" in event["render_payload"],
+    )
+
+    expected = {
+        "windows": {
+            "seven_day": {
+                "utilization": 0.61,
+                "resets_at": resets_at,
+                "status": "allowed",
+            }
+        },
+        "is_using_overage": False,
+    }
+    assert event["render_payload"] == {"rate_limits": expected, "chat_id": str(chat.id)}
+    events_response = await client.get(
+        f"/api/v1/chat/messages/{message_id}/events", headers=headers
+    )
+    context_events = [
+        e for e in events_response.json() if "context_usage" in e["render_payload"]
+    ]
+    assert len(context_events) == 1
+    response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/rate-limits", headers=headers
+    )
+    assert response.status_code == 200
+    assert response.json() == expected
+
+    cancel_response = await client.delete(
+        f"/api/v1/chat/chats/{chat.id}/stream", headers=headers
+    )
+    assert cancel_response.status_code == 204
+
+
+async def test_rate_limit_windows_merge_and_expire(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    create_user: UserFactory,
+    login: LoginClient,
+    acp_factory: FakeAcpSessionFactory,
+) -> None:
+    headers, user, workspace = await create_authenticated_workspace(
+        db_session, create_user, login
+    )
+    chat = await create_chat_row(db_session, user, workspace, session_id="resumed-rm")
+    now = int(time.time())
+    script = [
+        claude_rate_limit_usage(
+            {
+                "status": "allowed_warning",
+                "resetsAt": now + 600,
+                "rateLimitType": "five_hour",
+            }
+        ),
+        claude_rate_limit_usage(
+            {
+                "status": "allowed",
+                "isUsingOverage": True,
+                "unifiedWindows": {
+                    "seven_day": {"resetsAt": now + 3600, "status": "allowed"},
+                    "seven_day_opus": {
+                        "utilization": 1.0,
+                        "resetsAt": now - 1,
+                        "status": "rejected",
+                    },
+                },
+            }
+        ),
+    ]
+    acp_factory.queue(FakeAcpSession([script], session_id="resumed-rm"))
+
+    await send_message(client, headers, chat)
+    await run_background_task(chat.id)
+
+    response = await client.get(
+        f"/api/v1/chat/chats/{chat.id}/rate-limits", headers=headers
+    )
+    assert response.json() == {
+        "windows": {
+            "five_hour": {
+                "utilization": None,
+                "resets_at": now + 600,
+                "status": "allowed_warning",
+            },
+            "seven_day": {
+                "utilization": None,
+                "resets_at": now + 3600,
+                "status": "allowed",
+            },
+        },
+        "is_using_overage": True,
     }
 
 

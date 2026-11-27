@@ -308,6 +308,10 @@ describe('side-effect envelopes', () => {
     );
     const usage = systemPayloads.find((payload) => payload.context_usage)!;
     expect(handlers.onContextUsageUpdate).toHaveBeenCalledWith(usage.context_usage, usage.chat_id);
+    const rateLimits = systemPayloads.find((payload) => payload.rate_limits)!;
+    expect(queryClient.getQueryData(queryKeys.rateLimits(rateLimits.chat_id))).toEqual(
+      rateLimits.rate_limits,
+    );
     expect(queryClient.getQueryData<Chat>(queryKeys.chat('c1'))?.worktree_cwd).toBe(
       systemPayloads.find((payload) => payload.data?.worktree_cwd)!.data?.worktree_cwd,
     );

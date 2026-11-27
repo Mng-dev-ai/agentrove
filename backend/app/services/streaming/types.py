@@ -142,6 +142,20 @@ class ToolPayload(TypedDict, total=False):
     permission_mode: PermissionMode
 
 
+RateLimitStatus = Literal["allowed", "allowed_warning", "rejected"]
+
+
+class RateLimitWindow(TypedDict):
+    utilization: float | None
+    resets_at: int | None
+    status: RateLimitStatus
+
+
+class RateLimits(TypedDict):
+    windows: dict[str, RateLimitWindow]
+    is_using_overage: bool
+
+
 class StreamEvent(TypedDict, total=False):
     type: StreamEventType
     text: str
@@ -152,6 +166,7 @@ class StreamEvent(TypedDict, total=False):
     tool_name: str
     tool_input: dict[str, Any]
     suggestions: list[str]
+    rate_limits: RateLimits
 
 
 # Snapshot buffer for periodic DB persist (SSE catch-up without full history replay).
