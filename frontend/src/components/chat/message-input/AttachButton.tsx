@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Paperclip } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import styles from './AttachButton.module.scss';
 
@@ -17,7 +17,7 @@ export function AttachButton({ onAttach, disabled = false }: AttachButtonProps) 
       className={styles['attach-button']}
       aria-label="Attach file"
     >
-      <Plus className={styles.icon} />
+      <Paperclip className={styles.icon} />
     </Button>
   );
 }
