@@ -207,16 +207,12 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
             )
             device_ids = DEVICE_IDS.validate_python(claims.get("did", []))
             agent_scope = (
-                AgentScope(
-                    workspace_id=uuid.UUID(claims["wid"]),
-                    chat_id=(
-                        uuid.UUID(claims["cid"])
-                        if claims.get("cid") is not None
-                        else None
-                    ),
-                )
+                AgentScope(workspace_id=uuid.UUID(claims["wid"]))
                 if "wid" in claims
                 else None
+            )
+            agent_chat_id = (
+                uuid.UUID(claims["cid"]) if claims.get("cid") is not None else None
             )
             user: User = await user_manager.get(user_manager.parse_id(claims["sub"]))
         except (
@@ -240,6 +236,7 @@ class AccessTokenStrategy(JWTStrategy[User, uuid.UUID]):
         user.device_ids = device_ids
         user.agent_token = agent_token
         user.agent_scope = agent_scope
+        user.agent_chat_id = agent_chat_id if agent_token else None
         return user
 
     async def write_session_token(

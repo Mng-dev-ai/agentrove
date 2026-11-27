@@ -36,6 +36,22 @@ class Channel(Base):
     branch: Mapped[str | None] = mapped_column(String(255))
     last_viewed_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
     pinned_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    parent_chat_id: Mapped[UUID | None] = mapped_column(
+        GUID(),
+        # chats.channel_id points back here; use_alter keeps the tables sortable.
+        ForeignKey(
+            "chats.id",
+            ondelete="SET NULL",
+            name="fk_channels_parent_chat_id",
+            use_alter=True,
+        ),
+        index=True,
+    )
+    instructions: Mapped[str | None] = mapped_column(Text)
+    # Set while a post from the parent chat awaits its report, so it survives restarts.
+    owed_report_device_ids: Mapped[frozenset[UUID] | None] = mapped_column(
+        UUIDSet(none_as_null=True)
+    )
     all_members: Mapped[list["ChannelMember"]] = relationship(
         cascade="all, delete-orphan", passive_deletes=True, lazy="selectin"
     )

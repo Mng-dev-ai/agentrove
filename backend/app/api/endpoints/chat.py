@@ -580,7 +580,7 @@ async def get_stream_status(
         return INACTIVE_TASK_RESPONSE.copy()
 
     try:
-        await chat_service.get_chat(chat_id, current_user)
+        await chat_service.require_readable_chat(chat_id, current_user)
     except ChatException:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

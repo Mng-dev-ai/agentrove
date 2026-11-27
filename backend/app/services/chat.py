@@ -8,12 +8,13 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy import Row, func, or_, select, update, true
+from sqlalchemy import ColumnElement, Row, func, or_, select, update, true
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
 from app.catalog import MODELS
 from app.constants import REDIS_KEY_USER_CHATS_LIVE, REDIS_KEY_USER_STREAMS_LIVE
+from app.models.db_models.channel import Channel
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message
 from app.models.db_models.enums import MessageRole, StreamEventKind
 from app.models.db_models.user import User
@@ -413,7 +414,9 @@ class ChatService(BaseDbService[Chat]):
         return chat
 
     @staticmethod
-    async def _attach_to_parent(db: AsyncSession, user: User, parent_id: UUID) -> Chat:
+    async def top_level_chat(
+        db: AsyncSession, user: User, parent_id: UUID, child_kind: str
+    ) -> Chat:
         parent_result = await db.execute(
             select(Chat).filter(
                 Chat.id == parent_id,
@@ -432,10 +435,17 @@ class ChatService(BaseDbService[Chat]):
             )
         if parent.parent_chat_id is not None:
             raise ChatException(
-                "Cannot create a sub-thread of a sub-thread",
+                f"Cannot create a {child_kind} of a sub-thread",
                 error_code=ErrorCode.VALIDATION_ERROR,
                 status_code=400,
             )
+        return parent
+
+    @classmethod
+    async def _attach_to_parent(
+        cls, db: AsyncSession, user: User, parent_id: UUID
+    ) -> Chat:
+        parent = await cls.top_level_chat(db, user, parent_id, "sub-thread")
         # Ordering-only bump, not new parent content — carry read state
         # across it so an already-read parent doesn't flip to unread.
         was_read = not parent.unread
@@ -663,6 +673,12 @@ class ChatService(BaseDbService[Chat]):
         *,
         include_channel: bool = False,
     ) -> Chat:
+        if not include_channel:
+            access = Chat.is_visible()
+        elif user.agent_token:
+            access = self._member_access(user)
+        else:
+            access = true()
         # Workspace eager-loaded for sandbox_id; messages via /messages. sub_thread_count is caller-side.
         query = (
             select(Chat)
@@ -670,7 +686,7 @@ class ChatService(BaseDbService[Chat]):
                 Chat.id == chat_id,
                 Chat.user_id == user.id,
                 Chat.deleted_at.is_(None),
-                (Chat.is_visible() if not include_channel else true()),
+                access,
             )
             .options(
                 selectinload(Chat.workspace),
@@ -758,7 +774,17 @@ class ChatService(BaseDbService[Chat]):
         for queue_id in queue_ids:
             asyncio.create_task(session_registry.terminate(queue_id))
 
+    @staticmethod
+    async def _delete_linked_channels(
+        user_id: UUID, parent_chat_ids: list[UUID]
+    ) -> None:
+        # Avoid circular import with channels/service.py.
+        from app.services.channels.service import channel_service
+
+        await channel_service.delete_linked(user_id, parent_chat_ids)
+
     async def delete_chat(self, chat_id: UUID, user: User) -> None:
+        await self._delete_linked_channels(user.id, [chat_id])
         async with self.write_session() as db:
             result = await db.execute(
                 select(Chat)
@@ -816,6 +842,8 @@ class ChatService(BaseDbService[Chat]):
             )
             await db.commit()
             await self.release_deleted_chats(deleted_ids)
+            # A channel linked since the first sweep committed before the delete.
+            await self._delete_linked_channels(user.id, [chat_id])
 
             if sandbox_id:
                 git_service = GitService(sandbox)
@@ -825,6 +853,19 @@ class ChatService(BaseDbService[Chat]):
                     )
 
     async def delete_all_chats(self, user: User) -> int:
+        async with self.session_factory() as db:
+            live_ids = list(
+                (
+                    await db.scalars(
+                        select(Chat.id).filter(
+                            Chat.user_id == user.id,
+                            Chat.deleted_at.is_(None),
+                            Chat.is_visible(),
+                        )
+                    )
+                ).all()
+            )
+        await self._delete_linked_channels(user.id, live_ids)
         async with self.write_session() as db:
             chat_query = select(Chat.id, Chat.workspace_id, Chat.worktree_cwd).filter(
                 Chat.user_id == user.id,
@@ -880,6 +921,8 @@ class ChatService(BaseDbService[Chat]):
 
             await db.commit()
             await self.release_deleted_chats(chat_ids)
+            # A channel linked since the first sweep committed before the delete.
+            await self._delete_linked_channels(user.id, chat_ids)
 
             for ws in workspaces:
                 if ws.sandbox_id:
@@ -891,22 +934,28 @@ class ChatService(BaseDbService[Chat]):
 
             return len(chat_ids)
 
-    async def get_chat_messages(
-        self,
-        chat_id: UUID,
-        user: User,
-        cursor: str | None = None,
-        limit: int = 20,
-        *,
-        omit_tool_results: bool = False,
-    ) -> CursorPaginatedResponse[MessageSchema]:
+    @staticmethod
+    def _member_access(user: User) -> ColumnElement[bool]:
+        if user.agent_chat_id is None:
+            return Chat.is_visible()
+        # An agent reaches its own member chat and the member chats of channels
+        # linked to the chat its session runs in.
+        return or_(
+            Chat.is_visible(),
+            Chat.id == user.agent_chat_id,
+            Chat.channel_id.in_(
+                select(Channel.id).where(Channel.parent_chat_id == user.agent_chat_id)
+            ),
+        )
+
+    async def require_readable_chat(self, chat_id: UUID, user: User) -> None:
         async with self.session_factory() as db:
             workspace_id = await db.scalar(
                 select(Chat.workspace_id).where(
                     Chat.id == chat_id,
                     Chat.user_id == user.id,
                     Chat.deleted_at.is_(None),
-                    Chat.is_visible(),
+                    self._member_access(user),
                 )
             )
             if workspace_id is None:
@@ -918,6 +967,16 @@ class ChatService(BaseDbService[Chat]):
                 )
             self.require_agent_workspace(user, workspace_id)
 
+    async def get_chat_messages(
+        self,
+        chat_id: UUID,
+        user: User,
+        cursor: str | None = None,
+        limit: int = 20,
+        *,
+        omit_tool_results: bool = False,
+    ) -> CursorPaginatedResponse[MessageSchema]:
+        await self.require_readable_chat(chat_id, user)
         return await self.message_service.get_chat_messages(
             chat_id, cursor, limit, omit_tool_results=omit_tool_results
         )

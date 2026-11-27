@@ -158,6 +158,7 @@ class ChannelService(BaseDbService[Channel]):
         settings = self.member_settings(data.members)
         async with self.session_factory() as db:
             workspace = await self._live_workspace(db, data.workspace_id, user.id)
+            await self._require_parent(db, user, data)
         if data.worktree and not workspace.sandbox_id:
             raise HTTPException(400, "Workspace has no sandbox")
         if data.branch and not data.worktree:
@@ -172,12 +173,15 @@ class ChannelService(BaseDbService[Channel]):
             # The checkout ran without the write lock, so the workspace may have
             # been deleted since the first read.
             workspace = await self._live_workspace(db, data.workspace_id, user.id)
+            await self._require_parent(db, user, data)
             channel = Channel(
                 user_id=user.id,
                 workspace_id=data.workspace_id,
                 name=data.name,
                 worktree=data.worktree,
                 branch=data.branch,
+                parent_chat_id=data.parent_chat_id,
+                instructions=data.instructions,
                 all_members=[],
             )
             db.add(channel)
@@ -201,9 +205,21 @@ class ChannelService(BaseDbService[Channel]):
             try:
                 await self.prepare_worktree(channel)
             except Exception:
-                await self._delete_locked(state)
+                await self._delete_locked(state, parent_deleted=False)
                 raise
         return channel
+
+    @staticmethod
+    async def _require_parent(
+        db: AsyncSession, user: User, data: ChannelCreate
+    ) -> None:
+        if data.parent_chat_id is None:
+            return
+        parent = await ChatService.top_level_chat(
+            db, user, data.parent_chat_id, "channel"
+        )
+        if parent.workspace_id != data.workspace_id:
+            raise HTTPException(400, "A channel must be in its parent chat's workspace")
 
     @staticmethod
     async def _live_workspace(
@@ -375,6 +391,7 @@ class ChannelService(BaseDbService[Channel]):
             return response
 
     def read(self, channel: Channel) -> ChannelRead:
+        state = self.engine.state(channel)
         return ChannelRead(
             id=channel.id,
             workspace_id=channel.workspace_id,
@@ -394,9 +411,12 @@ class ChannelService(BaseDbService[Channel]):
                 if member.removed_at is not None
             ],
             anchor_chat_id=self.anchor_chat_id(channel),
-            activity=ChannelMemberActivity.model_validate(
-                self.engine.state(channel).member_activity()
-            ),
+            activity=ChannelMemberActivity.model_validate(state.member_activity()),
+            parent_chat_id=channel.parent_chat_id,
+            instructions=channel.instructions,
+            member_states={
+                str(member.id): state.member_state(member) for member in channel.members
+            },
         )
 
     async def update(self, channel: Channel, data: ChannelUpdate) -> Channel:
@@ -608,16 +628,27 @@ class ChannelService(BaseDbService[Channel]):
             user_id=str(channel.user_id),
         )
 
-    async def delete(self, channel: Channel) -> None:
+    async def delete(self, channel: Channel, *, parent_deleted: bool = False) -> None:
         state = self.engine.state(channel)
         async with state.control:
             # Whoever held control before us may already have deleted it.
             if self.engine.states.get(channel.id) is state:
-                await self._delete_locked(state)
+                await self._delete_locked(state, parent_deleted=parent_deleted)
 
-    async def _delete_locked(self, state: ChannelState) -> None:
+    async def delete_linked(self, user_id: UUID, parent_chat_ids: list[UUID]) -> None:
+        query = select(Channel).where(
+            Channel.user_id == user_id, Channel.parent_chat_id.in_(parent_chat_ids)
+        )
+        async with self.session_factory() as db:
+            channels = list((await db.scalars(query)).all())
+        for channel in channels:
+            await self.delete(channel, parent_deleted=True)
+
+    async def _delete_locked(
+        self, state: ChannelState, *, parent_deleted: bool
+    ) -> None:
         channel = state.channel
-        await self.engine.teardown(state)
+        await self.engine.teardown(state, parent_deleted=parent_deleted)
         if channel.worktree:
             chat = await self.anchor_chat(channel)
             if chat.worktree_cwd:

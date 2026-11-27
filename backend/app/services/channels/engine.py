@@ -4,7 +4,7 @@ import re
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from functools import partial
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import HTTPException
@@ -30,9 +30,12 @@ from app.services.channels.messages import ChannelMessageStore
 from app.services.channels.publisher import ChannelPublisher
 from app.services.channels.requests import ChannelRequests
 from app.services.channels.state import (
+    ChannelReport,
     ChannelState,
     MemberRetry,
+    ParentRound,
     MemberTurn,
+    RoundProgress,
     TurnStatus,
 )
 from app.services.chat import ChatService
@@ -43,6 +46,7 @@ from app.services.queue import ChannelQueueService
 from app.services.session_registry import session_registry
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChannelMemberTurn, StreamEnvelopeKind
+from app.services.subthread_wake import subthread_wake
 from app.services.user import UserService
 from app.utils.cache import CacheError, cache_connection
 
@@ -58,6 +62,9 @@ INTRODUCTION = (
     "You share the same working directory with the other members. Before editing files, "
     "say what you're about to change, and don't edit files another member is working on. "
     'You will receive new channel messages as lines of "[author]: text". '
+    "{guidance}"
+)
+REPLY_GUIDANCE = (
     "After each batch, either post ONE short chat message, or reply with exactly `PASS` (nothing else). "
     "Speak only when you add something new: answering a question nobody has answered well, "
     "disagreeing, correcting, giving a concrete proposal the others missed, "
@@ -65,6 +72,12 @@ INTRODUCTION = (
     "Never echo or agree just to agree. When the discussion has reached a conclusion "
     "and nothing remains for you, reply `PASS`. Your reply is either exactly `PASS` "
     "or a chat message, never both. Write like Slack: short, no headers."
+)
+INSTRUCTED_GUIDANCE = (
+    "After each batch, either post one message to the channel, or reply with exactly "
+    "`PASS` (nothing else) when the batch asks nothing of you. Your reply is either "
+    "exactly `PASS` or a channel message, never both. Follow these instructions for "
+    "this channel when you reply:\n"
 )
 ROUTING_NOTE = (
     'A line like "[author → @name]: text" is addressed only to those members; '
@@ -172,6 +185,8 @@ class ChannelEngine(BaseDbService[Channel]):
         content: str,
         attachments: list[MessageAttachmentDict],
         device_ids: frozenset[UUID],
+        *,
+        report_to_parent: bool,
     ) -> ChannelMessage:
         state = self.state(channel)
         async with state.control:
@@ -180,8 +195,11 @@ class ChannelEngine(BaseDbService[Channel]):
                 async with state.lock:
                     if state.deleted:
                         raise HTTPException(404, "Channel not found")
+                    if not report_to_parent:
+                        self.report_round(state, "interrupted by a user message")
                     state.paused = True
                     state.last_reply = None
+                    state.outcomes.clear()
                     audience = self.messages.mentions(state.channel, content) or None
                     turns = [
                         turn
@@ -191,6 +209,16 @@ class ChannelEngine(BaseDbService[Channel]):
                     state.give_fresh_attempts(audience)
                     await self.cancel_active(state, turns)
                     message = await self.send(state, content, attachments, device_ids)
+                    if report_to_parent:
+                        running = state.parent_round
+                        await self.set_parent_round(
+                            state,
+                            ParentRound(
+                                device_ids | running.device_ids
+                                if running is not None and running.final is None
+                                else device_ids
+                            ),
+                        )
             finally:
                 try:
                     await self.cancel_turns(turns)
@@ -199,6 +227,64 @@ class ChannelEngine(BaseDbService[Channel]):
                         state.paused = False
                         self.schedule(state)
             return message
+
+    async def set_parent_round(
+        self, state: ChannelState, parent_round: ParentRound | None
+    ) -> None:
+        previous = state.parent_round.device_ids if state.parent_round else None
+        device_ids = parent_round.device_ids if parent_round else None
+        if device_ids != previous:
+            async with self.session_factory() as db:
+                await db.execute(
+                    update(Channel)
+                    .where(Channel.id == state.channel.id)
+                    .values(
+                        owed_report_device_ids=device_ids,
+                        updated_at=Channel.updated_at,
+                    )
+                )
+                await db.commit()
+            state.channel.owed_report_device_ids = device_ids
+        state.parent_round = parent_round
+
+    async def current_report(self, report: ChannelReport) -> ChannelReport | None:
+        if report.progress == "deleted":
+            return report
+        state = self.states.get(UUID(report.channel_id))
+        if state is None:
+            return None
+        async with state.lock:
+            parent_round = state.parent_round
+            if parent_round is None:
+                return None
+            if report.progress != "still running":
+                return report if report is parent_round.final else None
+            if parent_round.final is not None:
+                return None
+            current = state.parent_report("still running", parent_round.device_ids)
+            stuck = any(
+                member.state.state in ("blocked", "gave_up")
+                for member in current.members
+            )
+            return current if stuck else None
+
+    async def report_delivered(self, report: ChannelReport) -> None:
+        state = self.states.get(UUID(report.channel_id))
+        if state is None:
+            return
+        async with state.lock:
+            if state.parent_round and report is state.parent_round.final:
+                await self.set_parent_round(state, None)
+
+    @staticmethod
+    def report_round(state: ChannelState, progress: RoundProgress) -> None:
+        parent_round = state.parent_round
+        if parent_round is None or parent_round.final is not None:
+            return
+        report = state.parent_report(progress, parent_round.device_ids)
+        subthread_wake.on_channel_report(str(state.channel.parent_chat_id), report)
+        if progress != "still running":
+            state.parent_round = ParentRound(parent_round.device_ids, report)
 
     async def cancel_active(self, state: ChannelState, turns: list[MemberTurn]) -> None:
         for turn in turns:
@@ -277,6 +363,8 @@ class ChannelEngine(BaseDbService[Channel]):
                 except Exception as exc:
                     if member.id not in state.gave_up:
                         self.backoff(state, member, exc)
+                        if member.id in state.gave_up:
+                            self.report_round(state, "still running")
                     if member.id in state.gave_up:
                         state.turns.pop(member.id, None)
                     else:
@@ -311,6 +399,7 @@ class ChannelEngine(BaseDbService[Channel]):
                 item = await queue.pop_next_message(channel_id)
                 if item is None:
                     return
+                state.outcomes.clear()
                 try:
                     queued = QueuedChannelMessage.model_validate(item)
                     message = await self.messages.new_message(
@@ -343,7 +432,10 @@ class ChannelEngine(BaseDbService[Channel]):
         )
 
     async def settle(self, state: ChannelState) -> tuple[UUID, str, str] | None:
-        if state.last_reply is None or not state.idle():
+        if not state.idle():
+            return None
+        self.report_round(state, "settled")
+        if state.last_reply is None:
             return None
         author, message = state.last_reply
         state.last_reply = None
@@ -383,6 +475,7 @@ class ChannelEngine(BaseDbService[Channel]):
                 item["content"],
                 item["attachments"] or [],
                 QueuedChannelMessage.model_validate(item).device_ids,
+                report_to_parent=False,
             )
         except Exception:
             await queue.requeue_message(channel_id, item)
@@ -447,8 +540,16 @@ class ChannelEngine(BaseDbService[Channel]):
                 )
                 or "no other agents"
             )
+            instructions = state.channel.instructions
             lines.insert(
-                0, INTRODUCTION.format(name=turn.member.display_name, others=others)
+                0,
+                INTRODUCTION.format(
+                    name=turn.member.display_name,
+                    others=others,
+                    guidance=REPLY_GUIDANCE
+                    if instructions is None
+                    else INSTRUCTED_GUIDANCE + instructions,
+                ),
             )
         return "\n".join(lines)
 
@@ -521,6 +622,8 @@ class ChannelEngine(BaseDbService[Channel]):
                     self.fail_turn(state, turn, exc)
                 else:
                     state.turns.pop(member.id)
+                if member.id in state.gave_up:
+                    self.report_round(state, "still running")
                 await self.publisher.publish_activity(state)
                 self.schedule(state)
 
@@ -741,6 +844,10 @@ class ChannelEngine(BaseDbService[Channel]):
         turn.status = TurnStatus.FINISHED
         if successful:
             state.retries.pop(turn.member.id, None)
+            if silent:
+                state.outcomes.setdefault(turn.member.id, "passed")
+            else:
+                state.outcomes[turn.member.id] = "replied"
         if message is not None:
             await self.publisher.publish_message(state.channel, message)
             if successful and not silent:
@@ -748,7 +855,9 @@ class ChannelEngine(BaseDbService[Channel]):
                     state.last_reply = (turn.member.display_name, message)
                 self.fan_out(state)
 
-    async def stop_state(self, state: ChannelState) -> None:
+    async def stop_state(
+        self, state: ChannelState, ended: Literal["stopped", "deleted"] | None
+    ) -> None:
         async with state.lock:
             state.paused = True
             if state.timer is not None:
@@ -758,6 +867,13 @@ class ChannelEngine(BaseDbService[Channel]):
             state.last_reply = None
             turns = list(state.turns.values())
             await self.cancel_active(state, turns)
+            if ended is None:
+                await self.set_parent_round(state, None)
+            else:
+                if ended == "deleted" and state.parent_round is not None:
+                    # Takes back a final report not yet acknowledged.
+                    state.parent_round = ParentRound(state.parent_round.device_ids)
+                self.report_round(state, ended)
             async with self.session_factory() as db:
                 for member in state.channel.members:
                     batch = list((await db.scalars(self.messages.unseen(member))).all())
@@ -768,9 +884,9 @@ class ChannelEngine(BaseDbService[Channel]):
                 await db.commit()
         await self.cancel_turns(turns)
 
-    async def teardown(self, state: ChannelState) -> None:
+    async def teardown(self, state: ChannelState, *, parent_deleted: bool) -> None:
         state.deleted = True
-        await self.stop_state(state)
+        await self.stop_state(state, None if parent_deleted else "deleted")
         tasks = [turn.task for turn in state.turns.values() if turn.task is not None]
         for task in tasks:
             task.cancel()
@@ -779,11 +895,11 @@ class ChannelEngine(BaseDbService[Channel]):
         for member in state.channel.members:
             await session_registry.terminate(str(member.chat_id))
 
-    async def stop(self, channel: Channel) -> None:
+    async def stop(self, channel: Channel, *, by_parent: bool) -> None:
         state = self.state(channel)
         async with state.control:
             try:
-                await self.stop_state(state)
+                await self.stop_state(state, None if by_parent else "stopped")
             finally:
                 state.paused = False
 
@@ -852,7 +968,10 @@ class ChannelEngine(BaseDbService[Channel]):
         messages: list[ChannelMessage],
         orphans: Sequence[Row[tuple[UUID, UUID, UUID]]],
     ) -> None:
-        state = ChannelState(channel)
+        owed = channel.owed_report_device_ids
+        state = ChannelState(
+            channel, parent_round=None if owed is None else ParentRound(owed)
+        )
         self.states[channel.id] = state
         for message in messages:
             if message.channel_id == channel.id:
@@ -916,6 +1035,9 @@ class ChannelEngine(BaseDbService[Channel]):
             turn.source_message_id = UUID(payload["message_id"])
         elif kind == "permission_request":
             await self.requests.request_permission(state, turn, payload)
+            async with state.lock:
+                if (turn.member.id, payload["request_id"]) in state.permissions:
+                    self.report_round(state, "still running")
         elif kind == "permission_resolved":
             async with state.lock:
                 await self.requests.resolve_permissions(
@@ -923,6 +1045,9 @@ class ChannelEngine(BaseDbService[Channel]):
                 )
         elif kind == "elicitation_request":
             await self.requests.request_elicitation(state, turn, payload)
+            async with state.lock:
+                if (turn.member.id, payload["request_id"]) in state.elicitations:
+                    self.report_round(state, "still running")
         elif kind == "elicitation_resolved":
             async with state.lock:
                 await self.requests.resolve_elicitations(

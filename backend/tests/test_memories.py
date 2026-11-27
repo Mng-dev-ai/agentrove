@@ -409,7 +409,7 @@ async def test_member_chat_memory_is_shared_within_its_workspace_without_a_sourc
     await db_session.commit()
     agent_headers = {
         "Authorization": "Bearer "
-        + create_mcp_access_token(str(user.id), user.hashed_password, frozenset())
+        + create_mcp_access_token(str(user.id), user.hashed_password, frozenset(), None)
     }
 
     for scope in (str(workspace.id), None):

@@ -22,14 +22,15 @@ from app.db.types import GUID, EncryptedString, UTCDateTime
 @dataclass(frozen=True)
 class AgentScope:
     workspace_id: UUID
-    chat_id: UUID | None
 
 
 class User(SQLAlchemyBaseUserTableUUID, Base):
     __tablename__ = "users"
     __allow_unmapped__ = True
     device_ids: frozenset[UUID]
-    agent_token: bool
+    agent_token: bool = False
+    # The chat an agent token's session runs in, for either kind of agent token.
+    agent_chat_id: UUID | None = None
     # Set when the request's token is bound to one Docker workspace; users
     # loaded outside a request (automations, wakes, channel turns) have none.
     agent_scope: AgentScope | None = None

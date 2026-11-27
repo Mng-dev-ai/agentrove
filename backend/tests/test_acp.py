@@ -2360,7 +2360,7 @@ async def test_mcp_server_reaches_the_agent_and_session_is_reused_across_turns(
     mints = iter(("token-one", "token-two", "token-three", "token-four"))
     monkeypatch.setattr(
         "app.services.agent.create_mcp_access_token",
-        lambda user_id, hashed_password, device_ids: next(mints),
+        lambda user_id, hashed_password, device_ids, chat_id: next(mints),
     )
     headers, workspace = auth_workspace
     chat = await create_chat(client, headers, workspace, model_id="sonnet")
@@ -2616,7 +2616,7 @@ async def test_sandbox_token_only_opens_the_mcp_endpoint_while_its_session_lives
         ).status_code == 200
 
         host_token = create_mcp_access_token(
-            str(user.id), user.hashed_password, frozenset()
+            str(user.id), user.hashed_password, frozenset(), None
         )
         for rejected in (
             {},
@@ -3063,6 +3063,148 @@ async def test_respond_to_request_answers_only_the_callers_sub_threads(
         }
     workspace.sandbox_provider = "host"
     await db_session.commit()
+
+
+async def test_mcp_reaches_member_chats_only_of_channels_linked_to_the_caller(
+    client: httpx.AsyncClient,
+    db_session: AsyncSession,
+    auth_workspace: tuple[dict[str, str], Workspace],
+    fake_agent: FakeAgentHandle,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(channel_engine_module, "DEBOUNCE_SECONDS", 0.1)
+    headers, workspace = auth_workspace
+    route_sandbox_client_to_app(monkeypatch, client)
+    user = await db_session.get_one(User, workspace.user_id)
+    caller = await create_chat_row(db_session, user, workspace)
+    other = await create_chat_row(db_session, user, workspace)
+    channels = {}
+    for name, parent_chat_id in (
+        ("linked", str(caller.id)),
+        ("linked elsewhere", str(other.id)),
+        ("unlinked", None),
+    ):
+        created = await client.post(
+            "/api/v1/channels",
+            json={
+                "name": name,
+                "workspace_id": str(workspace.id),
+                "members": [{"model_id": "sonnet", "display_name": "alice"}],
+                "parent_chat_id": parent_chat_id,
+            },
+            headers=headers,
+        )
+        assert created.status_code == 201, created.text
+        channels[name] = created.json()
+    linked_id = channels["linked"]["id"]
+    for chat_id in (str(other.id), None):
+        token = create_mcp_access_token(
+            str(user.id), user.hashed_password, frozenset(), chat_id
+        )
+        refused_post = await client.post(
+            f"/api/v1/channels/{linked_id}/messages",
+            data={
+                "content": "Wake a parent that is not mine",
+                "report_to_parent": "true",
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert refused_post.status_code == 403, refused_post.text
+    posted = await client.post(
+        f"/api/v1/channels/{linked_id}/messages",
+        data={"content": f"{MARKER_ELICITATION} choose"},
+        headers=headers,
+    )
+    assert posted.status_code == 201, posted.text
+    activity = await wait_for_channel_activity(
+        client, headers, linked_id, lambda activity: activity["elicitations"]
+    )
+    request_id = activity["elicitations"][0]["request"]["request_id"]
+    member_chat_id = channels["linked"]["members"][0]["chat_id"]
+    host_statuses = []
+    for chat_id in (str(caller.id), str(other.id), None):
+        token = create_mcp_access_token(
+            str(user.id), user.hashed_password, frozenset(), chat_id
+        )
+        host = {"Authorization": f"Bearer {token}"}
+        responses = [
+            await client.get(f"/api/v1/chat/chats/{member_chat_id}{path}", headers=host)
+            for path in ("/messages", "/status", "", "/context-usage")
+        ]
+        responses.append(
+            await client.post(
+                f"/api/v1/chat/chats/{member_chat_id}/elicitation/unknown/respond",
+                json={"request_id": "unknown", "action": "decline", "content": None},
+                headers=host,
+            )
+        )
+        host_statuses.append(
+            [
+                (response.status_code, response.json().get("detail"))
+                for response in responses
+            ]
+        )
+
+    workspace.sandbox_provider = "docker"
+    await db_session.commit()
+    monkeypatch.setitem(session_registry._mcp_sessions, "member-scope", None)
+    server = docker_mcp_server(
+        str(user.id),
+        user.hashed_password,
+        workspace_id=str(workspace.id),
+        chat_id=str(caller.id),
+        session_id="member-scope",
+    )
+    authorization = {"Authorization": server["headers"]["Authorization"]}
+    results = {}
+    async with main_module.mcp_endpoint.run():
+        for name, channel in channels.items():
+            chat_id = channel["members"][0]["chat_id"]
+            results[name] = [
+                await mcp_call_tool(
+                    client, authorization, "get_messages", chat_id=chat_id
+                ),
+                await mcp_call_tool(
+                    client, authorization, "get_pending_requests", chat_id=chat_id
+                ),
+                await mcp_call_tool(
+                    client,
+                    authorization,
+                    "respond_to_request",
+                    chat_id=chat_id,
+                    request_id=request_id,
+                    action="accept",
+                    content={"question_0": "Red"},
+                ),
+            ]
+    workspace.sandbox_provider = "host"
+    await db_session.commit()
+
+    linked_host, other_host, chatless_host = host_statuses
+    assert [status for status, _ in linked_host[:4]] == [200] * 4
+    assert linked_host[4] == (404, "Elicitation request not found or expired")
+    refused = [
+        (403, "Chat not found or you don't have permission to access messages"),
+        (404, "Chat not found or access denied"),
+        (404, "Chat not found or you don't have permission to access it"),
+        (404, "Chat not found or you don't have permission to access it"),
+        (404, "Chat not found or access denied"),
+    ]
+    assert other_host == refused
+    assert chatless_host == refused
+    messages, pending, answered = results["linked"]
+    assert messages["structuredContent"]["messages"], messages
+    assert [
+        question["request_id"] for question in pending["structuredContent"]["questions"]
+    ] == [request_id]
+    assert answered["structuredContent"] == {"answered": True}
+    for name in ("linked elsewhere", "unlinked"):
+        assert [bool(result.get("isError")) for result in results[name]] == [True] * 3
+    await wait_for_channel_activity(
+        client, headers, linked_id, lambda activity: not activity["member_ids"]
+    )
+    for channel in channels.values():
+        await client.delete(f"/api/v1/channels/{channel['id']}", headers=headers)
 
 
 def route_sandbox_client_to_app(

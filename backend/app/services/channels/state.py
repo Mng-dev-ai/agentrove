@@ -1,13 +1,18 @@
 import asyncio
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID, uuid4
 
 from app.catalog import MODELS
 from app.models.db_models.channel import Channel, ChannelMember, ChannelMessage
+from app.models.schemas.channel import ChannelMemberState, MemberOutcome
 
 ACTIVITY_EPOCH = uuid4().hex
+UNKNOWN_MODEL = "Model {model_id} is unknown on this instance"
+RoundProgress = Literal[
+    "settled", "still running", "interrupted by a user message", "stopped", "deleted"
+]
 
 
 class TurnStatus(Enum):
@@ -50,6 +55,29 @@ class MemberTurn:
         return frozenset().union(*(message.device_ids for message in self.batch))
 
 
+@dataclass(frozen=True)
+class MemberReport:
+    name: str
+    chat_id: str
+    state: ChannelMemberState
+
+
+@dataclass(frozen=True)
+class ChannelReport:
+    channel_id: str
+    name: str
+    progress: RoundProgress
+    members: list[MemberReport]
+    device_ids: frozenset[UUID]
+
+
+@dataclass(frozen=True)
+class ParentRound:
+    device_ids: frozenset[UUID]
+    # Built when the round ends; kept until its delivery is acknowledged.
+    final: ChannelReport | None = None
+
+
 @dataclass
 class ChannelState:
     channel: Channel
@@ -62,6 +90,9 @@ class ChannelState:
     permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     elicitations: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
     last_reply: tuple[str, ChannelMessage] | None = None
+    outcomes: dict[UUID, MemberOutcome] = field(default_factory=dict)
+    # The round the parent chat started, until its final report is acknowledged.
+    parent_round: ParentRound | None = None
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
     waiting_member_ids: list[str] = field(default_factory=list)
@@ -84,12 +115,58 @@ class ChannelState:
             "retrying_member_ids": self.retrying_member_ids,
             "member_errors": self.member_errors,
             "unavailable_members": {
-                str(member.id): f"Model {member.model_id} is unknown on this instance"
+                str(member.id): UNKNOWN_MODEL.format(model_id=member.model_id)
                 for member in self.channel.members
                 if member.model_id not in MODELS
             }
             | self.gave_up_members,
         }
+
+    def member_state(self, member: ChannelMember) -> ChannelMemberState:
+        blocked_on = [
+            f"permission for {pending['request']['tool_name']}"
+            for (member_id, _), pending in self.permissions.items()
+            if member_id == member.id
+        ] + [
+            "a question" for member_id, _ in self.elicitations if member_id == member.id
+        ]
+        turn = self.turns.get(member.id)
+        state: ChannelMemberState
+        if blocked_on:
+            state = ChannelMemberState(state="blocked", detail=", ".join(blocked_on))
+        elif member.id in self.gave_up:
+            state = ChannelMemberState(state="gave_up", detail=self.gave_up[member.id])
+        elif member.model_id not in MODELS:
+            state = ChannelMemberState(
+                state="unavailable",
+                detail=UNKNOWN_MODEL.format(model_id=member.model_id),
+            )
+        elif turn is not None and turn.status is TurnStatus.RUNNING:
+            state = ChannelMemberState(state="running")
+        elif member.id in self.retries:
+            state = ChannelMemberState(
+                state="retrying", detail=self.retries[member.id].reason
+            )
+        else:
+            state = ChannelMemberState(state="idle")
+        state.outcome = self.outcomes.get(member.id)
+        return state
+
+    def parent_report(
+        self, progress: RoundProgress, device_ids: frozenset[UUID]
+    ) -> ChannelReport:
+        return ChannelReport(
+            channel_id=str(self.channel.id),
+            name=self.channel.name,
+            progress=progress,
+            members=[
+                MemberReport(
+                    member.display_name, str(member.chat_id), self.member_state(member)
+                )
+                for member in self.channel.members
+            ],
+            device_ids=device_ids,
+        )
 
     def give_fresh_attempts(self, audience: list[str] | None) -> None:
         if audience is None:
