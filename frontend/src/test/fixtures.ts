@@ -39,6 +39,7 @@ export const CHAT_EVENT_KEYS = {
   },
   title_updated: { kind: true, chat_id: true, title: true },
   channel_created: { kind: true, channel_id: true, parent_chat_id: true },
+  channel_renamed: { kind: true, channel_id: true, name: true },
 } satisfies { [K in ChatEvent['kind']]: Record<keyof Extract<ChatEvent, { kind: K }>, true> };
 
 export const CHANNEL_ACTIVITY_NOTICES = { asked: true, completed: true } satisfies Partial<

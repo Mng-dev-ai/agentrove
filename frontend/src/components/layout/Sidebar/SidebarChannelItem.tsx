@@ -4,7 +4,7 @@ import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ProviderIconStack } from '@/components/ui/icons/ProviderIconStack';
 import { getRelativeTime } from '@/utils/date';
-import { CHAT_STATUS_LABEL } from '@/utils/message';
+import { CHAT_STATUS_LABEL, type ChatStatusTone } from '@/utils/message';
 import type { Channel } from '@/types/channel.types';
 import type { AgentKind } from '@/types/chat.types';
 import { SidebarRow, SidebarRowTitle } from './SidebarRow';
@@ -22,6 +22,41 @@ interface SidebarChannelItemProps {
   isDropdownOpen: boolean;
   onSelect: (channelId: string) => void;
   onDropdownClick: (e: MouseEvent<HTMLButtonElement>, channel: Channel) => void;
+}
+
+interface ChannelRowLeadingProps {
+  status: ChatStatusTone | null;
+  agentKinds: AgentKind[];
+  memberCount: number;
+}
+
+export function ChannelRowLeading({ status, agentKinds, memberCount }: ChannelRowLeadingProps) {
+  const statusLabel = status ? CHAT_STATUS_LABEL[status] : undefined;
+  return (
+    <span className={styles.leading}>
+      <span
+        className={styles['status-slot']}
+        role={statusLabel ? 'img' : undefined}
+        aria-label={statusLabel}
+      >
+        {status === 'running' ? (
+          <AsciiSpinner className={styles.spinner} />
+        ) : (
+          <ProviderIconStack agentKinds={agentKinds} />
+        )}
+        {status && status !== 'running' && (
+          <ChatStatusDot
+            tone={status}
+            className={styles['status-corner']}
+            ringClassName={styles['status-ring']}
+          />
+        )}
+      </span>
+      <span className={styles['member-count']} aria-label={`${memberCount} members`}>
+        {memberCount}
+      </span>
+    </span>
+  );
 }
 
 export function SidebarChannelItem({
@@ -58,32 +93,11 @@ export function SidebarChannelItem({
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         leading={
-          <span className={styles.leading}>
-            <span
-              className={styles['status-slot']}
-              role={statusLabel ? 'img' : undefined}
-              aria-label={statusLabel}
-            >
-              {status === 'running' ? (
-                <AsciiSpinner className={styles.spinner} />
-              ) : (
-                <ProviderIconStack agentKinds={agentKinds} />
-              )}
-              {status && status !== 'running' && (
-                <ChatStatusDot
-                  tone={status}
-                  className={styles['status-corner']}
-                  ringClassName={styles['status-ring']}
-                />
-              )}
-            </span>
-            <span
-              className={styles['member-count']}
-              aria-label={`${channel.members.length} members`}
-            >
-              {channel.members.length}
-            </span>
-          </span>
+          <ChannelRowLeading
+            status={status}
+            agentKinds={agentKinds}
+            memberCount={channel.members.length}
+          />
         }
         title={
           <SidebarRowTitle

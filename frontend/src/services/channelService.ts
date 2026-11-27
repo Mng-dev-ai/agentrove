@@ -151,11 +151,14 @@ async function postMessage(
   channelId: string,
   content: string,
   files: File[],
+  generateTitle?: boolean,
 ): Promise<ChannelMessage> {
   return serviceCall(async () => {
+    const formData = messageForm(content, files);
+    if (generateTitle) formData.append('generate_title', 'true');
     const response = await resolveChannelClient(channelId).postForm<ChannelMessage>(
       `/channels/${channelId}/messages`,
-      messageForm(content, files),
+      formData,
     );
     return ensureResponse(response, 'Failed to send message');
   });

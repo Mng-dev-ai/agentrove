@@ -78,5 +78,10 @@
     "kind": "channel_created",
     "channel_id": "00000000-0000-4000-8000-000000000009",
     "parent_chat_id": null
+  },
+  {
+    "kind": "channel_renamed",
+    "channel_id": "00000000-0000-4000-8000-000000000008",
+    "name": "Release plan"
   }
 ]

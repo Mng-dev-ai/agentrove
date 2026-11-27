@@ -188,9 +188,10 @@ export const useDeleteChannelMutation = createMutation<void, Error, string>(
 export const usePostChannelMessageMutation = createMutation<
   ChannelMessage,
   Error,
-  { channelId: string; content: string; files: File[] }
+  { channelId: string; content: string; files: File[]; generateTitle?: boolean }
 >(
-  ({ channelId, content, files }) => channelService.postMessage(channelId, content, files),
+  ({ channelId, content, files, generateTitle }) =>
+    channelService.postMessage(channelId, content, files, generateTitle),
   (_queryClient, message) =>
     useChannelStore.getState().mergeMessages(message.channel_id, [message]),
 );

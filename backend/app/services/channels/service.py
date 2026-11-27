@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import datetime, timezone
 from typing import Any
@@ -47,6 +48,7 @@ from app.services.storage import StorageService
 from app.services.chat import SEARCH_MAX_ROWS, ChatService
 from app.services.chat_events import ChatEventPublisher
 from app.services.db import BaseDbService
+from app.services.exceptions import ChatException
 from app.services.session_registry import session_registry
 
 NEWCOMER_HISTORY = 20
@@ -57,6 +59,7 @@ class ChannelService(BaseDbService[Channel]):
         super().__init__(engine.session_factory)
         self.engine = engine
         self.chats = engine.chats
+        self._name_tasks: set[asyncio.Task[None]] = set()
 
     async def get(self, channel_id: UUID, user: User) -> Channel:
         async with self.session_factory() as db:
@@ -453,6 +456,48 @@ class ChannelService(BaseDbService[Channel]):
             if data.name is not None:
                 state.channel.name = data.name
         return await self.get(channel.id, User(id=channel.user_id))
+
+    def generate_name(self, channel: Channel, content: str) -> None:
+        task = asyncio.create_task(
+            self._generate_name(self.engine.state(channel), content)
+        )
+        self._name_tasks.add(task)
+        task.add_done_callback(self._name_tasks.discard)
+        task.add_done_callback(self.engine.task_done)
+
+    async def _generate_name(self, state: ChannelState, content: str) -> None:
+        channel = state.channel
+        original = channel.name
+        try:
+            chat = await self.anchor_chat(channel)
+        except ChatException:
+            return
+        name = await AgentService(self.session_factory).generate_title(
+            content, User(id=channel.user_id), chat=chat
+        )
+        if not name:
+            return
+        name = name[:255]
+        async with state.control, state.lock:
+            if state.deleted or channel.name != original:
+                return
+            async with self.session_factory() as db:
+                await db.execute(
+                    update(Channel)
+                    .where(Channel.id == channel.id)
+                    .values(name=name, updated_at=Channel.updated_at)
+                )
+                await db.execute(
+                    update(Chat)
+                    .where(Chat.channel_id == channel.id)
+                    .values(title=name, updated_at=Chat.updated_at)
+                )
+                await db.commit()
+            channel.name = name
+        await ChatEventPublisher.publish(
+            channel.user_id,
+            {"kind": "channel_renamed", "channel_id": str(channel.id), "name": name},
+        )
 
     @staticmethod
     def idle_member(state: ChannelState, member_id: UUID) -> ChannelMember:

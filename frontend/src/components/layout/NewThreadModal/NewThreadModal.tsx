@@ -314,6 +314,7 @@ function NewThreadDialog() {
         channelId: channel.id,
         content: prompt,
         files: attachedFiles ?? [],
+        generateTitle: true,
       });
       clearDraft();
       close();

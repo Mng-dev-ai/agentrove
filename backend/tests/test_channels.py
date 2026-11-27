@@ -36,6 +36,7 @@ from app.models.schemas.channel import ChannelCreate, ChannelMemberCreate
 from app.models.schemas.chat import ChatRequest
 from app.models.schemas.sandbox import GitCheckoutResponse
 from app.models.types import AgentKind
+from app.services.agent import AgentService
 from app.services.channels import service as channel_module
 from app.services.channels import engine as channel_engine_module
 from app.services import push as push_module
@@ -51,7 +52,7 @@ from app.services.streaming.types import ChannelMemberTurn, EventSink
 from app.services.subthread_wake import SubThreadWake
 
 from tests.conftest import LoginClient, UserFactory
-from tests.test_chat_events import CHAT_EVENTS
+from tests.test_chat_events import CHAT_EVENTS, event_of
 from tests.helpers import (
     RACE_WINDOW_SECONDS,
     FakeProviderFactory,
@@ -1682,6 +1683,79 @@ async def test_owner_can_read_rename_and_delete_channel(
         await db_session.scalars(select(Chat).where(Chat.id.in_(chat_ids)))
     ).all() == []
     assert channel_id not in channel_engine.states
+
+
+async def test_first_post_with_generate_title_names_the_channel_and_announces_it(
+    client: AsyncClient,
+    db_session: AsyncSession,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers, user, _ = owner
+    channel_id = channel_state.channel.id
+    base = f"/api/v1/channels/{channel_id}"
+    chat_ids = [member.chat_id for member in channel_state.channel.members]
+    entry = event_of("channel_renamed")
+    prompts: list[str] = []
+    title_chat_ids: list[UUID | None] = []
+    posted_at: list[str] = []
+    chat_events: list[tuple[UUID, dict[str, Any]]] = []
+
+    async def generate_title(
+        _self: AgentService, prompt: str, _user: User, chat: Chat | None = None
+    ) -> str:
+        prompts.append(prompt)
+        title_chat_ids.append(chat and chat.id)
+        posted_at.append((await client.get(base, headers=headers)).json()["updated_at"])
+        title: str = entry["name"]
+        return title
+
+    async def record_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
+        chat_events.append((user_id, payload))
+
+    monkeypatch.setattr(AgentService, "generate_title", generate_title)
+    monkeypatch.setattr(ChatEventPublisher, "publish", staticmethod(record_chat_event))
+
+    response = await client.post(
+        f"{base}/messages",
+        headers=headers,
+        data={"content": "Plan the release", "generate_title": "true"},
+    )
+    assert response.status_code == 201, response.text
+    await asyncio.gather(*channel_service._name_tasks)
+
+    after = (await client.get(base, headers=headers)).json()
+    assert prompts == ["Plan the release"]
+    assert title_chat_ids == [channel_service.anchor_chat_id(channel_state.channel)]
+    assert channel_state.channel.name == after["name"] == entry["name"]
+    assert [after["updated_at"]] == posted_at
+    assert list(
+        await db_session.scalars(select(Chat.title).where(Chat.id.in_(chat_ids)))
+    ) == [entry["name"]] * len(chat_ids)
+    assert [(user_id, json.dumps(event)) for user_id, event in chat_events] == [
+        (user.id, json.dumps(entry | {"channel_id": str(channel_id)}))
+    ]
+
+
+async def test_post_without_generate_title_keeps_the_channel_name(
+    client: AsyncClient,
+    owner: tuple[dict[str, str], User, Workspace],
+    channel_state: ChannelState,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        AgentService, "generate_title", AsyncMock(side_effect=AssertionError)
+    )
+    base = f"/api/v1/channels/{channel_state.channel.id}"
+
+    response = await client.post(
+        f"{base}/messages", headers=owner[0], data={"content": "Plan the release"}
+    )
+    assert response.status_code == 201, response.text
+
+    assert not channel_service._name_tasks
+    assert (await client.get(base, headers=owner[0])).json()["name"] == "Review"
 
 
 async def test_member_reply_marks_channel_unread_until_viewed(
