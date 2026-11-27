@@ -1,0 +1,405 @@
+// @vitest-environment jsdom
+import { describe, expect, it } from 'vitest';
+import type { Automation, AutomationForm } from '@/types/automation.types';
+import type { Model } from '@/types/chat.types';
+import type { Persona } from '@/types/user.types';
+import { mixedMemberSettings, withSupportedOverrides } from '@/components/channels/memberDraft';
+import { automationRequest, formFromAutomation, withAgents } from './automationForm';
+
+const MODELS: Model[] = [
+  {
+    model_id: 'claude:opus',
+    name: 'Opus',
+    agent_kind: 'claude',
+    context_window: null,
+    thinking_modes: ['low', 'high'],
+  },
+  {
+    model_id: 'claude:sonnet',
+    name: 'Sonnet',
+    agent_kind: 'claude',
+    context_window: null,
+    thinking_modes: ['low', 'high'],
+  },
+  {
+    model_id: 'cursor:auto',
+    name: 'Auto',
+    agent_kind: 'cursor',
+    context_window: null,
+    thinking_modes: [],
+  },
+];
+const PERSONAS: Persona[] = [{ name: 'Reviewer', content: 'Review carefully.' }];
+const SCHEDULE = {
+  frequency: 'daily',
+  everyHours: 6,
+  dayOfWeek: 1,
+  dayOfMonth: 1,
+  time: '09:00',
+  cron: '',
+} as const;
+
+function automation(overrides: Partial<Automation>): Automation {
+  return {
+    id: 'automation-1',
+    user_id: 'user-1',
+    workspace_id: 'workspace-1',
+    channel_members: null,
+    name: 'Triage',
+    prompt: 'Triage new issues.',
+    model_id: 'claude:opus',
+    cron_expression: '0 9 * * *',
+    timezone: 'Europe/Berlin',
+    permission_mode: 'plan',
+    thinking_mode: 'low',
+    worktree: true,
+    selected_persona_name: 'Reviewer',
+    enabled: false,
+    next_run_at: '2026-11-28T08:00:00Z',
+    last_run_at: null,
+    created_at: '2026-11-27T08:00:00Z',
+    updated_at: '2026-11-27T08:00:00Z',
+    ...overrides,
+  };
+}
+
+function form(agents: AutomationForm['agents']): AutomationForm {
+  return {
+    name: ' Triage ',
+    prompt: 'Triage new issues.',
+    workspace_id: 'workspace-1',
+    agents,
+    shared: { thinkingMode: 'low', persona: 'Reviewer', permissionMode: 'acceptEdits' },
+    singleMemberChannel: false,
+    schedule: SCHEDULE,
+    timezone: 'UTC',
+    worktree: false,
+    machineId: 'local',
+  };
+}
+
+describe('automation form to request', () => {
+  it('sends one agent as a chat automation with the shared settings at the top level', () => {
+    const request = automationRequest(
+      form([{ key: 'a', modelId: 'claude:opus', customName: null, overrides: {} }]),
+      MODELS,
+      PERSONAS,
+      true,
+    );
+
+    expect(request).toEqual({
+      name: 'Triage',
+      prompt: 'Triage new issues.',
+      model_id: 'claude:opus',
+      workspace_id: 'workspace-1',
+      channel_members: null,
+      cron_expression: '0 9 * * *',
+      timezone: 'UTC',
+      permission_mode: 'acceptEdits',
+      thinking_mode: 'low',
+      worktree: false,
+      selected_persona_name: 'Reviewer',
+      enabled: true,
+    });
+  });
+
+  it('sends several agents as channel members, overrides on top, coerced per model', () => {
+    const request = automationRequest(
+      form([
+        { key: 'a', modelId: 'claude:opus', customName: null, overrides: {} },
+        {
+          key: 'b',
+          modelId: 'claude:opus',
+          customName: 'lead',
+          overrides: { thinkingMode: 'high' },
+        },
+        { key: 'c', modelId: 'cursor:auto', customName: null, overrides: {} },
+      ]),
+      MODELS,
+      PERSONAS,
+      true,
+    );
+
+    expect(request.model_id).toBe('claude:opus');
+    expect(request.channel_members).toEqual([
+      {
+        model_id: 'claude:opus',
+        persona: 'Reviewer',
+        thinking_mode: 'low',
+        permission_mode: 'acceptEdits',
+        display_name: undefined,
+      },
+      {
+        model_id: 'claude:opus',
+        persona: 'Reviewer',
+        thinking_mode: 'high',
+        permission_mode: 'acceptEdits',
+        display_name: 'lead',
+      },
+      {
+        model_id: 'cursor:auto',
+        persona: null,
+        thinking_mode: null,
+        permission_mode: 'agent',
+        display_name: undefined,
+      },
+    ]);
+  });
+});
+
+describe('automation to form to request', () => {
+  const resave = (stored: Automation) =>
+    automationRequest(formFromAutomation(stored, 'local'), MODELS, PERSONAS, stored.enabled);
+
+  it('keeps a chat automation as it was', () => {
+    const stored = automation({});
+
+    expect(resave(stored)).toEqual({
+      name: 'Triage',
+      prompt: 'Triage new issues.',
+      model_id: 'claude:opus',
+      workspace_id: 'workspace-1',
+      channel_members: null,
+      cron_expression: '0 9 * * *',
+      timezone: 'Europe/Berlin',
+      permission_mode: 'plan',
+      thinking_mode: 'low',
+      worktree: true,
+      selected_persona_name: 'Reviewer',
+      enabled: false,
+    });
+  });
+
+  it('keeps every channel member effective settings and names as they were', () => {
+    const members = [
+      {
+        model_id: 'claude:opus',
+        display_name: null,
+        permission_mode: 'plan' as const,
+        persona: null,
+        thinking_mode: 'high',
+      },
+      {
+        model_id: 'claude:opus',
+        display_name: 'reviewer',
+        permission_mode: 'default' as const,
+        persona: 'Reviewer',
+        thinking_mode: 'low',
+      },
+      {
+        model_id: 'cursor:auto',
+        display_name: 'scout',
+        permission_mode: 'agent' as const,
+        persona: null,
+        thinking_mode: null,
+      },
+    ];
+
+    expect(resave(automation({ channel_members: members })).channel_members).toEqual(
+      members.map(({ display_name, ...member }) => ({
+        ...member,
+        display_name: display_name ?? undefined,
+      })),
+    );
+  });
+
+  it('keeps a one-member channel automation a channel automation', () => {
+    const members = [
+      {
+        model_id: 'claude:opus',
+        display_name: 'solo',
+        permission_mode: 'plan' as const,
+        persona: 'Reviewer',
+        thinking_mode: 'low',
+      },
+    ];
+
+    expect(resave(automation({ channel_members: members })).channel_members).toEqual([
+      { ...members[0], display_name: 'solo' },
+    ]);
+  });
+});
+
+describe('changing the agent list', () => {
+  const pair = automation({
+    channel_members: [
+      {
+        model_id: 'claude:opus',
+        display_name: null,
+        permission_mode: 'bypassPermissions',
+        persona: null,
+        thinking_mode: 'high',
+      },
+      {
+        model_id: 'claude:sonnet',
+        display_name: 'lead',
+        permission_mode: 'plan',
+        persona: 'Reviewer',
+        thinking_mode: 'low',
+      },
+    ],
+  });
+  const agentFields = (request: ReturnType<typeof automationRequest>) => ({
+    channel_members: request.channel_members,
+    model_id: request.model_id,
+    permission_mode: request.permission_mode,
+    thinking_mode: request.thinking_mode,
+    selected_persona_name: request.selected_persona_name,
+  });
+
+  it.each([
+    [
+      0,
+      {
+        model_id: 'claude:sonnet',
+        permission_mode: 'plan',
+        thinking_mode: 'low',
+        selected_persona_name: 'Reviewer',
+      },
+    ],
+    [
+      1,
+      {
+        model_id: 'claude:opus',
+        permission_mode: 'bypassPermissions',
+        thinking_mode: 'high',
+        selected_persona_name: 'Default',
+      },
+    ],
+  ])('saves the agent left after removing member %i with its own settings', (removed, kept) => {
+    const loaded = formFromAutomation(pair, 'local');
+    const shrunk = withAgents(
+      loaded,
+      loaded.agents.filter((_, index) => index !== removed),
+      MODELS,
+    );
+
+    expect(agentFields(automationRequest(shrunk, MODELS, PERSONAS, true))).toEqual({
+      channel_members: null,
+      ...kept,
+    });
+  });
+
+  it('keeps an override set on the agent a new group shrinks to', () => {
+    const group = withAgents(
+      form([]),
+      [
+        { key: 'a', modelId: 'claude:opus', customName: null, overrides: {} },
+        { key: 'b', modelId: 'claude:sonnet', customName: null, overrides: {} },
+      ],
+      MODELS,
+    );
+    const overridden = withAgents(
+      group,
+      [
+        group.agents[0],
+        { ...group.agents[1], overrides: { permissionMode: 'default', thinkingMode: 'high' } },
+      ],
+      MODELS,
+    );
+    const request = automationRequest(
+      withAgents(overridden, [overridden.agents[1]], MODELS),
+      MODELS,
+      PERSONAS,
+      true,
+    );
+
+    expect(agentFields(request)).toEqual({
+      channel_members: null,
+      model_id: 'claude:sonnet',
+      permission_mode: 'default',
+      thinking_mode: 'high',
+      selected_persona_name: 'Reviewer',
+    });
+  });
+
+  it('saves a chat after a one-member channel grows and shrinks back', () => {
+    const loaded = formFromAutomation(
+      automation({ channel_members: [pair.channel_members![0]] }),
+      'local',
+    );
+    const grown = withAgents(
+      loaded,
+      [...loaded.agents, { key: 'b', modelId: 'claude:sonnet', customName: null, overrides: {} }],
+      MODELS,
+    );
+
+    expect(
+      automationRequest(withAgents(grown, [grown.agents[0]], MODELS), MODELS, PERSONAS, true)
+        .channel_members,
+    ).toBeNull();
+  });
+});
+
+describe('top-level model', () => {
+  const gone = { key: 'a', modelId: 'claude:gone', customName: null, overrides: {} };
+
+  it('follows the resolved first member of a channel', () => {
+    const request = automationRequest(
+      form([gone, { key: 'b', modelId: 'claude:sonnet', customName: null, overrides: {} }]),
+      MODELS,
+      PERSONAS,
+      true,
+    );
+
+    expect(request.model_id).toBe(request.channel_members![0].model_id);
+    expect(request.model_id).toBe('claude:opus');
+  });
+
+  it("leaves a chat's model as chosen", () => {
+    expect(automationRequest(form([gone]), MODELS, PERSONAS, true).model_id).toBe('claude:gone');
+  });
+});
+
+describe('settings a model does not have', () => {
+  const lead = {
+    model_id: 'claude:opus',
+    display_name: null,
+    permission_mode: 'plan' as const,
+    persona: 'Reviewer',
+    thinking_mode: 'low',
+  };
+  const scout = {
+    model_id: 'cursor:auto',
+    display_name: null,
+    permission_mode: 'plan' as const,
+    persona: null,
+    thinking_mode: null,
+  };
+
+  it('reads no override and nothing mixed on a member without effort or persona', () => {
+    const loaded = formFromAutomation(automation({ channel_members: [lead, scout] }), 'local');
+    const agents = withSupportedOverrides(loaded.agents, MODELS);
+
+    expect(agents[1].overrides).toEqual({});
+    expect(mixedMemberSettings(agents, loaded.shared)).toEqual({
+      thinkingMode: false,
+      persona: false,
+      permissionMode: false,
+    });
+  });
+
+  it('keeps a supported member stored without effort or persona on the defaults', () => {
+    const blank = { ...scout, model_id: 'claude:sonnet' };
+    const loaded = formFromAutomation(automation({ channel_members: [lead, blank] }), 'local');
+
+    expect(withSupportedOverrides(loaded.agents, MODELS)[1].overrides).toEqual({
+      thinkingMode: 'high',
+      persona: 'Default',
+    });
+    expect(automationRequest(loaded, MODELS, PERSONAS, true).channel_members![1]).toEqual({
+      model_id: 'claude:sonnet',
+      persona: null,
+      thinking_mode: 'high',
+      permission_mode: 'plan',
+      display_name: undefined,
+    });
+  });
+
+  it('leaves the shared effort and persona alone when shrinking to such a member', () => {
+    const loaded = formFromAutomation(automation({ channel_members: [lead, scout] }), 'local');
+    const { shared } = withAgents(loaded, [loaded.agents[1]], MODELS);
+
+    expect(shared).toEqual({ thinkingMode: 'low', persona: 'Reviewer', permissionMode: 'plan' });
+  });
+});

@@ -1,32 +1,29 @@
 import { useEffect } from 'react';
-import { Brain, Shield } from 'lucide-react';
 import type { Persona } from '@/types/user.types';
-import type { AutomationForm, AutomationTarget } from '@/types/automation.types';
+import type { AutomationForm } from '@/types/automation.types';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { Label } from '@/components/ui/primitives/Label/Label';
 import { Select } from '@/components/ui/primitives/Select/Select';
 import { Textarea } from '@/components/ui/primitives/Textarea/Textarea';
-import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
+import { FieldMessage } from '@/components/ui/primitives/FieldMessage/FieldMessage';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
 import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { DialogFooter } from '@/components/ui/shared/DialogFooter/DialogFooter';
 import { DialogError } from '@/components/ui/shared/DialogError/DialogError';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
-import {
-  getThinkingModesForAgent,
-  getThinkingModeOption,
-} from '@/components/chat/thinking-mode-selector/thinkingModes';
-import {
-  MODES_BY_AGENT,
-  getPermissionModeOption,
-} from '@/components/chat/permission-mode-selector/permissionModes';
+import { ThreadSettings } from '@/components/layout/NewThreadModal/ThreadSettings';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { MemberChips } from '@/components/channels/MemberChips';
-import { resolveMemberNames } from '@/components/channels/memberDraft';
+import {
+  groupMemberDraft,
+  newGroupMember,
+  patchGroupMember,
+  resolveMemberNames,
+  type GroupMember,
+} from '@/components/channels/memberDraft';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { machineName } from '@/store/machineStore';
-import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
+import { isChannelForm } from '@/utils/automationForm';
 import {
   buildCronExpression,
   describeCron,
@@ -48,6 +45,7 @@ interface AutomationEditDialogProps {
   onClose: () => void;
   onSubmit: () => void;
   onChange: <K extends keyof AutomationForm>(field: K, value: AutomationForm[K]) => void;
+  onAgentsChange: (agents: GroupMember[]) => void;
 }
 
 export function AutomationEditDialog({
@@ -62,25 +60,32 @@ export function AutomationEditDialog({
   onClose,
   onSubmit,
   onChange,
+  onAgentsChange,
 }: AutomationEditDialogProps) {
   const { data: models = [] } = useModelsQuery({ machineId: form.machineId });
   const isLocal = form.machineId === LOCAL_MACHINE_ID;
   const workspaces = useWorkspacesList({ machineId: form.machineId });
   const machineOffline = !machineOptions.some((machine) => machine.id === form.machineId);
-  const isChannel = form.target === 'channel';
-  const memberNames = resolveMemberNames(form.members, models);
+  const isChannel = isChannelForm(form);
+  const [firstAgent] = form.agents;
+  const nameError = isChannel
+    ? resolveMemberNames(
+        form.agents.map((agent) => groupMemberDraft(agent, form.shared)),
+        models,
+      ).find((memberName) => memberName.error)
+    : undefined;
   const machines = machineOffline
     ? [...machineOptions, { id: form.machineId, name: `${machineName(form.machineId)} (offline)` }]
     : machineOptions;
 
-  // Seed model when missing/left registry. Effect (onChange writes parent state).
+  // Seed a chat's model when missing/left registry. Effect (onChange writes parent state).
   // Never reseed remote edits — registry lag would silently swap the model on save.
   useEffect(() => {
-    if (isEditing && !isLocal) return;
-    if (models.length > 0 && !models.some((m) => m.model_id === form.model_id)) {
-      onChange('model_id', models[0].model_id);
+    if (isChannel || (isEditing && !isLocal)) return;
+    if (models.length > 0 && !models.some((m) => m.model_id === firstAgent.modelId)) {
+      onAgentsChange([patchGroupMember(firstAgent, { modelId: models[0].model_id })]);
     }
-  }, [models, form.model_id, isLocal, isEditing, onChange]);
+  }, [models, firstAgent, isChannel, isLocal, isEditing, onAgentsChange]);
 
   // Workspace only exists on one machine; re-seed on machine change. No remote-edit
   // guard — workspaces come from the owning machine, so missing id means deleted.
@@ -90,28 +95,12 @@ export function AutomationEditDialog({
     }
   }, [workspaces, form.workspace_id, onChange]);
 
-  const selectedModel = models.find((m) => m.model_id === form.model_id);
-  const agentKind = selectedModel?.agent_kind ?? 'claude';
-
-  const permissionModes = MODES_BY_AGENT[agentKind];
-  const selectedPermissionOption = getPermissionModeOption(form.permission_mode, agentKind);
-  const thinkingModes = getThinkingModesForAgent(agentKind, selectedModel);
-  const selectedThinkingOption = getThinkingModeOption(
-    form.thinking_mode,
-    agentKind,
-    selectedModel,
-  );
-
-  const worktreeSelect = (
-    <Select
-      value={form.worktree ? 'on' : 'off'}
-      onChange={(e) => onChange('worktree', e.target.value === 'on')}
-      className={styles.select}
-    >
-      <option value="off">No worktree</option>
-      <option value="on">Worktree</option>
-    </Select>
-  );
+  const agentsHint =
+    form.agents.length > 1
+      ? `Each run starts a new group thread with these ${form.agents.length} agents.`
+      : form.singleMemberChannel
+        ? 'Each run starts a new group thread with this agent.'
+        : 'Each run starts a new thread with this agent. Add more for a group thread.';
 
   const { schedule } = form;
   const setSchedule = (patch: Partial<ScheduleForm>) =>
@@ -121,10 +110,10 @@ export function AutomationEditDialog({
   const canSave =
     !!form.name.trim() &&
     !!form.prompt.trim() &&
-    !!form.model_id &&
+    !!firstAgent.modelId &&
     !!form.workspace_id &&
     (schedule.frequency !== 'custom' || !!schedule.cron.trim()) &&
-    (!isChannel || memberNames.every((memberName) => !memberName.error)) &&
+    !nameError &&
     !machineOffline &&
     personasLoaded;
 
@@ -157,6 +146,8 @@ export function AutomationEditDialog({
                   onChange={(e) => {
                     onChange('machineId', e.target.value);
                     onChange('workspace_id', '');
+                    // Models are per machine: start over from its default single agent
+                    onAgentsChange([newGroupMember('')]);
                   }}
                   className={styles.select}
                   aria-label="Machine"
@@ -193,109 +184,61 @@ export function AutomationEditDialog({
           </div>
 
           <div>
-            <Label className={styles.label}>Target</Label>
+            <Label className={styles.label}>Agents</Label>
+            <div className={styles.agents}>
+              <ModelSelector
+                machineId={form.machineId}
+                selectedModelId={firstAgent.modelId}
+                onModelChange={(modelId) =>
+                  onAgentsChange([patchGroupMember(firstAgent, { modelId })])
+                }
+                dropdownPosition="bottom"
+                compact={false}
+                variant="field"
+                agents={{
+                  modelIds: form.agents.map((agent) => agent.modelId),
+                  onAdd: (modelId) => onAgentsChange([...form.agents, newGroupMember(modelId)]),
+                  onRemove: (modelId) => {
+                    const index = form.agents.map((agent) => agent.modelId).lastIndexOf(modelId);
+                    if (form.agents.length > 1)
+                      onAgentsChange(form.agents.filter((_, i) => i !== index));
+                  },
+                }}
+              />
+              <ThreadSettings
+                machineId={form.machineId}
+                members={form.agents}
+                channel={isChannel}
+                shared={form.shared}
+                personas={personas}
+                disabled={false}
+                variant="field"
+                onChange={onAgentsChange}
+                onSharedChange={(patch) => onChange('shared', { ...form.shared, ...patch })}
+              />
+            </div>
+            {nameError ? (
+              <FieldMessage variant="error" className={styles.hint}>
+                {nameError.name}: {nameError.error}
+              </FieldMessage>
+            ) : (
+              <p className={styles.hint}>{agentsHint}</p>
+            )}
+          </div>
+
+          <div>
+            <Label className={styles.label}>Worktree</Label>
             <div className={styles['select-w36']}>
               <Select
-                value={form.target}
-                onChange={(e) => onChange('target', e.target.value as AutomationTarget)}
+                value={form.worktree ? 'on' : 'off'}
+                onChange={(e) => onChange('worktree', e.target.value === 'on')}
                 className={styles.select}
-                aria-label="Target"
               >
-                <option value="chat">New chat</option>
-                <option value="channel">New channel</option>
+                <option value="off">No worktree</option>
+                <option value="on">Worktree</option>
               </Select>
             </div>
           </div>
-
-          {isChannel ? (
-            <>
-              <div>
-                <Label className={styles.label}>Members</Label>
-                <MemberChips
-                  machineId={form.machineId}
-                  members={form.members}
-                  memberNames={memberNames}
-                  models={models}
-                  personas={personas}
-                  onChange={(members) => onChange('members', members)}
-                />
-              </div>
-
-              <div>
-                <Label className={styles.label}>Worktree</Label>
-                <div className={styles['select-w36']}>{worktreeSelect}</div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div>
-                <Label className={styles.label}>Model</Label>
-                <ModelSelector
-                  machineId={form.machineId}
-                  selectedModelId={form.model_id}
-                  onModelChange={(modelId) => onChange('model_id', modelId)}
-                  dropdownPosition="bottom"
-                  compact={false}
-                  variant="field"
-                />
-              </div>
-
-              <div>
-                <Label className={styles.label}>Persona</Label>
-                <Select
-                  value={form.persona_name}
-                  onChange={(e) => onChange('persona_name', e.target.value)}
-                  className={styles.select}
-                >
-                  <option value={DEFAULT_PERSONA}>Default</option>
-                  {personas.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
-
-              <div className={styles['field-row']}>
-                {selectedThinkingOption && (
-                  <div>
-                    <Label className={styles.label}>Thinking</Label>
-                    <Dropdown
-                      value={selectedThinkingOption}
-                      items={thinkingModes}
-                      getItemKey={(m) => m.value}
-                      getItemLabel={(m) => m.label}
-                      onSelect={(m) => onChange('thinking_mode', m.value)}
-                      leftIcon={Brain}
-                      triggerVariant="field"
-                      width="100%"
-                      dropdownPosition="bottom"
-                      ariaLabel="Thinking"
-                    />
-                  </div>
-                )}
-                <div>
-                  <Label className={styles.label}>Permissions</Label>
-                  <Dropdown
-                    value={selectedPermissionOption}
-                    items={permissionModes}
-                    getItemKey={(m) => m.value}
-                    getItemLabel={(m) => m.label}
-                    onSelect={(m) => onChange('permission_mode', m.value)}
-                    leftIcon={Shield}
-                    triggerVariant="field"
-                    width="100%"
-                    dropdownPosition="bottom"
-                    ariaLabel="Permissions"
-                  />
-                </div>
-                <div>
-                  <Label className={styles.label}>Worktree</Label>
-                  {worktreeSelect}
-                </div>
-              </div>
-            </>
-          )}
 
           <div>
             <Label className={styles.label}>Schedule</Label>
@@ -399,11 +342,6 @@ export function AutomationEditDialog({
               className={styles['prompt-textarea']}
               rows={5}
             />
-            <p className={styles.hint}>
-              {isChannel
-                ? 'Each run creates a new channel with these members and posts this prompt to it as you.'
-                : 'Each run starts a new chat in the selected workspace with this prompt.'}
-            </p>
           </div>
         </div>
       </div>

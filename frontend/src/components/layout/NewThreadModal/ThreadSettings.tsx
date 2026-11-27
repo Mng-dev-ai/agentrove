@@ -8,11 +8,7 @@ import { useDropdown } from '@/hooks/useDropdown';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePanelFit, usePanelInlineShift } from '@/hooks/usePanelFit';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
-import {
-  useChatSettingsStore,
-  DEFAULT_CHAT_SETTINGS_KEY,
-  DEFAULT_PERSONA,
-} from '@/store/chatSettingsStore';
+import { DEFAULT_PERSONA } from '@/store/chatSettingsStore';
 import {
   getThinkingModeOption,
   getThinkingModesForAgent,
@@ -21,10 +17,7 @@ import {
   MODES_BY_AGENT,
   getPermissionModeOption,
 } from '@/components/chat/permission-mode-selector/permissionModes';
-import {
-  FAST_MODE_OPTIONS,
-  useFastModeOption,
-} from '@/components/chat/fast-mode-selector/fastModes';
+import { FAST_MODE_OPTIONS } from '@/components/chat/fast-mode-selector/fastModes';
 import {
   getPersonaOption,
   getPersonaOptions,
@@ -37,6 +30,8 @@ import {
   patchGroupMember,
   resolveMember,
   resolveMemberNames,
+  settingsModel,
+  withSupportedOverrides,
   type GroupMember,
   type MemberDraft,
   type MemberSetting,
@@ -142,24 +137,34 @@ const permissionOptions = (agentKind: Model['agent_kind']) => MODES_BY_AGENT[age
 interface ThreadSettingsProps {
   machineId: string;
   members: GroupMember[];
+  // The members are sent as a channel's, which resolves an unlisted model; a chat keeps it
+  channel: boolean;
   shared: SharedMemberSettings;
   personas: Persona[];
   disabled: boolean;
+  variant: 'pill' | 'field';
   onChange: (members: GroupMember[]) => void;
+  onSharedChange: (patch: Partial<SharedMemberSettings>) => void;
+  // Shown for one agent when given; channel members take no fast mode
+  fastMode?: { value: boolean; onChange: (enabled: boolean) => void };
 }
 
-// The New thread modal's settings pill. One agent gets a plain list; a group gets a side
-// list of "All agents" (the shared settings) and each agent with its own overrides.
+// The settings control of the New thread modal and the automation dialog. One agent gets a
+// plain list; a group gets a side list of "All agents" (the shared settings) and each agent
+// with its own overrides.
 export function ThreadSettings({
   machineId,
-  members,
+  members: givenMembers,
+  channel,
   shared,
   personas,
   disabled,
+  variant,
   onChange,
+  onSharedChange,
+  fastMode,
 }: ThreadSettingsProps) {
   const { data: models = [] } = useModelsQuery({ machineId });
-  const fastMode = useFastModeOption(undefined);
   const isMobile = useIsMobile();
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -173,34 +178,34 @@ export function ThreadSettings({
     setDrilledIn(false);
   }
 
-  const modelById = new Map(models.map((m) => [m.model_id, m]));
+  const members = withSupportedOverrides(givenMembers, models);
   const drafts = members.map((member) => groupMemberDraft(member, shared));
   const names = resolveMemberNames(drafts, models);
   const isGroup = members.length > 1;
-  const mixed = mixedMemberSettings(members, shared);
+  // A lone agent runs on the shared settings, so nothing reads as mixed
+  const mixed = mixedMemberSettings(isGroup ? members : [], shared);
   const personaOptions = getPersonaOptions(personas);
 
   // Shared settings follow the first agent that supports each one
-  const memberModels = members
-    .map((member) => modelById.get(member.modelId))
-    .filter((m): m is Model => m !== undefined);
+  const memberModels = members.map((member) => settingsModel(member.modelId, models, channel));
   const thinkingModel = memberModels.find(
-    (m) => getThinkingModesForAgent(m.agent_kind, m).length > 0,
+    ({ agentKind, model }) => getThinkingModesForAgent(agentKind, model).length > 0,
   );
   const personaModel =
-    personas.length > 0 ? memberModels.find((m) => supportsPersona(m, m.agent_kind)) : undefined;
+    personas.length > 0
+      ? memberModels.find(({ agentKind, model }) => supportsPersona(model, agentKind))
+      : undefined;
   const first = memberModels[0];
   const sharedEffort =
     thinkingModel &&
-    getThinkingModeOption(shared.thinkingMode, thinkingModel.agent_kind, thinkingModel);
+    getThinkingModeOption(shared.thinkingMode, thinkingModel.agentKind, thinkingModel.model);
   const sharedPersona = getPersonaOption(shared.persona, personaOptions);
 
-  // Clearing first, since the store ignores a pick that equals the current shared value
-  const setShared = (setting: MemberSetting, apply: () => void) => {
+  // Clearing first, since the modal's store ignores a pick that equals the current value
+  const setShared = (setting: MemberSetting, patch: Partial<SharedMemberSettings>) => {
     onChange(clearMemberOverrides(members, setting));
-    apply();
+    onSharedChange(patch);
   };
-  const store = useChatSettingsStore.getState();
 
   const effortPart = sharedEffort && (mixed.thinkingMode ? 'Mixed' : sharedEffort.label);
   const personaPart =
@@ -217,13 +222,11 @@ export function ThreadSettings({
       {thinkingModel && sharedEffort && (
         <SettingRow
           label="Effort"
-          options={getThinkingModesForAgent(thinkingModel.agent_kind, thinkingModel)}
+          options={getThinkingModesForAgent(thinkingModel.agentKind, thinkingModel.model)}
           value={sharedEffort.value}
           valueLabel={sharedEffort.label}
-          isMixed={isGroup && mixed.thinkingMode}
-          onPick={(value) =>
-            setShared('thinkingMode', () => store.setThinkingMode(DEFAULT_CHAT_SETTINGS_KEY, value))
-          }
+          isMixed={mixed.thinkingMode}
+          onPick={(value) => setShared('thinkingMode', { thinkingMode: value })}
         />
       )}
       {personaModel && (
@@ -232,28 +235,21 @@ export function ThreadSettings({
           options={personaOptions}
           value={sharedPersona.value}
           valueLabel={sharedPersona.label}
-          isMixed={isGroup && mixed.persona}
-          onPick={(value) =>
-            setShared('persona', () => store.setPersona(DEFAULT_CHAT_SETTINGS_KEY, value))
-          }
+          isMixed={mixed.persona}
+          onPick={(value) => setShared('persona', { persona: value })}
         />
       )}
       {first && (
         <SettingRow
           label="Permission"
-          options={permissionOptions(first.agent_kind)}
-          value={getPermissionModeOption(shared.permissionMode, first.agent_kind).value}
-          valueLabel={getPermissionModeOption(shared.permissionMode, first.agent_kind).label}
-          isMixed={isGroup && mixed.permissionMode}
-          onPick={(value) =>
-            setShared('permissionMode', () =>
-              store.setPermissionMode(DEFAULT_CHAT_SETTINGS_KEY, value),
-            )
-          }
+          options={permissionOptions(first.agentKind)}
+          value={getPermissionModeOption(shared.permissionMode, first.agentKind).value}
+          valueLabel={getPermissionModeOption(shared.permissionMode, first.agentKind).label}
+          isMixed={mixed.permissionMode}
+          onPick={(value) => setShared('permissionMode', { permissionMode: value })}
         />
       )}
-      {/* Channel members take no fast mode */}
-      {!isGroup && first && supportsFastMode(first, first.agent_kind) && (
+      {fastMode && !isGroup && first && supportsFastMode(first.model, first.agentKind) && (
         <SettingRow
           label="Fast mode"
           options={FAST_MODE_OPTIONS.map((mode) => ({
@@ -261,8 +257,8 @@ export function ThreadSettings({
             label: mode.label,
           }))}
           value={String(fastMode.value)}
-          valueLabel={fastMode.label}
-          onPick={(value) => store.setFastMode(DEFAULT_CHAT_SETTINGS_KEY, value === 'true')}
+          valueLabel={FAST_MODE_OPTIONS[fastMode.value ? 1 : 0].label}
+          onPick={(value) => fastMode.onChange(value === 'true')}
         />
       )}
     </>
@@ -422,7 +418,6 @@ export function ThreadSettings({
       </Button>
       <p className={styles['entries-label']}>Overrides</p>
       {members.map((m, index) => {
-        const model = modelById.get(m.modelId);
         const isActive = m.key === member?.key;
         return (
           <Button
@@ -434,9 +429,10 @@ export function ThreadSettings({
             className={clsx(styles.entry, isActive && !isMobile && styles['entry--active'])}
           >
             <span className={styles['entry-name']}>
-              {model && (
-                <ProviderIcon agentKind={model.agent_kind} className={styles['entry-icon']} />
-              )}
+              <ProviderIcon
+                agentKind={memberModels[index].agentKind}
+                className={styles['entry-icon']}
+              />
               <span className={styles['entry-text']}>{names[index].name}</span>
             </span>
             <span className={styles['entry-meta']}>
@@ -476,7 +472,7 @@ export function ThreadSettings({
   else body = entries;
 
   return (
-    <div ref={dropdownRef} className={styles.picker}>
+    <div ref={dropdownRef} className={styles[`picker--${variant}`]}>
       <Button
         type="button"
         variant="unstyled"
@@ -485,10 +481,17 @@ export function ThreadSettings({
         aria-haspopup="dialog"
         aria-expanded={isOpen}
         aria-label={`Settings${sharedSummary ? `: ${sharedSummary}` : ''}`}
-        className={styles.trigger}
+        className={styles[`trigger--${variant}`]}
       >
         <Settings2 aria-hidden />
-        {sharedSummary && <span className={styles['trigger-label']}>{sharedSummary}</span>}
+        {variant === 'field' ? (
+          <>
+            <span className={styles['trigger-label']}>{sharedSummary || 'Settings'}</span>
+            <ChevronDown aria-hidden className={styles['trigger-chevron']} />
+          </>
+        ) : (
+          sharedSummary && <span className={styles['trigger-label']}>{sharedSummary}</span>
+        )}
       </Button>
       {isOpen && !disabled && (
         <div
@@ -500,6 +503,7 @@ export function ThreadSettings({
             styles.panel,
             fit?.side === 'top' && styles['panel--top'],
             isGroup && !isMobile && styles['panel--split'],
+            variant === 'field' && styles['panel--field'],
           )}
         >
           {body}

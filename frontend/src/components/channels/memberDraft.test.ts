@@ -18,7 +18,11 @@ import {
   mixedMemberSettings,
   newMemberDraft,
   patchGroupMember,
+  promoteSoleMemberOverrides,
+  resolveMember,
   resolveMemberNames,
+  settingsModel,
+  withSupportedOverrides,
   type GroupMember,
   type SharedMemberSettings,
 } from './memberDraft';
@@ -154,6 +158,74 @@ describe('group thread members', () => {
         shared,
       ),
     ).toEqual({ thinkingMode: true, persona: false, permissionMode: false });
+  });
+
+  it('promotes nothing while several members remain', () => {
+    const members = [
+      member('a', 'claude:opus', { overrides: { thinkingMode: 'low' } }),
+      member('b', 'claude:opus'),
+    ];
+
+    expect(promoteSoleMemberOverrides(members, models)).toEqual({ members, promoted: {} });
+  });
+
+  it("promotes exactly a sole member's overrides and clears them", () => {
+    expect(
+      promoteSoleMemberOverrides(
+        [
+          member('a', 'claude:opus', {
+            overrides: { permissionMode: 'default', thinkingMode: 'low' },
+          }),
+        ],
+        models,
+      ),
+    ).toEqual({
+      members: [member('a', 'claude:opus')],
+      promoted: { permissionMode: 'default', thinkingMode: 'low' },
+    });
+  });
+
+  it('promotes nothing for a sole member without overrides', () => {
+    expect(promoteSoleMemberOverrides([member('a', 'claude:opus')], models)).toEqual({
+      members: [member('a', 'claude:opus')],
+      promoted: {},
+    });
+  });
+
+  it('resolves an unlisted channel member as it is sent, and keeps an unlisted chat model', () => {
+    const resolved = resolveMember({ modelId: 'claude:gone' }, models);
+
+    expect(settingsModel('claude:gone', models, true)).toEqual({
+      agentKind: resolved.agentKind,
+      model: resolved.model,
+    });
+    expect(resolved.model?.model_id).toBe('claude:opus');
+    expect(settingsModel('cursor:gone', models, false)).toEqual({
+      agentKind: 'cursor',
+      model: undefined,
+    });
+  });
+
+  it('keeps every override while the model list is still loading', () => {
+    const overrides = { thinkingMode: 'low', persona: 'Reviewer' };
+    const members = [
+      member('a', 'cursor:auto', { overrides }),
+      member('b', 'claude:opus', { overrides }),
+    ];
+
+    expect(withSupportedOverrides(members, [])).toEqual(members);
+    expect(promoteSoleMemberOverrides([members[0]], []).promoted).toEqual(overrides);
+  });
+
+  it('drops effort and persona overrides a listed model lacks', () => {
+    const overrides = { thinkingMode: 'low', persona: 'Reviewer' };
+
+    expect(withSupportedOverrides([member('a', 'cursor:auto', { overrides })], models)).toEqual([
+      member('a', 'cursor:auto'),
+    ]);
+    expect(
+      promoteSoleMemberOverrides([member('a', 'cursor:auto', { overrides })], models).promoted,
+    ).toEqual({});
   });
 
   it('routes popover edits to name, model or overrides and clears one setting for all', () => {

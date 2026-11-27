@@ -154,6 +154,34 @@
   }
 }
 
+// Bordered trigger that matches the Select primitive in forms (dialog fields)
+@mixin field-trigger {
+  @include type.type-default;
+  @include focus-ring;
+  display: flex;
+  height: var(--space-8);
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--theme-surface-tertiary);
+  padding-inline: var(--space-3);
+  text-align: left;
+  color: var(--theme-text-primary);
+  transition: border-color var(--duration-instant);
+
+  @include responsive.hover {
+    border-color: var(--theme-border-hover);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}
+
 // Footer pills of the New thread modal: one height, radius, border and type for every control
 @mixin pill-trigger {
   @include type.type-default(500);
