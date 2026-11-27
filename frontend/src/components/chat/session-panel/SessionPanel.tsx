@@ -475,7 +475,7 @@ function ChannelUsageRefresh({
   const { refetch } = useRateLimitsQuery(chatId);
   // A member turn's limits reach the channel page only through this refetch.
   useEffect(() => {
-    void refetch({ cancelRefetch: false });
+    void refetch();
   }, [activeClaudeIds, refetch]);
   return <UsageCard chatId={chatId} />;
 }
