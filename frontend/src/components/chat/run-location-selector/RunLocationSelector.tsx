@@ -1,7 +1,7 @@
 import { memo, useRef } from 'react';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { Check, ChevronDown, Plus } from 'lucide-react';
+import { Check, Monitor, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { MachineStatusDot } from '@/components/machines/MachineStatusDot';
 import { MACHINE_STATUS_LABEL } from '@/components/machines/machineStatusLabel';
@@ -55,9 +55,12 @@ export const RunLocationSelector = memo(function RunLocationSelector({
         aria-label="Run on machine"
         aria-expanded={isOpen}
       >
-        {selected.status !== 'online' && <MachineStatusDot status={selected.status} />}
+        {selected.status === 'online' ? (
+          <Monitor aria-hidden />
+        ) : (
+          <MachineStatusDot status={selected.status} />
+        )}
         <span className={toggleStyles['trigger-label']}>{selected.name}</span>
-        <ChevronDown className={toggleStyles.chevron} />
       </Button>
 
       {isOpen && (

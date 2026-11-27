@@ -1,114 +1,130 @@
 @use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/controls' as controls;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/responsive' as responsive;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/zlayer' as z;
 
-// Visible overflow lets the composer's pickers open past the dialog edge
-.dialog {
+// Doubled to outrank BaseModal's size cap and centring margins: the composer sits in the
+// upper third so it stays put while the prompt grows. Visible overflow lets the footer's
+// pickers open past the dialog edge.
+.dialog.dialog {
+  max-width: min(55rem, 92vw);
+  margin-top: max(var(--space-4), 14vh);
+  margin-bottom: auto;
   overflow: visible;
 }
 
-.body {
+.form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  padding: var(--space-3);
-  // The composer text's inset from the field edge: border + row padding + text padding.
-  --text-line: calc(1px + var(--space-0-5) + var(--space-2));
-
-  @include responsive.media('sm-up') {
-    padding: var(--space-4) var(--space-5) var(--space-5);
-  }
 }
 
-.selector-row {
-  @include z.z('raised');
-  position: relative;
-  display: grid;
-  // Workspace | branch | location: the branch keeps its min-content and truncates first.
-  grid-template-columns:
-    fit-content(var(--space-28)) minmax(min-content, 1fr)
-    fit-content(var(--space-28));
-  width: fit-content;
-  max-width: 100%;
-  align-items: center;
-  gap: var(--space-1);
-  // Puts the first trigger's icon (inside its own padding) on the composer text line.
-  padding-left: calc(var(--text-line) - var(--space-1-5));
-
-  > * {
-    min-width: 0;
-  }
-
-  @include responsive.media('sm-up') {
-    grid-template-columns:
-      fit-content(var(--space-64)) minmax(min-content, 1fr)
-      fit-content(var(--space-64));
-  }
-}
-
-.members {
-  @include z.z('raised');
-  position: relative;
+.top {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-1-5);
-  padding-left: var(--text-line);
-}
+  padding: var(--space-3) var(--space-4) 0;
 
-.member {
-  @include type.type-meta(500);
-  display: inline-flex;
-  max-width: 14rem;
-  align-items: center;
-  gap: var(--space-1-5);
-  border: 1px solid var(--theme-border);
-  border-radius: var(--radius-full);
-  background-color: var(--theme-surface-secondary);
-  padding: var(--space-0-5) var(--space-0-5) var(--space-0-5) var(--space-2-5);
-  color: var(--theme-text-primary);
-
-  &--error {
-    border-color: colors.status-color('error', 500, 0.6);
+  @include responsive.media('sm-up') {
+    padding: var(--space-4) var(--space-5) 0;
   }
 }
 
-.member-icon {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
-  flex-shrink: 0;
-  color: var(--theme-text-secondary);
-}
-
-.member-name {
-  @include type.type-overflow;
-}
-
-.member-gear {
+.close {
+  @include type.type-default(500);
   @include anim.transition-colors;
-  @include responsive.touch-target;
-  display: flex;
-  flex-shrink: 0;
+  @include controls.focus-ring;
+  display: inline-flex;
+  height: var(--space-7);
   align-items: center;
-  justify-content: center;
-  border-radius: var(--radius-full);
-  padding: var(--space-1);
+  gap: var(--space-1-5);
+  border-radius: var(--radius-md);
+  margin-left: calc(var(--space-2) * -1);
+  padding-inline: var(--space-2);
   color: var(--theme-text-tertiary);
 
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
     color: var(--theme-text-primary);
   }
+}
 
-  &[aria-expanded='true'] {
+.close-icon {
+  height: var(--space-3-5);
+  width: var(--space-3-5);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-3);
+
+  @include responsive.media('sm-up') {
+    padding: var(--space-3) var(--space-6) var(--space-4);
+  }
+}
+
+.attach {
+  @include anim.transition-colors;
+  @include controls.focus-ring;
+  display: flex;
+  height: var(--space-8);
+  width: var(--space-8);
+  align-self: flex-start;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  margin-left: calc(var(--space-2) * -1);
+  color: var(--theme-text-tertiary);
+
+  @include responsive.hover {
     background-color: var(--theme-surface-hover);
     color: var(--theme-text-primary);
   }
 }
 
-.member-gear-icon {
-  height: var(--space-3);
-  width: var(--space-3);
+.attach-icon {
+  height: var(--space-4);
+  width: var(--space-4);
+}
+
+// The dialog's own radius minus its border, since visible overflow leaves corners to us
+.footer {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border-top: 1px solid var(--theme-border);
+  border-radius: 0 0 calc(var(--radius-2xl) - 1px) calc(var(--radius-2xl) - 1px);
+  background-color: var(--theme-surface-secondary);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+}
+
+// Slash and @ suggestions open upward from the footer, over the prompt
+.suggestions {
+  position: absolute;
+  inset: 0 var(--space-4) auto;
+}
+
+.pills {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-1-5);
+
+  // Phones scroll the pills in one line. A scroller clips positioned descendants, so the
+  // pill wrappers drop their positioning and pickers anchor to the footer instead.
+  @include responsive.media('sm-down') {
+    overflow-x: auto;
+    scrollbar-width: none;
+
+    > * {
+      flex-shrink: 0;
+    }
+
+    > div {
+      position: static;
+    }
+  }
 }

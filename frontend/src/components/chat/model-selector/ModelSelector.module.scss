@@ -87,14 +87,7 @@
   }
 }
 
-.item-count {
-  @include type.type-meta(500);
-  flex-shrink: 0;
-  color: var(--theme-text-tertiary);
-  font-variant-numeric: tabular-nums;
-}
-
-.row-action {
+.favorite-button {
   @include anim.transition-colors(var(--duration-fast));
   display: flex;
   flex-shrink: 0;
@@ -118,7 +111,7 @@
   }
 }
 
-.row-action-icon {
+.favorite-icon {
   height: var(--space-3);
   width: var(--space-3);
 

@@ -1,6 +1,5 @@
 import { memo, type Dispatch, type SetStateAction } from 'react';
 import { SendButton } from './SendButton';
-import type { SendButtonStatus } from './SendButton';
 import { AttachButton } from './AttachButton';
 import { EnhanceButton } from './EnhanceButton';
 import { Textarea } from './Textarea';
@@ -10,17 +9,10 @@ import { ComposerAttachmentSlots } from './ComposerAttachmentSlots';
 import { SelectionAttachments } from './SelectionAttachments';
 import { InputSuggestionsPanel } from './InputSuggestionsPanel';
 import { InputProvider } from './InputProvider';
+import { composerSendStatus } from './InputContext';
 import { useInputContext } from '@/hooks/useInputContext';
 import type { ContextUsageInfo } from '@/utils/contextUsage';
 import type { DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
-import type { ModelChecklist } from '@/components/chat/model-selector/ModelSelector';
-import type { MemberSetting } from '@/components/channels/memberDraft';
-
-// A new thread's member picker; the toolbar settings apply to every member
-export interface ComposerMembers extends ModelChecklist {
-  // Settings some member overrides, which the toolbar shows as mixed
-  mixed: Record<MemberSetting, boolean>;
-}
 
 export interface InputProps {
   message: string;
@@ -34,14 +26,9 @@ export interface InputProps {
   placeholder?: string;
   selectedModelId: string;
   onModelChange: (modelId: string) => void;
-  members?: ComposerMembers;
   dropdownPosition?: DropdownPosition;
   showAttachedFilesPreview?: boolean;
   contextUsage?: ContextUsageInfo;
-  // The New thread modal hosts branch selection in its own control, so its footer hides it.
-  showBranch?: boolean;
-  // Text on its own row above the controls even when it would fit beside them
-  stacked?: boolean;
   chatId?: string;
   machineId?: string;
   showLoadingSpinner?: boolean;
@@ -51,28 +38,19 @@ export interface InputProps {
 export const Input = memo(function Input(props: InputProps) {
   return (
     <InputProvider {...props}>
-      <InputLayout stacked={props.stacked} />
+      <InputLayout />
     </InputProvider>
   );
 });
 
-function InputLayout({ stacked }: { stacked?: boolean }) {
+function InputLayout() {
   const { state, actions, meta } = useInputContext();
 
-  const sendStatus: SendButtonStatus = state.isStreaming
-    ? state.hasContent
-      ? 'ready'
-      : 'streaming'
-    : state.isLoading
-      ? 'loading'
-      : state.hasContent
-        ? 'ready'
-        : 'idle';
+  const sendStatus = composerSendStatus(state);
 
   return (
     <ComposerField
       ref={meta.formRef}
-      stacked={stacked}
       onSubmit={actions.handleSubmit}
       message={state.message}
       placeholders={state.placeholders}

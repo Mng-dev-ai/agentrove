@@ -37,6 +37,8 @@ export interface TextareaProps {
   onKeyDown: (e: React.KeyboardEvent) => void;
   onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onCursorPositionChange?: (position: number) => void;
+  // The New thread modal's prompt: larger type, a few lines tall when empty
+  size?: 'default' | 'large';
 }
 
 const CURSOR_DEBOUNCE_MS = 150;
@@ -51,6 +53,7 @@ export function Textarea({
   onKeyDown,
   onPaste,
   onCursorPositionChange,
+  size = 'default',
 }: TextareaProps) {
   const internalRef = useRef<HTMLTextAreaElement>(null);
   const textareaRef = (ref as React.RefObject<HTMLTextAreaElement>) || internalRef;
@@ -174,7 +177,7 @@ export function Textarea({
   );
 
   return (
-    <div className={styles.textarea}>
+    <div className={clsx(styles.textarea, size === 'large' && styles['textarea--large'])}>
       {hasTokens && (
         // Mirrors the textarea so individual tokens can be colored without changing its value.
         <div

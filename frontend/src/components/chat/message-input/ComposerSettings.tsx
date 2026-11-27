@@ -52,9 +52,7 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
   const permission = getPermissionModeOption(permissionMode, agent);
   const personaOption = getPersonaOption(persona, getPersonaOptions(personas));
   const ModelIcon = selectedModel ? AGENT_ICONS[selectedModel.agent_kind] : Brain;
-  const memberCount = state.members?.memberModelIds.length ?? 0;
-  const modelName = memberCount > 1 ? `${memberCount} agents` : (selectedModel?.name ?? 'Model');
-  const mixed = state.members?.mixed;
+  const modelName = selectedModel?.name ?? 'Model';
   const triggerLabel = thinking ? `${modelName} · ${thinking.label}` : modelName;
   const showBack = () => setView('list');
 
@@ -70,7 +68,6 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
           onModelChange={actions.onModelChange}
           machineId={state.machineId}
           onInlineSelect={showBack}
-          checklist={state.members}
         />
       ),
     },
@@ -80,7 +77,7 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
       key: 'thinking',
       icon: Brain,
       name: 'Thinking',
-      value: mixed?.thinkingMode ? 'Mixed' : thinking.label,
+      value: thinking.label,
       options: (
         <ThinkingModeSelector
           chatId={state.chatId}
@@ -106,7 +103,7 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
     key: 'permission',
     icon: Shield,
     name: 'Permissions',
-    value: mixed?.permissionMode ? 'Mixed' : permission.label,
+    value: permission.label,
     options: (
       <PermissionModeSelector
         chatId={state.chatId}
@@ -120,7 +117,7 @@ export function MobileComposerSettings({ settings }: { settings: ComposerSetting
       key: 'persona',
       icon: UserCircle,
       name: 'Persona',
-      value: mixed?.persona ? 'Mixed' : personaOption.label,
+      value: personaOption.label,
       options: <PersonaSelector chatId={state.chatId} onInlineSelect={showBack} />,
     });
   }

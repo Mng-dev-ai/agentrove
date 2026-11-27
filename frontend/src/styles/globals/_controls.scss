@@ -153,3 +153,45 @@
     border-color: colors.status-color('error', 500);
   }
 }
+
+// Footer pills of the New thread modal: one height, radius, border and type for every control
+@mixin pill-trigger {
+  @include type.type-default(500);
+  @include anim.transition-colors;
+  @include focus-ring;
+  display: inline-flex;
+  height: var(--space-8);
+  min-width: 0;
+  max-width: var(--space-64);
+  flex-shrink: 0;
+  align-items: center;
+  gap: var(--space-1-5);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-full);
+  background-color: var(--theme-surface);
+  padding-inline: var(--space-3);
+  white-space: nowrap;
+  color: var(--theme-text-secondary);
+
+  svg {
+    height: var(--space-3-5);
+    width: var(--space-3-5);
+    flex-shrink: 0;
+    color: var(--theme-text-tertiary);
+  }
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+
+  &[aria-expanded='true'] {
+    background-color: var(--theme-surface-hover);
+    color: var(--theme-text-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+}

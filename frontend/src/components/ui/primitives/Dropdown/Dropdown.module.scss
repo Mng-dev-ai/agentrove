@@ -93,29 +93,9 @@
   }
 }
 
-// triggerVariant="toolbar" — matches the ToggleDropdown trigger so mixed controls
-// in the composer selector row read as one family (icon always visible, muted label).
-.trigger-toolbar {
-  @include type.type-meta;
-  @include anim.transition-colors;
-  display: inline-flex;
-  min-width: 0;
-  max-width: 100%;
-  align-items: center;
-  gap: var(--space-1-5);
-  border-radius: var(--radius-md);
-  padding: var(--space-1) var(--space-1-5);
-  color: var(--theme-text-tertiary);
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    color: var(--theme-text-primary);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
+// triggerVariant="pill" — the New thread modal's footer controls
+.trigger-pill {
+  @include controls.pill-trigger;
 }
 
 .trigger-icon {
@@ -126,10 +106,6 @@
 
   .trigger-text & {
     color: currentColor;
-  }
-
-  .trigger-toolbar & {
-    color: var(--theme-text-quaternary);
   }
 
   // A default trigger's icon shows only below the sm breakpoint
@@ -167,11 +143,11 @@
     color: inherit;
   }
 
-  .trigger-toolbar & {
+  .trigger-pill & {
     @include type.type-lineclamp(1);
+    font: inherit;
     word-break: break-all;
     white-space: normal;
-    font-weight: 400;
     color: inherit;
   }
 }

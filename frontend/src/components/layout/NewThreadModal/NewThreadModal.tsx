@@ -1,32 +1,38 @@
-import { useCallback, useEffect, useMemo, useState, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+  type SetStateAction,
+} from 'react';
 import clsx from 'clsx';
-import { Settings } from 'lucide-react';
+import { Paperclip, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
-import { ModalHeader } from '@/components/ui/shared/ModalHeader/ModalHeader';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
-import { Input as ChatInput, type ComposerMembers } from '@/components/chat/message-input/Input';
+import { composerSendStatus } from '@/components/chat/message-input/InputContext';
+import { InputProvider } from '@/components/chat/message-input/InputProvider';
+import { Textarea } from '@/components/chat/message-input/Textarea';
+import { ComposerAttachmentSlots } from '@/components/chat/message-input/ComposerAttachmentSlots';
+import { InputSuggestionsPanel } from '@/components/chat/message-input/InputSuggestionsPanel';
+import { SendButton } from '@/components/chat/message-input/SendButton';
+import { ModelPicker } from '@/components/chat/model-selector/ModelPicker';
 import { WorkspaceSelector } from '@/components/chat/workspace-selector/WorkspaceSelector';
 import { MachineWorkspaceSelector } from '@/components/chat/workspace-selector/MachineWorkspaceSelector';
 import { RunLocationSelector } from '@/components/chat/run-location-selector/RunLocationSelector';
 import { BranchWorktreeSelector } from '@/components/chat/worktree-selector/BranchWorktreeSelector';
-import { MemberPopover } from '@/components/channels/MemberChips';
 import {
   clearMemberOverrides,
-  groupMemberDraft,
   groupMemberRequests,
-  mixedMemberSettings,
-  newGroupMember,
-  patchGroupMember,
-  resolveMember,
-  resolveMemberNames,
   type GroupMember,
   type SharedMemberSettings,
 } from '@/components/channels/memberDraft';
 import { ChatProvider } from '@/contexts/ChatContext';
+import { stateClasses } from '@/config/stateClasses';
+import { useInputContext } from '@/hooks/useInputContext';
 import { useChatStore } from '@/store/chatStore';
 import { useModelStore } from '@/store/modelStore';
 import { useNewThreadStore } from '@/store/newThreadStore';
@@ -204,23 +210,6 @@ function NewThreadDialog() {
     [],
   );
 
-  const composerMembers = useMemo<ComposerMembers>(
-    () => ({
-      memberModelIds: members.map((member) => member.modelId),
-      onToggle: (modelId) =>
-        setMembers(
-          members.some((member) => member.modelId === modelId)
-            ? members.filter((member) => member.modelId !== modelId)
-            : [...members, newGroupMember(modelId)],
-        ),
-      onAddAnother: (modelId) => setMembers([...members, newGroupMember(modelId)]),
-      mixed: isGroup
-        ? mixedMemberSettings(members, shared)
-        : { thinkingMode: false, persona: false, permissionMode: false },
-    }),
-    [members, isGroup, shared, setMembers],
-  );
-
   const handleFileAttach = useCallback((action: SetStateAction<File[]>) => {
     const store = useChatStore.getState();
     const files =
@@ -370,22 +359,29 @@ function NewThreadDialog() {
     }
   };
 
-  const memberNames = resolveMemberNames(
-    members.map((member) => groupMemberDraft(member, shared)),
-    models,
-  );
-
   return (
-    <BaseModal isOpen onClose={close} size="2xl" className={styles.dialog} ariaLabel="New thread">
-      <ModalHeader title="New thread" onClose={close} />
+    <BaseModal isOpen onClose={close} size="full" className={styles.dialog} ariaLabel="New thread">
       <ChatProvider
         sandboxId={sandboxId}
         fileStructure={fileStructure}
         builtinSlashCommands={workspaceResources?.builtin_slash_commands}
         personas={personas}
       >
-        <div className={styles.body}>
-          <div className={styles['selector-row']}>
+        <InputProvider
+          message={message}
+          setMessage={setMessage}
+          onSubmit={handleSubmit}
+          onAttach={handleFileAttach}
+          attachedFiles={attachedFiles}
+          isLoading={isLoading}
+          showLoadingSpinner
+          placeholder="Write prompt…"
+          selectedModelId={members[0]?.modelId ?? ''}
+          onModelChange={selectModel}
+          machineId={targetMachineId}
+        >
+          <NewThreadComposer onClose={close}>
+            <RunLocationSelector disabled={isLoading} />
             {isRemote ? (
               <MachineWorkspaceSelector
                 machineId={targetMachineId}
@@ -401,73 +397,91 @@ function NewThreadDialog() {
               />
             )}
             <BranchWorktreeSelector disabled={isLoading} />
-            <RunLocationSelector disabled={isLoading} />
-          </div>
-
-          {isGroup && (
-            <div className={styles.members} aria-label="Members">
-              {members.map((member, index) => {
-                const draft = groupMemberDraft(member, shared);
-                const memberName = memberNames[index];
-                return (
-                  <MemberPopover
-                    key={member.key}
-                    machineId={targetMachineId}
-                    member={draft}
-                    memberName={memberName}
-                    models={models}
-                    personas={personas}
-                    onChange={(patch) =>
-                      setMembers(
-                        members.map((m) => (m.key === member.key ? patchGroupMember(m, patch) : m)),
-                      )
-                    }
-                    onRemove={() => setMembers(members.filter((m) => m.key !== member.key))}
-                    trigger={(isOpen, toggle) => (
-                      <span
-                        className={clsx(styles.member, memberName.error && styles['member--error'])}
-                      >
-                        <ProviderIcon
-                          agentKind={resolveMember(draft, models).agentKind}
-                          className={styles['member-icon']}
-                        />
-                        <span className={styles['member-name']}>{memberName.name}</span>
-                        <Button
-                          type="button"
-                          variant="unstyled"
-                          onClick={toggle}
-                          aria-haspopup="dialog"
-                          aria-expanded={isOpen}
-                          aria-label={`${memberName.name} settings`}
-                          className={styles['member-gear']}
-                        >
-                          <Settings className={styles['member-gear-icon']} />
-                        </Button>
-                      </span>
-                    )}
-                  />
-                );
-              })}
-            </div>
-          )}
-
-          <ChatInput
-            message={message}
-            setMessage={setMessage}
-            onSubmit={handleSubmit}
-            onAttach={handleFileAttach}
-            attachedFiles={attachedFiles}
-            isLoading={isLoading}
-            showLoadingSpinner
-            selectedModelId={members[0]?.modelId ?? ''}
-            onModelChange={selectModel}
-            members={composerMembers}
-            machineId={targetMachineId}
-            showBranch={false}
-            stacked
-          />
-        </div>
+            <ModelPicker
+              machineId={targetMachineId}
+              members={members}
+              shared={shared}
+              personas={personas}
+              disabled={isLoading}
+              onChange={setMembers}
+            />
+          </NewThreadComposer>
+        </InputProvider>
       </ChatProvider>
     </BaseModal>
+  );
+}
+
+// The modal is the composer: prompt and attachments on top, every control in one footer row.
+function NewThreadComposer({ onClose, children }: { onClose: () => void; children: ReactNode }) {
+  const { state, actions, meta } = useInputContext();
+  const sendStatus = composerSendStatus(state);
+  return (
+    <form ref={meta.formRef} onSubmit={actions.handleSubmit} className={styles.form}>
+      <div className={styles.top}>
+        <Button type="button" variant="unstyled" onClick={onClose} className={styles.close}>
+          <X className={styles['close-icon']} />
+          Close
+        </Button>
+      </div>
+      <div
+        {...meta.dragHandlers}
+        className={clsx(styles.body, state.isDragging && stateClasses.DRAGGING)}
+      >
+        <Textarea
+          ref={meta.textareaRef}
+          size="large"
+          message={state.message}
+          setMessage={actions.setMessage}
+          placeholder={state.placeholders[0]}
+          isLoading={state.isLoading}
+          disabled={state.isDisabled}
+          onKeyDown={actions.handleKeyDown}
+          onPaste={actions.handlePaste}
+          onCursorPositionChange={actions.setCursorPosition}
+        />
+        <ComposerAttachmentSlots
+          machineId={state.machineId}
+          isDragging={state.isDragging}
+          files={state.showPreview && state.attachedFiles ? state.attachedFiles : []}
+          previewUrls={state.previewUrls}
+          onRemoveFile={actions.handleRemoveFile}
+          onEditImage={actions.handleDrawClick}
+          showFileUpload={state.showFileUpload}
+          onCloseFileUpload={() => actions.setShowFileUpload(false)}
+          onFileSelect={actions.handleFileSelect}
+          editingImageIndex={state.editingImageIndex}
+          showDrawingModal={state.showDrawingModal}
+          onCloseDrawing={actions.closeDrawingModal}
+          onSaveDrawing={actions.handleDrawingSave}
+        />
+        <Button
+          type="button"
+          variant="unstyled"
+          disabled={state.isDisabled}
+          onClick={() => {
+            actions.resetDragState();
+            actions.setShowFileUpload(true);
+          }}
+          aria-label="Attach file"
+          className={styles.attach}
+        >
+          <Paperclip className={styles['attach-icon']} />
+        </Button>
+      </div>
+      <div className={styles.footer}>
+        <div className={styles.suggestions}>
+          <InputSuggestionsPanel />
+        </div>
+        <div className={styles.pills}>{children}</div>
+        <SendButton
+          status={sendStatus}
+          disabled={sendStatus === 'idle' || state.isDisabled}
+          onClick={actions.handleSendClick}
+          showLoadingSpinner={state.showLoadingSpinner}
+          size="large"
+        />
+      </div>
+    </form>
   );
 }

@@ -35,7 +35,6 @@ interface PermissionModeControlProps {
   variant?: 'default' | 'text';
   dropdownAlign?: 'left' | 'right';
   onInlineSelect?: () => void;
-  mixed?: boolean;
 }
 
 export interface PermissionModeDropdownProps extends PermissionModeControlProps {
@@ -53,7 +52,6 @@ export const PermissionModeDropdown = memo(function PermissionModeDropdown({
   compact = true,
   variant = 'default',
   onInlineSelect,
-  mixed = false,
 }: PermissionModeDropdownProps) {
   const resolvedAgentKind = agentKind ?? 'claude';
 
@@ -66,7 +64,6 @@ export const PermissionModeDropdown = memo(function PermissionModeDropdown({
       items={modes}
       getItemKey={(mode) => mode.value}
       getItemLabel={(mode) => mode.label}
-      getItemShortLabel={mixed ? () => 'Mixed' : undefined}
       onSelect={(mode) => onChange(mode.value)}
       leftIcon={Shield}
       ariaLabel="Permission mode"

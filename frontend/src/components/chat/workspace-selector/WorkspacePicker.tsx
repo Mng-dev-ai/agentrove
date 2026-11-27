@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, type ReactNode } from 'react';
-import { FolderOpen, Search, ChevronDown, X } from 'lucide-react';
+import { FolderOpen, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { BaseModal } from '@/components/ui/shared/BaseModal/BaseModal';
@@ -68,7 +68,6 @@ export function WorkspacePicker({
       >
         <FolderOpen className={styles['trigger-icon']} aria-hidden="true" />
         <span className={styles['trigger-label']}>{label}</span>
-        <ChevronDown className={styles['trigger-icon']} aria-hidden="true" />
       </Button>
 
       <BaseModal isOpen={isOpen} onClose={close} size="md" ariaLabel="Select workspace">

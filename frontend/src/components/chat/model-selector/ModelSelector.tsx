@@ -1,6 +1,6 @@
 import { memo, useCallback, useMemo, useState } from 'react';
 import clsx from 'clsx';
-import { Plus, Star } from 'lucide-react';
+import { Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { Dropdown, type DropdownPosition } from '@/components/ui/primitives/Dropdown/Dropdown';
@@ -9,20 +9,12 @@ import { useAuthStore } from '@/store/authStore';
 import { useModelStore } from '@/store/modelStore';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
-import { ProviderIconStack } from '@/components/ui/icons/ProviderIconStack';
 import { AGENT_ICONS } from '@/components/ui/icons/providerIcons';
 import { AgentFilterChips } from '@/components/chat/model-selector/AgentFilterChips';
 import { formatNumberCompact } from '@/utils/format';
 import type { AgentKind, Model } from '@/types/chat.types';
+import { favoritesFirst, listedModels } from './modelOrder';
 import styles from './ModelSelector.module.scss';
-
-// Picks the members of a new thread: one tick is a chat, several a group thread.
-export interface ModelChecklist {
-  // One entry per member, so a model added twice appears twice
-  memberModelIds: string[];
-  onToggle: (modelId: string) => void;
-  onAddAnother: (modelId: string) => void;
-}
 
 export interface ModelSelectorProps {
   selectedModelId: string;
@@ -34,7 +26,6 @@ export interface ModelSelectorProps {
   dropdownAlign?: 'left' | 'right';
   machineId?: string;
   onInlineSelect?: () => void;
-  checklist?: ModelChecklist;
 }
 
 export const ModelSelector = memo(function ModelSelector({
@@ -47,7 +38,6 @@ export const ModelSelector = memo(function ModelSelector({
   variant = 'default',
   machineId,
   onInlineSelect,
-  checklist,
 }: ModelSelectorProps) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const { data: models = [], isLoading } = useModelsQuery({
@@ -58,17 +48,9 @@ export const ModelSelector = memo(function ModelSelector({
 
   const [agentFilter, setAgentFilter] = useState<AgentKind | null>(null);
 
-  const memberModelIds = checklist?.memberModelIds;
   const filteredModels = useMemo(
-    () =>
-      models.filter(
-        (m) =>
-          !m.legacy ||
-          m.model_id === selectedModelId ||
-          favoriteModelIds.includes(m.model_id) ||
-          memberModelIds?.includes(m.model_id),
-      ),
-    [models, selectedModelId, favoriteModelIds, memberModelIds],
+    () => listedModels(models, [selectedModelId], favoriteModelIds),
+    [models, selectedModelId, favoriteModelIds],
   );
 
   const favoriteIdSet = useMemo(() => new Set(favoriteModelIds), [favoriteModelIds]);
@@ -85,12 +67,10 @@ export const ModelSelector = memo(function ModelSelector({
     const visibleModels = agentFilter
       ? filteredModels.filter((m) => m.agent_kind === agentFilter)
       : filteredModels;
-    // Favorites ordered by when each model was starred, not alphabetically.
-    const modelById = new Map(visibleModels.map((m) => [m.model_id, m]));
-    const favoriteModels = favoriteModelIds
-      .map((id) => modelById.get(id))
-      .filter((m): m is Model => m !== undefined);
-    const restModels = visibleModels.filter((m) => !favoriteIdSet.has(m.model_id));
+    const { favorites: favoriteModels, rest: restModels } = favoritesFirst(
+      visibleModels,
+      favoriteModelIds,
+    );
 
     const items: DropdownItemType<Model>[] = favoriteModels.map((model) => ({
       type: 'item',
@@ -99,7 +79,7 @@ export const ModelSelector = memo(function ModelSelector({
     if (favoriteModels.length > 0 && restModels.length > 0) items.push({ type: 'divider' });
     restModels.forEach((model) => items.push({ type: 'item', data: model }));
     return items;
-  }, [filteredModels, agentFilter, favoriteModelIds, favoriteIdSet]);
+  }, [filteredModels, agentFilter, favoriteModelIds]);
 
   // Reopen with the full list — a lingering agent filter would hide the selected model's row.
   const handleOpenChange = useCallback((isOpen: boolean) => {
@@ -126,10 +106,6 @@ export const ModelSelector = memo(function ModelSelector({
 
   const activeModel = selectedModel || filteredModels[0];
   const activeIcon = AGENT_ICONS[activeModel.agent_kind];
-  const memberCount = memberModelIds?.length ?? 0;
-  const memberCounts = new Map<string, number>();
-  for (const id of memberModelIds ?? []) memberCounts.set(id, (memberCounts.get(id) ?? 0) + 1);
-  const isGroup = memberCount > 1;
 
   return (
     <Dropdown
@@ -137,28 +113,8 @@ export const ModelSelector = memo(function ModelSelector({
       items={groupedItems}
       getItemKey={(model) => model.model_id}
       getItemLabel={(model) => model.name}
-      onSelect={(model) =>
-        checklist ? checklist.onToggle(model.model_id) : onModelChange(model.model_id)
-      }
-      isItemSelected={checklist ? (model) => memberCounts.has(model.model_id) : undefined}
-      closeOnSelect={!checklist}
-      getItemShortLabel={
-        isGroup
-          ? () => `${memberCount} agents`
-          : checklist && memberCount === 0
-            ? () => 'Pick a model'
-            : undefined
-      }
-      triggerLeading={
-        isGroup && (
-          <ProviderIconStack
-            agentKinds={(memberModelIds ?? []).map(
-              (id) => models.find((m) => m.model_id === id)?.agent_kind ?? activeModel.agent_kind,
-            )}
-          />
-        )
-      }
-      leftIcon={isGroup ? undefined : activeIcon}
+      onSelect={(model) => onModelChange(model.model_id)}
+      leftIcon={activeIcon}
       ariaLabel="Model"
       width="16rem"
       dropdownPosition={dropdownPosition}
@@ -167,7 +123,7 @@ export const ModelSelector = memo(function ModelSelector({
       searchable
       searchPlaceholder="Filter..."
       searchVariant="underline"
-      selectionStyle={checklist ? 'check' : 'accent'}
+      selectionStyle="accent"
       triggerVariant={variant}
       dropdownAlign={dropdownAlign}
       onOpenChange={handleOpenChange}
@@ -185,7 +141,6 @@ export const ModelSelector = memo(function ModelSelector({
       }
       renderItem={(model, isSelected) => {
         const isFavorite = favoriteIdSet.has(model.model_id);
-        const count = memberCounts.get(model.model_id) ?? 0;
         return (
           <div className={styles.item}>
             <ProviderIcon agentKind={model.agent_kind} className={styles['item-icon']} />
@@ -196,32 +151,10 @@ export const ModelSelector = memo(function ModelSelector({
                 {model.name}
               </span>
             </FloatingTooltip>
-            {count > 1 && <span className={styles['item-count']}>×{count}</span>}
             {model.context_window != null && model.context_window > 0 && (
               <span className={styles['item-context']}>
                 {formatNumberCompact(model.context_window)}
               </span>
-            )}
-            {checklist && count > 0 && (
-              <FloatingTooltip content="Add another">
-                <Button
-                  type="button"
-                  variant="unstyled"
-                  aria-label={`Add another ${model.name}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    checklist.onAddAnother(model.model_id);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' || event.key === ' ') {
-                      event.stopPropagation();
-                    }
-                  }}
-                  className={styles['row-action']}
-                >
-                  <Plus className={styles['row-action-icon']} />
-                </Button>
-              </FloatingTooltip>
             )}
             <Button
               type="button"
@@ -237,12 +170,15 @@ export const ModelSelector = memo(function ModelSelector({
                   event.stopPropagation();
                 }
               }}
-              className={clsx(styles['row-action'], isFavorite && styles['row-action--active'])}
+              className={clsx(
+                styles['favorite-button'],
+                isFavorite && styles['favorite-button--active'],
+              )}
             >
               <Star
                 className={clsx(
-                  styles['row-action-icon'],
-                  isFavorite && styles['row-action-icon--active'],
+                  styles['favorite-icon'],
+                  isFavorite && styles['favorite-icon--active'],
                 )}
               />
             </Button>

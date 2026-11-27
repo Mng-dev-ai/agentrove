@@ -52,3 +52,18 @@
     caret-color: var(--theme-text-primary);
   }
 }
+
+// Shared by the field and its highlight backdrop so both wrap at the same width
+.textarea--large {
+  .backdrop,
+  .textarea-field {
+    @include type.type-large;
+    max-height: min(40vh, 18rem);
+    padding-block: 0;
+    line-height: 1.5;
+  }
+
+  .textarea-field {
+    min-height: 4.5em;
+  }
+}

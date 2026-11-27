@@ -28,6 +28,16 @@
     background-color: var(--theme-surface-tertiary);
   }
 
+  &--large {
+    padding: var(--space-2-5);
+
+    > svg {
+      height: var(--space-4);
+      width: var(--space-4);
+      margin: 0;
+    }
+  }
+
   // Opts out of the global svg reset so a narrow composer row truncates the model controls instead
   > svg {
     max-width: none;

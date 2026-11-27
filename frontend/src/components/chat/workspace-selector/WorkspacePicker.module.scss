@@ -1,29 +1,11 @@
 @use '@/styles/globals/colors' as colors;
+@use '@/styles/globals/controls' as controls;
 @use '@/styles/globals/typography' as type;
 @use '@/styles/globals/animations' as anim;
 @use '@/styles/globals/responsive' as responsive;
 
 .trigger {
-  @include anim.transition-colors;
-  @include type.type-meta;
-  @include responsive.touch-target;
-  display: inline-flex;
-  min-width: 0;
-  align-items: center;
-  gap: var(--space-1-5);
-  border-radius: var(--radius-md);
-  padding: var(--space-1) var(--space-1-5);
-  color: var(--theme-text-tertiary);
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    color: var(--theme-text-primary);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
+  @include controls.pill-trigger;
 }
 
 .trigger-icon {
@@ -35,13 +17,7 @@
 
 .trigger-label {
   @include type.type-overflow;
-  // Tighter cap on phones: the label keeps the selected workspace visible while
-  // leaving the rest of the selector row room to fit on one line.
-  max-width: var(--space-24);
-
-  @include responsive.media('sm-up') {
-    max-width: var(--space-64);
-  }
+  max-width: var(--space-48);
 }
 
 .body {

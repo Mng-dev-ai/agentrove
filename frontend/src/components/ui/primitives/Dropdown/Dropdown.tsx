@@ -38,12 +38,6 @@ export interface DropdownProps<T> {
   // Kept whole after the label, which truncates first
   triggerSuffix?: string;
   onSelect: (item: T) => void;
-  // Multi-select: which rows are ticked, in place of matching `value`
-  isItemSelected?: (item: T) => boolean;
-  // Multi-select keeps the panel open across picks
-  closeOnSelect?: boolean;
-  // Shown before the trigger label at every width
-  triggerLeading?: ReactNode;
   renderItem?: (item: T, isSelected: boolean) => ReactNode;
   leftIcon?: ComponentType<SVGProps<SVGSVGElement>>;
   // CSS width for the panel (e.g. '10rem'), not a class name
@@ -60,9 +54,9 @@ export interface DropdownProps<T> {
   renderHeader?: () => ReactNode;
   renderFooter?: () => ReactNode;
   onOpenChange?: (isOpen: boolean) => void;
-  // 'toolbar' matches ToggleDropdown's composer-toolbar trigger (icon always shown);
+  // 'pill' is the New thread modal's footer control (icon always shown, no chevron);
   // 'field' is a full-width bordered control matching Select in forms.
-  triggerVariant?: 'default' | 'text' | 'toolbar' | 'field';
+  triggerVariant?: 'default' | 'text' | 'pill' | 'field';
   // Show leftIcon beside the label at every width, not only in compact mode
   iconWithLabel?: boolean;
   dropdownAlign?: 'left' | 'right';
@@ -123,9 +117,9 @@ function getFilteredGroupedItems<T>(
   return result;
 }
 
-// Code points of a toolbar label that never wrap, so the shrinking trigger keeps about
+// Code points of a pill label that never wrap, so the shrinking trigger keeps about
 // five characters plus the ellipsis (see .trigger-label-head)
-const TOOLBAR_LABEL_HEAD_LENGTH = 7;
+const PILL_LABEL_HEAD_LENGTH = 7;
 
 // Wraps flat items into the grouped format so both branches share one render path
 function normalizeToGrouped<T>(
@@ -142,7 +136,7 @@ function normalizeToGrouped<T>(
 const TRIGGER_CLASSES = {
   default: styles.trigger,
   text: styles['trigger-text'],
-  toolbar: styles['trigger-toolbar'],
+  pill: styles['trigger-pill'],
   field: styles['trigger-field'],
 };
 
@@ -152,7 +146,6 @@ type DropdownOptionsProps<T> = Pick<
   | 'items'
   | 'getItemKey'
   | 'getItemLabel'
-  | 'isItemSelected'
   | 'renderItem'
   | 'itemClassName'
   | 'searchable'
@@ -170,7 +163,6 @@ function DropdownOptions<T>({
   items,
   getItemKey,
   getItemLabel,
-  isItemSelected,
   renderItem,
   itemClassName,
   searchable = false,
@@ -271,9 +263,7 @@ function DropdownOptions<T>({
           }
 
           const item = entry.data;
-          const isSelected = isItemSelected
-            ? isItemSelected(item)
-            : getItemKey(item) === getItemKey(value);
+          const isSelected = getItemKey(item) === getItemKey(value);
           return (
             <SelectItem
               key={getItemKey(item)}
@@ -328,8 +318,6 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
     getItemShortLabel,
     triggerSuffix,
     onSelect,
-    closeOnSelect = true,
-    triggerLeading,
     leftIcon: LeftIcon,
     width = '10rem',
     dropdownPosition = 'bottom',
@@ -381,7 +369,6 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
             )}
           />
         )}
-        {triggerLeading}
         {/* Visibility lives on the tooltip wrapper (the flex item) so a hidden label doesn't
             leave a zero-width slot that still consumes the trigger's gap. */}
         <FloatingTooltip
@@ -389,12 +376,12 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
           className={clsx(styles['label-slot'], iconOnly && styles['label-slot--hidden'])}
         >
           <span className={styles['trigger-label']}>
-            {triggerVariant === 'toolbar' ? (
+            {triggerVariant === 'pill' ? (
               <>
                 <span className={styles['trigger-label-head']}>
-                  {triggerLabelChars.slice(0, TOOLBAR_LABEL_HEAD_LENGTH).join('')}
+                  {triggerLabelChars.slice(0, PILL_LABEL_HEAD_LENGTH).join('')}
                 </span>
-                {triggerLabelChars.slice(TOOLBAR_LABEL_HEAD_LENGTH).join('')}
+                {triggerLabelChars.slice(PILL_LABEL_HEAD_LENGTH).join('')}
               </>
             ) : (
               triggerLabel
@@ -402,7 +389,7 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
           </span>
         </FloatingTooltip>
         {triggerSuffix && <span className={styles['trigger-suffix']}>{triggerSuffix}</span>}
-        {triggerVariant !== 'text' && !disabled && (
+        {triggerVariant !== 'text' && triggerVariant !== 'pill' && !disabled && (
           <ChevronDown className={clsx(styles.chevron, isOpen && stateClasses.OPEN)} />
         )}
       </Button>
@@ -427,7 +414,7 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
             {...props}
             onPick={(item) => {
               onSelect(item);
-              if (closeOnSelect) setIsOpen(false);
+              setIsOpen(false);
             }}
           />
         </div>
@@ -437,7 +424,7 @@ function DropdownPopover<T>(props: DropdownProps<T>) {
 }
 
 const Dropdown = memo(function Dropdown<T>(props: DropdownProps<T>) {
-  const { onInlineSelect, onSelect, closeOnSelect = true, ariaLabel } = props;
+  const { onInlineSelect, onSelect, ariaLabel } = props;
   if (!onInlineSelect) return <DropdownPopover {...props} />;
   return (
     <div role="listbox" aria-label={ariaLabel} data-inline-options className={styles.inline}>
@@ -446,7 +433,7 @@ const Dropdown = memo(function Dropdown<T>(props: DropdownProps<T>) {
         selectionStyle="check"
         onPick={(item) => {
           onSelect(item);
-          if (closeOnSelect) onInlineSelect();
+          onInlineSelect();
         }}
       />
     </div>
