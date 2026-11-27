@@ -305,7 +305,7 @@ describe('backend chat event fixture', () => {
   });
 
   it.each(FIXTURE_EVENTS)('carries exactly the keys of a $kind event', (event) => {
-    expect(Object.keys(event)).toEqual(CHAT_EVENT_KEYS[event.kind]);
+    expect(Object.keys(event)).toEqual(Object.keys(CHAT_EVENT_KEYS[event.kind]));
   });
 
   it.each(FIXTURE_EVENTS)('applies a $kind fixture event', async (event) => {

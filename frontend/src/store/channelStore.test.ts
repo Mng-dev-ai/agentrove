@@ -5,6 +5,8 @@ import {
   CHANNEL_ACTIVITY_NOTICES,
   CHANNEL_NOTICE_KEYS,
   CHANNEL_PAYLOAD_KEYS,
+  ELICITATION_REQUEST_KEYS,
+  TOOL_PERMISSION_REQUEST_KEYS,
 } from '@/test/fixtures';
 import type {
   ChannelEnvelope,
@@ -186,17 +188,27 @@ describe('backend channel envelope fixture', () => {
   it.each(FIXTURE_ENVELOPES)('carries exactly the payload keys of a $kind envelope', (entry) => {
     expect(Object.keys(entry)).toEqual(['channelId', 'kind', 'payload']);
     const keys = Object.keys(entry.payload);
-    const notices = keys.filter((key) => (CHANNEL_ACTIVITY_NOTICES as string[]).includes(key));
-    expect(keys.filter((key) => !notices.includes(key))).toEqual(CHANNEL_PAYLOAD_KEYS[entry.kind]);
+    const notices = keys.filter((key) => key in CHANNEL_ACTIVITY_NOTICES);
+    expect(keys.filter((key) => !notices.includes(key))).toEqual(
+      Object.keys(CHANNEL_PAYLOAD_KEYS[entry.kind]),
+    );
+    if (entry.kind === 'channel_permission_request') {
+      expect(Object.keys(entry.payload.request)).toEqual(Object.keys(TOOL_PERMISSION_REQUEST_KEYS));
+    }
     if (entry.kind !== 'channel_member_activity') {
       expect(notices).toEqual([]);
       return;
+    }
+    for (const { request } of entry.payload.elicitations ?? []) {
+      expect(Object.keys(request).filter((key) => key in ELICITATION_REQUEST_KEYS)).toEqual(
+        Object.keys(ELICITATION_REQUEST_KEYS),
+      );
     }
     expect(notices.length).toBeLessThanOrEqual(1);
     for (const notice of notices) {
       expect(keys[keys.length - 1]).toBe(notice);
       expect(Object.keys(entry.payload[notice as 'asked' | 'completed']!)).toEqual(
-        CHANNEL_NOTICE_KEYS,
+        Object.keys(CHANNEL_NOTICE_KEYS),
       );
     }
   });
