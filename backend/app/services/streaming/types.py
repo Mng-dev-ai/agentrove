@@ -10,7 +10,7 @@ from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 from app.models.db_models.enums import MessageStreamStatus
-from app.models.types import MessageAttachmentDict, PermissionMode
+from app.models.types import MessageAttachmentDict, PermissionMode, RateLimits
 from app.prompts.system_prompt import DEFAULT_PERSONA_NAME
 
 
@@ -152,6 +152,7 @@ class StreamEvent(TypedDict, total=False):
     tool_name: str
     tool_input: dict[str, Any]
     suggestions: list[str]
+    rate_limits: RateLimits
 
 
 # Snapshot buffer for periodic DB persist (SSE catch-up without full history replay).

@@ -29,7 +29,7 @@ from app.models.db_models.chat import Chat, Message
 from app.models.db_models.enums import MessageStreamStatus
 from app.models.db_models.user import User, UserSettings
 from app.models.schemas.queue import QueuedMessage
-from app.models.types import AgentKind, PermissionMode
+from app.models.types import AgentKind, PermissionMode, RateLimits
 from app.prompts.system_prompt import build_system_prompt_for_chat
 from app.services.acp.adapters import AGENT_ADAPTERS
 from app.services.acp.session import AcpSession, AcpSessionConfig
@@ -54,6 +54,7 @@ from app.services.queue import QueueService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.event_log import StreamEventLog
 from app.services.streaming.images import MAX_TOOL_IMAGE_BYTES, tool_image
+from app.services.streaming.rate_limits import merge_rate_limits
 from app.services.streaming.recovery import DeadStreamRecovery
 from app.services.streaming.scaffold import TurnScaffold
 from app.services.streaming.types import (
@@ -304,6 +305,8 @@ class ChatStreamRuntime:
             usage_data = payload.get("data")
             stream_result.usage = usage_data if isinstance(usage_data, dict) else None
             await self._emit_context_usage(stream_result)
+            if (rate_limits := event.get("rate_limits")) is not None:
+                await self._emit_rate_limits(rate_limits)
         else:
             await self.emit_event(kind, payload)
             await self.event_log.flush_snapshot()
@@ -929,6 +932,18 @@ class ChatStreamRuntime:
             logger.debug(
                 "Context usage update failed for chat %s: %s", self.chat_id, exc
             )
+
+    async def _emit_rate_limits(self, rate_limits: RateLimits) -> None:
+        try:
+            await merge_rate_limits(self.cache, str(self.chat.user_id), rate_limits)
+        except CacheError as exc:
+            logger.debug("Rate limit update failed for chat %s: %s", self.chat_id, exc)
+            return
+        await self.emit_event(
+            "system",
+            {"rate_limits_changed": True, "chat_id": self.chat_id},
+            apply_snapshot=False,
+        )
 
     async def _generate_title(self) -> None:
         if self.member_turn is not None or not self.prompt or not self._is_new_chat:

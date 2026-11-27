@@ -263,6 +263,36 @@
   }
 }
 
+.usage-row + .usage-row {
+  margin-top: var(--space-2);
+}
+
+.usage-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.usage-label {
+  @include type.type-meta;
+  color: var(--theme-text-secondary);
+}
+
+.usage-meta {
+  @include type.type-meta;
+  font-variant-numeric: tabular-nums;
+  color: var(--theme-text-tertiary);
+}
+
+.usage-tone--warning {
+  color: var(--theme-warning-text);
+}
+
+.usage-tone--danger {
+  color: var(--theme-error-text);
+}
+
 .changes-row {
   display: flex;
   align-items: center;

@@ -31,6 +31,7 @@ import { CONTEXT_WINDOW_TOKENS } from '@/config/constants';
 import {
   useChatQuery,
   useContextUsageQuery,
+  useRateLimitsQuery,
   useSubThreadsQuery,
 } from '@/hooks/queries/useChatQueries';
 import {
@@ -61,6 +62,7 @@ import { useMachineName } from '@/store/machineStore';
 import { LOCAL_MACHINE_ID } from '@/types/machine.types';
 import { getRelativeTime } from '@/utils/date';
 import { getContextUsageDisplay } from '@/utils/contextUsage';
+import { getRateLimitAction, getRateLimitRows } from '@/utils/rateLimits';
 import { stripMarkdownTitle } from '@/utils/format';
 import { chatStatusTone } from '@/utils/message';
 import { openExternalUrl } from '@/utils/openExternal';
@@ -405,7 +407,13 @@ function ContextValue({ usage }: { usage: ContextUsageDisplay }) {
   );
 }
 
-function ContextTrack({ usage, label }: { usage: ContextUsageDisplay; label: string }) {
+function ContextTrack({
+  usage,
+  label,
+}: {
+  usage: Pick<ContextUsageDisplay, 'percentage' | 'tone'>;
+  label: string;
+}) {
   return (
     <div
       className={styles['context-track']}
@@ -432,6 +440,84 @@ function ContextCard({ chat }: { chat: Chat }) {
   return (
     <Card title="Context" action={<ContextValue usage={usage} />}>
       <ContextTrack usage={usage} label={`Context used in ${chat.title}`} />
+    </Card>
+  );
+}
+
+function ChatUsageCard({ chat }: { chat: Chat }) {
+  const agentKind = useChatAgentKind(chat.id, chat.session_agent_kind, chat.last_model_id);
+  return agentKind === 'claude' ? <UsageCard chatId={chat.id} /> : null;
+}
+
+function ChannelUsageCard({ channel, chat }: { channel: Channel; chat: Chat }) {
+  const modelMap = useModelMap({ machineId: useChatMachineId(chat.id) });
+  const activeMemberIds = useChannelActivity(channel).member_ids;
+  const claudeMembers = channel.members.filter(
+    (member) => resolveAgentKind(modelMap, member.model_id) === 'claude',
+  );
+  if (claudeMembers.length === 0) return null;
+  const activeClaudeIds = claudeMembers
+    .filter((member) => activeMemberIds.includes(member.id))
+    .map((member) => member.id)
+    .join(',');
+  return (
+    <ChannelUsageRefresh chatId={claudeMembers[0].chat_id} activeClaudeIds={activeClaudeIds} />
+  );
+}
+
+function ChannelUsageRefresh({
+  chatId,
+  activeClaudeIds,
+}: {
+  chatId: string;
+  activeClaudeIds: string;
+}) {
+  const { refetch } = useRateLimitsQuery(chatId);
+  // A member turn's limits reach the channel page only through this refetch.
+  useEffect(() => {
+    void refetch();
+  }, [activeClaudeIds, refetch]);
+  return <UsageCard chatId={chatId} />;
+}
+
+function UsageCard({ chatId }: { chatId: string }) {
+  const { data } = useRateLimitsQuery(chatId);
+  if (!data) return null;
+  const rows = getRateLimitRows(data, new Date());
+  if (rows.length === 0) return null;
+  const action = getRateLimitAction(data, rows);
+  return (
+    <Card
+      title="Usage"
+      action={
+        action && (
+          <span className={clsx(styles['context-value'], styles[`usage-tone--${action.tone}`])}>
+            {action.label}
+          </span>
+        )
+      }
+    >
+      {rows.map((row) => (
+        <div key={row.key} className={styles['usage-row']}>
+          <div className={styles['usage-heading']}>
+            <span className={styles['usage-label']}>{row.label}</span>
+            {row.percentage !== null && (
+              <span className={styles['context-value']}>{row.percentage}%</span>
+            )}
+          </div>
+          {row.percentage !== null && (
+            <ContextTrack
+              usage={{ percentage: row.percentage, tone: row.tone }}
+              label={`${row.label} used`}
+            />
+          )}
+          {row.meta && (
+            <span className={clsx(styles['usage-meta'], styles[`usage-tone--${row.tone}`])}>
+              {row.meta}
+            </span>
+          )}
+        </div>
+      ))}
     </Card>
   );
 }
@@ -786,10 +872,14 @@ export const SessionPanel = memo(function SessionPanel({
         {!channel && <ModelRow chat={chat} />}
       </EnvironmentCard>
       {channel ? (
-        <MembersCard channel={channel} />
+        <>
+          <MembersCard channel={channel} />
+          <ChannelUsageCard channel={channel} chat={chat} />
+        </>
       ) : (
         <>
           <ContextCard chat={chat} />
+          <ChatUsageCard chat={chat} />
           {chat.parent_chat_id ? (
             <ParentThreadCard parentChatId={chat.parent_chat_id} />
           ) : (

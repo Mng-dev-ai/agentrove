@@ -725,7 +725,11 @@ class AcpClientHandler:
             "input_tokens": usage.used,
             "context_window": usage.size,
         }
-        return StreamEvent(type="usage", data=self.usage)
+        event = StreamEvent(type="usage", data=self.usage)
+        rate_limits = self._adapter.rate_limits(usage.field_meta)
+        if rate_limits is not None:
+            event["rate_limits"] = rate_limits
+        return event
 
     def _map_session_info(self, info: SessionInfoUpdate) -> StreamEvent | None:
         # session_id comes from the outer SessionNotification and is injected

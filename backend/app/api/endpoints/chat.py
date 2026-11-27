@@ -38,7 +38,7 @@ from app.core.security import get_current_user
 from app.db.session import get_db
 from app.models.db_models.chat import Chat, MessageAttachment
 from app.models.db_models.user import User
-from app.models.types import MessageAttachmentDict, PermissionMode
+from app.models.types import MessageAttachmentDict, PermissionMode, RateLimits
 from app.models.schemas.chat import (
     ActiveStreamStatus,
     AskCodeRequest,
@@ -92,6 +92,7 @@ from app.services.exceptions import (
 from app.services.queue import QueueService
 from app.services.session_registry import session_registry
 from app.services.storage import StorageService
+from app.services.streaming.rate_limits import load_rate_limits
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.turn_settings import resolve_turn_settings
 from app.utils.cache import CacheError, cache_connection
@@ -501,6 +502,21 @@ async def get_chat_context_usage(
         context_window=context_window,
         percentage=percentage,
     )
+
+
+@router.get("/chats/{chat_id}/rate-limits", response_model=RateLimits)
+async def get_chat_rate_limits(
+    chat_id: UUID,
+    current_user: User = Depends(get_current_user),
+    chat_service: ChatService = Depends(get_chat_service),
+) -> RateLimits:
+    chat = await chat_service.get_chat(chat_id, current_user, include_channel=True)
+    try:
+        async with cache_connection() as cache:
+            return await load_rate_limits(cache, str(chat.user_id))
+    except CacheError as e:
+        logger.warning("Failed to get rate limits from cache: %s", e)
+        return RateLimits(windows={}, is_using_overage=False)
 
 
 @router.patch("/chats/{chat_id}", response_model=ChatSchema)

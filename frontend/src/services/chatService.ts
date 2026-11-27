@@ -18,6 +18,7 @@ import type {
   ChatStatusResponse,
   CreateChatRequest,
   ContextUsage,
+  RateLimits,
   Message,
 } from '@/types/chat.types';
 import type { ActiveStreamSnapshot } from '@/types/stream.types';
@@ -314,6 +315,17 @@ async function getContextUsage(chatId: string): Promise<ContextUsage> {
   });
 }
 
+async function getRateLimits(chatId: string): Promise<RateLimits> {
+  validateId(chatId, 'Chat ID');
+
+  return serviceCall(async () => {
+    const response = await resolveChatClient(chatId).get<RateLimits>(
+      `/chat/chats/${chatId}/rate-limits`,
+    );
+    return ensureResponse(response, 'Failed to fetch rate limits');
+  });
+}
+
 function normalizePositiveInt(value: unknown): number {
   const parsed = Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) {
@@ -466,6 +478,7 @@ export const chatService = {
   deleteChat,
   deleteAllChats,
   getContextUsage,
+  getRateLimits,
   enhancePrompt,
   askAboutCode,
   generateChatTitle,

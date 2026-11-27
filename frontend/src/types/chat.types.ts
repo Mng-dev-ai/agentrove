@@ -311,6 +311,19 @@ export interface ContextUsage {
   percentage: number;
 }
 
+export type RateLimitStatus = 'allowed' | 'allowed_warning' | 'rejected';
+
+export interface RateLimitWindow {
+  utilization: number | null;
+  resets_at: number | null;
+  status: RateLimitStatus;
+}
+
+export interface RateLimits {
+  windows: Record<string, RateLimitWindow>;
+  is_using_overage: boolean;
+}
+
 export interface PermissionOption {
   kind: 'allow_once' | 'allow_always' | 'reject_once' | 'reject_always';
   name: string;
