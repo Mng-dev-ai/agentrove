@@ -94,11 +94,13 @@ export function useSidebarChatActions({
   });
 
   // Clears any open dropdown when collapsing sub-threads, since the dropdown
-  // target may become hidden
+  // target (a sub-thread or linked channel) may become hidden
   const handleToggleSubThreads = useCallback(
     (chatId: string) => {
       toggleSubThreadExpand(chatId);
-      if (useUIStore.getState().chatMenu?.source === 'sidebar') setDropdown(null);
+      const ui = useUIStore.getState();
+      if (ui.chatMenu?.source === 'sidebar') setDropdown(null);
+      if (ui.channelMenu?.source === 'sidebar') ui.setChannelMenu(null);
     },
     [toggleSubThreadExpand, setDropdown],
   );

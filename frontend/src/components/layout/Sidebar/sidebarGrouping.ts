@@ -1,7 +1,17 @@
+import type { Channel, ChannelMemberActivity } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
-import type { SidebarGroupBy, SidebarStatusFilter } from '@/store/sidebarFilters';
+import type {
+  SidebarActivityKind,
+  SidebarGroupBy,
+  SidebarStatusFilter,
+} from '@/store/sidebarFilters';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import { formatDayLabel } from '@/utils/date';
+
+export interface MachineChannel {
+  channel: Channel;
+  machineId: string;
+}
 
 export interface SidebarChatSection {
   key: string;
@@ -102,4 +112,45 @@ export function buildRecentChatSections({
     });
   }
   return [{ key: 'all', label: null, chats: visibleRecentChats }];
+}
+
+// A collapsed section still renders its open chats, so the current selection never disappears
+export function renderedSectionChats(
+  chats: Chat[],
+  isCollapsed: boolean,
+  openChatIds: { selectedChatId: string | null; splitChatIds: string[] },
+): Chat[] {
+  if (!isCollapsed) return chats;
+  return chats.filter(
+    (chat) => chat.id === openChatIds.selectedChatId || openChatIds.splitChatIds.includes(chat.id),
+  );
+}
+
+// A linked channel nests under its parent chat only while that chat's row is rendered
+// on the same machine; otherwise it stays top-level, so it is always reachable once.
+export function partitionLinkedChannels(
+  machineChannels: MachineChannel[],
+  renderedParentMachineById: Map<string, string>,
+): { linkedByParentId: Map<string, MachineChannel[]>; topLevel: MachineChannel[] } {
+  const linkedByParentId = new Map<string, MachineChannel[]>();
+  const topLevel: MachineChannel[] = [];
+  for (const entry of machineChannels) {
+    const parentId = entry.channel.parent_chat_id;
+    if (!parentId || renderedParentMachineById.get(parentId) !== entry.machineId) {
+      topLevel.push(entry);
+      continue;
+    }
+    const linked = linkedByParentId.get(parentId);
+    if (linked) linked.push(entry);
+    else linkedByParentId.set(parentId, [entry]);
+  }
+  return { linkedByParentId, topLevel };
+}
+
+// A channel counts once: needs-you while any member waits on the user, else running
+// while any member has a turn going.
+export function channelActivityKind(activity: ChannelMemberActivity): SidebarActivityKind | null {
+  if (activity.waiting_member_ids.length > 0) return 'needs-you';
+  if (activity.member_ids.length > 0) return 'running';
+  return null;
 }

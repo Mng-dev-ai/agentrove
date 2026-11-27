@@ -1,9 +1,14 @@
+import type { MouseEvent } from 'react';
+import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import type { MachineBadge } from './SidebarChatItem';
 import { SidebarChatItem } from './SidebarChatItem';
+import type { MachineChannel } from './sidebarGrouping';
 import { SubThreadList } from './SubThreadList';
 import type { ChildActivity } from './useSidebarActivity';
+
+const NO_LINKED_CHANNELS: MachineChannel[] = [];
 
 // Bundle row handlers/state so pinned and recent sections forward one object.
 export interface ChatRowProps {
@@ -25,6 +30,12 @@ export interface ChatRowProps {
   expandedSubThreads: Set<string>;
   onToggleSubThreads: (chatId: string) => void;
   childActivityByParentId: Map<string, ChildActivity>;
+  linkedChannelsByParentId: Map<string, MachineChannel[]>;
+  selectedChannelId: string | null;
+  openMenuChannelId: string | null;
+  completedChannelIds: ReadonlySet<string>;
+  onChannelSelect: (channelId: string) => void;
+  onChannelDropdownClick: (e: MouseEvent<HTMLButtonElement>, channel: Channel) => void;
 }
 
 interface SidebarChatRowProps {
@@ -60,8 +71,17 @@ export function SidebarChatRow({
     expandedSubThreads,
     onToggleSubThreads,
     childActivityByParentId,
+    linkedChannelsByParentId,
+    selectedChannelId,
+    openMenuChannelId,
+    completedChannelIds,
+    onChannelSelect,
+    onChannelDropdownClick,
   } = rowProps;
-  const hasSubThreads = !isFlat && chat.sub_thread_count > 0;
+  const linkedChannels = isFlat
+    ? NO_LINKED_CHANNELS
+    : (linkedChannelsByParentId.get(chat.id) ?? NO_LINKED_CHANNELS);
+  const hasSubThreads = !isFlat && (chat.sub_thread_count > 0 || linkedChannels.length > 0);
   const isExpanded = hasSubThreads && expandedSubThreads.has(chat.id);
 
   return (
@@ -85,6 +105,7 @@ export function SidebarChatRow({
         onMouseLeave={onMouseLeave}
         onToggleSubThreads={hasSubThreads ? onToggleSubThreads : undefined}
         isSubThreadsExpanded={hasSubThreads ? isExpanded : undefined}
+        linkedChannelCount={linkedChannels.length}
         childActivity={
           hasSubThreads && !isExpanded ? childActivityByParentId.get(chat.id) : undefined
         }
@@ -93,6 +114,13 @@ export function SidebarChatRow({
       {isExpanded && (
         <SubThreadList
           parentChatId={chat.id}
+          hasSubThreads={chat.sub_thread_count > 0}
+          linkedChannels={linkedChannels}
+          selectedChannelId={selectedChannelId}
+          openMenuChannelId={openMenuChannelId}
+          completedChannelIds={completedChannelIds}
+          onChannelSelect={onChannelSelect}
+          onChannelDropdownClick={onChannelDropdownClick}
           selectedChatId={selectedChatId}
           splitChatIds={splitChatIds}
           onSelect={onChatSelect}

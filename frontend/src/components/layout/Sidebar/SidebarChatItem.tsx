@@ -41,7 +41,9 @@ interface SidebarChatItemProps {
   onMouseLeave: () => void;
   onToggleSubThreads?: (chatId: string) => void;
   isSubThreadsExpanded?: boolean;
-  // Running/blocked sub-threads, surfaced while the parent is collapsed
+  // Channels nested in the same child list as the sub-threads
+  linkedChannelCount: number;
+  // Running/blocked sub-threads and linked channels, surfaced while the parent is collapsed
   childActivity?: ChildActivity;
   // Set in the flat activity list, where sub-threads appear without their parent row
   parentTitle?: string;
@@ -53,11 +55,20 @@ function describeChildActivity({ running, needsYou }: ChildActivity): string {
     .join(' · ');
 }
 
+function describeChildren(subThreadCount: number, channelCount: number): string {
+  return [
+    subThreadCount > 0 && `${subThreadCount} sub-threads`,
+    channelCount > 0 && `${channelCount} linked channels`,
+  ]
+    .filter(Boolean)
+    .join(' and ');
+}
+
 function ChildActivityCounts({ activity }: { activity: ChildActivity }) {
   return (
     <span
       className={styles['child-activity']}
-      aria-label={`Sub-threads: ${describeChildActivity(activity)}`}
+      aria-label={`Nested: ${describeChildActivity(activity)}`}
     >
       {activity.needsYou > 0 && (
         <span className={styles['child-count']}>
@@ -120,10 +131,11 @@ export const SidebarChatItem = memo(function SidebarChatItem({
   onMouseLeave,
   onToggleSubThreads,
   isSubThreadsExpanded,
+  linkedChannelCount,
   childActivity,
   parentTitle,
 }: SidebarChatItemProps) {
-  // onToggleSubThreads is only set when sub_thread_count > 0
+  // onToggleSubThreads is only set when the chat has sub-threads or linked channels
   const hasSubThreads = onToggleSubThreads != null;
   // Keep the active chat visible when navigation lands on an off-screen row
   const rowRef = useRef<HTMLDivElement>(null);
@@ -190,7 +202,7 @@ export const SidebarChatItem = memo(function SidebarChatItem({
         aria-expanded={isSubThreadsExpanded}
         // The caret covers the labelled status icon, so it carries the status word too
         aria-label={[
-          `${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${chat.sub_thread_count} sub-threads`,
+          `${isSubThreadsExpanded ? 'Collapse' : 'Expand'} ${describeChildren(chat.sub_thread_count, linkedChannelCount)}`,
           statusLabel,
         ]
           .filter(Boolean)
@@ -229,14 +241,9 @@ export const SidebarChatItem = memo(function SidebarChatItem({
       facts={[
         ['Machine', describeMachine(machineBadge)],
         ['Workspace', workspaceBadge?.name],
-        [
-          'Sub-threads',
-          chat.sub_thread_count > 0
-            ? [String(chat.sub_thread_count), childActivity && describeChildActivity(childActivity)]
-                .filter(Boolean)
-                .join(' · ')
-            : undefined,
-        ],
+        ['Sub-threads', chat.sub_thread_count > 0 ? String(chat.sub_thread_count) : undefined],
+        ['Channels', linkedChannelCount > 0 ? String(linkedChannelCount) : undefined],
+        ['Nested', childActivity && describeChildActivity(childActivity)],
         ['Parent', parentTitle],
       ]}
     />

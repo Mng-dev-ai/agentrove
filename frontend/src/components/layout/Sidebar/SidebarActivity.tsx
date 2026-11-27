@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/primitives/Button/Button';
 import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import type { Chat } from '@/types/chat.types';
 import { stripMarkdownTitle } from '@/utils/format';
+import { SidebarChannelItem } from './SidebarChannelItem';
+import type { MachineBadge } from './SidebarChatItem';
 import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
+import type { SidebarActivityEntry } from './useSidebarActivity';
 import type { SidebarActivityKind } from '@/store/sidebarFilters';
 import listStyles from './SidebarChatList.module.scss';
 import styles from './SidebarActivity.module.scss';
@@ -68,19 +71,26 @@ function ActivityRow({ chat, rowProps }: { chat: Chat; rowProps: ChatRowProps })
 
 interface SidebarActivityListProps {
   view: SidebarActivityKind;
-  chats: Chat[];
+  entries: SidebarActivityEntry[];
   rowProps: ChatRowProps;
+  machineBadge: (machineId: string) => MachineBadge | undefined;
   onClose: () => void;
 }
 
-// Execution view: every active thread in one flat list, so nothing hides behind a
-// collapsed parent or below the fold.
-export function SidebarActivityList({ view, chats, rowProps, onClose }: SidebarActivityListProps) {
+// Execution view: every active thread and channel in one flat list, so nothing hides
+// behind a collapsed parent or below the fold.
+export function SidebarActivityList({
+  view,
+  entries,
+  rowProps,
+  machineBadge,
+  onClose,
+}: SidebarActivityListProps) {
   return (
     <>
       <div className={styles.header}>
         <span>
-          {ACTIVITY_LABEL[view]} · {chats.length}
+          {ACTIVITY_LABEL[view]} · {entries.length}
         </span>
         <Button
           type="button"
@@ -92,10 +102,25 @@ export function SidebarActivityList({ view, chats, rowProps, onClose }: SidebarA
           <X className={styles['close-icon']} />
         </Button>
       </div>
-      {chats.length === 0 ? (
+      {entries.length === 0 ? (
         <p className={listStyles.empty}>{EMPTY_LABEL[view]}</p>
       ) : (
-        chats.map((chat) => <ActivityRow key={chat.id} chat={chat} rowProps={rowProps} />)
+        entries.map((entry) =>
+          entry.kind === 'chat' ? (
+            <ActivityRow key={entry.chat.id} chat={entry.chat} rowProps={rowProps} />
+          ) : (
+            <SidebarChannelItem
+              key={entry.channel.id}
+              channel={entry.channel}
+              machineBadge={machineBadge(entry.machineId)}
+              isActive={entry.channel.id === rowProps.selectedChannelId}
+              isCompleted={rowProps.completedChannelIds.has(entry.channel.id)}
+              isDropdownOpen={rowProps.openMenuChannelId === entry.channel.id}
+              onSelect={rowProps.onChannelSelect}
+              onDropdownClick={rowProps.onChannelDropdownClick}
+            />
+          ),
+        )
       )}
     </>
   );

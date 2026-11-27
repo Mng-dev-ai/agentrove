@@ -10,7 +10,7 @@ import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
 import { SidebarFilterMenu } from './SidebarFilterMenu';
 import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
-import type { SidebarChatSection } from './sidebarGrouping';
+import { renderedSectionChats, type SidebarChatSection } from './sidebarGrouping';
 import styles from './SidebarChatList.module.scss';
 
 interface SidebarChatListProps {
@@ -61,9 +61,6 @@ export function SidebarChatList({
   const collapsedSections = useUIStore((state) => state.collapsedSidebarSections);
   const isPinnedCollapsed = collapsedSections.includes('pinned');
   const isRecentsCollapsed = collapsedSections.includes('recents');
-  // A collapsed section still shows its open chats, so the current selection never disappears
-  const isOpenChat = (chat: Chat) =>
-    chat.id === rowProps.selectedChatId || rowProps.splitChatIds.includes(chat.id);
   return (
     <>
       {channels}
@@ -95,7 +92,7 @@ export function SidebarChatList({
           {pinnedChats.length > 0 && (
             <div className={styles.section}>
               <SidebarSectionHeader title="Pinned" section="pinned" />
-              {(isPinnedCollapsed ? pinnedChats.filter(isOpenChat) : pinnedChats).map((chat) => (
+              {renderedSectionChats(pinnedChats, isPinnedCollapsed, rowProps).map((chat) => (
                 <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
               ))}
             </div>
@@ -112,9 +109,9 @@ export function SidebarChatList({
               />
             </SidebarSectionHeader>
             {isRecentsCollapsed ? (
-              recentChats
-                .filter(isOpenChat)
-                .map((chat) => <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />)
+              renderedSectionChats(recentChats, isRecentsCollapsed, rowProps).map((chat) => (
+                <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
+              ))
             ) : recentChats.length === 0 && recentsLoad.loadFailed ? (
               <LoadErrorState variant="inline" message="Couldn't load threads" load={recentsLoad} />
             ) : recentChats.length > 0 ? (

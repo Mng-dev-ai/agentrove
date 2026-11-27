@@ -29,6 +29,8 @@ export interface Channel {
   former_members?: ChannelMember[];
   // Member chat that owns the shared sandbox/worktree; backs the channel's workspace views.
   anchor_chat_id: string;
+  // Chat that created the channel; absent from older backends, which means unlinked.
+  parent_chat_id?: string | null;
   activity: ChannelMemberActivity;
 }
 

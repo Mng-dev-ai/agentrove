@@ -1,10 +1,11 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { MoreHorizontal } from 'lucide-react';
+import { memo, useCallback, useEffect, useRef, useState, type MouseEvent } from 'react';
+import { Hash, MoreHorizontal } from 'lucide-react';
 import { useSubThreadsQuery } from '@/hooks/queries/useChatQueries';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
-import { chatStatusTone, type ChatStatusTone } from '@/utils/message';
+import { useChannelActivity } from '@/store/channelStore';
+import { chatStatusTone, CHAT_STATUS_LABEL, type ChatStatusTone } from '@/utils/message';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -12,8 +13,12 @@ import clsx from 'clsx';
 import { stripMarkdownTitle } from '@/utils/format';
 import { getRelativeTime } from '@/utils/date';
 import { stateClasses } from '@/config/stateClasses';
+import type { Channel } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
+import type { MachineChannel } from './sidebarGrouping';
 import styles from './SubThreadList.module.scss';
+
+const COLLAPSED_ROW_LIMIT = 5;
 
 interface SubThreadRowProps {
   thread: Chat;
@@ -80,8 +85,8 @@ const SubThreadRow = memo(function SubThreadRow({
                 <ProviderIcon
                   agentKind={agentKind}
                   className={clsx(
-                    styles['provider-icon'],
-                    !isHovered && !isActive && styles['provider-icon--muted'],
+                    styles['leading-icon'],
+                    !isHovered && !isActive && styles['leading-icon--muted'],
                   )}
                 />
               ) : null}
@@ -122,10 +127,116 @@ const SubThreadRow = memo(function SubThreadRow({
   );
 });
 
-const COLLAPSED_ROW_LIMIT = 5;
+interface LinkedChannelRowProps {
+  channel: Channel;
+  isActive: boolean;
+  isCompleted: boolean;
+  isHovered: boolean;
+  isDropdownOpen: boolean;
+  onSelect: (channelId: string) => void;
+  onDropdownClick: (e: MouseEvent<HTMLButtonElement>, channel: Channel) => void;
+  onMouseEnter: (channelId: string) => void;
+  onMouseLeave: () => void;
+}
+
+// Sub-thread geometry with the channel row's icon, unread mark and member activity
+const LinkedChannelRow = memo(function LinkedChannelRow({
+  channel,
+  isActive,
+  isCompleted,
+  isHovered,
+  isDropdownOpen,
+  onSelect,
+  onDropdownClick,
+  onMouseEnter,
+  onMouseLeave,
+}: LinkedChannelRowProps) {
+  const activity = useChannelActivity(channel);
+  const isUnread = !isActive && !!channel.unread;
+  const status = chatStatusTone({
+    blocked: activity.waiting_member_ids.length > 0,
+    streaming: activity.member_ids.length > 0,
+    completed: isCompleted,
+    unread: isUnread,
+  });
+  const statusLabel = status ? CHAT_STATUS_LABEL[status] : undefined;
+  const isRevealed = isHovered || isActive || isDropdownOpen;
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isActive) rowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [isActive]);
+  return (
+    <div
+      ref={rowRef}
+      className={clsx(styles['subthread-row'], isActive && stateClasses.ACTIVE)}
+      onMouseEnter={() => onMouseEnter(channel.id)}
+      onMouseLeave={onMouseLeave}
+    >
+      <div className={styles.connector} />
+
+      <FloatingTooltip content={channel.name} className={styles['thread-tooltip']}>
+        <Button
+          variant="unstyled"
+          type="button"
+          onClick={() => onSelect(channel.id)}
+          aria-current={isActive ? 'page' : undefined}
+          className={styles['subthread-select']}
+        >
+          <span
+            className={styles['leading-slot']}
+            role={statusLabel ? 'img' : undefined}
+            aria-label={statusLabel}
+          >
+            {status === 'running' ? (
+              <AsciiSpinner className={styles['subthread-spinner']} />
+            ) : (
+              <Hash
+                className={clsx(
+                  styles['leading-icon'],
+                  !isRevealed && styles['leading-icon--muted'],
+                )}
+              />
+            )}
+            {status && status !== 'running' && (
+              <ChatStatusDot
+                tone={status}
+                className={styles['status-corner']}
+                ringClassName={styles['status-ring']}
+              />
+            )}
+          </span>
+          <span className={clsx(styles.title, isUnread && styles['title--emphasis'])}>
+            {channel.name}
+          </span>
+        </Button>
+      </FloatingTooltip>
+
+      <span className={clsx(styles.timestamp, isRevealed && styles['timestamp--hidden'])}>
+        {getRelativeTime(channel.updated_at)}
+      </span>
+
+      <Button
+        onClick={(e) => onDropdownClick(e, channel)}
+        onMouseDown={(e) => e.stopPropagation()}
+        variant="unstyled"
+        className={clsx(styles['dropdown-btn'], isRevealed && styles['dropdown-btn--visible'])}
+        aria-label="Channel options"
+      >
+        <MoreHorizontal className={styles['dropdown-icon']} />
+      </Button>
+    </div>
+  );
+});
 
 interface SubThreadListProps {
   parentChatId: string;
+  hasSubThreads: boolean;
+  linkedChannels: MachineChannel[];
+  selectedChannelId: string | null;
+  openMenuChannelId: string | null;
+  completedChannelIds: ReadonlySet<string>;
+  onChannelSelect: (channelId: string) => void;
+  onChannelDropdownClick: (e: MouseEvent<HTMLButtonElement>, channel: Channel) => void;
   selectedChatId: string | null;
   splitChatIds: string[];
   onSelect: (chatId: string) => void;
@@ -144,20 +255,45 @@ export const SubThreadList = memo(function SubThreadList({
   streamingChatIdSet,
   blockedChatIdSet,
   completedChatIdSet,
+  hasSubThreads,
+  linkedChannels,
+  selectedChannelId,
+  openMenuChannelId,
+  completedChannelIds,
+  onChannelSelect,
+  onChannelDropdownClick,
 }: SubThreadListProps) {
-  const { data: subThreads, isLoading, isError, refetch } = useSubThreadsQuery(parentChatId);
+  const {
+    data: subThreads,
+    isError,
+    refetch,
+  } = useSubThreadsQuery(hasSubThreads ? parentChatId : undefined);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const handleMouseEnter = useCallback((id: string) => setHoveredId(id), []);
   const handleMouseLeave = useCallback(() => setHoveredId(null), []);
 
-  if (isLoading || (!subThreads && !isError)) return null;
+  const channelRows = linkedChannels.map(({ channel }) => (
+    <LinkedChannelRow
+      key={channel.id}
+      channel={channel}
+      isActive={channel.id === selectedChannelId}
+      isCompleted={completedChannelIds.has(channel.id)}
+      isHovered={hoveredId === channel.id}
+      isDropdownOpen={openMenuChannelId === channel.id}
+      onSelect={onChannelSelect}
+      onDropdownClick={onChannelDropdownClick}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    />
+  ));
 
   if (isError) {
     return (
       <div className={styles.branch}>
         <div className={styles['error-line']} />
+        {channelRows}
         <Button variant="unstyled" type="button" onClick={() => refetch()} className={styles.retry}>
           Failed to load · Retry
         </Button>
@@ -165,9 +301,9 @@ export const SubThreadList = memo(function SubThreadList({
     );
   }
 
-  if (!subThreads || subThreads.length === 0) return null;
+  if (!subThreads?.length && channelRows.length === 0) return null;
 
-  const rows = subThreads.map((thread) => ({
+  const rows = (subThreads ?? []).map((thread) => ({
     thread,
     isActive: thread.id === selectedChatId || splitChatIds.includes(thread.id),
     isStreaming: streamingChatIdSet.has(thread.id),
@@ -182,6 +318,7 @@ export const SubThreadList = memo(function SubThreadList({
 
   return (
     <div className={styles.branch}>
+      {channelRows}
       {visibleRows.map(({ thread, isActive, isStreaming, isBlocked }) => (
         <SubThreadRow
           key={thread.id}

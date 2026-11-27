@@ -1,29 +1,19 @@
-import { useEffect, useState, type RefObject } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { CreateChannelDialog } from '@/components/channels/CreateChannelDialog';
-import { useMachinesChannels } from '@/hooks/queries/useChannelQueries';
+import type { ListLoadState } from '@/hooks/queries/listLoad';
 import { useMachinesModelMaps } from '@/hooks/queries/useModelQueries';
-import { permissionNotifyEvent, useBackgroundNotify } from '@/hooks/useBackgroundNotify';
-import { useMountEffect } from '@/hooks/useMountEffect';
-import { getMachineClient } from '@/lib/api';
-import { streamService } from '@/services/streamService';
-import { streamConnection } from '@/services/streamConnection';
-import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuthStore } from '@/store/authStore';
-import { useMachineStore } from '@/store/machineStore';
 import { channelActivity, useChannelStore } from '@/store/channelStore';
 import type { SidebarFilters } from '@/store/sidebarFilters';
 import { useUIStore } from '@/store/uiStore';
 import type { Workspace } from '@/types/workspace.types';
 import { getAgentKindForModelId } from '@/types/chat.types';
-import { LOCAL_MACHINE_ID } from '@/types/machine.types';
-import type { Channel } from '@/types/channel.types';
-import { notifyPermissionRequest, notifyStreamComplete } from '@/utils/notifications';
-import { calculateDropdownPosition } from './sidebarHelpers';
 import { SidebarChannelItem } from './SidebarChannelItem';
 import type { MachineBadge } from './SidebarChatItem';
+import type { MachineChannel } from './sidebarGrouping';
+import type { SidebarChannelActions } from './useSidebarChannelActions';
 import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
 import { SidebarSectionHeader } from './SidebarSectionHeader';
 import styles from './SidebarChannels.module.scss';
@@ -36,7 +26,12 @@ interface SidebarChannelsProps {
   filters: SidebarFilters;
   machineBadge: (machineId: string) => MachineBadge | undefined;
   selectedChannelId: string | null;
-  scrollContainerRef: RefObject<HTMLDivElement | null>;
+  // Channels not nested under a rendered parent chat
+  machineChannels: MachineChannel[];
+  hasNestedChannels: boolean;
+  isLoadingChannels: boolean;
+  load: ListLoadState;
+  channelActions: SidebarChannelActions;
 }
 
 export function SidebarChannels({
@@ -45,22 +40,24 @@ export function SidebarChannels({
   filters,
   machineBadge,
   selectedChannelId,
-  scrollContainerRef,
+  machineChannels,
+  hasNestedChannels,
+  isLoadingChannels,
+  load,
+  channelActions,
 }: SidebarChannelsProps) {
   const workspaceId = workspaces.some((workspace) => workspace.id === selectedWorkspaceId)
     ? selectedWorkspaceId
     : undefined;
-  const navigate = useNavigate();
-  const isMobile = useIsMobile();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const {
-    machineChannels,
-    isLoading: isLoadingChannels,
-    load,
-  } = useMachinesChannels(isAuthenticated);
   const modelMaps = useMachinesModelMaps(isAuthenticated);
   const liveActivity = useChannelStore((state) => state.activity);
-  const completedChannelIds = useChannelStore((state) => state.completedChannelIds);
+  const {
+    completedChannelIds,
+    openMenuChannelId,
+    handleChannelSelect,
+    handleChannelDropdownClick,
+  } = channelActions;
   const filteredChannels = machineChannels.filter(({ channel, machineId }) => {
     if (filters.workspaceId && channel.workspace_id !== filters.workspaceId) return false;
     if (
@@ -95,80 +92,7 @@ export function SidebarChannels({
   );
   const hiddenCount = isCollapsed ? 0 : channels.length - collapsedChannels.length;
   const visibleChannels = isExpanded && !isCollapsed ? channels : collapsedChannels;
-  const connections = useMachineStore((state) => state.connections);
-  const notifyBackground = useBackgroundNotify();
-  const liveMachineIdsKey = [...new Set(machineChannels.map(({ machineId }) => machineId))]
-    .filter((id) => id === LOCAL_MACHINE_ID || connections[id]?.status === 'online')
-    .join('\n');
-
-  useEffect(() => {
-    if (selectedChannelId && completedChannelIds.has(selectedChannelId)) {
-      useChannelStore.getState().clearCompleted(selectedChannelId);
-    }
-  }, [selectedChannelId, completedChannelIds]);
-
-  useEffect(
-    () =>
-      streamService.onChannelNotice((notice) =>
-        notifyBackground(
-          `/channels/${notice.channelId}`,
-          notice.kind === 'channel_permission_request'
-            ? permissionNotifyEvent(notice.payload.request.tool_name)
-            : notice.kind === 'channel_asked'
-              ? 'notify_questions'
-              : 'notify_completions',
-          (options) =>
-            notice.kind === 'channel_permission_request'
-              ? notifyPermissionRequest(notice.payload.request, options)
-              : notifyStreamComplete({
-                  ...options,
-                  title: notice.payload.title,
-                  message: notice.payload.body,
-                }),
-        ),
-      ),
-    [notifyBackground],
-  );
-
-  useEffect(() => {
-    if (!liveMachineIdsKey) return;
-    const releases = liveMachineIdsKey
-      .split('\n')
-      .map((machineId) => streamConnection.retain(getMachineClient(machineId)));
-    return () => releases.forEach((release) => release());
-  }, [liveMachineIdsKey]);
-
   const [createOpen, setCreateOpen] = useState(false);
-  const openMenuChannelId = useUIStore((state) =>
-    state.channelMenu?.source === 'sidebar' ? state.channelMenu.channel.id : null,
-  );
-
-  // The menu is fixed-positioned, so it would float at a stale spot once the list scrolls
-  useMountEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    if (!scrollContainer) return;
-    const handleScroll = () => {
-      const ui = useUIStore.getState();
-      if (ui.channelMenu?.source === 'sidebar') ui.setChannelMenu(null);
-    };
-    scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-    return () => scrollContainer.removeEventListener('scroll', handleScroll);
-  });
-
-  const navigateToChannel = (channelId: string) => {
-    navigate(`/channels/${channelId}`);
-    if (isMobile) useUIStore.getState().setSidebarOpen(false);
-  };
-
-  const handleDropdownClick = (e: React.MouseEvent<HTMLButtonElement>, channel: Channel) => {
-    e.stopPropagation();
-    const rect = e.currentTarget.getBoundingClientRect();
-    useUIStore.getState().toggleChannelMenu({
-      channel,
-      position: calculateDropdownPosition(rect),
-      source: 'sidebar',
-    });
-  };
 
   return (
     <div className={styles.channels}>
@@ -190,8 +114,8 @@ export function SidebarChannels({
           isActive={channel.id === selectedChannelId}
           isCompleted={completedChannelIds.has(channel.id)}
           isDropdownOpen={openMenuChannelId === channel.id}
-          onSelect={navigateToChannel}
-          onDropdownClick={handleDropdownClick}
+          onSelect={handleChannelSelect}
+          onDropdownClick={handleChannelDropdownClick}
         />
       ))}
       {hiddenCount > 0 && (
@@ -205,12 +129,14 @@ export function SidebarChannels({
           {isExpanded ? 'Show less' : `Show ${hiddenCount} more`}
         </Button>
       )}
-      {!isCollapsed && machineChannels.length === 0 && load.loadFailed ? (
+      {!isCollapsed && machineChannels.length === 0 && !hasNestedChannels && load.loadFailed ? (
         <LoadErrorState variant="inline" message="Couldn't load channels" load={load} />
       ) : (
         !isCollapsed &&
         !isLoadingChannels &&
-        channels.length === 0 && (
+        channels.length === 0 &&
+        // No empty copy when every channel is nested under its parent chat
+        (machineChannels.length > 0 || !hasNestedChannels) && (
           <p className={styles.empty}>
             {machineChannels.length > 0
               ? 'No channels match the current filters'
@@ -223,7 +149,7 @@ export function SidebarChannels({
         <CreateChannelDialog
           defaultWorkspaceId={workspaceId ?? workspaces[0]?.id ?? null}
           onClose={() => setCreateOpen(false)}
-          onCreated={navigateToChannel}
+          onCreated={handleChannelSelect}
         />
       )}
     </div>

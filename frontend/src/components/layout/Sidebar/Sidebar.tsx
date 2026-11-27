@@ -4,6 +4,7 @@ import clsx from 'clsx';
 import { resolveChatAgentKind, type Chat } from '@/types/chat.types';
 import type { Workspace } from '@/types/workspace.types';
 import { useShowMoreUntilMatch, useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
+import { useMachinesChannels } from '@/hooks/queries/useChannelQueries';
 import { useUIStore } from '@/store/uiStore';
 import { useModelStore } from '@/store/modelStore';
 import { useMachinesModelMaps } from '@/hooks/queries/useModelQueries';
@@ -21,7 +22,12 @@ import { SidebarChannels } from './SidebarChannels';
 import { SidebarChatList } from './SidebarChatList';
 import { SidebarOverlays } from './SidebarOverlays';
 import { type ChatRowProps } from './SidebarChatRow';
-import { buildRecentChatSections } from './sidebarGrouping';
+import {
+  buildRecentChatSections,
+  partitionLinkedChannels,
+  renderedSectionChats,
+} from './sidebarGrouping';
+import { useSidebarChannelActions } from './useSidebarChannelActions';
 import { useSidebarChatActions } from './useSidebarChatActions';
 import { useSidebarWorkspaceActions } from './useSidebarWorkspaceActions';
 import { useSidebarActivity } from './useSidebarActivity';
@@ -67,10 +73,6 @@ export function Sidebar({
   // Chats with a pending plan/permission request or agent question form — the
   // agent is blocked on the user.
   const blockedChatIdSet = useBlockedChatIds();
-  const { chatsByKind, childActivityByParentId } = useSidebarActivity(
-    streamingChatIdSet,
-    blockedChatIdSet,
-  );
   const activityView = useUIStore((state) => state.sidebarActivityView);
   const setActivityView = useUIStore((state) => state.setSidebarActivityView);
   // Chats merge from two backends, so filters apply client-side over loaded
@@ -109,9 +111,25 @@ export function Sidebar({
   } = chatLists;
 
   const sidebarChats = useMemo(() => [...pinnedChats, ...recentChats], [pinnedChats, recentChats]);
+  const {
+    machineChannels,
+    isLoading: isLoadingChannels,
+    load: channelsLoad,
+  } = useMachinesChannels(isAuthenticated);
+  const channelActions = useSidebarChannelActions({
+    machineChannels,
+    selectedChannelId,
+    isMobile,
+    navigate,
+    scrollContainerRef,
+  });
+  // A selected linked channel opens its parent's child list, as a selected sub-thread does
+  const selectedChannelParentId = machineChannels.find(
+    ({ channel }) => channel.id === selectedChannelId,
+  )?.channel.parent_chat_id;
   const chatActions = useSidebarChatActions({
     selectedChatId,
-    selectedChatParentId,
+    selectedChatParentId: selectedChatParentId ?? selectedChannelParentId,
     isMobile,
     navigate,
     scrollContainerRef,
@@ -208,6 +226,41 @@ export function Sidebar({
     [machineBadge, chatOrigins],
   );
 
+  const collapsedSections = useUIStore((state) => state.collapsedSidebarSections);
+  const { linkedByParentId, topLevel: topLevelChannels } = useMemo(() => {
+    const openChatIds = { selectedChatId, splitChatIds };
+    const parentRows = [
+      ...renderedSectionChats(
+        visiblePinnedChats,
+        collapsedSections.includes('pinned'),
+        openChatIds,
+      ),
+      ...renderedSectionChats(
+        visibleRecentChats,
+        collapsedSections.includes('recents'),
+        openChatIds,
+      ),
+    ];
+    return partitionLinkedChannels(
+      machineChannels,
+      new Map(parentRows.map((chat) => [chat.id, chatOrigins.get(chat.id) ?? LOCAL_MACHINE_ID])),
+    );
+  }, [
+    visiblePinnedChats,
+    visibleRecentChats,
+    collapsedSections,
+    selectedChatId,
+    splitChatIds,
+    machineChannels,
+    chatOrigins,
+  ]);
+  const { entriesByKind, childActivityByParentId } = useSidebarActivity(
+    streamingChatIdSet,
+    blockedChatIdSet,
+    machineChannels,
+    linkedByParentId,
+  );
+
   const groupBy = filters.groupBy;
   const recentChatSections = useMemo(
     () =>
@@ -254,6 +307,12 @@ export function Sidebar({
     expandedSubThreads: chatActions.expandedSubThreads,
     onToggleSubThreads: chatActions.handleToggleSubThreads,
     childActivityByParentId,
+    linkedChannelsByParentId: linkedByParentId,
+    selectedChannelId,
+    openMenuChannelId: channelActions.openMenuChannelId,
+    completedChannelIds: channelActions.completedChannelIds,
+    onChannelSelect: channelActions.handleChannelSelect,
+    onChannelDropdownClick: channelActions.handleChannelDropdownClick,
   };
 
   return (
@@ -266,8 +325,8 @@ export function Sidebar({
       >
         <SidebarActivityBar
           counts={{
-            running: chatsByKind.running.length,
-            'needs-you': chatsByKind['needs-you'].length,
+            running: entriesByKind.running.length,
+            'needs-you': entriesByKind['needs-you'].length,
           }}
           view={activityView}
           onChangeView={setActivityView}
@@ -279,8 +338,9 @@ export function Sidebar({
           {activityView ? (
             <SidebarActivityList
               view={activityView}
-              chats={chatsByKind[activityView]}
+              entries={entriesByKind[activityView]}
               rowProps={rowProps}
+              machineBadge={machineBadge}
               onClose={() => setActivityView(null)}
             />
           ) : (
@@ -292,7 +352,11 @@ export function Sidebar({
                   filters={filters}
                   machineBadge={machineBadge}
                   selectedChannelId={selectedChannelId}
-                  scrollContainerRef={scrollContainerRef}
+                  machineChannels={topLevelChannels}
+                  hasNestedChannels={linkedByParentId.size > 0}
+                  isLoadingChannels={isLoadingChannels}
+                  load={channelsLoad}
+                  channelActions={channelActions}
                 />
               }
               isLoadingChats={isLoadingChats}
