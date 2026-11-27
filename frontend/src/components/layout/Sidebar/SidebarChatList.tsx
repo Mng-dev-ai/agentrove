@@ -5,7 +5,6 @@ import { clearSidebarFilters, type SidebarFilters } from '@/store/sidebarFilters
 import type { Chat } from '@/types/chat.types';
 import type { WorkspaceBadge } from '@/hooks/queries/useSidebarChatLists';
 import type { ListLoadState } from '@/hooks/queries/listLoad';
-import { useUIStore } from '@/store/uiStore';
 import { SidebarChatRow, type ChatRowProps } from './SidebarChatRow';
 import { SidebarFilterMenu } from './SidebarFilterMenu';
 import { LoadErrorState } from '@/components/ui/shared/LoadErrorState/LoadErrorState';
@@ -22,6 +21,10 @@ interface SidebarChatListProps {
   hasAnyContent: boolean;
   pinnedChats: Chat[];
   recentChats: Chat[];
+  // What each section renders; Sidebar nests linked channels under exactly these rows
+  pinnedRows: Chat[];
+  recentRows: Chat[];
+  isRecentsCollapsed: boolean;
   hasVisibleContent: boolean;
   recentChatSections: SidebarChatSection[];
   rowProps: ChatRowProps;
@@ -45,6 +48,9 @@ export function SidebarChatList({
   hasAnyContent,
   pinnedChats,
   recentChats,
+  pinnedRows,
+  recentRows,
+  isRecentsCollapsed,
   hasVisibleContent,
   recentChatSections,
   rowProps,
@@ -58,12 +64,6 @@ export function SidebarChatList({
   canShowLess,
   onShowLess,
 }: SidebarChatListProps) {
-  const collapsedSections = useUIStore((state) => state.collapsedSidebarSections);
-  const isPinnedCollapsed = collapsedSections.includes('pinned');
-  const isRecentsCollapsed = collapsedSections.includes('recents');
-  // A collapsed section still shows its open chats, so the current selection never disappears
-  const isOpenChat = (chat: Chat) =>
-    chat.id === rowProps.selectedChatId || rowProps.splitChatIds.includes(chat.id);
   return (
     <>
       {channels}
@@ -95,7 +95,7 @@ export function SidebarChatList({
           {pinnedChats.length > 0 && (
             <div className={styles.section}>
               <SidebarSectionHeader title="Pinned" section="pinned" />
-              {(isPinnedCollapsed ? pinnedChats.filter(isOpenChat) : pinnedChats).map((chat) => (
+              {pinnedRows.map((chat) => (
                 <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
               ))}
             </div>
@@ -112,9 +112,9 @@ export function SidebarChatList({
               />
             </SidebarSectionHeader>
             {isRecentsCollapsed ? (
-              recentChats
-                .filter(isOpenChat)
-                .map((chat) => <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />)
+              recentRows.map((chat) => (
+                <SidebarChatRow key={chat.id} chat={chat} rowProps={rowProps} />
+              ))
             ) : recentChats.length === 0 && recentsLoad.loadFailed ? (
               <LoadErrorState variant="inline" message="Couldn't load threads" load={recentsLoad} />
             ) : recentChats.length > 0 ? (

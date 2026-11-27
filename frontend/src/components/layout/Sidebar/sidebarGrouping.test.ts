@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Channel, ChannelMemberActivity } from '@/types/channel.types';
 import type { Chat } from '@/types/chat.types';
-import { buildRecentChatSections } from './sidebarGrouping';
+import {
+  buildRecentChatSections,
+  channelActivityKind,
+  partitionLinkedChannels,
+  type MachineChannel,
+} from './sidebarGrouping';
 
 const NOW = new Date(2026, 6, 12, 12);
 
@@ -25,6 +31,38 @@ function chat(id: string, updatedAt: Date, over: Partial<Chat> = {}): Chat {
     last_persona_name: null,
     ...over,
   };
+}
+
+function memberActivity(over: Partial<ChannelMemberActivity> = {}): ChannelMemberActivity {
+  return {
+    epoch: 'epoch',
+    version: 1,
+    member_ids: [],
+    waiting_member_ids: [],
+    retrying_member_ids: [],
+    ...over,
+  };
+}
+
+function machineChannel(
+  id: string,
+  machineId: string,
+  parentChatId: string | null | undefined,
+): MachineChannel {
+  const channel: Channel = {
+    id,
+    workspace_id: 'workspace',
+    name: id,
+    worktree: false,
+    branch: null,
+    created_at: NOW.toISOString(),
+    updated_at: NOW.toISOString(),
+    members: [],
+    anchor_chat_id: `${id}-anchor`,
+    activity: memberActivity(),
+  };
+  if (parentChatId !== undefined) channel.parent_chat_id = parentChatId;
+  return { channel, machineId };
 }
 
 type GroupingInput = Parameters<typeof buildRecentChatSections>[0];
@@ -139,5 +177,55 @@ describe('buildRecentChatSections status grouping', () => {
 
   it('omits status groups that have no chats', () => {
     expect(group('status', [chat('only', NOW, { unread: true })])).toEqual([['Unread', ['only']]]);
+  });
+});
+
+describe('partitionLinkedChannels', () => {
+  it('nests a channel only under a rendered parent on its own machine', () => {
+    const { linkedByParentId, topLevel } = partitionLinkedChannels(
+      [
+        machineChannel('nested', 'local', 'parent'),
+        machineChannel('other-machine', 'vps', 'parent'),
+        machineChannel('parent-not-rendered', 'local', 'hidden-parent'),
+      ],
+      new Map([['parent', 'local']]),
+    );
+
+    expect(
+      [...linkedByParentId].map(([parentId, linked]) => [
+        parentId,
+        linked.map(({ channel }) => channel.id),
+      ]),
+    ).toEqual([['parent', ['nested']]]);
+    expect(topLevel.map(({ channel }) => channel.id)).toEqual([
+      'other-machine',
+      'parent-not-rendered',
+    ]);
+  });
+
+  it('keeps channels without a parent chat id top-level, absent or null', () => {
+    const { linkedByParentId, topLevel } = partitionLinkedChannels(
+      [
+        machineChannel('older-backend', 'local', undefined),
+        machineChannel('unlinked', 'local', null),
+      ],
+      new Map([['parent', 'local']]),
+    );
+
+    expect(linkedByParentId.size).toBe(0);
+    expect(topLevel.map(({ channel }) => channel.id)).toEqual(['older-backend', 'unlinked']);
+  });
+});
+
+describe('channelActivityKind', () => {
+  it('counts a channel with running and waiting members once, as needs-you', () => {
+    expect(
+      channelActivityKind(memberActivity({ member_ids: ['a'], waiting_member_ids: ['b'] })),
+    ).toBe('needs-you');
+  });
+
+  it('counts running members as running and an idle channel as nothing', () => {
+    expect(channelActivityKind(memberActivity({ member_ids: ['a'] }))).toBe('running');
+    expect(channelActivityKind(memberActivity())).toBeNull();
   });
 });

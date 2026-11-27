@@ -21,10 +21,6 @@
     .subthread-select {
       color: var(--theme-text-primary);
     }
-
-    .title {
-      font-weight: 500;
-    }
   }
 }
 
@@ -99,18 +95,22 @@
   @include type.type-glyph(type.$type-large-size);
 }
 
-.provider-icon {
+.leading-icon {
   @include anim.transition-colors;
-  height: var(--space-3);
-  width: var(--space-3);
+  display: flex;
   color: var(--theme-text-tertiary);
+
+  svg {
+    height: var(--space-3);
+    width: var(--space-3);
+  }
 
   &--muted {
     color: var(--theme-text-quaternary);
   }
 }
 
-// Corner overlay when the dot sits on top of a provider icon
+// Corner overlay when the dot sits on top of the leading icon
 .status-corner {
   position: absolute;
   right: calc(var(--space-0-5) * -1);
@@ -125,6 +125,10 @@
 .title {
   @include type.type-default;
   @include type.type-overflow;
+
+  &--emphasis {
+    font-weight: 500;
+  }
 }
 
 .timestamp {
