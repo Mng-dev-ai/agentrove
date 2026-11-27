@@ -1026,6 +1026,62 @@ class ChatService(BaseDbService[Chat]):
                 cwd=checkpoint.cwd,
             )
 
+    async def send_queued_now(
+        self,
+        chat_id: UUID,
+        message_id: UUID,
+        device_ids: frozenset[UUID],
+        queue_service: QueueService,
+    ) -> None:
+        if ChatStreamRuntime.has_pending_restore(str(chat_id)):
+            raise ChatException(
+                "Cannot send now while a checkpoint is being restored.",
+                error_code=ErrorCode.VALIDATION_ERROR,
+                status_code=409,
+            )
+        found = await queue_service.mark_send_now(
+            str(chat_id), str(message_id), device_ids
+        )
+        if not found:
+            raise ChatException(
+                "Queued message not found",
+                error_code=ErrorCode.MESSAGE_NOT_FOUND,
+                status_code=404,
+            )
+
+        if await ChatStreamRuntime.steer_send_now(str(chat_id)):
+            return
+        if ChatStreamRuntime.has_pending_start(str(chat_id)) or (
+            ChatStreamRuntime.has_active_chat(str(chat_id))
+            and not ChatStreamRuntime.has_completed_turn(str(chat_id))
+        ):
+            # Cancel so send-now is picked up without waiting for the current turn —
+            # a reserved start consumes the flag at bootstrap and interrupts the same way.
+            await session_registry.cancel_generation(str(chat_id))
+        else:
+            try:
+                started = await ChatStreamRuntime.process_queue_after_turn(
+                    str(chat_id), self.session_factory
+                )
+            except asyncio.CancelledError:
+                raise
+            except Exception as e:
+                logger.error(
+                    "Failed to start idle send-now for chat %s: %s", chat_id, e
+                )
+                raise ChatException(
+                    "Failed to start send-now execution",
+                    error_code=ErrorCode.UNKNOWN_ERROR,
+                    status_code=503,
+                ) from e
+
+            if not started and ChatStreamRuntime.has_pending_restore(str(chat_id)):
+                raise ChatException(
+                    "Cannot send now while a checkpoint is being restored.",
+                    error_code=ErrorCode.VALIDATION_ERROR,
+                    status_code=409,
+                )
+
     async def _get_checkpoint_target(
         self,
         message_id: UUID,
