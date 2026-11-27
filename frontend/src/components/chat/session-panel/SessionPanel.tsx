@@ -6,6 +6,7 @@ import {
   ExternalLink,
   Folder,
   GitBranch,
+  Hash,
   Monitor,
   Pencil,
   Plus,
@@ -27,6 +28,7 @@ import { FloatingTooltip } from '@/components/ui/FloatingTooltip/FloatingTooltip
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
+import { useChannelRowStatus } from '@/components/layout/Sidebar/useChannelRowStatus';
 import { CONTEXT_WINDOW_TOKENS } from '@/config/constants';
 import {
   useChatQuery,
@@ -36,6 +38,7 @@ import {
 } from '@/hooks/queries/useChatQueries';
 import {
   useAddChannelMemberMutation,
+  useMachinesChannels,
   useRemoveChannelMemberMutation,
   useUpdateChannelMemberMutation,
 } from '@/hooks/queries/useChannelQueries';
@@ -50,7 +53,7 @@ import { useBranchPullRequests } from '@/hooks/queries/useGitHubQueries';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useChatAgentKind } from '@/hooks/useChatAgentKind';
 import { useChatSessionState } from '@/hooks/useChatSessionContext';
-import { useChannelActivity } from '@/store/channelStore';
+import { useChannelActivity, useChannelStore } from '@/store/channelStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
 import { resolveAgentKind, supportsUsageUpdates, type Chat } from '@/types/chat.types';
@@ -632,6 +635,45 @@ function SubThreadRow({
   );
 }
 
+function LinkedChannelRow({
+  channel,
+  isCompleted,
+  onSelect,
+}: {
+  channel: Channel;
+  isCompleted: boolean;
+  onSelect: (channelId: string) => void;
+}) {
+  const { status } = useChannelRowStatus(channel, false, isCompleted);
+  return (
+    <div className={styles['thread-row']}>
+      <Button
+        variant="unstyled"
+        type="button"
+        className={styles['thread-link']}
+        onClick={() => onSelect(channel.id)}
+      >
+        <span className={styles['row-icon']}>
+          {status === 'running' ? (
+            <AsciiSpinner className={styles.spinner} />
+          ) : (
+            <Hash className={styles.glyph} />
+          )}
+          {status && status !== 'running' && (
+            <ChatStatusDot
+              tone={status}
+              className={styles['status-corner']}
+              ringClassName={styles['status-ring']}
+            />
+          )}
+        </span>
+        <span className={styles['row-text']}>{channel.name}</span>
+      </Button>
+      <span className={styles.timestamp}>{getRelativeTime(channel.updated_at)}</span>
+    </div>
+  );
+}
+
 function ParentThreadCard({ parentChatId }: { parentChatId: string }) {
   const navigate = useNavigate();
   const { data: parent } = useChatQuery(parentChatId);
@@ -665,10 +707,16 @@ function SubThreadsCard({
 }) {
   const navigate = useNavigate();
   const { data: subThreads } = useSubThreadsQuery(chatId);
+  const machineId = useChatMachineId(chatId);
+  const { machineChannels } = useMachinesChannels(true);
+  const linkedChannels = machineChannels.filter(
+    (entry) => entry.machineId === machineId && entry.channel.parent_chat_id === chatId,
+  );
+  const completedChannelIds = useChannelStore((state) => state.completedChannelIds);
   const [expanded, setExpanded] = useState(false);
   return (
     <Card
-      title="Sub-threads"
+      title="Sub-threads & channels"
       action={
         <FloatingTooltip content="New sub-thread">
           <Button
@@ -685,6 +733,14 @@ function SubThreadsCard({
         </FloatingTooltip>
       }
     >
+      {linkedChannels.map(({ channel }) => (
+        <LinkedChannelRow
+          key={channel.id}
+          channel={channel}
+          isCompleted={completedChannelIds.has(channel.id)}
+          onSelect={(id) => navigate(`/channels/${id}`)}
+        />
+      ))}
       {subThreads && subThreads.length > 0 ? (
         <>
           {(expanded ? subThreads : subThreads.slice(0, 10)).map((thread) => (
@@ -712,7 +768,9 @@ function SubThreadsCard({
           )}
         </>
       ) : (
-        <p className={styles.empty}>No sub-threads yet</p>
+        linkedChannels.length === 0 && (
+          <p className={styles.empty}>No sub-threads or channels yet</p>
+        )
       )}
     </Card>
   );
