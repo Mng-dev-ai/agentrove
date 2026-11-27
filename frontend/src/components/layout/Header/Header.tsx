@@ -1,4 +1,3 @@
-import { ArrowLeft } from 'lucide-react';
 import { useNavigate, useMatch } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/uiStore';
@@ -65,20 +64,6 @@ export function Header({ isAuthPage = false }: HeaderProps) {
     <header className={styles.header}>
       {/* pt carries the iOS top inset here too — TitleBar (which normally owns it) is null on these pages */}
       <div className={styles.row}>
-        <div className={styles.left}>
-          {isAuthPage && (
-            <Button
-              onClick={() => navigate('/')}
-              variant="unstyled"
-              className={styles['back-button']}
-              aria-label="Back to home"
-            >
-              <ArrowLeft className={styles.icon} />
-              <span>Home</span>
-            </Button>
-          )}
-        </div>
-
         <div className={styles.right}>
           <ThemeToggleButton theme={theme} onToggle={() => useUIStore.getState().toggleTheme()} />
           {!isAuthPage && !isAuthenticated && (

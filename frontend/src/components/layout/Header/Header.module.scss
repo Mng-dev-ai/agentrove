@@ -18,13 +18,7 @@
   display: flex;
   height: var(--space-10);
   align-items: center;
-  justify-content: space-between;
-}
-
-.left {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
+  justify-content: flex-end;
 }
 
 .right {
@@ -54,22 +48,6 @@
   :global([data-theme='dark']) & {
     color: var(--theme-text-quaternary);
   }
-
-  @include responsive.hover {
-    background-color: var(--theme-surface-hover);
-    color: var(--theme-text-primary);
-  }
-}
-
-.back-button {
-  @include type.type-default;
-  @include anim.transition-colors;
-  display: flex;
-  align-items: center;
-  gap: var(--space-1-5);
-  border-radius: var(--radius-lg);
-  padding: var(--space-1-5) var(--space-2);
-  color: var(--theme-text-tertiary);
 
   @include responsive.hover {
     background-color: var(--theme-surface-hover);
