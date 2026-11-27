@@ -16,7 +16,7 @@ export function AuthRoute({ isAuthenticated, requireAuth, showLoading, children 
   }
 
   if (requireAuth && !isAuthenticated) {
-    return <Navigate to="/login" />;
+    return <Navigate to="/login" replace />;
   }
 
   if (!requireAuth && isAuthenticated) {

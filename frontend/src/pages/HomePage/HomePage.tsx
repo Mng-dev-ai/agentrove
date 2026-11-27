@@ -10,25 +10,12 @@ import { useChatQuery } from '@/hooks/queries/useChatQueries';
 import { useChannelQuery, useMachinesChannels } from '@/hooks/queries/useChannelQueries';
 import { useSidebarChatLists } from '@/hooks/queries/useSidebarChatLists';
 import { useWorkspacesList } from '@/hooks/queries/useWorkspaceQueries';
-import { useAuthStore } from '@/store/authStore';
 import { useNewThreadStore } from '@/store/newThreadStore';
 import { useUIStore } from '@/store/uiStore';
 import { resolveRootTarget } from './rootTarget';
 import styles from './HomePage.module.scss';
 
-function EmptyThreads({ action }: { action: { label: string; onClick: () => void } }) {
-  return (
-    <div className={styles.empty}>
-      <h1 className={styles.title}>No threads yet</h1>
-      <p className={styles.text}>
-        Start a thread with one agent, or pick several to work on it together.
-      </p>
-      <Button onClick={action.onClick}>{action.label}</Button>
-    </div>
-  );
-}
-
-function ThreadHome() {
+export function HomePage() {
   const navigate = useNavigate();
   useCommandMenu();
   const workspaces = useWorkspacesList();
@@ -70,20 +57,17 @@ function ThreadHome() {
   return (
     <>
       {target.kind === 'empty' && (
-        <EmptyThreads
-          action={{ label: 'New thread', onClick: () => useNewThreadStore.getState().open() }}
-        />
+        <div className={styles.empty}>
+          <h1 className={styles.title}>No threads yet</h1>
+          <p className={styles.text}>
+            Start a thread with one agent, or pick several to work on it together.
+          </p>
+          <Button onClick={() => useNewThreadStore.getState().open()}>New thread</Button>
+        </div>
       )}
       <ChatProvider>
         <CommandMenu />
       </ChatProvider>
     </>
   );
-}
-
-export function HomePage() {
-  const navigate = useNavigate();
-  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  if (isAuthenticated) return <ThreadHome />;
-  return <EmptyThreads action={{ label: 'Get started', onClick: () => navigate('/signup') }} />;
 }

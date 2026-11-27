@@ -41,7 +41,7 @@ test.afterEach(() => {
 
 test('production desktop bundle loads chat, editor and diff view', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Log in' }).click();
+  await page.waitForURL('/login');
   await page.getByLabel('Email address').fill(ADMIN_EMAIL);
   await page.getByLabel('Password').fill(ADMIN_PASSWORD);
   await page.getByRole('button', { name: 'Sign in' }).click();

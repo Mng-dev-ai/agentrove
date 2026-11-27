@@ -6,7 +6,6 @@ import { lazyNamed } from '@/utils/lazyNamed';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useDesktopZoom } from '@/hooks/useDesktopZoom';
 import { useAppBadge } from '@/hooks/useAppBadge';
-import { Layout } from '@/components/layout/Layout/Layout';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useOnlineRemoteMachineIds } from '@/store/machineStore';
@@ -146,13 +145,13 @@ function AppContent() {
         <Route
           path="/"
           element={
-            showLoading ? (
-              <LoadingScreen />
-            ) : (
-              <Layout>
-                <HomePage />
-              </Layout>
-            )
+            <AuthRoute
+              isAuthenticated={isSessionAuthenticated}
+              requireAuth={true}
+              showLoading={showLoading}
+            >
+              <HomePage />
+            </AuthRoute>
           }
         />
         <Route
