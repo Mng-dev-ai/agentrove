@@ -466,7 +466,7 @@ export function ThreadSettings({
   else body = entries;
 
   return (
-    <div ref={dropdownRef} className={styles.picker}>
+    <div ref={dropdownRef} className={styles[`picker--${variant}`]}>
       <Button
         type="button"
         variant="unstyled"
@@ -497,6 +497,7 @@ export function ThreadSettings({
             styles.panel,
             fit?.side === 'top' && styles['panel--top'],
             isGroup && !isMobile && styles['panel--split'],
+            variant === 'field' && styles['panel--field'],
           )}
         >
           {body}

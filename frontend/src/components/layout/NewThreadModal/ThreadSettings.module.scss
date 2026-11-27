@@ -7,8 +7,13 @@
 
 // Desktop anchors the panel to this pill; phones scroll the pill row, so there the
 // composer footer is the anchor (see NewThreadModal's .pills)
-.picker {
+.picker--pill {
   position: relative;
+  min-width: 0;
+}
+
+// A form field's panel anchors to the caller's positioned field row, so it can span it
+.picker--field {
   min-width: 0;
 }
 
@@ -74,6 +79,16 @@
     left: var(--space-2);
     right: var(--space-2);
     width: auto;
+  }
+
+  &--field {
+    left: auto;
+    right: 0;
+
+    @include responsive.media('sm-down') {
+      left: 0;
+      right: 0;
+    }
   }
 }
 
