@@ -53,7 +53,12 @@ import { useChatSessionState } from '@/hooks/useChatSessionContext';
 import { useChannelActivity } from '@/store/channelStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
-import { resolveAgentKind, supportsUsageUpdates, type Chat } from '@/types/chat.types';
+import {
+  resolveAgentKind,
+  supportsUsageUpdates,
+  type Chat,
+  type RateLimits,
+} from '@/types/chat.types';
 import type { Channel, ChannelMember, ChannelMemberCreateRequest } from '@/types/channel.types';
 import type { DiffMode, GitDiffStatsData, GitDiffTotals } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -444,13 +449,36 @@ function ContextCard({ chat }: { chat: Chat }) {
   );
 }
 
-function UsageCard({ chat }: { chat: Chat }) {
+function ChatUsageCard({ chat }: { chat: Chat }) {
   const agentKind = useChatAgentKind(chat.id, chat.session_agent_kind, chat.last_model_id);
   const { data } = useRateLimitsQuery(agentKind === 'claude' ? chat.id : undefined);
   if (!data || agentKind !== 'claude') return null;
-  const rows = getRateLimitRows(data, new Date());
+  return <UsageCard rateLimits={data} />;
+}
+
+function ChannelUsageCard({ channel, chat }: { channel: Channel; chat: Chat }) {
+  const modelMap = useModelMap({ machineId: useChatMachineId(chat.id) });
+  const activeMemberIds = useChannelActivity(channel).member_ids;
+  const claudeMembers = channel.members.filter(
+    (member) => resolveAgentKind(modelMap, member.model_id) === 'claude',
+  );
+  const activeClaudeIds = claudeMembers
+    .filter((member) => activeMemberIds.includes(member.id))
+    .map((member) => member.id)
+    .join(',');
+  const { data, refetch } = useRateLimitsQuery(claudeMembers[0]?.chat_id);
+  // A member turn's limits reach the channel page only through this refetch.
+  useEffect(() => {
+    if (claudeMembers.length > 0) void refetch({ cancelRefetch: false });
+  }, [activeClaudeIds, claudeMembers.length, refetch]);
+  if (!data || claudeMembers.length === 0) return null;
+  return <UsageCard rateLimits={data} />;
+}
+
+function UsageCard({ rateLimits }: { rateLimits: RateLimits }) {
+  const rows = getRateLimitRows(rateLimits, new Date());
   if (rows.length === 0) return null;
-  const action = getRateLimitAction(data, rows);
+  const action = getRateLimitAction(rateLimits, rows);
   return (
     <Card
       title="Usage"
@@ -837,11 +865,14 @@ export const SessionPanel = memo(function SessionPanel({
         {!channel && <ModelRow chat={chat} />}
       </EnvironmentCard>
       {channel ? (
-        <MembersCard channel={channel} />
+        <>
+          <MembersCard channel={channel} />
+          <ChannelUsageCard channel={channel} chat={chat} />
+        </>
       ) : (
         <>
           <ContextCard chat={chat} />
-          <UsageCard chat={chat} />
+          <ChatUsageCard chat={chat} />
           {chat.parent_chat_id ? (
             <ParentThreadCard parentChatId={chat.parent_chat_id} />
           ) : (
