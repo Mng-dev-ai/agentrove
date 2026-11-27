@@ -52,6 +52,7 @@ from app.services.acp.adapters import (
 )
 from app.services.automation import AutomationService
 from app.services.chat import ChatService
+from app.services.chat_events import ChatEventPublisher
 from app.services import subthread_wake as wake_module
 from app.services import session_registry as session_registry_module
 from app.services.session_registry import session_registry
@@ -4498,7 +4499,7 @@ async def test_fork_first_turn_ahead_of_the_creation_copy_forks_once(
     headers, workspace = auth_workspace
     source = await create_chat(client, headers, workspace, model_id="sonnet")
     await run_chat_turn(client, headers, source["id"], "source turn")
-    publish = ChatService.publish_user_chat_event
+    publish = ChatEventPublisher.publish
     message_ids: list[str] = []
 
     async def send_first_turn_on_announce(
@@ -4517,9 +4518,7 @@ async def test_fork_first_turn_ahead_of_the_creation_copy_forks_once(
                 await asyncio.sleep(0.01)
 
     monkeypatch.setattr(
-        ChatService,
-        "publish_user_chat_event",
-        staticmethod(send_first_turn_on_announce),
+        ChatEventPublisher, "publish", staticmethod(send_first_turn_on_announce)
     )
     fork = (await fork_chat(client, headers, source["id"])).json()
     [message_id] = message_ids

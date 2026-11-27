@@ -46,6 +46,7 @@ from app.services.acp.adapters import (
     AgentAdapter,
 )
 from app.services.agent import AgentService
+from app.services.chat_events import ChatEventPublisher
 from app.services.db import BaseDbService, SessionFactoryType
 from app.services.exceptions import ChatException, ErrorCode
 from app.services.fork import ForkService
@@ -67,7 +68,7 @@ from app.services.streaming.types import (
 )
 from app.services.subthread_wake import subthread_wake
 from app.services.user import UserService
-from app.utils.cache import CacheError, CachePubSub, cache_connection, cache_pubsub
+from app.utils.cache import CachePubSub, cache_connection, cache_pubsub
 
 logger = logging.getLogger(__name__)
 
@@ -493,7 +494,7 @@ class ChatService(BaseDbService[Chat]):
         loaded_chat: Chat = result.scalar_one()
         # Announce so open browser sessions can show chats created out-of-band
         # (e.g. via the MCP server) without a refresh.
-        await self.publish_user_chat_event(
+        await ChatEventPublisher.publish(
             loaded_chat.user_id,
             {
                 "kind": "chat_created",
@@ -501,55 +502,6 @@ class ChatService(BaseDbService[Chat]):
             },
         )
         return loaded_chat
-
-    @staticmethod
-    async def publish_user_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
-        # Best-effort broadcast on the user's live channel — a missed event only
-        # delays the sidebar/tab update until the next normal refetch.
-        try:
-            async with cache_connection() as cache:
-                await cache.publish(
-                    REDIS_KEY_USER_CHATS_LIVE.format(user_id=user_id),
-                    json.dumps(payload),
-                )
-        except CacheError:
-            logger.warning("Failed to publish %s user chat event", payload.get("kind"))
-
-    @classmethod
-    async def publish_stream_started(
-        cls,
-        user_id: UUID,
-        user_message: Message,
-        assistant_message: Message,
-        checkpoint_id: UUID | None,
-        *,
-        content: str,
-        app_notice: bool,
-        attachments: list[dict[str, Any]] | None,
-        model_id: str,
-        thinking_mode: str | None,
-        permission_mode: str,
-        selected_persona_name: str,
-        parent_chat_id: UUID | None,
-    ) -> None:
-        await cls.publish_user_chat_event(
-            user_id,
-            {
-                "kind": "stream_started",
-                "chat_id": str(user_message.chat_id),
-                "parent_chat_id": str(parent_chat_id) if parent_chat_id else None,
-                "message_id": str(assistant_message.id),
-                "user_message_id": str(user_message.id),
-                "content": content,
-                "app_notice": app_notice,
-                "attachments": attachments,
-                "model_id": model_id,
-                "thinking_mode": thinking_mode,
-                "permission_mode": permission_mode,
-                "selected_persona_name": selected_persona_name,
-                "checkpoint_id": str(checkpoint_id) if checkpoint_id else None,
-            },
-        )
 
     async def get_sub_threads(self, chat_id: UUID, user: User) -> list[Chat]:
         # sub_thread_count defaults to 0 (nesting is one level only).
@@ -1467,7 +1419,7 @@ class ChatService(BaseDbService[Chat]):
         else:
             # Lets open sessions mark this chat "running" even when the turn was
             # started out-of-band (e.g. via the MCP server) with no client stream.
-            await self.publish_stream_started(
+            await ChatEventPublisher.publish_stream_started(
                 current_user.id,
                 user_message,
                 assistant_message,

@@ -1,12 +1,23 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useChannelStore } from './channelStore';
+import channelEnvelopes from '@/test/channelEnvelopes.json';
+import {
+  CHANNEL_ACTIVITY_NOTICES,
+  CHANNEL_ELICITATION_KEYS,
+  CHANNEL_NOTICE_KEYS,
+  CHANNEL_PAYLOAD_KEYS,
+  ELICITATION_REQUEST_KEYS,
+  TOOL_PERMISSION_REQUEST_KEYS,
+} from '@/test/fixtures';
 import type {
+  ChannelEnvelope,
   ChannelMemberActivity,
   ChannelMessage,
   ChannelPermissionRequest,
 } from '@/types/channel.types';
 
 const CH = 'ch1';
+const FIXTURE_ENVELOPES = channelEnvelopes as ChannelEnvelope[];
 
 const message = (id: string, seq: number, version: number, content = id): ChannelMessage => ({
   id,
@@ -165,5 +176,67 @@ describe('channel activity', () => {
 
     store().syncActivity(CH, activity('e2', 1, ['m2']));
     expect(store().activity[CH].member_ids).toEqual(['m2']);
+  });
+});
+
+describe('backend channel envelope fixture', () => {
+  it('has an entry for exactly the kinds in the ChannelEnvelope union', () => {
+    expect([...new Set(FIXTURE_ENVELOPES.map((entry) => entry.kind))].sort()).toEqual(
+      Object.keys(CHANNEL_PAYLOAD_KEYS).sort(),
+    );
+  });
+
+  it.each(FIXTURE_ENVELOPES)('carries exactly the payload keys of a $kind envelope', (entry) => {
+    expect(Object.keys(entry)).toEqual(['channelId', 'kind', 'payload']);
+    const keys = Object.keys(entry.payload);
+    const notices = keys.filter((key) => key in CHANNEL_ACTIVITY_NOTICES);
+    expect(keys.filter((key) => !notices.includes(key))).toEqual(
+      Object.keys(CHANNEL_PAYLOAD_KEYS[entry.kind]),
+    );
+    if (entry.kind === 'channel_permission_request') {
+      expect(Object.keys(entry.payload.request)).toEqual(Object.keys(TOOL_PERMISSION_REQUEST_KEYS));
+    }
+    if (entry.kind !== 'channel_member_activity') {
+      expect(notices).toEqual([]);
+      return;
+    }
+    for (const elicitation of entry.payload.elicitations ?? []) {
+      expect(Object.keys(elicitation)).toEqual(Object.keys(CHANNEL_ELICITATION_KEYS));
+      const { request } = elicitation;
+      expect(Object.keys(request).filter((key) => key in ELICITATION_REQUEST_KEYS)).toEqual(
+        Object.keys(ELICITATION_REQUEST_KEYS),
+      );
+    }
+    expect(notices.length).toBeLessThanOrEqual(1);
+    for (const notice of notices) {
+      expect(keys[keys.length - 1]).toBe(notice);
+      expect(Object.keys(entry.payload[notice as 'asked' | 'completed']!)).toEqual(
+        Object.keys(CHANNEL_NOTICE_KEYS),
+      );
+    }
+  });
+
+  it('applies every store-bound fixture envelope to the held channel', () => {
+    const channelId = FIXTURE_ENVELOPES[0].channelId;
+    store().holdChannel(channelId);
+    for (const entry of FIXTURE_ENVELOPES) {
+      if (entry.kind === 'channel_queue_sent') continue;
+      store().applyEnvelope(entry);
+      const held = store().channels[channelId];
+      switch (entry.kind) {
+        case 'channel_message':
+          expect(held.messages[entry.payload.message.id]).toEqual(entry.payload.message);
+          break;
+        case 'channel_permission_request':
+          expect(held.permissions).toEqual([entry.payload]);
+          break;
+        case 'channel_permission_resolved':
+          expect(held.permissions).toEqual([]);
+          break;
+        case 'channel_member_activity':
+          expect(store().activity[channelId]).toBe(entry.payload);
+          break;
+      }
+    }
   });
 });

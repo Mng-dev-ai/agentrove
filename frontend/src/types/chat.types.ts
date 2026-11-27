@@ -123,6 +123,8 @@ export interface Chat {
 }
 
 // /chat/chats/events SSE — useChatEvents (local) / useRemoteMachineSync (remote machines).
+// Mirrors ChatEvent in backend/app/services/chat_events.py;
+// frontend/src/test/chatEvents.json holds both sides to the same shapes.
 export type ChatEvent =
   | { kind: 'chat_created'; chat: Chat }
   | {

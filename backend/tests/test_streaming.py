@@ -31,7 +31,7 @@ from app.services.exceptions import ChatException
 from app.services.git import GitService
 from app.services.sandbox import SandboxService
 from app.services.session_registry import session_registry
-from app.services.chat import ChatService
+from app.services.chat_events import ChatEventPublisher
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.sandbox_providers.host_provider import LocalHostProvider
 from app.services.sandbox_providers.types import CommandResult
@@ -1113,9 +1113,7 @@ async def test_message_queued_after_the_turns_queue_check_runs_after_the_turn(
     async def record_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
         chat_events.append(payload)
 
-    monkeypatch.setattr(
-        ChatService, "publish_user_chat_event", staticmethod(record_chat_event)
-    )
+    monkeypatch.setattr(ChatEventPublisher, "publish", staticmethod(record_chat_event))
 
     await send_message(client, headers, chat, prompt="First prompt")
     await asyncio.wait_for(queue_checked.wait(), timeout=5)

@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 from uuid import UUID
 
 from fastapi import (
@@ -18,10 +17,12 @@ from app.core.security import get_current_user
 from app.models.db_models.user import User
 from app.models.schemas.channel import (
     ChannelCreate,
+    ChannelMemberActivity,
     ChannelMemberCreate,
     ChannelMemberUpdate,
     ChannelUpdate,
     ChannelMessageRead,
+    ChannelPermissionRequest,
     ChannelRead,
 )
 from app.models.schemas.chat import Message as MessageSchema
@@ -287,17 +288,17 @@ async def remove_channel_member(
     return channel_service.read(await channel_service.remove_member(channel, member_id))
 
 
-@router.get("/{channel_id}/permissions")
+@router.get("/{channel_id}/permissions", response_model=list[ChannelPermissionRequest])
 async def pending_permissions(
     channel_id: UUID, user: User = Depends(get_current_user)
-) -> list[dict[str, Any]]:
+) -> list[ChannelPermissionRequest]:
     channel = await channel_service.get(channel_id, user)
     return list(channel_engine.state(channel).permissions.values())
 
 
-@router.get("/{channel_id}/member-activity")
+@router.get("/{channel_id}/member-activity", response_model=ChannelMemberActivity)
 async def member_activity(
     channel_id: UUID, user: User = Depends(get_current_user)
-) -> dict[str, Any]:
+) -> ChannelMemberActivity:
     channel = await channel_service.get(channel_id, user)
     return channel_engine.state(channel).member_activity()

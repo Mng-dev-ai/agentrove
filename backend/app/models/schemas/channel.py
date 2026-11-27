@@ -1,10 +1,17 @@
 import re
 from datetime import datetime
-from typing import Any, Literal, get_args
+from typing import Any, Literal, TypedDict, get_args
 from uuid import UUID
 
 from fastapi import HTTPException
-from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    computed_field,
+    field_validator,
+    with_config,
+)
 
 from app.catalog import MODELS
 from app.models.schemas.chat import MessageAttachment
@@ -87,12 +94,45 @@ class ChannelMemberRead(BaseModel):
     display_name: str
 
 
-class ChannelMemberActivity(BaseModel):
+class ToolPermissionRequest(TypedDict):
+    request_id: str
+    tool_name: str
+    tool_input: dict[str, Any]
+    options: list[dict[str, Any]]
+
+
+class ChannelPermissionRequest(TypedDict):
+    member_id: str
+    chat_id: str
+    request: ToolPermissionRequest
+
+
+class ElicitationData(TypedDict):
+    message: str
+    tool_call_id: str | None
+    requested_schema: dict[str, Any]
+
+
+@with_config(ConfigDict(extra="allow"))
+class ElicitationRequest(TypedDict):
+    request_id: str
+    message: str
+    tool_call_id: str | None
+    requested_schema: dict[str, Any]
+
+
+class ChannelElicitationRequest(TypedDict):
+    member_id: str
+    chat_id: str
+    request: ElicitationRequest
+
+
+class ChannelMemberActivity(TypedDict):
     epoch: str
     version: int
     member_ids: list[str]
     waiting_member_ids: list[str]
-    elicitations: list[dict[str, Any]]
+    elicitations: list[ChannelElicitationRequest]
     retrying_member_ids: list[str]
     member_errors: dict[str, str]
     unavailable_members: dict[str, str]

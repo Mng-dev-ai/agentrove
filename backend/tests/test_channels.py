@@ -1,4 +1,5 @@
 import asyncio
+import json
 from collections.abc import AsyncIterator, Awaitable, Callable, Coroutine
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -43,12 +44,14 @@ from app.services.channels.state import ChannelState, MemberTurn, TurnStatus
 from app.services.channels.service import channel_service
 from app.services.channels.engine import MAX_ATTEMPTS, ChannelEngine, channel_engine
 from app.services.chat import ChatService
+from app.services.chat_events import ChatEventPublisher
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChannelMemberTurn, EventSink
 from app.services.subthread_wake import SubThreadWake
 
 from tests.conftest import LoginClient, UserFactory
+from tests.test_chat_events import CHAT_EVENTS
 from tests.helpers import (
     RACE_WINDOW_SECONDS,
     FakeProviderFactory,
@@ -2794,27 +2797,28 @@ async def test_creating_a_channel_announces_it_on_the_owners_chat_feed(
     async def record_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
         chat_events.append((user_id, payload))
 
-    monkeypatch.setattr(
-        ChatService, "publish_user_chat_event", staticmethod(record_chat_event)
-    )
+    monkeypatch.setattr(ChatEventPublisher, "publish", staticmethod(record_chat_event))
 
-    created = await client.post(
-        "/api/v1/channels",
-        json=channel_data | {"parent_chat_id": str(parent.id)},
-        headers=headers,
-    )
-
-    assert created.status_code == 201, created.text
-    assert chat_events == [
-        (
-            user.id,
-            {
-                "kind": "channel_created",
-                "channel_id": created.json()["id"],
-                "parent_chat_id": str(parent.id),
-            },
+    expected = []
+    for entry in CHAT_EVENTS:
+        if entry["kind"] != "channel_created":
+            continue
+        parent_chat_id = entry["parent_chat_id"] and str(parent.id)
+        created = await client.post(
+            "/api/v1/channels",
+            json=channel_data | {"parent_chat_id": parent_chat_id},
+            headers=headers,
         )
-    ]
+        assert created.status_code == 201, created.text
+        channel_id = created.json()["id"]
+        expected.append(
+            entry | {"channel_id": channel_id, "parent_chat_id": parent_chat_id}
+        )
+
+    assert [user_id for user_id, _ in chat_events] == [user.id] * len(expected)
+    assert [json.dumps(event) for _, event in chat_events] == list(
+        map(json.dumps, expected)
+    )
 
 
 async def test_deleting_a_parent_chat_deletes_its_linked_channel(
