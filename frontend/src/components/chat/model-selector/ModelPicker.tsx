@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import clsx from 'clsx';
-import { Box, Check, ChevronLeft, ChevronRight, Plus, Search, Star, Trash2 } from 'lucide-react';
+import { Box, Check, ChevronLeft, ChevronRight, Plus, Search, Star } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
 import { Input } from '@/components/ui/primitives/Input/Input';
 import { FieldMessage } from '@/components/ui/primitives/FieldMessage/FieldMessage';
@@ -8,7 +8,7 @@ import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
 import { ProviderIconStack } from '@/components/ui/icons/ProviderIconStack';
 import { useDropdown } from '@/hooks/useDropdown';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { usePanelFit } from '@/hooks/usePanelFit';
+import { usePanelFit, usePanelInlineShift } from '@/hooks/usePanelFit';
 import { useModelsQuery } from '@/hooks/queries/useModelQueries';
 import { useModelStore } from '@/store/modelStore';
 import {
@@ -44,13 +44,18 @@ import {
   type MemberName,
   type SharedMemberSettings,
 } from '@/components/channels/memberDraft';
-import { AGENT_LABELS, supportsFastMode, supportsPersona, type Model } from '@/types/chat.types';
+import { supportsFastMode, supportsPersona, type Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
 import { favoritesFirst, listedModels } from './modelOrder';
 import styles from './ModelPicker.module.scss';
 
-type Highlight = { kind: 'model'; modelId: string } | { kind: 'member'; key: string };
 type SettingKey = 'effort' | 'persona' | 'permission' | 'fast';
+type Highlight =
+  | { kind: 'model'; modelId: string }
+  | { kind: 'member'; key: string }
+  | { kind: 'setting'; key: SettingKey };
+// What the options section beside the list (a drill-in on phones) shows
+type Section = { kind: 'setting'; key: SettingKey } | { kind: 'member'; key: string };
 
 interface Option<T extends string> {
   value: T;
@@ -67,13 +72,11 @@ interface Entry {
 const entryId = (highlight: Highlight) =>
   highlight.kind === 'model'
     ? `model-picker-${highlight.modelId}`
-    : `model-picker-member-${highlight.key}`;
+    : `model-picker-${highlight.kind}-${highlight.key}`;
 
-const sameHighlight = (a: Highlight | null, b: Highlight) =>
-  !!a &&
-  (a.kind === 'model' && b.kind === 'model'
-    ? a.modelId === b.modelId
-    : a.kind === 'member' && b.kind === 'member' && a.key === b.key);
+const sameHighlight = (a: Highlight | null, b: Highlight) => !!a && entryId(a) === entryId(b);
+
+const sameSection = (a: Section | null, b: Section) => !!a && a.kind === b.kind && a.key === b.key;
 
 function OptionList<T extends string>({
   options,
@@ -103,71 +106,7 @@ function OptionList<T extends string>({
   );
 }
 
-function SegmentedField<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: readonly Option<T>[];
-  value: T;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className={styles.field} role="group" aria-label={label}>
-      <span className={styles['field-label']}>{label}</span>
-      <div className={styles.segments}>
-        {options.map((option) => (
-          <Button
-            key={option.value}
-            type="button"
-            variant="unstyled"
-            aria-pressed={option.value === value}
-            onClick={() => onChange(option.value)}
-            className={styles.segment}
-          >
-            {option.label}
-          </Button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ModelHeader({ model, children }: { model: Model; children?: ReactNode }) {
-  return (
-    <div className={styles['detail-header']}>
-      <ProviderIcon agentKind={model.agent_kind} className={styles['detail-icon']} />
-      <div className={styles['detail-title']}>
-        <span className={styles['detail-name']}>{model.name}</span>
-        <span className={styles['detail-meta']}>
-          {[
-            AGENT_LABELS[model.agent_kind],
-            model.context_window ? `${formatNumberCompact(model.context_window)} context` : null,
-            model.legacy ? 'Legacy' : null,
-          ]
-            .filter(Boolean)
-            .join(' · ')}
-        </span>
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function supportedSettings(model: Model): string {
-  return [
-    getThinkingModesForAgent(model.agent_kind, model).length > 0 && 'effort',
-    supportsPersona(model, model.agent_kind) && 'persona',
-    'permission',
-    supportsFastMode(model, model.agent_kind) && 'fast mode',
-  ]
-    .filter(Boolean)
-    .join(', ');
-}
-
-interface MemberPaneProps {
+interface MemberSectionProps {
   model: Model;
   draft: MemberDraft;
   memberName: MemberName;
@@ -179,7 +118,7 @@ interface MemberPaneProps {
   onRemove: () => void;
 }
 
-function MemberPane({
+function MemberSection({
   model,
   draft,
   memberName,
@@ -189,57 +128,59 @@ function MemberPane({
   onChange,
   onReset,
   onRemove,
-}: MemberPaneProps) {
+}: MemberSectionProps) {
   const { agentKind, hasThinking, supportsPersona: hasPersona } = resolveMember(draft, [model]);
   const personaOptions = getPersonaOptions(personas);
   const nameInputId = `member-name-${draft.key}`;
   return (
     <>
-      <ModelHeader model={model} />
+      <p className={styles['section-title']}>{memberName.name}</p>
       {isGroup && (
-        <div className={styles.field}>
-          <label htmlFor={nameInputId} className={styles['field-label']}>
+        <div className={styles['name-field']}>
+          <label htmlFor={nameInputId} className={styles['section-heading']}>
             Name
           </label>
-          <div className={styles['name-field']}>
-            <Input
-              id={nameInputId}
-              value={draft.customName ?? memberName.name}
-              onChange={(e) => onChange({ customName: e.target.value })}
-              placeholder={memberName.name}
-              maxLength={MEMBER_NAME_MAX_LENGTH}
-              hasError={!!memberName.error}
-              className={styles['name-input']}
-            />
-            <FieldMessage variant="error" className={styles['name-error']}>
-              {memberName.error}
-            </FieldMessage>
-          </div>
+          <Input
+            id={nameInputId}
+            value={draft.customName ?? memberName.name}
+            onChange={(e) => onChange({ customName: e.target.value })}
+            placeholder={memberName.name}
+            maxLength={MEMBER_NAME_MAX_LENGTH}
+            hasError={!!memberName.error}
+            className={styles['name-input']}
+          />
+          <FieldMessage variant="error" className={styles['name-error']}>
+            {memberName.error}
+          </FieldMessage>
         </div>
       )}
       {hasThinking && (
-        <SegmentedField
-          label="Effort"
-          options={getThinkingModesForAgent(agentKind, model)}
-          value={getThinkingModeOption(draft.thinkingMode, agentKind, model)?.value ?? ''}
-          onChange={(thinkingMode) => onChange({ thinkingMode })}
-        />
+        <>
+          <p className={styles['section-heading']}>Effort</p>
+          <OptionList
+            options={getThinkingModesForAgent(agentKind, model)}
+            value={getThinkingModeOption(draft.thinkingMode, agentKind, model)?.value ?? null}
+            onChange={(thinkingMode) => onChange({ thinkingMode })}
+          />
+        </>
       )}
       {hasPersona && personas.length > 0 && (
-        <SegmentedField
-          label="Persona"
-          options={personaOptions}
-          value={getPersonaOption(draft.persona, personaOptions).value}
-          onChange={(persona) => onChange({ persona })}
-        />
+        <>
+          <p className={styles['section-heading']}>Persona</p>
+          <OptionList
+            options={personaOptions}
+            value={getPersonaOption(draft.persona, personaOptions).value}
+            onChange={(persona) => onChange({ persona })}
+          />
+        </>
       )}
-      <SegmentedField
-        label="Permission"
+      <p className={styles['section-heading']}>Permission</p>
+      <OptionList
         options={MODES_BY_AGENT[agentKind]}
         value={coercePermissionModeForAgent(draft.permissionMode, agentKind)}
         onChange={(permissionMode) => onChange({ permissionMode })}
       />
-      <div className={styles['detail-actions']}>
+      <div className={styles['section-actions']}>
         {hasOverrides && (
           <Button type="button" variant="unstyled" onClick={onReset} className={styles.link}>
             Reset to shared
@@ -251,7 +192,6 @@ function MemberPane({
           onClick={onRemove}
           className={clsx(styles.link, styles['link--danger'])}
         >
-          <Trash2 className={styles['link-icon']} />
           Remove
         </Button>
       </div>
@@ -268,9 +208,9 @@ interface ModelPickerProps {
   onChange: (members: GroupMember[]) => void;
 }
 
-// The New thread model panel: one ticked model is a chat, several a group thread. The list
-// and the shared settings sit left; the highlighted model or member's details sit right,
-// where a member's own settings override the shared ones.
+// The New thread model panel: one ticked model is a chat, several a group thread. A shared
+// setting row or a member's chevron opens its options in a section beside the list, where a
+// member's own settings override the shared ones. Phones drill into that section instead.
 export function ModelPicker({
   machineId,
   members,
@@ -289,16 +229,14 @@ export function ModelPicker({
   const panelRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const fit = usePanelFit(dropdownRef, panelRef, isOpen);
+  const panelTransform = usePanelInlineShift(panelRef, isOpen && !disabled);
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState<Highlight | null>(null);
-  const [openSetting, setOpenSetting] = useState<SettingKey | null>(null);
-  // Phones show one pane at a time: the detail pane is a drill-in from a row
-  const [drilledIn, setDrilledIn] = useState(false);
-  if (!isOpen && (query || highlight || openSetting || drilledIn)) {
+  const [openSection, setOpenSection] = useState<Section | null>(null);
+  if (!isOpen && (query || highlight || openSection)) {
     setQuery('');
     setHighlight(null);
-    setOpenSetting(null);
-    setDrilledIn(false);
+    setOpenSection(null);
   }
 
   const modelById = new Map(models.map((m) => [m.model_id, m]));
@@ -334,50 +272,6 @@ export function ModelPicker({
     }),
   );
   const entries = sectionEntries.flat();
-
-  const activeHighlight =
-    highlight && entries.some((entry) => sameHighlight(highlight, entry.highlight))
-      ? highlight
-      : (entries[0]?.highlight ?? null);
-  const activeEntry = entries.find((entry) => sameHighlight(activeHighlight, entry.highlight));
-  const activeCount = activeEntry ? membersOf(activeEntry.model.model_id).length : 0;
-  // A model row with one member stands for that member
-  const activeMember =
-    activeEntry?.member ??
-    (activeEntry && membersOf(activeEntry.model.model_id).length === 1
-      ? membersOf(activeEntry.model.model_id)[0]
-      : undefined);
-
-  const toggle = (entry: Entry) => {
-    if (entry.member) {
-      onChange(members.filter((member) => member.key !== entry.member!.key));
-    } else if (membersOf(entry.model.model_id).length > 0) {
-      onChange(members.filter((member) => member.modelId !== entry.model.model_id));
-    } else {
-      onChange([...members, newGroupMember(entry.model.model_id)]);
-    }
-  };
-
-  const moveHighlight = (step: number) => {
-    if (entries.length === 0) return;
-    const index = entries.findIndex((entry) => sameHighlight(activeHighlight, entry.highlight));
-    const next = entries[(index + step + entries.length) % entries.length];
-    setHighlight(next.highlight);
-    document.getElementById(entryId(next.highlight))?.scrollIntoView({ block: 'nearest' });
-  };
-
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      moveHighlight(event.key === 'ArrowDown' ? 1 : -1);
-    } else if (event.key === 'Enter' || (event.key === ' ' && !query)) {
-      event.preventDefault();
-      if (activeEntry) toggle(activeEntry);
-    } else if (event.key === 'Escape' && query) {
-      event.preventDefault();
-      setQuery('');
-    }
-  };
 
   // Shared settings follow the first member that supports each one
   const memberModels = members
@@ -475,6 +369,80 @@ export function ModelPicker({
     });
   }
 
+  // Arrow keys walk the model rows, then the setting rows
+  const navigable: Highlight[] = [
+    ...entries.map((entry) => entry.highlight),
+    ...settingRows.map((row) => ({ kind: 'setting' as const, key: row.key })),
+  ];
+  const activeHighlight =
+    highlight && navigable.some((item) => sameHighlight(highlight, item))
+      ? highlight
+      : (navigable[0] ?? null);
+  const activeEntry = entries.find((entry) => sameHighlight(activeHighlight, entry.highlight));
+
+  // A section whose row went away (member removed, setting no longer applies) is closed
+  const sectionMember =
+    openSection?.kind === 'member'
+      ? members.find((member) => member.key === openSection.key)
+      : undefined;
+  const sectionSetting =
+    openSection?.kind === 'setting'
+      ? settingRows.find((row) => row.key === openSection.key)
+      : undefined;
+  const sectionModel = sectionMember && modelById.get(sectionMember.modelId);
+  const hasSection = !!sectionSetting || !!sectionModel;
+  const toggleSection = (section: Section) =>
+    setOpenSection(sameSection(openSection, section) ? null : section);
+
+  // A model row with one member stands for that member
+  const entryMember = (entry: Entry) => {
+    if (entry.member) return entry.member;
+    const own = membersOf(entry.model.model_id);
+    return own.length === 1 ? own[0] : undefined;
+  };
+
+  const toggle = (entry: Entry) => {
+    if (entry.member) {
+      onChange(members.filter((member) => member.key !== entry.member!.key));
+    } else if (membersOf(entry.model.model_id).length > 0) {
+      onChange(members.filter((member) => member.modelId !== entry.model.model_id));
+    } else {
+      onChange([...members, newGroupMember(entry.model.model_id)]);
+    }
+  };
+
+  const moveHighlight = (step: number) => {
+    if (navigable.length === 0) return;
+    const index = navigable.findIndex((item) => sameHighlight(activeHighlight, item));
+    const next = navigable[(index + step + navigable.length) % navigable.length];
+    setHighlight(next);
+    // Phones keep the list in view while arrowing; the drill-in opens on Enter
+    setOpenSection(next.kind === 'setting' && !isMobile ? next : null);
+    document.getElementById(entryId(next))?.scrollIntoView({ block: 'nearest' });
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      moveHighlight(event.key === 'ArrowDown' ? 1 : -1);
+    } else if (event.key === 'Enter' || (event.key === ' ' && !query)) {
+      event.preventDefault();
+      if (activeEntry) toggle(activeEntry);
+      else if (activeHighlight?.kind === 'setting') toggleSection(activeHighlight);
+    } else if (event.key === 'Escape' && query) {
+      event.preventDefault();
+      setQuery('');
+    }
+  };
+
+  // Escape closes the section before the panel; the dropdown skips prevented Escapes
+  const handlePanelKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Escape' && hasSection && !event.defaultPrevented) {
+      event.preventDefault();
+      setOpenSection(null);
+    }
+  };
+
   const favoriteButton = (model: Model) => {
     const isFavorite = favoriteModelIds.includes(model.model_id);
     return (
@@ -498,8 +466,17 @@ export function ModelPicker({
   const renderEntry = (entry: Entry) => {
     const { model, member } = entry;
     const count = membersOf(model.model_id).length;
-    const isActive = sameHighlight(activeHighlight, entry.highlight);
+    const ownMember = entryMember(entry);
+    const memberSection: Section | null = ownMember ? { kind: 'member', key: ownMember.key } : null;
+    const isSectionOpen = !!memberSection && sameSection(openSection, memberSection);
+    const hasOverrides = !!ownMember && Object.keys(ownMember.overrides).length > 0;
     const memberIndex = member ? members.indexOf(member) : -1;
+    const meta = [
+      model.context_window ? formatNumberCompact(model.context_window) : null,
+      model.legacy ? 'Legacy' : null,
+    ]
+      .filter(Boolean)
+      .join(' · ');
     return (
       <div
         key={entryId(entry.highlight)}
@@ -509,35 +486,19 @@ export function ModelPicker({
         onMouseEnter={() => !isMobile && setHighlight(entry.highlight)}
         onClick={() => {
           setHighlight(entry.highlight);
+          setOpenSection(null);
           toggle(entry);
         }}
         className={clsx(
           styles.row,
           member && styles['row--member'],
-          isActive && styles['row--active'],
+          (sameHighlight(activeHighlight, entry.highlight) || isSectionOpen) &&
+            styles['row--active'],
         )}
       >
-        {member ? (
-          <span className={styles['row-text']}>
-            <span className={styles['row-name']}>{names[memberIndex].name}</span>
-          </span>
-        ) : (
-          <>
-            <ProviderIcon agentKind={model.agent_kind} className={styles['row-icon']} />
-            <span className={styles['row-text']}>
-              <span className={styles['row-name']}>{model.name}</span>
-              <span className={styles['row-meta']}>
-                {[
-                  AGENT_LABELS[model.agent_kind],
-                  model.context_window ? formatNumberCompact(model.context_window) : null,
-                  model.legacy ? 'Legacy' : null,
-                ]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </span>
-            </span>
-          </>
-        )}
+        {!member && <ProviderIcon agentKind={model.agent_kind} className={styles['row-icon']} />}
+        <span className={styles['row-name']}>{member ? names[memberIndex].name : model.name}</span>
+        {!member && meta && <span className={styles['row-meta']}>{meta}</span>}
         <span className={styles['row-actions']}>
           {!member && count > 0 && (
             <Button
@@ -555,17 +516,21 @@ export function ModelPicker({
             </Button>
           )}
           {!member && favoriteButton(model)}
-          {isMobile && (
+          {ownMember && memberSection && (
             <Button
               type="button"
               variant="unstyled"
-              aria-label={`${member ? names[memberIndex].name : model.name} details`}
+              aria-label={`${names[members.indexOf(ownMember)].name} settings`}
+              aria-expanded={isSectionOpen}
               onClick={(event) => {
                 event.stopPropagation();
                 setHighlight(entry.highlight);
-                setDrilledIn(true);
+                toggleSection(memberSection);
               }}
-              className={clsx(styles.action, styles['action--visible'])}
+              className={clsx(
+                styles.action,
+                (hasOverrides || isSectionOpen) && styles['action--pinned'],
+              )}
             >
               <ChevronRight className={styles['action-icon']} />
             </Button>
@@ -579,53 +544,34 @@ export function ModelPicker({
     );
   };
 
-  const detail = activeEntry && (
-    <div className={styles.detail}>
-      {activeMember ? (
-        <MemberPane
-          model={activeEntry.model}
-          draft={drafts[members.indexOf(activeMember)]}
-          memberName={names[members.indexOf(activeMember)]}
-          isGroup={isGroup}
-          hasOverrides={Object.keys(activeMember.overrides).length > 0}
-          personas={personas}
-          onChange={(patch) =>
-            onChange(
-              members.map((m) => (m.key === activeMember.key ? patchGroupMember(m, patch) : m)),
-            )
-          }
-          onReset={() =>
-            onChange(members.map((m) => (m.key === activeMember.key ? { ...m, overrides: {} } : m)))
-          }
-          onRemove={() => onChange(members.filter((m) => m.key !== activeMember.key))}
-        />
-      ) : (
-        <>
-          <ModelHeader model={activeEntry.model} />
-          <p className={styles['detail-text']}>
-            {activeCount > 1
-              ? `${activeCount} members use this model. Pick one below it to change its settings.`
-              : `Supports ${supportedSettings(activeEntry.model)}.`}
-          </p>
-          <div className={styles['detail-actions']}>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onChange([...members, newGroupMember(activeEntry.model.model_id)])}
-            >
-              <Plus className={styles['link-icon']} />
-              {activeCount > 1
-                ? 'Add another'
-                : members.length > 0
-                  ? 'Add to thread'
-                  : 'Use this model'}
-            </Button>
-          </div>
-        </>
-      )}
-    </div>
-  );
+  const sectionContent = sectionSetting ? (
+    <>
+      <p className={styles['section-title']}>
+        {sectionSetting.label} for {isGroup ? 'all agents' : first?.name}
+      </p>
+      {sectionSetting.options}
+    </>
+  ) : sectionMember && sectionModel ? (
+    <MemberSection
+      model={sectionModel}
+      draft={drafts[members.indexOf(sectionMember)]}
+      memberName={names[members.indexOf(sectionMember)]}
+      isGroup={isGroup}
+      hasOverrides={Object.keys(sectionMember.overrides).length > 0}
+      personas={personas}
+      onChange={(patch) =>
+        onChange(members.map((m) => (m.key === sectionMember.key ? patchGroupMember(m, patch) : m)))
+      }
+      onReset={() =>
+        onChange(members.map((m) => (m.key === sectionMember.key ? { ...m, overrides: {} } : m)))
+      }
+      onRemove={() => {
+        setOpenSection(null);
+        onChange(members.filter((m) => m.key !== sectionMember.key));
+      }}
+    />
+  ) : null;
+  const isDrilledIn = isMobile && hasSection;
 
   const effortSummary =
     !isGroup && effortOption && thinkingModel === first ? ` · ${effortOption.label}` : '';
@@ -663,93 +609,101 @@ export function ModelPicker({
           ref={panelRef}
           role="dialog"
           aria-label="Models"
-          style={{ maxHeight: fit?.maxHeight }}
+          onKeyDown={handlePanelKeyDown}
+          style={{ maxHeight: fit?.maxHeight, transform: panelTransform }}
           className={clsx(
             styles.panel,
             fit?.side === 'top' && styles['panel--top'],
-            drilledIn && styles['panel--drilled'],
+            hasSection && !isMobile && styles['panel--wide'],
           )}
         >
-          {drilledIn ? (
-            <Button
-              type="button"
-              variant="unstyled"
-              onClick={() => setDrilledIn(false)}
-              className={styles.back}
-            >
-              <ChevronLeft className={styles['link-icon']} />
-              Models
-            </Button>
-          ) : (
-            <div className={styles.search}>
-              <Search className={styles['search-icon']} />
-              <input
-                type="text"
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  setHighlight(null);
-                  listRef.current?.scrollTo({ top: 0 });
-                }}
-                onKeyDown={handleKeyDown}
-                placeholder="Choose a model…"
-                aria-label="Choose a model"
-                aria-controls="model-picker-list"
-                aria-activedescendant={activeHighlight ? entryId(activeHighlight) : undefined}
-                autoFocus={!isMobile}
-                className={styles['search-input']}
-              />
-            </div>
-          )}
-          <div className={styles.columns}>
-            <div className={styles.left}>
-              <div
-                ref={listRef}
-                id="model-picker-list"
-                role="listbox"
-                aria-multiselectable
-                aria-label="Models"
-                className={styles.list}
+          {isDrilledIn ? (
+            <>
+              <Button
+                type="button"
+                variant="unstyled"
+                onClick={() => setOpenSection(null)}
+                className={styles.back}
               >
-                {sectionEntries.map((section, index) => (
-                  <Fragment key={index}>
-                    {index > 0 && <div role="separator" className={styles.divider} />}
-                    {section.map(renderEntry)}
-                  </Fragment>
-                ))}
-                {entries.length === 0 && <p className={styles.empty}>No models match</p>}
+                <ChevronLeft className={styles['action-icon']} />
+                Models
+              </Button>
+              <div className={styles.section}>{sectionContent}</div>
+            </>
+          ) : (
+            <>
+              <div className={styles.search}>
+                <Search className={styles['search-icon']} />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => {
+                    setQuery(e.target.value);
+                    setHighlight(null);
+                    listRef.current?.scrollTo({ top: 0 });
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Choose a model…"
+                  aria-label="Choose a model"
+                  aria-controls="model-picker-list"
+                  aria-activedescendant={activeHighlight ? entryId(activeHighlight) : undefined}
+                  autoFocus={!isMobile}
+                  className={styles['search-input']}
+                />
               </div>
-              {settingRows.length > 0 && (
-                <div className={styles.settings}>
-                  {settingRows.map((row) => {
-                    const isExpanded = openSetting === row.key;
-                    return (
-                      <Fragment key={row.key}>
-                        <Button
-                          type="button"
-                          variant="unstyled"
-                          aria-expanded={isExpanded}
-                          onClick={() => setOpenSetting(isExpanded ? null : row.key)}
-                          className={styles.setting}
-                        >
-                          <span className={styles['setting-label']}>{row.label}</span>
-                          <span className={styles['setting-value']}>{row.value}</span>
-                          <ChevronRight
-                            className={clsx(
-                              styles['setting-chevron'],
-                              isExpanded && styles['setting-chevron--open'],
-                            )}
-                          />
-                        </Button>
-                        {isExpanded && row.options}
+              <div className={styles.body}>
+                <div className={styles.left}>
+                  <div
+                    ref={listRef}
+                    id="model-picker-list"
+                    role="listbox"
+                    aria-multiselectable
+                    aria-label="Models"
+                    className={styles.list}
+                  >
+                    {sectionEntries.map((section, index) => (
+                      <Fragment key={index}>
+                        {index > 0 && <div role="separator" className={styles.divider} />}
+                        {section.map(renderEntry)}
                       </Fragment>
-                    );
-                  })}
+                    ))}
+                    {entries.length === 0 && <p className={styles.empty}>No models match</p>}
+                  </div>
+                  {settingRows.length > 0 && (
+                    <div className={styles.settings}>
+                      {settingRows.map((row) => {
+                        const rowSection: Section = { kind: 'setting', key: row.key };
+                        const isRowOpen = sameSection(openSection, rowSection);
+                        return (
+                          <Button
+                            key={row.key}
+                            id={entryId(rowSection)}
+                            type="button"
+                            variant="unstyled"
+                            aria-expanded={isRowOpen}
+                            onClick={() => {
+                              setHighlight(rowSection);
+                              toggleSection(rowSection);
+                            }}
+                            className={clsx(
+                              styles.setting,
+                              (isRowOpen || sameHighlight(activeHighlight, rowSection)) &&
+                                styles['setting--active'],
+                            )}
+                          >
+                            <span className={styles['setting-label']}>{row.label}</span>
+                            <span className={styles['setting-value']}>{row.value}</span>
+                            <ChevronRight className={styles['setting-chevron']} />
+                          </Button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-            {detail}
-          </div>
+                {hasSection && <div className={styles.section}>{sectionContent}</div>}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

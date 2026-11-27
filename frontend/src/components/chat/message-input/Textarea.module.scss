@@ -57,10 +57,9 @@
 .textarea--large {
   .backdrop,
   .textarea-field {
-    @include type.type-large;
+    @include type.type-body;
     max-height: min(40vh, 18rem);
     padding-block: 0;
-    line-height: 1.5;
   }
 
   .textarea-field {

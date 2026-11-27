@@ -479,7 +479,6 @@ function NewThreadComposer({ onClose, children }: { onClose: () => void; childre
           disabled={sendStatus === 'idle' || state.isDisabled}
           onClick={actions.handleSendClick}
           showLoadingSpinner={state.showLoadingSpinner}
-          size="large"
         />
       </div>
     </form>

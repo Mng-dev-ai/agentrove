@@ -37,7 +37,7 @@ export interface TextareaProps {
   onKeyDown: (e: React.KeyboardEvent) => void;
   onPaste?: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void;
   onCursorPositionChange?: (position: number) => void;
-  // The New thread modal's prompt: larger type, a few lines tall when empty
+  // The New thread modal's prompt: one type step up, a few lines tall when empty
   size?: 'default' | 'large';
 }
 

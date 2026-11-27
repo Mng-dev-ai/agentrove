@@ -9,7 +9,7 @@
 // upper third so it stays put while the prompt grows. Visible overflow lets the footer's
 // pickers open past the dialog edge.
 .dialog.dialog {
-  max-width: min(55rem, 92vw);
+  max-width: min(45rem, 92vw);
   margin-top: max(var(--space-4), 14vh);
   margin-bottom: auto;
   overflow: visible;
@@ -22,10 +22,10 @@
 
 .top {
   display: flex;
-  padding: var(--space-3) var(--space-4) 0;
+  padding: var(--space-2-5) var(--space-3) 0;
 
   @include responsive.media('sm-up') {
-    padding: var(--space-4) var(--space-5) 0;
+    padding: var(--space-3) var(--space-4) 0;
   }
 }
 
@@ -34,12 +34,12 @@
   @include anim.transition-colors;
   @include controls.focus-ring;
   display: inline-flex;
-  height: var(--space-7);
+  height: var(--space-6);
   align-items: center;
-  gap: var(--space-1-5);
+  gap: var(--space-1);
   border-radius: var(--radius-md);
-  margin-left: calc(var(--space-2) * -1);
-  padding-inline: var(--space-2);
+  margin-left: calc(var(--space-1-5) * -1);
+  padding-inline: var(--space-1-5);
   color: var(--theme-text-tertiary);
 
   @include responsive.hover {
@@ -56,11 +56,11 @@
 .body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4) var(--space-3);
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4) var(--space-2-5);
 
   @include responsive.media('sm-up') {
-    padding: var(--space-3) var(--space-6) var(--space-4);
+    padding: var(--space-2) var(--space-5) var(--space-3);
   }
 }
 
@@ -68,13 +68,13 @@
   @include anim.transition-colors;
   @include controls.focus-ring;
   display: flex;
-  height: var(--space-8);
-  width: var(--space-8);
+  height: var(--space-7);
+  width: var(--space-7);
   align-self: flex-start;
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-md);
-  margin-left: calc(var(--space-2) * -1);
+  margin-left: calc(var(--space-1-5) * -1);
   color: var(--theme-text-tertiary);
 
   @include responsive.hover {
@@ -84,8 +84,8 @@
 }
 
 .attach-icon {
-  height: var(--space-4);
-  width: var(--space-4);
+  height: var(--space-3-5);
+  width: var(--space-3-5);
 }
 
 // The dialog's own radius minus its border, since visible overflow leaves corners to us
@@ -97,13 +97,13 @@
   border-top: 1px solid var(--theme-border);
   border-radius: 0 0 calc(var(--radius-2xl) - 1px) calc(var(--radius-2xl) - 1px);
   background-color: var(--theme-surface-secondary);
-  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
 }
 
 // Slash and @ suggestions open upward from the footer, over the prompt
 .suggestions {
   position: absolute;
-  inset: 0 var(--space-4) auto;
+  inset: 0 var(--space-3) auto;
 }
 
 .pills {

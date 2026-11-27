@@ -11,8 +11,6 @@ export interface SendButtonProps {
   onClick: (e: React.MouseEvent) => void;
   type?: 'button' | 'submit';
   showLoadingSpinner?: boolean;
-  // The New thread modal's footer, sized to its pills
-  size?: 'default' | 'large';
 }
 
 export function SendButton({
@@ -21,7 +19,6 @@ export function SendButton({
   onClick,
   type = 'button',
   showLoadingSpinner = false,
-  size = 'default',
 }: SendButtonProps) {
   const isActive = status === 'loading' || status === 'streaming';
   const hasMessage = status === 'ready';
@@ -55,7 +52,6 @@ export function SendButton({
       className={clsx(
         styles['send-button'],
         isPrimary ? styles['send-button--primary'] : styles['send-button--idle'],
-        size === 'large' && styles['send-button--large'],
       )}
       aria-label={ariaLabel}
     >

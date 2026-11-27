@@ -160,7 +160,7 @@
   @include anim.transition-colors;
   @include focus-ring;
   display: inline-flex;
-  height: var(--space-8);
+  height: var(--space-7);
   min-width: 0;
   max-width: var(--space-64);
   flex-shrink: 0;
@@ -169,7 +169,7 @@
   border: 1px solid var(--theme-border);
   border-radius: var(--radius-full);
   background-color: var(--theme-surface);
-  padding-inline: var(--space-3);
+  padding-inline: var(--space-2-5);
   white-space: nowrap;
   color: var(--theme-text-secondary);
 
