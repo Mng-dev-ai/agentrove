@@ -13,18 +13,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.catalog import MODELS
 from app.constants import REDIS_KEY_CHAT_CONTEXT_USAGE
 from app.core.deps import get_agent_service, get_queue_service
+from app.db.session import SessionLocal
 from app.models.db_models.chat import Chat, ChatCheckpoint, Message, MessageEvent
 from app.models.db_models.enums import MessageRole, MessageStreamStatus
 from app.models.db_models.user import User
 from app.models.db_models.workspace import Workspace
 from app.services import chat as chat_service_module
+from app.models.schemas.queue import QueuedMessageBase
 from app.services.agent import AgentService
-from app.services.exceptions import AgentException, SandboxException
+from app.services.chat import ChatService
+from app.services.exceptions import AgentException, ChatException, SandboxException
 from app.services.queue import QueueService
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.session_registry import session_registry
 from app.services.streaming import runtime as runtime_module
 from app.services.streaming.runtime import ChatStreamRuntime
+from app.services.user import UserService
 from app.utils.cache import CacheError, MemoryStore
 
 from tests.conftest import LoginClient, UserFactory
@@ -1799,6 +1803,71 @@ async def test_idle_send_now_start_failure_keeps_message_queued(
         "Queued with send-now",
     ]
     assert not ChatStreamRuntime.has_pending_start(str(chat.id))
+
+
+async def test_send_queued_now_rejects_pending_restore_without_marking() -> None:
+    chat_service = ChatService(UserService(), session_factory=SessionLocal)
+    queue_service = QueueService(MemoryStore())
+    chat_id = uuid4()
+    queued = await queue_service.add_message(
+        str(chat_id),
+        QueuedMessageBase(
+            content="Queued", model_id=TEST_MODEL_ID, device_ids=frozenset()
+        ),
+    )
+
+    async with ChatStreamRuntime.chat_start_slot(
+        str(chat_id), restoring=True
+    ) as reserved:
+        assert reserved
+        with pytest.raises(ChatException) as exc_info:
+            await chat_service.send_queued_now(
+                chat_id, queued.id, frozenset(), queue_service
+            )
+
+    assert exc_info.value.status_code == 409
+    assert str(exc_info.value) == (
+        "Cannot send now while a checkpoint is being restored."
+    )
+    assert await queue_service.pop_send_now_message(str(chat_id)) is None
+
+
+async def test_send_queued_now_rejects_unknown_message() -> None:
+    chat_service = ChatService(UserService(), session_factory=SessionLocal)
+
+    with pytest.raises(ChatException) as exc_info:
+        await chat_service.send_queued_now(
+            uuid4(), uuid4(), frozenset(), QueueService(MemoryStore())
+        )
+
+    assert exc_info.value.status_code == 404
+    assert str(exc_info.value) == "Queued message not found"
+
+
+async def test_send_queued_now_idle_start_failure_keeps_message_queued(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runtime_module, "cache_connection", RaisingCacheConnection())
+    chat_service = ChatService(UserService(), session_factory=SessionLocal)
+    queue_service = QueueService(MemoryStore())
+    chat_id = uuid4()
+    queued = await queue_service.add_message(
+        str(chat_id),
+        QueuedMessageBase(
+            content="Queued", model_id=TEST_MODEL_ID, device_ids=frozenset()
+        ),
+    )
+
+    with pytest.raises(ChatException) as exc_info:
+        await chat_service.send_queued_now(
+            chat_id, queued.id, frozenset(), queue_service
+        )
+
+    assert exc_info.value.status_code == 503
+    assert str(exc_info.value) == "Failed to start send-now execution"
+    assert [item.id for item in await queue_service.get_queue(str(chat_id))] == [
+        queued.id
+    ]
 
 
 async def test_search_chats_returns_only_own_matches_and_rejects_blank_query(

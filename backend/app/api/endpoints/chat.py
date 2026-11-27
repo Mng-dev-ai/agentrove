@@ -1,4 +1,3 @@
-import asyncio
 import io
 import json
 import logging
@@ -903,12 +902,8 @@ async def queue_message(
 
     if send_now:
         try:
-            await _send_now_queued_message(
-                chat_id,
-                response.id,
-                current_user.device_ids,
-                chat_service,
-                queue_service,
+            await chat_service.send_queued_now(
+                chat_id, response.id, current_user.device_ids, queue_service
             )
         except Exception:
             response.send_now_failed = True
@@ -1002,55 +997,9 @@ async def send_now_queued_message(
     chat_service: ChatService = Depends(get_chat_service),
     queue_service: QueueService = Depends(get_queue_service),
 ) -> None:
-    await _send_now_queued_message(
-        chat_id, message_id, current_user.device_ids, chat_service, queue_service
-    )
-
-
-async def _send_now_queued_message(
-    chat_id: UUID,
-    message_id: UUID,
-    device_ids: frozenset[UUID],
-    chat_service: ChatService,
-    queue_service: QueueService,
-) -> None:
-    if ChatStreamRuntime.has_pending_restore(str(chat_id)):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Cannot send now while a checkpoint is being restored.",
+    try:
+        await chat_service.send_queued_now(
+            chat_id, message_id, current_user.device_ids, queue_service
         )
-    found = await queue_service.mark_send_now(str(chat_id), str(message_id), device_ids)
-    if not found:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Queued message not found",
-        )
-
-    if await ChatStreamRuntime.steer_send_now(str(chat_id)):
-        return
-    if ChatStreamRuntime.has_pending_start(str(chat_id)) or (
-        ChatStreamRuntime.has_active_chat(str(chat_id))
-        and not ChatStreamRuntime.has_completed_turn(str(chat_id))
-    ):
-        # Cancel so send-now is picked up without waiting for the current turn —
-        # a reserved start consumes the flag at bootstrap and interrupts the same way.
-        await session_registry.cancel_generation(str(chat_id))
-    else:
-        try:
-            started = await ChatStreamRuntime.process_queue_after_turn(
-                str(chat_id), chat_service.session_factory
-            )
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:
-            logger.error("Failed to start idle send-now for chat %s: %s", chat_id, e)
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Failed to start send-now execution",
-            ) from e
-
-        if not started and ChatStreamRuntime.has_pending_restore(str(chat_id)):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Cannot send now while a checkpoint is being restored.",
-            )
+    except ChatException as e:
+        raise HTTPException(status_code=e.status_code, detail=str(e)) from e
