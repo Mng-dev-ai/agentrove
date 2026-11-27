@@ -125,8 +125,8 @@ export function AutomationsSettingsTab() {
     [],
   );
   const handleAgentsChange = useCallback(
-    (agents: GroupMember[]) => setForm((prev) => withAgents(prev, agents)),
-    [],
+    (agents: GroupMember[]) => setForm((prev) => withAgents(prev, agents, formModels)),
+    [formModels],
   );
 
   const handleAdd = () => {

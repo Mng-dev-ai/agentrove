@@ -30,6 +30,8 @@ import {
   patchGroupMember,
   resolveMember,
   resolveMemberNames,
+  settingsModel,
+  withSupportedOverrides,
   type GroupMember,
   type MemberDraft,
   type MemberSetting,
@@ -135,6 +137,8 @@ const permissionOptions = (agentKind: Model['agent_kind']) => MODES_BY_AGENT[age
 interface ThreadSettingsProps {
   machineId: string;
   members: GroupMember[];
+  // The members are sent as a channel's, which resolves an unlisted model; a chat keeps it
+  channel: boolean;
   shared: SharedMemberSettings;
   personas: Persona[];
   disabled: boolean;
@@ -150,7 +154,8 @@ interface ThreadSettingsProps {
 // with its own overrides.
 export function ThreadSettings({
   machineId,
-  members,
+  members: givenMembers,
+  channel,
   shared,
   personas,
   disabled,
@@ -173,7 +178,7 @@ export function ThreadSettings({
     setDrilledIn(false);
   }
 
-  const modelById = new Map(models.map((m) => [m.model_id, m]));
+  const members = withSupportedOverrides(givenMembers, models);
   const drafts = members.map((member) => groupMemberDraft(member, shared));
   const names = resolveMemberNames(drafts, models);
   const isGroup = members.length > 1;
@@ -182,18 +187,18 @@ export function ThreadSettings({
   const personaOptions = getPersonaOptions(personas);
 
   // Shared settings follow the first agent that supports each one
-  const memberModels = members
-    .map((member) => modelById.get(member.modelId))
-    .filter((m): m is Model => m !== undefined);
+  const memberModels = members.map((member) => settingsModel(member.modelId, models, channel));
   const thinkingModel = memberModels.find(
-    (m) => getThinkingModesForAgent(m.agent_kind, m).length > 0,
+    ({ agentKind, model }) => getThinkingModesForAgent(agentKind, model).length > 0,
   );
   const personaModel =
-    personas.length > 0 ? memberModels.find((m) => supportsPersona(m, m.agent_kind)) : undefined;
+    personas.length > 0
+      ? memberModels.find(({ agentKind, model }) => supportsPersona(model, agentKind))
+      : undefined;
   const first = memberModels[0];
   const sharedEffort =
     thinkingModel &&
-    getThinkingModeOption(shared.thinkingMode, thinkingModel.agent_kind, thinkingModel);
+    getThinkingModeOption(shared.thinkingMode, thinkingModel.agentKind, thinkingModel.model);
   const sharedPersona = getPersonaOption(shared.persona, personaOptions);
 
   // Clearing first, since the modal's store ignores a pick that equals the current value
@@ -217,7 +222,7 @@ export function ThreadSettings({
       {thinkingModel && sharedEffort && (
         <SettingRow
           label="Effort"
-          options={getThinkingModesForAgent(thinkingModel.agent_kind, thinkingModel)}
+          options={getThinkingModesForAgent(thinkingModel.agentKind, thinkingModel.model)}
           value={sharedEffort.value}
           valueLabel={sharedEffort.label}
           isMixed={mixed.thinkingMode}
@@ -237,14 +242,14 @@ export function ThreadSettings({
       {first && (
         <SettingRow
           label="Permission"
-          options={permissionOptions(first.agent_kind)}
-          value={getPermissionModeOption(shared.permissionMode, first.agent_kind).value}
-          valueLabel={getPermissionModeOption(shared.permissionMode, first.agent_kind).label}
+          options={permissionOptions(first.agentKind)}
+          value={getPermissionModeOption(shared.permissionMode, first.agentKind).value}
+          valueLabel={getPermissionModeOption(shared.permissionMode, first.agentKind).label}
           isMixed={mixed.permissionMode}
           onPick={(value) => setShared('permissionMode', { permissionMode: value })}
         />
       )}
-      {fastMode && !isGroup && first && supportsFastMode(first, first.agent_kind) && (
+      {fastMode && !isGroup && first && supportsFastMode(first.model, first.agentKind) && (
         <SettingRow
           label="Fast mode"
           options={FAST_MODE_OPTIONS.map((mode) => ({
@@ -413,7 +418,6 @@ export function ThreadSettings({
       </Button>
       <p className={styles['entries-label']}>Overrides</p>
       {members.map((m, index) => {
-        const model = modelById.get(m.modelId);
         const isActive = m.key === member?.key;
         return (
           <Button
@@ -425,9 +429,10 @@ export function ThreadSettings({
             className={clsx(styles.entry, isActive && !isMobile && styles['entry--active'])}
           >
             <span className={styles['entry-name']}>
-              {model && (
-                <ProviderIcon agentKind={model.agent_kind} className={styles['entry-icon']} />
-              )}
+              <ProviderIcon
+                agentKind={memberModels[index].agentKind}
+                className={styles['entry-icon']}
+              />
               <span className={styles['entry-text']}>{names[index].name}</span>
             </span>
             <span className={styles['entry-meta']}>

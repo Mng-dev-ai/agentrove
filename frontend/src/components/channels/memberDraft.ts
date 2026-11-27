@@ -11,7 +11,12 @@ import {
   type PermissionMode,
 } from '@/store/chatSettingsStore';
 import { resolvePersona } from '@/utils/settings';
-import { supportsPersona, type Model } from '@/types/chat.types';
+import {
+  getAgentKindForModelId,
+  supportsPersona,
+  type AgentKind,
+  type Model,
+} from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
 import type { ChannelMember, ChannelMemberCreateRequest } from '@/types/channel.types';
 
@@ -61,7 +66,7 @@ export function memberDraftFrom(member: {
   };
 }
 
-export function resolveMember(member: MemberDraft, models: Model[]) {
+export function resolveMember(member: Pick<MemberDraft, 'modelId'>, models: Model[]) {
   const modelId = resolveModelId(models, member.modelId);
   const model = models.find((m) => m.model_id === modelId);
   const agentKind = model?.agent_kind ?? 'claude';
@@ -211,6 +216,45 @@ export function patchGroupMember(member: GroupMember, patch: Partial<MemberDraft
     customName: patch.customName !== undefined ? patch.customName : member.customName,
     overrides,
   };
+}
+
+// The model a member's settings follow. A channel member resolves as memberRequest sends
+// it; a chat's model is saved as chosen, so an unlisted one only has the agent kind its id
+// implies.
+export function settingsModel(
+  modelId: string,
+  models: Model[],
+  channel: boolean,
+): { agentKind: AgentKind; model: Model | undefined } {
+  if (channel) {
+    const { agentKind, model } = resolveMember({ modelId }, models);
+    return { agentKind, model };
+  }
+  const model = models.find((m) => m.model_id === modelId);
+  return { agentKind: model?.agent_kind ?? getAgentKindForModelId(modelId), model };
+}
+
+// A stored member carries a default for settings its model lacks; that is no choice to
+// show, mix or promote, so only the settings the model has count as overrides.
+export function withSupportedOverrides(members: GroupMember[], models: Model[]): GroupMember[] {
+  return members.map((member) => {
+    const { hasThinking, supportsPersona } = resolveMember(member, models);
+    const overrides = { ...member.overrides };
+    if (!hasThinking) delete overrides.thinkingMode;
+    if (!supportsPersona) delete overrides.persona;
+    return { ...member, overrides };
+  });
+}
+
+// A sole agent runs on the shared settings, so a list shrinking to one promotes that
+// agent's overrides to them: what runs is what the agent had.
+export function promoteSoleMemberOverrides(
+  members: GroupMember[],
+  models: Model[],
+): { members: GroupMember[]; promoted: Partial<SharedMemberSettings> } {
+  if (members.length > 1) return { members, promoted: {} };
+  const [member] = withSupportedOverrides(members, models);
+  return { members: [{ ...member, overrides: {} }], promoted: member.overrides };
 }
 
 export function clearMemberOverrides(

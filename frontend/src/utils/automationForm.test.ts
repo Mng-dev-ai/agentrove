@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Automation, AutomationForm } from '@/types/automation.types';
 import type { Model } from '@/types/chat.types';
 import type { Persona } from '@/types/user.types';
+import { mixedMemberSettings, withSupportedOverrides } from '@/components/channels/memberDraft';
 import { automationRequest, formFromAutomation, withAgents } from './automationForm';
 
 const MODELS: Model[] = [
@@ -270,6 +271,7 @@ describe('changing the agent list', () => {
     const shrunk = withAgents(
       loaded,
       loaded.agents.filter((_, index) => index !== removed),
+      MODELS,
     );
 
     expect(agentFields(automationRequest(shrunk, MODELS, PERSONAS, true))).toEqual({
@@ -279,16 +281,24 @@ describe('changing the agent list', () => {
   });
 
   it('keeps an override set on the agent a new group shrinks to', () => {
-    const group = withAgents(form([]), [
-      { key: 'a', modelId: 'claude:opus', customName: null, overrides: {} },
-      { key: 'b', modelId: 'claude:sonnet', customName: null, overrides: {} },
-    ]);
-    const overridden = withAgents(group, [
-      group.agents[0],
-      { ...group.agents[1], overrides: { permissionMode: 'default', thinkingMode: 'high' } },
-    ]);
+    const group = withAgents(
+      form([]),
+      [
+        { key: 'a', modelId: 'claude:opus', customName: null, overrides: {} },
+        { key: 'b', modelId: 'claude:sonnet', customName: null, overrides: {} },
+      ],
+      MODELS,
+    );
+    const overridden = withAgents(
+      group,
+      [
+        group.agents[0],
+        { ...group.agents[1], overrides: { permissionMode: 'default', thinkingMode: 'high' } },
+      ],
+      MODELS,
+    );
     const request = automationRequest(
-      withAgents(overridden, [overridden.agents[1]]),
+      withAgents(overridden, [overridden.agents[1]], MODELS),
       MODELS,
       PERSONAS,
       true,
@@ -308,13 +318,14 @@ describe('changing the agent list', () => {
       automation({ channel_members: [pair.channel_members![0]] }),
       'local',
     );
-    const grown = withAgents(loaded, [
-      ...loaded.agents,
-      { key: 'b', modelId: 'claude:sonnet', customName: null, overrides: {} },
-    ]);
+    const grown = withAgents(
+      loaded,
+      [...loaded.agents, { key: 'b', modelId: 'claude:sonnet', customName: null, overrides: {} }],
+      MODELS,
+    );
 
     expect(
-      automationRequest(withAgents(grown, [grown.agents[0]]), MODELS, PERSONAS, true)
+      automationRequest(withAgents(grown, [grown.agents[0]], MODELS), MODELS, PERSONAS, true)
         .channel_members,
     ).toBeNull();
   });
@@ -337,5 +348,58 @@ describe('top-level model', () => {
 
   it("leaves a chat's model as chosen", () => {
     expect(automationRequest(form([gone]), MODELS, PERSONAS, true).model_id).toBe('claude:gone');
+  });
+});
+
+describe('settings a model does not have', () => {
+  const lead = {
+    model_id: 'claude:opus',
+    display_name: null,
+    permission_mode: 'plan' as const,
+    persona: 'Reviewer',
+    thinking_mode: 'low',
+  };
+  const scout = {
+    model_id: 'cursor:auto',
+    display_name: null,
+    permission_mode: 'plan' as const,
+    persona: null,
+    thinking_mode: null,
+  };
+
+  it('reads no override and nothing mixed on a member without effort or persona', () => {
+    const loaded = formFromAutomation(automation({ channel_members: [lead, scout] }), 'local');
+    const agents = withSupportedOverrides(loaded.agents, MODELS);
+
+    expect(agents[1].overrides).toEqual({});
+    expect(mixedMemberSettings(agents, loaded.shared)).toEqual({
+      thinkingMode: false,
+      persona: false,
+      permissionMode: false,
+    });
+  });
+
+  it('keeps a supported member stored without effort or persona on the defaults', () => {
+    const blank = { ...scout, model_id: 'claude:sonnet' };
+    const loaded = formFromAutomation(automation({ channel_members: [lead, blank] }), 'local');
+
+    expect(withSupportedOverrides(loaded.agents, MODELS)[1].overrides).toEqual({
+      thinkingMode: 'high',
+      persona: 'Default',
+    });
+    expect(automationRequest(loaded, MODELS, PERSONAS, true).channel_members![1]).toEqual({
+      model_id: 'claude:sonnet',
+      persona: null,
+      thinking_mode: 'high',
+      permission_mode: 'plan',
+      display_name: undefined,
+    });
+  });
+
+  it('leaves the shared effort and persona alone when shrinking to such a member', () => {
+    const loaded = formFromAutomation(automation({ channel_members: [lead, scout] }), 'local');
+    const { shared } = withAgents(loaded, [loaded.agents[1]], MODELS);
+
+    expect(shared).toEqual({ thinkingMode: 'low', persona: 'Reviewer', permissionMode: 'plan' });
   });
 });

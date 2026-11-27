@@ -29,6 +29,7 @@ import { BranchWorktreeSelector } from '@/components/chat/worktree-selector/Bran
 import {
   groupMemberRequests,
   newGroupMember,
+  promoteSoleMemberOverrides,
   type GroupMember,
   type SharedMemberSettings,
 } from '@/components/channels/memberDraft';
@@ -199,20 +200,13 @@ function NewThreadDialog() {
   );
   const setMembers = useCallback(
     (list: GroupMember[]) => {
-      // One member is the chat flow, whose model and settings are the persisted defaults:
-      // a group shrinking to one keeps what that agent had by making it the defaults.
-      if (list.length > 1) {
-        useNewThreadStore.getState().setMembers({ machineId: targetMachineId, list });
-        return;
-      }
-      const [member] = list;
-      setDefaultSettings(member.overrides);
-      selectModel(member.modelId);
-      useNewThreadStore
-        .getState()
-        .setMembers({ machineId: targetMachineId, list: [{ ...member, overrides: {} }] });
+      // One member is the chat flow, whose model and settings are the persisted defaults
+      const { members: next, promoted } = promoteSoleMemberOverrides(list, models);
+      setDefaultSettings(promoted);
+      if (next.length === 1) selectModel(next[0].modelId);
+      useNewThreadStore.getState().setMembers({ machineId: targetMachineId, list: next });
     },
-    [targetMachineId, selectModel],
+    [models, targetMachineId, selectModel],
   );
 
   const handleFileAttach = useCallback((action: SetStateAction<File[]>) => {
@@ -434,6 +428,7 @@ function NewThreadDialog() {
             <ThreadSettings
               machineId={targetMachineId}
               members={members}
+              channel={isGroup}
               shared={shared}
               personas={personas}
               disabled={isLoading}

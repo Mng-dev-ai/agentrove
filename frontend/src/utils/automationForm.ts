@@ -1,5 +1,6 @@
 import {
   groupMemberRequests,
+  promoteSoleMemberOverrides,
   memberDraftFrom,
   newGroupMember,
   type GroupMember,
@@ -95,14 +96,18 @@ export function isChannelForm(form: AutomationForm): boolean {
 }
 
 // Every change to the agent list goes through here: a group clears the one-member-channel
-// flag, and one agent takes its own effective settings as the shared ones.
-export function withAgents(form: AutomationForm, agents: GroupMember[]): AutomationForm {
-  if (agents.length > 1) return { ...form, agents, singleMemberChannel: false };
-  const [agent] = agents;
+// flag, and a sole agent's own settings become the shared ones.
+export function withAgents(
+  form: AutomationForm,
+  agents: GroupMember[],
+  models: Model[],
+): AutomationForm {
+  const { members, promoted } = promoteSoleMemberOverrides(agents, models);
   return {
     ...form,
-    agents: [{ ...agent, overrides: {} }],
-    shared: { ...form.shared, ...agent.overrides },
+    agents: members,
+    shared: { ...form.shared, ...promoted },
+    singleMemberChannel: members.length > 1 ? false : form.singleMemberChannel,
   };
 }
 

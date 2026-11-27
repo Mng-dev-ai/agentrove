@@ -208,6 +208,7 @@ export function AutomationEditDialog({
               <ThreadSettings
                 machineId={form.machineId}
                 members={form.agents}
+                channel={isChannel}
                 shared={form.shared}
                 personas={personas}
                 disabled={false}
