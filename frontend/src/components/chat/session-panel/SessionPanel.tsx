@@ -53,12 +53,7 @@ import { useChatSessionState } from '@/hooks/useChatSessionContext';
 import { useChannelActivity } from '@/store/channelStore';
 import { useStreamStore } from '@/store/streamStore';
 import { useUIStore } from '@/store/uiStore';
-import {
-  resolveAgentKind,
-  supportsUsageUpdates,
-  type Chat,
-  type RateLimits,
-} from '@/types/chat.types';
+import { resolveAgentKind, supportsUsageUpdates, type Chat } from '@/types/chat.types';
 import type { Channel, ChannelMember, ChannelMemberCreateRequest } from '@/types/channel.types';
 import type { DiffMode, GitDiffStatsData, GitDiffTotals } from '@/types/sandbox.types';
 import type { Workspace } from '@/types/workspace.types';
@@ -451,9 +446,7 @@ function ContextCard({ chat }: { chat: Chat }) {
 
 function ChatUsageCard({ chat }: { chat: Chat }) {
   const agentKind = useChatAgentKind(chat.id, chat.session_agent_kind, chat.last_model_id);
-  const { data } = useRateLimitsQuery(agentKind === 'claude' ? chat.id : undefined);
-  if (!data || agentKind !== 'claude') return null;
-  return <UsageCard rateLimits={data} />;
+  return agentKind === 'claude' ? <UsageCard chatId={chat.id} /> : null;
 }
 
 function ChannelUsageCard({ channel, chat }: { channel: Channel; chat: Chat }) {
@@ -462,23 +455,37 @@ function ChannelUsageCard({ channel, chat }: { channel: Channel; chat: Chat }) {
   const claudeMembers = channel.members.filter(
     (member) => resolveAgentKind(modelMap, member.model_id) === 'claude',
   );
+  if (claudeMembers.length === 0) return null;
   const activeClaudeIds = claudeMembers
     .filter((member) => activeMemberIds.includes(member.id))
     .map((member) => member.id)
     .join(',');
-  const { data, refetch } = useRateLimitsQuery(claudeMembers[0]?.chat_id);
-  // A member turn's limits reach the channel page only through this refetch.
-  useEffect(() => {
-    if (claudeMembers.length > 0) void refetch({ cancelRefetch: false });
-  }, [activeClaudeIds, claudeMembers.length, refetch]);
-  if (!data || claudeMembers.length === 0) return null;
-  return <UsageCard rateLimits={data} />;
+  return (
+    <ChannelUsageRefresh chatId={claudeMembers[0].chat_id} activeClaudeIds={activeClaudeIds} />
+  );
 }
 
-function UsageCard({ rateLimits }: { rateLimits: RateLimits }) {
-  const rows = getRateLimitRows(rateLimits, new Date());
+function ChannelUsageRefresh({
+  chatId,
+  activeClaudeIds,
+}: {
+  chatId: string;
+  activeClaudeIds: string;
+}) {
+  const { refetch } = useRateLimitsQuery(chatId);
+  // A member turn's limits reach the channel page only through this refetch.
+  useEffect(() => {
+    void refetch({ cancelRefetch: false });
+  }, [activeClaudeIds, refetch]);
+  return <UsageCard chatId={chatId} />;
+}
+
+function UsageCard({ chatId }: { chatId: string }) {
+  const { data } = useRateLimitsQuery(chatId);
+  if (!data) return null;
+  const rows = getRateLimitRows(data, new Date());
   if (rows.length === 0) return null;
-  const action = getRateLimitAction(rateLimits, rows);
+  const action = getRateLimitAction(data, rows);
   return (
     <Card
       title="Usage"

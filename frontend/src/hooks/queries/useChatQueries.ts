@@ -209,11 +209,10 @@ export const useContextUsageQuery = (
 };
 
 // The limits belong to the machine's Claude login, so every chat on a machine shares one entry.
-export const useRateLimitsQuery = (chatId: string | undefined) => {
+export const useRateLimitsQuery = (chatId: string) => {
   return useQuery({
     queryKey: queryKeys.machine.rateLimits(useChatMachineId(chatId)),
-    queryFn: () => chatService.getRateLimits(chatId!),
-    enabled: !!chatId,
+    queryFn: () => chatService.getRateLimits(chatId),
     staleTime: 0,
   });
 };
