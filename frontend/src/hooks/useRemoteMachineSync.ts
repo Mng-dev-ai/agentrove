@@ -45,7 +45,7 @@ export function useRemoteMachineSync(machineId: string): void {
       createSource: () => chatService.createChatEventsSource(machineId),
       getActiveStreams: () => getOwnedStreams(machineId),
       claim: (event) => {
-        if (event.kind === 'channel_created') return true;
+        if (event.kind === 'channel_created' || event.kind === 'channel_renamed') return true;
         if (event.kind === 'chat_created') {
           assignChatRecordsToMachine(machineId, [event.chat]);
           return chatMachineId(event.chat.id) === machineId;

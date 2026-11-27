@@ -41,6 +41,7 @@ const OPENS_TAB: Record<ChatEvent['kind'], boolean> = {
   stream_started: true,
   title_updated: false,
   channel_created: false,
+  channel_renamed: false,
 };
 
 class FakeEventSource {
@@ -316,6 +317,9 @@ describe('backend chat event fixture', () => {
     if (event.kind === 'title_updated') {
       queryClient.setQueryData(queryKeys.chat(event.chat_id), makeChat(event.chat_id));
     }
+    if (event.kind === 'channel_renamed') {
+      queryClient.setQueryData(queryKeys.channel(event.channel_id), {});
+    }
     const source = await mount(local);
 
     source.emit(JSON.stringify(event));
@@ -335,6 +339,10 @@ describe('backend chat event fixture', () => {
         break;
       case 'channel_created':
         expect(isInvalidated(local.channelsKey)).toBe(true);
+        break;
+      case 'channel_renamed':
+        expect(isInvalidated(local.channelsKey)).toBe(true);
+        expect(isInvalidated(queryKeys.channel(event.channel_id))).toBe(true);
         break;
     }
   });

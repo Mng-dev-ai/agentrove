@@ -49,6 +49,15 @@ function applyChatEvent(
     return;
   }
 
+  if (parsed.kind === 'channel_renamed') {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.channels(origin.machineId) });
+    void queryClient.invalidateQueries({
+      queryKey: queryKeys.channel(parsed.channel_id),
+      exact: true,
+    });
+    return;
+  }
+
   if (parsed.kind === 'chat_created') {
     origin.applyCreatedChat(parsed.chat);
     useUIStore.getState().openChatTab(parsed.chat.id);

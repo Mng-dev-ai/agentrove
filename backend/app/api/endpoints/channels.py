@@ -112,6 +112,7 @@ async def post_message(
     content: str = Form(..., min_length=1, max_length=100000),
     attached_files: list[UploadFile] | None = File(None),
     report_to_parent: bool = Form(False),
+    generate_title: bool = Form(False),
     user: User = Depends(get_current_user),
 ) -> ChannelMessageRead:
     channel = await channel_service.get(channel_id, user)
@@ -134,6 +135,8 @@ async def post_message(
             report_to_parent=report_to_parent,
         )
     )
+    if generate_title:
+        channel_service.generate_name(channel, content)
     return response
 
 

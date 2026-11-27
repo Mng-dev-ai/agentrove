@@ -43,8 +43,18 @@ class ChannelCreatedEvent(TypedDict):
     parent_chat_id: str | None
 
 
+class ChannelRenamedEvent(TypedDict):
+    kind: Literal["channel_renamed"]
+    channel_id: str
+    name: str
+
+
 ChatEvent = (
-    ChatCreatedEvent | StreamStartedEvent | TitleUpdatedEvent | ChannelCreatedEvent
+    ChatCreatedEvent
+    | StreamStartedEvent
+    | TitleUpdatedEvent
+    | ChannelCreatedEvent
+    | ChannelRenamedEvent
 )
 
 
