@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { MarkDown } from '@/components/ui/markdown/MarkDown';
 import { Tooltip } from '@/components/ui/Tooltip/Tooltip';
 import { ProviderIcon } from '@/components/ui/icons/ProviderIcon';
@@ -36,6 +36,7 @@ import { useModelMap } from '@/hooks/queries/useModelQueries';
 import { useChannelLive } from '@/hooks/useChannelLive';
 import { useClipboard } from '@/hooks/useClipboard';
 import { useSmoothText } from '@/hooks/useSmoothText';
+import { useMountEffect } from '@/hooks/useMountEffect';
 import { elicitationService } from '@/services/elicitationService';
 import { permissionService } from '@/services/permissionService';
 import {
@@ -396,6 +397,11 @@ export function ChannelView({ channel }: { channel: Channel }) {
   const [draft, setDraft] = useState(
     () => (location.state as { initialDraft?: string } | null)?.initialDraft ?? '',
   );
+  // Router state survives a reload, which would restore the draft after it was sent
+  const navigate = useNavigate();
+  useMountEffect(() => {
+    if (draft) navigate(location, { replace: true, state: null });
+  });
   const { copiedMessageId, handleCopy } = useClipboard({ chatId: channel.id });
 
   const messagesById = useChannelStore(

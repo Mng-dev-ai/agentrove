@@ -9,6 +9,7 @@ import { useDropdown } from '@/hooks/useDropdown';
 import { usePanelInlineShift } from '@/hooks/usePanelFit';
 import { useChatSettingsStore } from '@/store/chatSettingsStore';
 import { LOCAL_MACHINE_NAME, useMachineStore, useTargetMachineId } from '@/store/machineStore';
+import { useNewThreadStore } from '@/store/newThreadStore';
 import { LOCAL_MACHINE_ID, type MachineStatus } from '@/types/machine.types';
 import toggleStyles from '@/components/ui/shared/ToggleDropdown/ToggleDropdown.module.scss';
 import styles from './RunLocationSelector.module.scss';
@@ -111,6 +112,7 @@ export const RunLocationSelector = memo(function RunLocationSelector({
             type="button"
             onClick={() => {
               setIsOpen(false);
+              useNewThreadStore.getState().close();
               navigate('/settings', { state: { tab: 'machines' } });
             }}
             className={clsx(toggleStyles.option, styles.option)}

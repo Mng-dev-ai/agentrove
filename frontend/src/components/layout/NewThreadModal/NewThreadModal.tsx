@@ -223,6 +223,11 @@ function NewThreadDialog() {
     store.setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, files);
   }, []);
 
+  // A submission in flight keeps the modal open until it navigates
+  const requestClose = () => {
+    if (!isLoading) close();
+  };
+
   const clearDraft = () => {
     useNewThreadStore.getState().clearDraft();
     useChatStore.getState().setAttachedFilesForChat(PENDING_NEW_CHAT_KEY, []);
@@ -309,7 +314,6 @@ function NewThreadDialog() {
         members: requests,
       },
     });
-    close();
     try {
       await postChannelMessage.mutateAsync({
         channelId: channel.id,
@@ -317,6 +321,7 @@ function NewThreadDialog() {
         files: attachedFiles ?? [],
       });
       clearDraft();
+      close();
       navigate(`/channels/${channel.id}`);
     } catch (error) {
       toast.error(
@@ -324,7 +329,8 @@ function NewThreadDialog() {
           error instanceof Error ? error.message : 'unknown error'
         }`,
       );
-      useNewThreadStore.getState().clearDraft();
+      clearDraft();
+      close();
       navigate(`/channels/${channel.id}`, { state: { initialDraft: prompt } });
     }
   };
@@ -364,7 +370,13 @@ function NewThreadDialog() {
   };
 
   return (
-    <BaseModal isOpen onClose={close} size="full" className={styles.dialog} ariaLabel="New thread">
+    <BaseModal
+      isOpen
+      onClose={requestClose}
+      size="full"
+      className={styles.dialog}
+      ariaLabel="New thread"
+    >
       <ChatProvider
         sandboxId={sandboxId}
         fileStructure={fileStructure}
@@ -384,7 +396,7 @@ function NewThreadDialog() {
           onModelChange={selectModel}
           machineId={targetMachineId}
         >
-          <NewThreadComposer onClose={close}>
+          <NewThreadComposer onClose={requestClose}>
             <RunLocationSelector disabled={isLoading} />
             {isRemote ? (
               <MachineWorkspaceSelector
