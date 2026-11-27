@@ -5,6 +5,8 @@
 @use 'sass:map';
 
 $layers: (
+  // under the in-flow content of its stacking context
+  'behind': -1,
   'raised': 10,
   // sticky headers-within-panels, floating chips
   'sticky': 20,
@@ -18,7 +20,7 @@ $layers: (
   // dialog backdrops + dialogs
   'command-menu': 80,
   'tooltip': 90,
-  'toast': 100,
+  'toast': 100
 );
 
 @mixin z($layer) {

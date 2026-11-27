@@ -207,6 +207,9 @@ export function TitleBar() {
           </div>
         </>
       )}
+      {isAuthenticated && showSidebar && (
+        <div className={clsx(styles.backdrop, docked && styles['backdrop--docked'])} />
+      )}
     </div>
   );
 }

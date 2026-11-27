@@ -11,7 +11,6 @@
   height: 100%;
   min-width: 0;
   flex: 1;
-  background-color: var(--theme-surface);
 }
 
 .column {
@@ -40,7 +39,6 @@
   flex: 1 1 0;
   align-items: center;
   gap: var(--space-2);
-  background-color: var(--theme-surface);
   padding-inline: var(--space-3);
 
   &--panel {
@@ -50,6 +48,7 @@
   &--in-tile {
     width: 100%;
     flex: none;
+    background-color: var(--theme-surface);
     border-bottom: 1px solid colors.theme-color('border', 0.5);
   }
 }

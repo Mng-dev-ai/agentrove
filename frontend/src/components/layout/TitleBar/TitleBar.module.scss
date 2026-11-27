@@ -67,6 +67,7 @@
   // 2.5rem bar + the iOS top inset (0 on desktop/web)
   height: calc(var(--space-10) + var(--safe-area-top));
   flex-shrink: 0;
+  background-color: var(--theme-surface);
 
   &--tabs {
     .left {
@@ -85,18 +86,22 @@
   width: auto;
   align-items: center;
   gap: var(--space-1);
-  background-color: var(--theme-surface);
   padding-top: var(--safe-area-top);
   transition-property: width, padding;
   transition-duration: var(--sidebar-transition-duration, var(--duration-base));
   transition-timing-function: var(--easing-out);
 
-  // While the sidebar is open the left section becomes its header strip:
-  // full sidebar width, sidebar fill, right border merging into the sidebar's edge.
+  // On mobile the backdrop covers the band, so the strip's controls stack above it.
+  @include responsive.media('mobile') {
+    @include z.z('raised');
+    position: relative;
+  }
+
+  // While the sidebar is open the left section becomes its header strip, spanning
+  // the sidebar; the transparent border keeps its content clear of the backdrop's border.
   &--docked {
     width: var(--sidebar-width);
-    background-color: var(--theme-surface-secondary);
-    border-right: 1px solid colors.theme-color('border', 0.5);
+    border-right: 1px solid transparent;
 
     // The mobile sidebar overlays the page, so its header strip overlays the bar
     // instead of squeezing the band past the viewport edge.
@@ -105,6 +110,31 @@
       inset-block: 0;
       left: 0;
     }
+  }
+}
+
+// Slides with the sidebar instead of the strip, so the bar's sidebar fill and
+// hairline track the sidebar edge on every frame.
+.backdrop {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: var(--sidebar-width);
+  border-right: 1px solid colors.theme-color('border', 0.5);
+  background-color: var(--theme-surface-secondary);
+  pointer-events: none;
+  transform: translateX(-100%);
+  transition-property: transform, width;
+  transition-duration: var(--sidebar-transition-duration, var(--duration-base));
+  transition-timing-function: var(--easing-out);
+
+  // Under the bar's content on desktop; on mobile the drawer header covers the band.
+  @include responsive.media('desktop') {
+    @include z.z('behind');
+  }
+
+  &--docked {
+    transform: translateX(0);
   }
 }
 
@@ -184,7 +214,6 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  background-color: var(--theme-surface);
   padding-inline: var(--space-3);
   padding-top: var(--safe-area-top);
 }
