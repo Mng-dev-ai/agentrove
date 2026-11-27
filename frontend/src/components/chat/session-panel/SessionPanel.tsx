@@ -305,7 +305,6 @@ function MemberEditor({
         memberName={memberName}
         models={models}
         personas={personas}
-        fill
         onChange={(patch) => setDraft((prev) => ({ ...prev, ...patch }))}
         onRemove={
           member && channel.members.length > 1 ? () => setConfirmingRemove(true) : undefined

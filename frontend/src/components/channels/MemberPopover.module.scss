@@ -15,9 +15,9 @@
   @include z.z('dropdown');
   position: absolute;
   top: 100%;
+  right: 0;
   left: 0;
   display: flex;
-  width: 17rem;
   flex-direction: column;
   gap: var(--space-0-5);
   margin-top: var(--space-1-5);
@@ -28,11 +28,6 @@
   backdrop-filter: blur(24px) saturate(1.5);
   padding: var(--space-1-5);
 
-  @include responsive.media('sm-down') {
-    right: 0;
-    width: auto;
-  }
-
   &--top {
     top: auto;
     bottom: 100%;
@@ -42,11 +37,6 @@
 
   &--capped {
     overflow-y: auto;
-  }
-
-  &--fill {
-    right: 0;
-    width: auto;
   }
 }
 

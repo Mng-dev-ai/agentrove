@@ -31,7 +31,6 @@ interface MemberPopoverProps {
   onRemove?: () => void;
   trigger: (isOpen: boolean, toggle: () => void) => ReactNode;
   footer?: (close: () => void) => ReactNode;
-  fill?: boolean;
 }
 
 export function MemberPopover({
@@ -44,7 +43,6 @@ export function MemberPopover({
   onRemove,
   trigger,
   footer,
-  fill = false,
 }: MemberPopoverProps) {
   const { isOpen, dropdownRef, setIsOpen } = useDropdown();
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -66,7 +64,6 @@ export function MemberPopover({
             styles.popover,
             fit?.side === 'top' && styles['popover--top'],
             fit?.maxHeight !== undefined && styles['popover--capped'],
-            fill && styles['popover--fill'],
           )}
         >
           <div className={styles['popover-field']}>
