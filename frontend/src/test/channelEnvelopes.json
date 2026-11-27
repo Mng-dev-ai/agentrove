@@ -1,0 +1,199 @@
+[
+  {
+    "channelId": "00000000-0000-4000-8000-000000000002",
+    "kind": "channel_message",
+    "payload": {
+      "message": {
+        "id": "00000000-0000-4000-8000-000000000003",
+        "channel_id": "00000000-0000-4000-8000-000000000002",
+        "seq": 1,
+        "version": 1,
+        "member_id": null,
+        "content": "Hello team",
+        "tool_call_count": 0,
+        "has_render_ui": false,
+        "duration_ms": null,
+        "audience": null,
+        "attachments": [],
+        "status": "completed",
+        "created_at": "2026-01-01T00:00:00.123456Z",
+        "author_type": "user"
+      }
+    }
+  },
+  {
+    "channelId": "00000000-0000-4000-8000-000000000002",
+    "kind": "channel_permission_request",
+    "payload": {
+      "member_id": "00000000-0000-4000-8000-000000000004",
+      "chat_id": "00000000-0000-4000-8000-000000000005",
+      "request": {
+        "request_id": "perm-1",
+        "tool_name": "Bash",
+        "tool_input": {
+          "zeta": [
+            1,
+            {
+              "b": 2,
+              "a": 1
+            }
+          ],
+          "command": "ls -la"
+        },
+        "options": [
+          {
+            "kind": "allow_once",
+            "name": "Allow",
+            "option_id": "allow",
+            "permission_mode": null,
+            "x_unnamed": {
+              "z": 1,
+              "a": 2
+            }
+          },
+          {
+            "kind": "allow_always",
+            "name": "Always allow",
+            "option_id": "always",
+            "permission_mode": "acceptEdits"
+          }
+        ]
+      }
+    }
+  },
+  {
+    "channelId": "00000000-0000-4000-8000-000000000002",
+    "kind": "channel_member_activity",
+    "payload": {
+      "epoch": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": 3,
+      "member_ids": [],
+      "waiting_member_ids": ["00000000-0000-4000-8000-000000000004"],
+      "elicitations": [
+        {
+          "member_id": "00000000-0000-4000-8000-000000000004",
+          "chat_id": "00000000-0000-4000-8000-000000000005",
+          "request": {
+            "request_id": "elicit-1",
+            "message": "Which branch?",
+            "tool_call_id": "tool-9",
+            "requested_schema": {
+              "type": "object",
+              "x-unnamed": true,
+              "properties": {
+                "branch": {
+                  "type": "string",
+                  "enum": ["main", "dev"]
+                }
+              },
+              "required": ["branch"]
+            },
+            "x_unnamed": "kept"
+          }
+        }
+      ],
+      "retrying_member_ids": [],
+      "member_errors": {},
+      "unavailable_members": {
+        "00000000-0000-4000-8000-000000000004": "Gave up after 5 attempts: Authentication required"
+      }
+    }
+  },
+  {
+    "channelId": "00000000-0000-4000-8000-000000000002",
+    "kind": "channel_member_activity",
+    "payload": {
+      "epoch": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": 2,
+      "member_ids": [],
+      "waiting_member_ids": ["00000000-0000-4000-8000-000000000004"],
+      "elicitations": [
+        {
+          "member_id": "00000000-0000-4000-8000-000000000004",
+          "chat_id": "00000000-0000-4000-8000-000000000005",
+          "request": {
+            "request_id": "elicit-1",
+            "message": "Which branch?",
+            "tool_call_id": "tool-9",
+            "requested_schema": {
+              "type": "object",
+              "x-unnamed": true,
+              "properties": {
+                "branch": {
+                  "type": "string",
+                  "enum": ["main", "dev"]
+                }
+              },
+              "required": ["branch"]
+            },
+            "x_unnamed": "kept"
+          }
+        }
+      ],
+      "retrying_member_ids": [],
+      "member_errors": {},
+      "unavailable_members": {},
+      "asked": {
+        "title": "#Review",
+        "body": "claude-sonnet-4.6-google-vertex asks: Which branch?"
+      }
+    }
+  },
+  {
+    "channelId": "00000000-0000-4000-8000-000000000002",
+    "kind": "channel_member_activity",
+    "payload": {
+      "epoch": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "version": 4,
+      "member_ids": [],
+      "waiting_member_ids": ["00000000-0000-4000-8000-000000000004"],
+      "elicitations": [
+        {
+          "member_id": "00000000-0000-4000-8000-000000000004",
+          "chat_id": "00000000-0000-4000-8000-000000000005",
+          "request": {
+            "request_id": "elicit-1",
+            "message": "Which branch?",
+            "tool_call_id": "tool-9",
+            "requested_schema": {
+              "type": "object",
+              "x-unnamed": true,
+              "properties": {
+                "branch": {
+                  "type": "string",
+                  "enum": ["main", "dev"]
+                }
+              },
+              "required": ["branch"]
+            },
+            "x_unnamed": "kept"
+          }
+        }
+      ],
+      "retrying_member_ids": [],
+      "member_errors": {},
+      "unavailable_members": {
+        "00000000-0000-4000-8000-000000000004": "Gave up after 5 attempts: Authentication required"
+      },
+      "completed": {
+        "title": "#Review",
+        "body": "Reviewer: Hello team"
+      }
+    }
+  },
+  {
+    "channelId": "00000000-0000-4000-8000-000000000002",
+    "kind": "channel_permission_resolved",
+    "payload": {
+      "member_id": "00000000-0000-4000-8000-000000000004",
+      "request_id": "perm-1"
+    }
+  },
+  {
+    "channelId": "00000000-0000-4000-8000-000000000002",
+    "kind": "channel_queue_sent",
+    "payload": {
+      "id": "queued-1"
+    }
+  }
+]

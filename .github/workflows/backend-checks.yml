@@ -13,6 +13,8 @@ on:
       - 'frontend/src/test/agentPermissionModes.json'
       - 'frontend/src/test/channelMentions.json'
       - 'frontend/src/test/streamEnvelopes.json'
+      - 'frontend/src/test/channelEnvelopes.json'
+      - 'frontend/src/test/chatEvents.json'
       - '.github/workflows/backend-checks.yml'
   pull_request:
     branches: [main]
@@ -26,6 +28,8 @@ on:
       - 'frontend/src/test/agentPermissionModes.json'
       - 'frontend/src/test/channelMentions.json'
       - 'frontend/src/test/streamEnvelopes.json'
+      - 'frontend/src/test/channelEnvelopes.json'
+      - 'frontend/src/test/chatEvents.json'
       - '.github/workflows/backend-checks.yml'
 
 jobs:

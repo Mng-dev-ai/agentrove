@@ -1,0 +1,82 @@
+[
+  {
+    "kind": "chat_created",
+    "chat": {
+      "title": "Fixture",
+      "id": "00000000-0000-4000-8000-000000000006",
+      "user_id": "00000000-0000-4000-8000-000000000001",
+      "workspace_id": "00000000-0000-4000-8000-000000000007",
+      "sandbox_id": "sandbox-testuser",
+      "created_at": "2026-01-01T00:00:00.123456Z",
+      "updated_at": "2026-01-01T00:00:00.123456Z",
+      "context_token_usage": 0,
+      "pinned_at": null,
+      "worktree_cwd": null,
+      "parent_chat_id": null,
+      "channel_id": null,
+      "sub_thread_count": 0,
+      "session_agent_kind": null,
+      "unread": true,
+      "last_model_id": "sonnet",
+      "last_permission_mode": null,
+      "last_thinking_mode": null,
+      "last_persona_name": null,
+      "forked_from_chat_id": null,
+      "forked_from_title": null
+    }
+  },
+  {
+    "kind": "stream_started",
+    "chat_id": "00000000-0000-4000-8000-000000000006",
+    "parent_chat_id": "44444444-4444-4444-8444-444444444444",
+    "message_id": "22222222-2222-4222-8222-222222222222",
+    "user_message_id": "11111111-1111-4111-8111-111111111111",
+    "content": "Run the tests",
+    "app_notice": false,
+    "attachments": [
+      {
+        "id": "55555555-5555-4555-8555-555555555555",
+        "message_id": "11111111-1111-4111-8111-111111111111",
+        "file_url": "/api/v1/attachments/55555555-5555-4555-8555-555555555555/preview",
+        "file_type": "image",
+        "filename": "screen.png",
+        "created_at": "2026-01-01T00:00:00.123456+00:00"
+      }
+    ],
+    "model_id": "sonnet",
+    "thinking_mode": "high",
+    "permission_mode": "plan",
+    "selected_persona_name": "Ada",
+    "checkpoint_id": "33333333-3333-4333-8333-333333333333"
+  },
+  {
+    "kind": "stream_started",
+    "chat_id": "00000000-0000-4000-8000-000000000006",
+    "parent_chat_id": null,
+    "message_id": "22222222-2222-4222-8222-222222222222",
+    "user_message_id": "11111111-1111-4111-8111-111111111111",
+    "content": "Notice",
+    "app_notice": true,
+    "attachments": null,
+    "model_id": "sonnet",
+    "thinking_mode": null,
+    "permission_mode": "default",
+    "selected_persona_name": "Agentrove",
+    "checkpoint_id": null
+  },
+  {
+    "kind": "title_updated",
+    "chat_id": "00000000-0000-4000-8000-000000000006",
+    "title": "New title"
+  },
+  {
+    "kind": "channel_created",
+    "channel_id": "00000000-0000-4000-8000-000000000008",
+    "parent_chat_id": "00000000-0000-4000-8000-000000000006"
+  },
+  {
+    "kind": "channel_created",
+    "channel_id": "00000000-0000-4000-8000-000000000009",
+    "parent_chat_id": null
+  }
+]

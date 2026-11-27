@@ -1,7 +1,8 @@
 from typing import Any
 from uuid import UUID
 
-from app.services.channels.publisher import ChannelPublisher
+from app.models.schemas.channel import ChannelPermissionRequest, ElicitationData
+from app.services.channels.publisher import ChannelNotice, ChannelPublisher
 from app.services.channels.state import ChannelState, MemberTurn, TurnStatus
 from app.services.db import SessionFactoryType
 from app.services.push import PushService
@@ -50,7 +51,7 @@ class ChannelRequests:
                     str(turn.member.chat_id), request_id
                 )
                 return
-            pending = {
+            pending: ChannelPermissionRequest = {
                 "member_id": str(turn.member.id),
                 "chat_id": str(turn.member.chat_id),
                 "request": {
@@ -83,14 +84,15 @@ class ChannelRequests:
                     str(turn.member.chat_id), request_id, action="decline"
                 )
                 return
+            data: ElicitationData = payload["data"]
             state.elicitations[(turn.member.id, request_id)] = {
                 "member_id": str(turn.member.id),
                 "chat_id": str(turn.member.chat_id),
-                "request": {"request_id": request_id, **payload["data"]},
+                "request": {"request_id": request_id, **data},
             }
-            asked = {
+            asked: ChannelNotice = {
                 "title": f"#{state.channel.name}",
-                "body": f"{turn.member.display_name} asks: {payload['data']['message']}",
+                "body": f"{turn.member.display_name} asks: {data['message']}",
             }
             await self.publisher.publish_activity(state, asked)
         await PushService(self.session_factory).notify_question(

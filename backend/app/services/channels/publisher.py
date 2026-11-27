@@ -1,20 +1,72 @@
 import json
 import logging
-from typing import Any
+from typing import Any, Literal, TypedDict
 from uuid import UUID
 
 from app.constants import REDIS_KEY_USER_STREAMS_LIVE
 from app.models.db_models.channel import Channel, ChannelMessage
-from app.models.schemas.channel import ChannelMessageRead
+from app.models.schemas.channel import (
+    ChannelMemberActivity,
+    ChannelMessageRead,
+    ChannelPermissionRequest,
+)
 from app.services.channels.state import ChannelState, TurnStatus
 from app.utils.cache import CacheError, cache_connection
 
 logger = logging.getLogger(__name__)
 
+ChannelEnvelopeKind = Literal[
+    "channel_message",
+    "channel_permission_request",
+    "channel_permission_resolved",
+    "channel_member_activity",
+    "channel_queue_sent",
+]
+
+
+class ChannelMessagePayload(TypedDict):
+    message: dict[str, Any]
+
+
+class ChannelPermissionResolved(TypedDict):
+    member_id: str
+    request_id: str
+
+
+class ChannelNotice(TypedDict):
+    title: str
+    body: str
+
+
+class ChannelMemberAsked(ChannelMemberActivity):
+    asked: ChannelNotice
+
+
+class ChannelMemberCompleted(ChannelMemberActivity):
+    completed: ChannelNotice
+
+
+class ChannelQueueSent(TypedDict):
+    id: str
+
+
+ChannelEnvelopePayload = (
+    ChannelMessagePayload
+    | ChannelPermissionRequest
+    | ChannelPermissionResolved
+    | ChannelMemberActivity
+    | ChannelMemberAsked
+    | ChannelMemberCompleted
+    | ChannelQueueSent
+)
+
 
 class ChannelPublisher:
     async def publish(
-        self, channel: Channel, kind: str, payload: dict[str, Any]
+        self,
+        channel: Channel,
+        kind: ChannelEnvelopeKind,
+        payload: ChannelEnvelopePayload,
     ) -> None:
         try:
             async with cache_connection() as cache:
@@ -28,7 +80,7 @@ class ChannelPublisher:
             logger.warning("Failed to publish channel event for %s", channel.id)
 
     async def publish_activity(
-        self, state: ChannelState, asked: dict[str, str] | None = None
+        self, state: ChannelState, asked: ChannelNotice | None = None
     ) -> None:
         member_ids = [
             str(turn.member.id)
@@ -71,9 +123,11 @@ class ChannelPublisher:
         state.gave_up_members = gave_up_members
         state.activity_version += 1
         activity = state.member_activity()
-        if asked is not None:
-            activity["asked"] = asked
-        await self.publish(state.channel, "channel_member_activity", activity)
+        await self.publish(
+            state.channel,
+            "channel_member_activity",
+            activity if asked is None else {**activity, "asked": asked},
+        )
 
     @staticmethod
     def serialized(message: ChannelMessage) -> dict[str, Any]:

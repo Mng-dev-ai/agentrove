@@ -1,12 +1,18 @@
 import asyncio
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Literal
+from typing import Literal
 from uuid import UUID, uuid4
 
 from app.catalog import MODELS
 from app.models.db_models.channel import Channel, ChannelMember, ChannelMessage
-from app.models.schemas.channel import ChannelMemberState, MemberOutcome
+from app.models.schemas.channel import (
+    ChannelElicitationRequest,
+    ChannelMemberActivity,
+    ChannelMemberState,
+    ChannelPermissionRequest,
+    MemberOutcome,
+)
 
 ACTIVITY_EPOCH = uuid4().hex
 UNKNOWN_MODEL = "Model {model_id} is unknown on this instance"
@@ -87,8 +93,12 @@ class ChannelState:
     timer: asyncio.Task[None] | None = None
     retries: dict[UUID, MemberRetry] = field(default_factory=dict)
     gave_up: dict[UUID, str] = field(default_factory=dict)
-    permissions: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
-    elicitations: dict[tuple[UUID, str], dict[str, Any]] = field(default_factory=dict)
+    permissions: dict[tuple[UUID, str], ChannelPermissionRequest] = field(
+        default_factory=dict
+    )
+    elicitations: dict[tuple[UUID, str], ChannelElicitationRequest] = field(
+        default_factory=dict
+    )
     last_reply: tuple[str, ChannelMessage] | None = None
     outcomes: dict[UUID, MemberOutcome] = field(default_factory=dict)
     # The round the parent chat started, until its final report is acknowledged.
@@ -96,7 +106,7 @@ class ChannelState:
     unavailable: set[UUID] = field(default_factory=set)
     active_member_ids: list[str] = field(default_factory=list)
     waiting_member_ids: list[str] = field(default_factory=list)
-    elicitation_requests: list[dict[str, Any]] = field(default_factory=list)
+    elicitation_requests: list[ChannelElicitationRequest] = field(default_factory=list)
     retrying_member_ids: list[str] = field(default_factory=list)
     member_errors: dict[str, str] = field(default_factory=dict)
     gave_up_members: dict[str, str] = field(default_factory=dict)
@@ -105,7 +115,7 @@ class ChannelState:
     paused: bool = False
     deleted: bool = False
 
-    def member_activity(self) -> dict[str, Any]:
+    def member_activity(self) -> ChannelMemberActivity:
         return {
             "epoch": ACTIVITY_EPOCH,
             "version": self.activity_version,

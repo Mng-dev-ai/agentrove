@@ -37,6 +37,7 @@ from app.services.agent import (
     AgentService,
     StreamResult,
 )
+from app.services.chat_events import ChatEventPublisher
 from app.services.session_registry import session_registry
 from app.services.db import SessionFactoryType
 from app.services.exceptions import (
@@ -792,9 +793,7 @@ class ChatStreamRuntime:
         assistant_message: Message,
         checkpoint_id: UUID | None,
     ) -> None:
-        from app.services.chat import ChatService
-
-        await ChatService.publish_stream_started(
+        await ChatEventPublisher.publish_stream_started(
             chat.user_id,
             user_message,
             assistant_message,
@@ -970,12 +969,9 @@ class ChatStreamRuntime:
             )
             await db.commit()
 
-        # Avoid circular import with chat.py.
-        from app.services.chat import ChatService
-
         # Push the title to open sessions so the sidebar/tab update mid-stream
         # instead of waiting for the completion refetch.
-        await ChatService.publish_user_chat_event(
+        await ChatEventPublisher.publish(
             self.chat.user_id,
             {"kind": "title_updated", "chat_id": self.chat_id, "title": title},
         )

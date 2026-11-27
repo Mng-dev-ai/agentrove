@@ -43,6 +43,7 @@ from app.services.channels.state import ChannelState, MemberTurn, TurnStatus
 from app.services.channels.service import channel_service
 from app.services.channels.engine import MAX_ATTEMPTS, ChannelEngine, channel_engine
 from app.services.chat import ChatService
+from app.services.chat_events import ChatEventPublisher
 from app.services.sandbox_providers.base import SandboxProvider
 from app.services.streaming.runtime import ChatStreamRuntime
 from app.services.streaming.types import ChannelMemberTurn, EventSink
@@ -2794,9 +2795,7 @@ async def test_creating_a_channel_announces_it_on_the_owners_chat_feed(
     async def record_chat_event(user_id: UUID, payload: dict[str, Any]) -> None:
         chat_events.append((user_id, payload))
 
-    monkeypatch.setattr(
-        ChatService, "publish_user_chat_event", staticmethod(record_chat_event)
-    )
+    monkeypatch.setattr(ChatEventPublisher, "publish", staticmethod(record_chat_event))
 
     created = await client.post(
         "/api/v1/channels",

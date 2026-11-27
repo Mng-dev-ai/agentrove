@@ -21,7 +21,6 @@ from app.models.db_models.workspace import Workspace
 from app.models.schemas.channel import (
     BROADCAST_MENTIONS,
     ChannelCreate,
-    ChannelMemberActivity,
     ChannelMemberCreate,
     ChannelMemberRead,
     ChannelMemberUpdate,
@@ -46,6 +45,7 @@ from app.services.git import GitService
 from app.services.queue import ChannelQueueService
 from app.services.storage import StorageService
 from app.services.chat import SEARCH_MAX_ROWS, ChatService
+from app.services.chat_events import ChatEventPublisher
 from app.services.db import BaseDbService
 from app.services.session_registry import session_registry
 
@@ -207,7 +207,7 @@ class ChannelService(BaseDbService[Channel]):
             except Exception:
                 await self._delete_locked(state, parent_deleted=False)
                 raise
-        await ChatService.publish_user_chat_event(
+        await ChatEventPublisher.publish(
             user.id,
             {
                 "kind": "channel_created",
@@ -421,7 +421,7 @@ class ChannelService(BaseDbService[Channel]):
                 if member.removed_at is not None
             ],
             anchor_chat_id=self.anchor_chat_id(channel),
-            activity=ChannelMemberActivity.model_validate(state.member_activity()),
+            activity=state.member_activity(),
             parent_chat_id=channel.parent_chat_id,
             instructions=channel.instructions,
             member_states={
