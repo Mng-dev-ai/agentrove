@@ -17,6 +17,7 @@ describe('getRateLimitRows', () => {
   it('orders known windows first and humanises unknown keys', () => {
     const rows = getRateLimitRows(
       limits({
+        seven_day_new_model: windowWith(),
         seven_day_overage_included: windowWith(),
         seven_day_sonnet: windowWith(),
         seven_day: windowWith(),
@@ -30,7 +31,8 @@ describe('getRateLimitRows', () => {
       'Weekly · all models',
       'Weekly · Opus',
       'Weekly · Sonnet',
-      'Seven day overage included',
+      'Weekly · Fable',
+      'Seven day new model',
     ]);
   });
 
