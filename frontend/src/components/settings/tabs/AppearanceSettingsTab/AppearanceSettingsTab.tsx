@@ -1,7 +1,5 @@
-import { useId } from 'react';
-import clsx from 'clsx';
-import { Check } from 'lucide-react';
 import { SectionCard, SettingRow } from '@/components/settings/SettingsCard/SettingsCard';
+import { Dropdown } from '@/components/ui/primitives/Dropdown/Dropdown';
 import {
   SegmentedControl,
   type SegmentOption,
@@ -9,20 +7,25 @@ import {
 import { Select } from '@/components/ui/primitives/Select/Select';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useUIStore } from '@/store/uiStore';
-import type { Palette, Theme, TranscriptWidth } from '@/types/ui.types';
-import { DARK_PALETTES, PALETTE_TOKENS, THEMES, getThemeMeta, type ThemeMeta } from '@/utils/theme';
+import type { Palette, TranscriptWidth } from '@/types/ui.types';
+import { DARK_PALETTES, PALETTE_TOKENS, THEMES, type ThemeMeta } from '@/utils/theme';
 import styles from './AppearanceSettingsTab.module.scss';
 
+type Mode = 'light' | 'dark' | 'system';
 type PaletteMeta = ThemeMeta & { value: Palette };
 
 const PALETTE_THEMES = THEMES.filter((t): t is PaletteMeta => t.value !== 'system');
 const LIGHT_THEMES = PALETTE_THEMES.filter((t) => !DARK_PALETTES.has(t.value));
 const DARK_THEMES = PALETTE_THEMES.filter((t) => DARK_PALETTES.has(t.value));
+const PALETTE_META = Object.fromEntries(PALETTE_THEMES.map((t) => [t.value, t])) as Record<
+  Palette,
+  PaletteMeta
+>;
 
-const THEME_GROUPS: { title: string; themes: ThemeMeta[] }[] = [
-  { title: 'System', themes: [getThemeMeta('system')] },
-  { title: 'Light', themes: LIGHT_THEMES },
-  { title: 'Dark', themes: DARK_THEMES },
+const MODE_OPTIONS: SegmentOption<Mode>[] = [
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+  { value: 'system', label: 'System' },
 ];
 
 const CODE_FONT_SIZES = [11, 12, 13, 14, 15, 16];
@@ -38,140 +41,78 @@ const TRANSCRIPT_WIDTH_OPTIONS: SegmentOption<TranscriptWidth>[] = [
   { value: 'wide', label: 'Wide' },
 ];
 
-function SwatchHalf({ palette }: { palette: Palette }) {
-  const tokens = PALETTE_TOKENS[palette];
+const previewTheme = (meta: PaletteMeta) => useUIStore.getState().setThemePreview(meta.value);
+
+const clearPreviewOnClose = (isOpen: boolean) => {
+  if (!isOpen) useUIStore.getState().setThemePreview(null);
+};
+
+function ThemeChip({ palette }: { palette: Palette }) {
+  const { surface, surfaceSecondary, textPrimary } = PALETTE_TOKENS[palette];
   return (
-    <span className={styles['swatch-half']} style={{ backgroundColor: tokens.surface }}>
-      <span className={styles['swatch-panel']} style={{ backgroundColor: tokens.surfaceSecondary }}>
-        <span className={styles['swatch-line']} style={{ backgroundColor: tokens.textPrimary }} />
-        <span
-          className={clsx(styles['swatch-line'], styles['swatch-line--short'])}
-          style={{ backgroundColor: tokens.textSecondary }}
-        />
-      </span>
+    <span
+      aria-hidden="true"
+      className={styles.chip}
+      style={{
+        background: `linear-gradient(90deg, ${surface} 0 34%, ${surfaceSecondary} 34% 67%, ${textPrimary} 67%)`,
+      }}
+    />
+  );
+}
+
+function renderThemeItem(meta: PaletteMeta) {
+  return (
+    <span className={styles.item}>
+      <ThemeChip palette={meta.value} />
+      <span className={styles['item-label']}>{meta.label}</span>
     </span>
   );
 }
 
-function ThemeCard({ meta, selected }: { meta: ThemeMeta; selected: boolean }) {
-  const systemLightTheme = useUIStore((state) => state.systemLightTheme);
-  const systemDarkTheme = useUIStore((state) => state.systemDarkTheme);
-  const { setTheme, setThemePreview } = useUIStore.getState();
-  const preview = () => setThemePreview(meta.value);
-  const clearPreview = () => setThemePreview(null);
-
-  return (
-    <button
-      type="button"
-      role="radio"
-      aria-checked={selected}
-      tabIndex={selected ? 0 : -1}
-      className={clsx(styles.card, selected && styles['card--selected'])}
-      onClick={() => setTheme(meta.value)}
-      onMouseEnter={preview}
-      onMouseLeave={clearPreview}
-      onFocus={preview}
-      onBlur={clearPreview}
-    >
-      <span className={styles.swatch} aria-hidden="true">
-        {meta.value === 'system' ? (
-          <>
-            <SwatchHalf palette={systemLightTheme} />
-            <SwatchHalf palette={systemDarkTheme} />
-          </>
-        ) : (
-          <SwatchHalf palette={meta.value} />
-        )}
-      </span>
-      <span className={styles['card-label']}>
-        <span className={styles['card-name']}>{meta.label}</span>
-        {selected && <Check className={styles['card-check']} aria-hidden="true" />}
-      </span>
-    </button>
-  );
-}
-
-// Roving focus like SegmentedControl; focus previews, Enter/Space/click commits.
-function handleGalleryKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
-  const cards = Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
-  const index = cards.findIndex((card) => card === document.activeElement);
-  if (index < 0) return;
-  let next: number | undefined;
-  if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (index + 1) % cards.length;
-  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
-    next = (index - 1 + cards.length) % cards.length;
-  else if (e.key === 'Home') next = 0;
-  else if (e.key === 'End') next = cards.length - 1;
-  if (next === undefined) return;
-  e.preventDefault();
-  cards[next].focus();
-}
-
-function ThemeGallery({ theme }: { theme: Theme }) {
-  const idPrefix = useId();
-
-  return (
-    <div
-      role="radiogroup"
-      aria-label="Theme"
-      className={styles.gallery}
-      onKeyDown={handleGalleryKeyDown}
-    >
-      {THEME_GROUPS.map(({ title, themes }) => (
-        <div key={title} role="group" aria-labelledby={`${idPrefix}-${title}`}>
-          <h3 id={`${idPrefix}-${title}`} className={styles['group-title']}>
-            {title}
-          </h3>
-          <div className={styles.grid}>
-            {themes.map((meta) => (
-              <ThemeCard key={meta.value} meta={meta} selected={meta.value === theme} />
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function PaletteSelect({
+function ThemePicker({
   label,
   value,
   themes,
-  onChange,
+  onSelect,
 }: {
   label: string;
   value: Palette;
   themes: PaletteMeta[];
-  onChange: (palette: Palette) => void;
+  onSelect: (palette: Palette) => void;
 }) {
   return (
-    <div className={styles.control}>
-      <Select
-        value={value}
-        onChange={(e) => onChange(e.target.value as Palette)}
-        className={styles.select}
-        aria-label={label}
-      >
-        {themes.map((t) => (
-          <option key={t.value} value={t.value}>
-            {t.label}
-          </option>
-        ))}
-      </Select>
-    </div>
+    <Dropdown
+      value={PALETTE_META[value]}
+      items={themes}
+      getItemKey={(meta) => meta.value}
+      getItemLabel={(meta) => meta.label}
+      onSelect={(meta) => onSelect(meta.value)}
+      onItemHighlight={previewTheme}
+      onOpenChange={clearPreviewOnClose}
+      renderItem={renderThemeItem}
+      triggerIcon={<ThemeChip palette={value} />}
+      ariaLabel={label}
+      width="14rem"
+      dropdownPosition="auto"
+      dropdownAlign="right"
+      searchable
+      searchPlaceholder="Filter..."
+      searchVariant="underline"
+    />
   );
 }
 
 export function AppearanceSettingsTab() {
   const theme = useUIStore((state) => state.theme);
-  const systemLightTheme = useUIStore((state) => state.systemLightTheme);
-  const systemDarkTheme = useUIStore((state) => state.systemDarkTheme);
+  const lightTheme = useUIStore((state) => state.lightTheme);
+  const darkTheme = useUIStore((state) => state.darkTheme);
   const codeFontSize = useUIStore((state) => state.codeFontSize);
   const diffStyle = useUIStore((state) => state.diffStyle);
   const transcriptWidth = useUIStore((state) => state.transcriptWidth);
   const {
-    setSystemLightTheme,
-    setSystemDarkTheme,
+    setTheme,
+    setLightTheme,
+    setDarkTheme,
     setCodeFontSize,
     setDiffStyle,
     setTranscriptWidth,
@@ -179,31 +120,44 @@ export function AppearanceSettingsTab() {
 
   useMountEffect(() => () => useUIStore.getState().setThemePreview(null));
 
+  const mode: Mode = theme === 'system' ? 'system' : DARK_PALETTES.has(theme) ? 'dark' : 'light';
+  const selectMode = (next: Mode) =>
+    setTheme(next === 'system' ? 'system' : next === 'dark' ? darkTheme : lightTheme);
+  const isSystem = mode === 'system';
+
   return (
     <div className={styles.appearance}>
       <h2 className={styles['page-title']}>Appearance</h2>
 
       <SectionCard title="Theme">
-        <ThemeGallery theme={theme} />
-        {theme === 'system' && (
-          <>
-            <SettingRow title="Light theme" desc="Used while your system is in light mode.">
-              <PaletteSelect
-                label="Light theme"
-                value={systemLightTheme}
-                themes={LIGHT_THEMES}
-                onChange={setSystemLightTheme}
-              />
-            </SettingRow>
-            <SettingRow title="Dark theme" desc="Used while your system is in dark mode.">
-              <PaletteSelect
-                label="Dark theme"
-                value={systemDarkTheme}
-                themes={DARK_THEMES}
-                onChange={setSystemDarkTheme}
-              />
-            </SettingRow>
-          </>
+        <SettingRow title="Mode">
+          <SegmentedControl options={MODE_OPTIONS} value={mode} onChange={selectMode} size="sm" />
+        </SettingRow>
+        {mode !== 'dark' && (
+          <SettingRow
+            title="Light theme"
+            desc={isSystem ? 'Used while your system is in light mode.' : undefined}
+          >
+            <ThemePicker
+              label="Light theme"
+              value={lightTheme}
+              themes={LIGHT_THEMES}
+              onSelect={isSystem ? setLightTheme : setTheme}
+            />
+          </SettingRow>
+        )}
+        {mode !== 'light' && (
+          <SettingRow
+            title="Dark theme"
+            desc={isSystem ? 'Used while your system is in dark mode.' : undefined}
+          >
+            <ThemePicker
+              label="Dark theme"
+              value={darkTheme}
+              themes={DARK_THEMES}
+              onSelect={isSystem ? setDarkTheme : setTheme}
+            />
+          </SettingRow>
         )}
       </SectionCard>
 

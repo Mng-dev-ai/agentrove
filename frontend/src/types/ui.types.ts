@@ -63,13 +63,13 @@ export interface MentionItem {
 export interface ThemeState {
   theme: Theme;
   themePreview: Theme | null;
-  systemLightTheme: Palette;
-  systemDarkTheme: Palette;
+  lightTheme: Palette;
+  darkTheme: Palette;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
   setThemePreview: (theme: Theme | null) => void;
-  setSystemLightTheme: (palette: Palette) => void;
-  setSystemDarkTheme: (palette: Palette) => void;
+  setLightTheme: (palette: Palette) => void;
+  setDarkTheme: (palette: Palette) => void;
 }
 
 export interface ModelSelectionState {

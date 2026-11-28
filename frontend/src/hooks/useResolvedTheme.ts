@@ -35,12 +35,12 @@ function getServerSnapshot(): boolean {
 
 export function useAppliedPalette(): Palette {
   const theme = useUIStore(selectAppliedTheme);
-  const systemLightTheme = useUIStore((state) => state.systemLightTheme);
-  const systemDarkTheme = useUIStore((state) => state.systemDarkTheme);
+  const lightTheme = useUIStore((state) => state.lightTheme);
+  const darkTheme = useUIStore((state) => state.darkTheme);
   const prefersDark = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
   if (theme !== 'system') return theme;
-  return prefersDark ? systemDarkTheme : systemLightTheme;
+  return prefersDark ? darkTheme : lightTheme;
 }
 
 export function useResolvedTheme(): ResolvedTheme {

@@ -38,6 +38,8 @@ export interface DropdownProps<T> {
   // Kept whole after the label, which truncates first
   triggerSuffix?: string;
   onSelect: (item: T) => void;
+  // Hovered or focused item, e.g. to preview it before the pick
+  onItemHighlight?: (item: T) => void;
   // Several items can read as selected; defaults to the item matching value
   isItemSelected?: (item: T) => boolean;
   // A pick leaves the panel open, for picks that toggle membership
@@ -162,6 +164,7 @@ type DropdownOptionsProps<T> = Pick<
   | 'selectionStyle'
   | 'renderHeader'
   | 'renderFooter'
+  | 'onItemHighlight'
 > & {
   onPick: (item: T) => void;
 };
@@ -180,6 +183,7 @@ function DropdownOptions<T>({
   selectionStyle = 'check',
   renderHeader,
   renderFooter,
+  onItemHighlight,
   onPick,
 }: DropdownOptionsProps<T>) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -281,6 +285,7 @@ function DropdownOptions<T>({
               isSelected={isSelected}
               role="option"
               onSelect={() => onPick(item)}
+              onHighlight={onItemHighlight && (() => onItemHighlight(item))}
               className={clsx(
                 styles['item-row'],
                 selectionStyle === 'accent' && styles['item-row--accent'],
