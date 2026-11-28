@@ -82,6 +82,7 @@ function NestedRow({
           type="button"
           onClick={onSelect}
           aria-current={isCurrent ? 'page' : undefined}
+          data-sidebar-thread
           className={styles['subthread-select']}
         >
           {leading}

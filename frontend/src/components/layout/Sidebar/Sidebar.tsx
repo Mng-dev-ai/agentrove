@@ -17,6 +17,9 @@ import { useMachinesModelMaps } from '@/hooks/queries/useModelQueries';
 import { useStreamStore } from '@/store/streamStore';
 import { useBlockedChatIds } from '@/hooks/useBlockedChatIds';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useMountEffect } from '@/hooks/useMountEffect';
+import { isEmbeddedEditor } from '@/hooks/useCommandMenu';
+import { isModalLayerOpen } from '@/components/ui/shared/BaseModal/useModalLayer';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { useAuthStore } from '@/store/authStore';
 import { useLogout } from '@/hooks/useLogout';
@@ -104,6 +107,25 @@ export function Sidebar({
   );
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // ⌥↑/⌥↓ step through the rows as rendered, clicking the target so it opens as a click would
+  useMountEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.isComposing) return;
+      if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+      if (isEmbeddedEditor(e.target) || isModalLayerOpen()) return;
+      const container = scrollContainerRef.current;
+      if (!container) return;
+      e.preventDefault();
+      const rows = [...container.querySelectorAll<HTMLElement>('[data-sidebar-thread]')];
+      const current = rows.findIndex((row) => row.getAttribute('aria-current') === 'page');
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      const target = rows[current === -1 ? (step === 1 ? 0 : rows.length - 1) : current + step];
+      target?.click();
+    };
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
+    return () => window.removeEventListener('keydown', handleKeyDown, { capture: true });
+  });
 
   const chatLists = useSidebarChatLists(workspaces, true, filters.source);
   const {

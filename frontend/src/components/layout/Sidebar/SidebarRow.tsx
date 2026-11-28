@@ -1,4 +1,4 @@
-import type { MouseEvent, ReactNode, Ref } from 'react';
+import { useEffect, useRef, type MouseEvent, type ReactNode } from 'react';
 import clsx from 'clsx';
 import { MoreHorizontal } from 'lucide-react';
 import { Button } from '@/components/ui/primitives/Button/Button';
@@ -6,7 +6,6 @@ import { stateClasses } from '@/config/stateClasses';
 import styles from './SidebarRow.module.scss';
 
 interface SidebarRowProps {
-  ref?: Ref<HTMLDivElement>;
   isActive: boolean;
   isRevealed: boolean;
   leading?: ReactNode;
@@ -23,7 +22,6 @@ interface SidebarRowProps {
 }
 
 export function SidebarRow({
-  ref,
   isActive,
   isRevealed,
   leading,
@@ -36,9 +34,14 @@ export function SidebarRow({
   onMouseEnter,
   onMouseLeave,
 }: SidebarRowProps) {
+  // Keep the active row visible when navigation lands on an off-screen row
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isActive) rowRef.current?.scrollIntoView({ block: 'nearest' });
+  }, [isActive]);
   return (
     <div
-      ref={ref}
+      ref={rowRef}
       className={clsx(styles.row, isActive && stateClasses.ACTIVE)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
@@ -94,6 +97,7 @@ export function SidebarRowTitle({
     <Button
       onClick={onClick}
       aria-current={isCurrent ? 'page' : undefined}
+      data-sidebar-thread
       variant="unstyled"
       className={styles['title-btn']}
     >

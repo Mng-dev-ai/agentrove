@@ -1,4 +1,4 @@
-import { Fragment, memo, useEffect, useRef } from 'react';
+import { Fragment, memo } from 'react';
 import { ChevronRight, CornerDownRight } from 'lucide-react';
 import { AsciiSpinner } from '@/components/ui/AsciiSpinner/AsciiSpinner';
 import { ChatStatusDot } from '@/components/ui/ChatStatusDot/ChatStatusDot';
@@ -137,11 +137,6 @@ export const SidebarChatItem = memo(function SidebarChatItem({
 }: SidebarChatItemProps) {
   // onToggleSubThreads is only set when the chat has sub-threads or linked channels
   const hasSubThreads = onToggleSubThreads != null;
-  // Keep the active chat visible when navigation lands on an off-screen row
-  const rowRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (isActive) rowRef.current?.scrollIntoView({ block: 'nearest' });
-  }, [isActive]);
   // The open chat is being read — no unread signal for it
   const isUnread = !isActive && chat.unread;
   const agentKind = useChatAgentKind(chat.id, chat.session_agent_kind, chat.last_model_id);
@@ -253,7 +248,6 @@ export const SidebarChatItem = memo(function SidebarChatItem({
     // below stay readable.
     <FloatingTooltip content={preview} placement="right">
       <SidebarRow
-        ref={rowRef}
         isActive={isActive}
         isRevealed={isHovered || isActive || isDropdownOpen}
         onMouseEnter={() => onMouseEnter(chat.id)}
