@@ -2029,6 +2029,9 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:google-vertex/codestral-2": ModelInfo(
         "Codestral 2 (Google Vertex)", AgentKind.OPENCODE, 128_000
     ),
+    "opencode:google-vertex/deepseek-ai/deepseek-v4.1-flash-1017-maas": ModelInfo(
+        "DeepSeek V4.1 Flash 1017 (Google Vertex)", AgentKind.OPENCODE, 1_000_000
+    ),
     "opencode:google-vertex/gemini-2.5-flash-tts": ModelInfo(
         "Gemini 2.5 Flash TTS (Google Vertex)", AgentKind.OPENCODE, 32_768
     ),
@@ -2490,7 +2493,7 @@ MODELS: dict[str, ModelInfo] = {
         "ERNIE-5.5-Flash-Preview (free) (Openrouter)",
         AgentKind.OPENCODE,
         1_024_000,
-        effort_levels=("high",),
+        effort_levels=("none", "low", "medium", "high"),
     ),
     "opencode:openrouter/baidu/ernie-light-dt-1.0-intl": ModelInfo(
         "ERNIE-Light-DT-1.0 (Openrouter)",
@@ -2802,8 +2805,8 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/inclusionai/ling-3.1-flash": ModelInfo(
         "Ling 3.1 Flash (Openrouter)", AgentKind.OPENCODE, 1_048_576
     ),
-    "opencode:openrouter/inclusionai/ling-3.2-flash:free": ModelInfo(
-        "Ling 3.2 Flash (free) (Openrouter)", AgentKind.OPENCODE, 1_048_576
+    "opencode:openrouter/inclusionai/ling-3.2-flash": ModelInfo(
+        "Ling 3.2 Flash (Openrouter)", AgentKind.OPENCODE, 1_048_576
     ),
     "opencode:openrouter/inclusionai/lingsante-3.1-air-vl": ModelInfo(
         "LingSante 3.1 Air VL (Openrouter)", AgentKind.OPENCODE, 131_072
@@ -3500,9 +3503,6 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/qwen/qwen3-235b-a22b-2507": ModelInfo(
         "Qwen3 235B A22B Instruct 2507 (Openrouter)", AgentKind.OPENCODE, 262_144
     ),
-    "opencode:openrouter/qwen/qwen3-235b-a22b-thinking-2507": ModelInfo(
-        "Qwen3 235B A22B Thinking 2507 (Openrouter)", AgentKind.OPENCODE, 128_000
-    ),
     "opencode:openrouter/qwen/qwen3-30b-a3b": ModelInfo(
         "Qwen3 30B A3B (Openrouter)", AgentKind.OPENCODE, 40_960
     ),
@@ -3587,7 +3587,7 @@ MODELS: dict[str, ModelInfo] = {
     "opencode:openrouter/qwen/qwen3.8-2.4t-a95b": ModelInfo(
         "Qwen3.8 2.4T A95B (Openrouter)",
         AgentKind.OPENCODE,
-        1_048_576,
+        1_000_000,
         effort_levels=("low", "medium", "xhigh"),
     ),
     "opencode:openrouter/qwen/qwen3.8-27b": ModelInfo(
