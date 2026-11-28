@@ -1,14 +1,9 @@
 import { useCallback } from 'react';
-import { useResolvedTheme } from '@/hooks/useResolvedTheme';
-import { selectAppliedTheme, useUIStore } from '@/store/uiStore';
+import { useAppliedPalette } from '@/hooks/useResolvedTheme';
 import { THEME_DATA } from '@/styles/editorThemes';
-import type { Palette } from '@/types/ui.types';
 
 export function useEditorTheme() {
-  const resolvedTheme = useResolvedTheme();
-  const rawTheme = useUIStore(selectAppliedTheme);
-  const palette: Palette = rawTheme === 'system' ? resolvedTheme : rawTheme;
-  const themeName = `custom-${palette}`;
+  const themeName = `custom-${useAppliedPalette()}`;
 
   const setupEditorTheme = useCallback(
     (monaco: typeof import('monaco-editor')) => {

@@ -139,3 +139,28 @@ const toTokens = (def: PaletteDef): PaletteTokens => ({
 export const CUSTOM_PALETTE_TOKENS = Object.fromEntries(
   CUSTOM_PALETTE_KEYS.map((p) => [p, toTokens(PALETTES[p])]),
 ) as Record<CustomPalette, PaletteTokens>;
+
+// The plain bases' --surface*/--text-* channels in styles/globals/_colors.scss.
+const BASE_PALETTE_TOKENS: Record<'light' | 'dark', PaletteTokens> = {
+  light: {
+    surface: '#f5f5f5',
+    surfaceSecondary: '#f9f9f9',
+    surfaceTertiary: '#f3f3f3',
+    textPrimary: '#0f172a',
+    textSecondary: '#475569',
+    textTertiary: '#64748b',
+  },
+  dark: {
+    surface: '#111111',
+    surfaceSecondary: '#141414',
+    surfaceTertiary: '#1e1e1e',
+    textPrimary: '#ffffff',
+    textSecondary: '#e0e0e0',
+    textTertiary: '#c0c0c0',
+  },
+};
+
+export const PALETTE_TOKENS: Record<Palette, PaletteTokens> = {
+  ...BASE_PALETTE_TOKENS,
+  ...CUSTOM_PALETTE_TOKENS,
+};

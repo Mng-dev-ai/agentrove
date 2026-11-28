@@ -10,11 +10,13 @@ import {
   GitBranch,
   Server,
   Smartphone,
+  Palette,
 } from 'lucide-react';
 import { isTauri } from '@tauri-apps/api/core';
 
 export type TabKey =
   | 'general'
+  | 'appearance'
   | 'notifications'
   | 'personas'
   | 'memory'
@@ -33,6 +35,7 @@ export interface SettingsNavItem {
 
 export const SETTINGS_NAV: SettingsNavItem[] = [
   { id: 'general', label: 'General', icon: Settings2 },
+  { id: 'appearance', label: 'Appearance', icon: Palette },
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'personas', label: 'Personas', icon: UserCircle },
   { id: 'memory', label: 'Memory', icon: Brain },
@@ -49,7 +52,7 @@ export const TAB_LABELS: Record<TabKey, string> = Object.fromEntries(
 ) as Record<TabKey, string>;
 
 const MOBILE_GROUP_IDS: { title: string; ids: TabKey[] }[] = [
-  { title: 'App', ids: ['general', 'notifications'] },
+  { title: 'App', ids: ['general', 'appearance', 'notifications'] },
   {
     title: 'Agents',
     ids: ['personas', 'instructions', 'automations', 'stream_actions', 'memory'],

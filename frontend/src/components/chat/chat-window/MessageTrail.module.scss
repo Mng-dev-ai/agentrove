@@ -77,34 +77,39 @@
 }
 
 // Slimmer rail once the column's side gutter drops under 40px, so it fits inside the
-// column's edge padding without covering text
-@container conversation (width < #{spacing.$reading-column-width + 5rem}) {
-  .trail-button {
-    padding-inline: var(--space-1);
-  }
-
-  .tick--active {
-    width: var(--space-2-5);
-  }
-
-  .tick--inactive {
-    width: var(--space-1-5);
-    background-color: colors.theme-color('text-quaternary', 0.25);
-  }
-
-  .trail-rail {
-    @include responsive.hover {
-      .tick--inactive {
-        background-color: colors.theme-color('text-quaternary', 0.5);
+// column's edge padding without covering text. Container queries can't read the width
+// var, so each transcript width gets its own breakpoint; :where keeps specificity.
+@each $name, $width in spacing.$reading-column-widths {
+  @container conversation (width < #{$width + 5rem}) {
+    :global(:where(:root[data-transcript-width='#{$name}'])) {
+      .trail-button {
+        padding-inline: var(--space-1);
       }
-    }
-  }
 
-  .trail-item {
-    @include responsive.hover {
+      .tick--active {
+        width: var(--space-2-5);
+      }
+
       .tick--inactive {
-        width: var(--space-2);
-        background-color: var(--theme-text-tertiary);
+        width: var(--space-1-5);
+        background-color: colors.theme-color('text-quaternary', 0.25);
+      }
+
+      .trail-rail {
+        @include responsive.hover {
+          .tick--inactive {
+            background-color: colors.theme-color('text-quaternary', 0.5);
+          }
+        }
+      }
+
+      .trail-item {
+        @include responsive.hover {
+          .tick--inactive {
+            width: var(--space-2);
+            background-color: var(--theme-text-tertiary);
+          }
+        }
       }
     }
   }

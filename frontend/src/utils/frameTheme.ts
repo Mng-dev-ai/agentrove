@@ -1,6 +1,6 @@
 import type { CustomPalette } from '@/utils/theme';
 import { CUSTOM_PALETTE_TOKENS } from '@/utils/theme';
-import type { Theme } from '@/types/ui.types';
+import type { Palette } from '@/types/ui.types';
 
 // Hex values mirror tailwind.config.js design tokens — kept in sync manually
 // because sandboxed frames are separate documents with no Tailwind context.
@@ -75,7 +75,7 @@ const PALETTE_OVERRIDES = Object.fromEntries(
       },
     ];
   }),
-) as Partial<Record<Theme, Record<string, string>>>;
+) as Partial<Record<Palette, Record<string, string>>>;
 
 export const FRAME_BASE_CSS = `
   button { background: transparent; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 6px 14px; font-size: 13px; color: var(--color-text-primary); cursor: pointer; font-family: var(--font-sans); }
@@ -88,7 +88,10 @@ export const FRAME_BASE_CSS = `
   body { background: transparent; color: var(--color-text-primary); line-height: 1.5; padding: 1rem; }
 `;
 
-export const getFrameThemeVariables = (isDark: boolean, theme: Theme): Record<string, string> => ({
+export const getFrameThemeVariables = (
+  isDark: boolean,
+  palette: Palette,
+): Record<string, string> => ({
   ...(isDark ? DARK_VARS : LIGHT_VARS),
-  ...PALETTE_OVERRIDES[theme],
+  ...PALETTE_OVERRIDES[palette],
 });

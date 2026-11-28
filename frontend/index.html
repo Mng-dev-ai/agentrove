@@ -18,30 +18,31 @@
   </head>
   <body>
     <script>
-      // Mirrors useResolvedTheme + App's theme effect. vite.config.ts
+      // Mirrors useAppliedPalette + App's theme effect. vite.config.ts
       // injects DARK_THEMES, the app's dark set derived from src/styles/palettes.ts.
       (function initTheme() {
         var DARK_THEMES = __DARK_THEMES__;
         var root = document.documentElement;
-        var theme = 'dark';
+        var stored = { theme: 'dark', systemLightTheme: 'light', systemDarkTheme: 'dark' };
         try {
           var persisted = JSON.parse(localStorage.getItem('ui-storage'));
-          // Same as the store's shallow merge: any persisted theme value wins.
-          if (persisted && persisted.state && 'theme' in persisted.state) {
-            theme = persisted.state.theme;
+          // Same as the store's shallow merge: any persisted value wins.
+          if (persisted && persisted.state) {
+            for (var key in stored) {
+              if (key in persisted.state) stored[key] = persisted.state[key];
+            }
           }
         } catch (error) {}
-        var resolved;
-        if (theme === 'system') {
-          resolved =
+        var palette = stored.theme;
+        if (palette === 'system') {
+          palette =
             window.matchMedia && !window.matchMedia('(prefers-color-scheme: dark)').matches
-              ? 'light'
-              : 'dark';
-        } else {
-          resolved = DARK_THEMES.indexOf(theme) !== -1 ? 'dark' : 'light';
+              ? stored.systemLightTheme
+              : stored.systemDarkTheme;
         }
+        var resolved = DARK_THEMES.indexOf(palette) !== -1 ? 'dark' : 'light';
         root.setAttribute('data-theme', resolved);
-        root.setAttribute('data-palette', theme);
+        root.setAttribute('data-palette', palette);
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) {
           var surface = window.getComputedStyle(root).backgroundColor;

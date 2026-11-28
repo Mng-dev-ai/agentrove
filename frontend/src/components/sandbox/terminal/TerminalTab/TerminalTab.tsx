@@ -4,14 +4,13 @@ import { logger } from '@/utils/logger';
 import '@xterm/xterm/css/xterm.css';
 
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { useResolvedTheme } from '@/hooks/useResolvedTheme';
-import { selectAppliedTheme, useUIStore } from '@/store/uiStore';
+import { useAppliedPalette } from '@/hooks/useResolvedTheme';
+import { useUIStore } from '@/store/uiStore';
 import { resolveSandboxClient, resolveSandboxWs } from '@/lib/api';
 
 import { useXterm } from '@/hooks/useXterm';
 import { TerminalSearch } from '@/components/sandbox/terminal/TerminalSearch/TerminalSearch';
 import type { TerminalSize } from '@/types/sandbox.types';
-import type { Palette } from '@/types/ui.types';
 import styles from './TerminalTab.module.scss';
 
 export interface TerminalTabProps {
@@ -41,10 +40,8 @@ export function TerminalTab({
   shouldClose = false,
   onClosed,
 }: TerminalTabProps) {
-  const resolvedTheme = useResolvedTheme();
-  const rawTheme = useUIStore(selectAppliedTheme);
-  // Only `system` needs resolving; every other theme is itself a palette
-  const palette: Palette = rawTheme === 'system' ? resolvedTheme : rawTheme;
+  const palette = useAppliedPalette();
+  const codeFontSize = useUIStore((state) => state.codeFontSize);
   const [sessionState, setSessionState] = useState<SessionState>('idle');
   const [closeReason, setCloseReason] = useState<string | null>(null);
   const [connectAttempt, setConnectAttempt] = useState(0);
@@ -87,6 +84,7 @@ export function TerminalTab({
   const { fitTerminal, isReady, searchAddonRef, terminalRef, wrapperRef } = useXterm({
     isVisible,
     mode: palette,
+    fontSize: codeFontSize,
     onData: (data: string) => {
       const ws = wsRef.current;
       if (ws?.readyState === WebSocket.OPEN) {

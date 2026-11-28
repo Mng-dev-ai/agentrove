@@ -2,6 +2,7 @@ import { lazy, memo, Suspense } from 'react';
 import { GitCompareArrows } from 'lucide-react';
 import { MONACO_FONT_FAMILY } from '@/config/constants';
 import { Button } from '@/components/ui/primitives/Button/Button';
+import { useUIStore } from '@/store/uiStore';
 import styles from './DiffContent.module.scss';
 
 const DIFF_OPTIONS = {
@@ -17,7 +18,6 @@ const DIFF_OPTIONS = {
   padding: { top: 8, bottom: 8 },
   automaticLayout: true,
   fontFamily: MONACO_FONT_FAMILY,
-  fontSize: 13,
   lineHeight: 1.5,
   renderLineHighlight: 'none',
   scrollbar: {
@@ -67,6 +67,7 @@ export const DiffContent = memo(function DiffContent({
   onRetry,
   onBeforeMount,
 }: DiffContentProps) {
+  const codeFontSize = useUIStore((state) => state.codeFontSize);
   if (isLoading || (!isError && original === undefined)) {
     return (
       <div className={styles['diff-state']}>
@@ -121,7 +122,7 @@ export const DiffContent = memo(function DiffContent({
           original={original}
           modified={modified}
           theme={theme}
-          options={DIFF_OPTIONS}
+          options={{ ...DIFF_OPTIONS, fontSize: codeFontSize }}
           beforeMount={onBeforeMount}
           loading={
             <div className={styles['diff-state']}>

@@ -12,6 +12,7 @@ import type {
   SplitSlot,
   WorkspaceLayout,
   LastThread,
+  TranscriptWidth,
 } from '@/types/ui.types';
 import { MAX_CHAT_PANES } from '@/types/ui.types';
 import type { DiffMode } from '@/types/sandbox.types';
@@ -151,6 +152,10 @@ type UIStoreState = ThemeState &
     pendingDiffMode: { chatId: string; mode: DiffMode } | null;
     diffStyle: 'unified' | 'split';
     setDiffStyle: (style: 'unified' | 'split') => void;
+    codeFontSize: number;
+    setCodeFontSize: (size: number) => void;
+    transcriptWidth: TranscriptWidth;
+    setTranscriptWidth: (width: TranscriptWidth) => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
     // Selection chips for a chat's input; serialized into the prompt at send.
@@ -341,6 +346,10 @@ export const useUIStore = create<UIStoreState>()(
       setTheme: (theme) => set({ theme }),
       themePreview: null,
       setThemePreview: (themePreview) => set({ themePreview }),
+      systemLightTheme: 'light',
+      setSystemLightTheme: (systemLightTheme) => set({ systemLightTheme }),
+      systemDarkTheme: 'dark',
+      setSystemDarkTheme: (systemDarkTheme) => set({ systemDarkTheme }),
       sidebarOpen: getInitialSidebarState(),
       setSidebarOpen: (isOpen) => set({ sidebarOpen: isOpen }),
       sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
@@ -461,6 +470,10 @@ export const useUIStore = create<UIStoreState>()(
       pendingDiffMode: null,
       diffStyle: 'unified',
       setDiffStyle: (diffStyle) => set({ diffStyle }),
+      codeFontSize: 13,
+      setCodeFontSize: (codeFontSize) => set({ codeFontSize }),
+      transcriptWidth: 'default',
+      setTranscriptWidth: (transcriptWidth) => set({ transcriptWidth }),
       openFileInEditor: (target, chatId, line, split = false) => {
         const state = get();
         const splitIndex = chatId ? state.splitChatIds.indexOf(chatId) : -1;
@@ -840,10 +853,14 @@ export const useUIStore = create<UIStoreState>()(
       name: 'ui-storage',
       partialize: (state) => ({
         theme: state.theme,
+        systemLightTheme: state.systemLightTheme,
+        systemDarkTheme: state.systemDarkTheme,
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,
         sessionPanelOpen: state.sessionPanelOpen,
         diffStyle: state.diffStyle,
+        codeFontSize: state.codeFontSize,
+        transcriptWidth: state.transcriptWidth,
         // Status filters are session-only (empty at mount) — don't persist them.
         sidebarFilters: { ...state.sidebarFilters, statuses: [] },
         collapsedSidebarSections: state.collapsedSidebarSections,

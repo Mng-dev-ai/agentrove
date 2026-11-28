@@ -9,8 +9,8 @@ import { useAppBadge } from '@/hooks/useAppBadge';
 import { Toaster } from 'react-hot-toast';
 import { useAuthStore } from '@/store/authStore';
 import { useOnlineRemoteMachineIds } from '@/store/machineStore';
-import { useResolvedTheme } from '@/hooks/useResolvedTheme';
-import { selectAppliedTheme, useUIStore } from '@/store/uiStore';
+import { useAppliedPalette, useResolvedTheme } from '@/hooks/useResolvedTheme';
+import { useUIStore } from '@/store/uiStore';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
 import { prefetchChatOpen } from '@/hooks/queries/useChatQueries';
 import { LoadingScreen } from '@/components/ui/LoadingScreen/LoadingScreen';
@@ -217,7 +217,9 @@ function revealAppWindow() {
 
 export default function App() {
   const resolvedTheme = useResolvedTheme();
-  const theme = useUIStore(selectAppliedTheme);
+  const palette = useAppliedPalette();
+  const transcriptWidth = useUIStore((state) => state.transcriptWidth);
+  const codeFontSize = useUIStore((state) => state.codeFontSize);
   // Web/mobile ready immediately; desktop waits for sidecar port.
   const [shellReady, setShellReady] = useState(!isTauri());
   const [desktopError, setDesktopError] = useState<string | null>(null);
@@ -252,18 +254,25 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', resolvedTheme);
-    // data-palette selects CSS-var overrides; light/dark/system have no override block.
-    document.documentElement.setAttribute('data-palette', theme);
+    // data-palette selects CSS-var overrides; light/dark have no override block.
+    document.documentElement.setAttribute('data-palette', palette);
     const metaThemeColor = document.querySelector('meta[name="theme-color"]');
     if (metaThemeColor) {
-      const palette =
-        theme === 'light' || theme === 'dark' || theme === 'system' ? null : PALETTES[theme];
+      const paletteDef = palette === 'light' || palette === 'dark' ? null : PALETTES[palette];
       metaThemeColor.setAttribute(
         'content',
-        palette?.surface ?? (resolvedTheme === 'dark' ? '#111111' : '#f5f5f5'),
+        paletteDef?.surface ?? (resolvedTheme === 'dark' ? '#111111' : '#f5f5f5'),
       );
     }
-  }, [resolvedTheme, theme]);
+  }, [resolvedTheme, palette]);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-transcript-width', transcriptWidth);
+  }, [transcriptWidth]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--code-font-size', String(codeFontSize));
+  }, [codeFontSize]);
 
   useMountEffect(() => {
     // Mobile: backend URL is build-time (.env.mobile); no sidecar port wait.

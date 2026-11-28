@@ -6,11 +6,16 @@
 
 @use 'sass:math';
 @use 'sass:list';
+@use 'sass:map';
 
 $space-base: 0.275rem;
 
-// Max width of the centred chat column (messages, composer, skeleton)
-$reading-column-width: 50rem;
+// Max width of the centred chat column (messages, composer, skeleton), per transcript-width setting
+$reading-column-widths: (
+  'narrow': 42rem,
+  'default': 50rem,
+  'wide': 68rem,
+);
 
 $session-panel-width: 280px;
 
@@ -82,9 +87,16 @@ $space-steps: (
     }
 
     --session-panel-width: #{$session-panel-width};
+    --reading-column-width: #{map.get($reading-column-widths, 'default')};
 
     // iOS safe areas — used by edge-touching surfaces (title bar, chat composer)
     --safe-area-top: env(safe-area-inset-top, 0px);
     --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  @each $name, $width in $reading-column-widths {
+    :root[data-transcript-width='#{$name}'] {
+      --reading-column-width: #{$width};
+    }
   }
 }

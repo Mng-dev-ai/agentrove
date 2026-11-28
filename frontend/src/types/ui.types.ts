@@ -49,6 +49,7 @@ export type Theme =
 export type ResolvedTheme = 'light' | 'dark';
 // Palette = Theme without `system`; for Monaco/xterm which can't read CSS vars.
 export type Palette = Exclude<Theme, 'system'>;
+export type TranscriptWidth = 'narrow' | 'default' | 'wide';
 
 type MentionType = 'file' | 'chat' | 'member';
 
@@ -62,9 +63,13 @@ export interface MentionItem {
 export interface ThemeState {
   theme: Theme;
   themePreview: Theme | null;
+  systemLightTheme: Palette;
+  systemDarkTheme: Palette;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
   setThemePreview: (theme: Theme | null) => void;
+  setSystemLightTheme: (palette: Palette) => void;
+  setSystemDarkTheme: (palette: Palette) => void;
 }
 
 export interface ModelSelectionState {
