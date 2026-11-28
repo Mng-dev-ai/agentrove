@@ -79,6 +79,9 @@ function ThemePicker({
   themes: PaletteMeta[];
   onSelect: (palette: Palette) => void;
 }) {
+  // Dropdown reports no close when it unmounts open, e.g. when a mode switch removes this row.
+  useMountEffect(() => () => useUIStore.getState().setThemePreview(null));
+
   return (
     <Dropdown
       value={getThemeMeta(value)}
@@ -117,8 +120,6 @@ export function AppearanceSettingsTab() {
     setDiffStyle,
     setTranscriptWidth,
   } = useUIStore.getState();
-
-  useMountEffect(() => () => useUIStore.getState().setThemePreview(null));
 
   const current = getThemeMeta(theme).value;
   const isSystem = current === 'system';
