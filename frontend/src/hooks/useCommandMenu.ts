@@ -12,7 +12,7 @@ import {
 import { MOBILE_BREAKPOINT } from '@/config/constants';
 import { IS_MAC_PLATFORM } from '@/utils/platform';
 
-function isEmbeddedEditor(target: EventTarget | null): boolean {
+export function isEmbeddedEditor(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
   return !!target.closest('.monaco-editor, .xterm');
 }

@@ -6,6 +6,8 @@ const FOCUSABLE =
 // Open dialogs in mount order; only the last one answers Escape/Tab.
 const openStack: HTMLDivElement[] = [];
 
+export const isModalLayerOpen = () => openStack.length > 0;
+
 // For document-level Escape handlers, which run before the modal layer's window listener:
 // true (and the key is consumed) only when nothing handled it and no dialog sits above `element`.
 export const claimEscape = (event: KeyboardEvent, element: Node | null) => {
