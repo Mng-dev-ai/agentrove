@@ -17,11 +17,20 @@
 }
 
 .chip {
-  height: var(--space-3-5);
-  width: var(--space-3-5);
+  display: flex;
+  height: var(--space-4);
+  width: var(--space-4);
   flex-shrink: 0;
-  border: 1px solid var(--theme-border-hover);
+  align-items: center;
+  justify-content: center;
+  border: 1px solid;
   border-radius: var(--radius-sm);
+}
+
+.chip-mark {
+  height: var(--space-1);
+  width: var(--space-2);
+  border-radius: var(--radius-full);
 }
 
 .item {
@@ -35,18 +44,4 @@
   @include type.type-default;
   @include type.type-overflow;
   color: var(--theme-text-primary);
-}
-
-.control {
-  width: var(--space-48);
-  flex-shrink: 0;
-
-  @include responsive.media('mobile') {
-    width: var(--space-36);
-  }
-}
-
-.select {
-  @include type.type-default;
-  height: var(--space-8);
 }

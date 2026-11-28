@@ -35,7 +35,7 @@ import {
   type SidebarActivityKind,
   type SidebarFilters,
 } from '@/store/sidebarFilters';
-import { DARK_PALETTES, THEME_CYCLE } from '@/utils/theme';
+import { DARK_PALETTES, THEME_CYCLE, getThemeMeta } from '@/utils/theme';
 
 const SIDEBAR_SECTIONS = ['pinned', 'recents'] as const;
 export const MIN_SIDEBAR_WIDTH = 220;
@@ -290,10 +290,12 @@ type SessionPanelState = Pick<
   'sessionPanelOpen' | 'splitSessionPanelChatIds' | 'splitChatIds'
 >;
 
-// A concrete theme is also the user's pick for its base, which the Mode control restores.
-function themeChange(theme: Theme): Partial<ThemeState> {
-  if (theme === 'system') return { theme };
-  return DARK_PALETTES.has(theme) ? { theme, darkTheme: theme } : { theme, lightTheme: theme };
+type ThemeSlots = Pick<ThemeState, 'lightTheme' | 'darkTheme'>;
+
+// An explicitly chosen concrete theme is the user's pick for its base.
+function slotFor(theme: Theme): Partial<ThemeSlots> {
+  if (theme === 'system') return {};
+  return DARK_PALETTES.has(theme) ? { darkTheme: theme } : { lightTheme: theme };
 }
 
 export function selectAppliedTheme(state: ThemeState): Theme {
@@ -347,9 +349,21 @@ export const useUIStore = create<UIStoreState>()(
       toggleTheme: () =>
         set((state) => {
           const i = THEME_CYCLE.indexOf(state.theme);
-          return themeChange(THEME_CYCLE[(i + 1) % THEME_CYCLE.length]);
+          return { theme: THEME_CYCLE[(i + 1) % THEME_CYCLE.length] };
         }),
-      setTheme: (theme) => set(themeChange(theme)),
+      setTheme: (theme) => set({ theme, ...slotFor(theme) }),
+      // Leaving a mode remembers the active theme, however it was chosen.
+      setThemeMode: (mode) =>
+        set((state) => {
+          const slots: ThemeSlots = {
+            lightTheme: state.lightTheme,
+            darkTheme: state.darkTheme,
+            ...slotFor(getThemeMeta(state.theme).value),
+          };
+          const theme =
+            mode === 'system' ? 'system' : mode === 'dark' ? slots.darkTheme : slots.lightTheme;
+          return { ...slots, theme };
+        }),
       themePreview: null,
       setThemePreview: (themePreview) => set({ themePreview }),
       lightTheme: 'light',
@@ -887,8 +901,6 @@ export const useUIStore = create<UIStoreState>()(
         const stored = persisted as Partial<UIStoreState> | undefined;
         return {
           ...current,
-          // State persisted before the light/dark slots existed seeds its theme's slot.
-          ...(stored?.theme && themeChange(stored.theme)),
           ...stored,
           sidebarFilters: { ...EMPTY_SIDEBAR_FILTERS, ...stored?.sidebarFilters },
           // Stored state can name sections the sidebar no longer has

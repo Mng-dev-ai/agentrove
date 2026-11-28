@@ -4,25 +4,23 @@ import {
   SegmentedControl,
   type SegmentOption,
 } from '@/components/ui/primitives/SegmentedControl/SegmentedControl';
-import { Select } from '@/components/ui/primitives/Select/Select';
 import { useMountEffect } from '@/hooks/useMountEffect';
 import { useUIStore } from '@/store/uiStore';
-import type { Palette, TranscriptWidth } from '@/types/ui.types';
-import { DARK_PALETTES, PALETTE_TOKENS, THEMES, type ThemeMeta } from '@/utils/theme';
+import type { Palette, ThemeMode, TranscriptWidth } from '@/types/ui.types';
+import {
+  DARK_PALETTES,
+  PALETTE_TOKENS,
+  THEMES,
+  getThemeMeta,
+  type PaletteMeta,
+} from '@/utils/theme';
 import styles from './AppearanceSettingsTab.module.scss';
-
-type Mode = 'light' | 'dark' | 'system';
-type PaletteMeta = ThemeMeta & { value: Palette };
 
 const PALETTE_THEMES = THEMES.filter((t): t is PaletteMeta => t.value !== 'system');
 const LIGHT_THEMES = PALETTE_THEMES.filter((t) => !DARK_PALETTES.has(t.value));
 const DARK_THEMES = PALETTE_THEMES.filter((t) => DARK_PALETTES.has(t.value));
-const PALETTE_META = Object.fromEntries(PALETTE_THEMES.map((t) => [t.value, t])) as Record<
-  Palette,
-  PaletteMeta
->;
 
-const MODE_OPTIONS: SegmentOption<Mode>[] = [
+const MODE_OPTIONS: SegmentOption<ThemeMode>[] = [
   { value: 'light', label: 'Light' },
   { value: 'dark', label: 'Dark' },
   { value: 'system', label: 'System' },
@@ -47,16 +45,17 @@ const clearPreviewOnClose = (isOpen: boolean) => {
   if (!isOpen) useUIStore.getState().setThemePreview(null);
 };
 
+// surfaceActive/borderHover sit far enough from black or white for the palette's hue to show.
 function ThemeChip({ palette }: { palette: Palette }) {
-  const { surface, surfaceSecondary, textPrimary } = PALETTE_TOKENS[palette];
+  const { surfaceActive, borderHover, textPrimary } = PALETTE_TOKENS[palette];
   return (
     <span
       aria-hidden="true"
       className={styles.chip}
-      style={{
-        background: `linear-gradient(90deg, ${surface} 0 34%, ${surfaceSecondary} 34% 67%, ${textPrimary} 67%)`,
-      }}
-    />
+      style={{ backgroundColor: surfaceActive, borderColor: borderHover }}
+    >
+      <span className={styles['chip-mark']} style={{ backgroundColor: textPrimary }} />
+    </span>
   );
 }
 
@@ -82,7 +81,7 @@ function ThemePicker({
 }) {
   return (
     <Dropdown
-      value={PALETTE_META[value]}
+      value={getThemeMeta(value)}
       items={themes}
       getItemKey={(meta) => meta.value}
       getItemLabel={(meta) => meta.label}
@@ -111,6 +110,7 @@ export function AppearanceSettingsTab() {
   const transcriptWidth = useUIStore((state) => state.transcriptWidth);
   const {
     setTheme,
+    setThemeMode,
     setLightTheme,
     setDarkTheme,
     setCodeFontSize,
@@ -120,10 +120,10 @@ export function AppearanceSettingsTab() {
 
   useMountEffect(() => () => useUIStore.getState().setThemePreview(null));
 
-  const mode: Mode = theme === 'system' ? 'system' : DARK_PALETTES.has(theme) ? 'dark' : 'light';
-  const selectMode = (next: Mode) =>
-    setTheme(next === 'system' ? 'system' : next === 'dark' ? darkTheme : lightTheme);
-  const isSystem = mode === 'system';
+  const current = getThemeMeta(theme).value;
+  const isSystem = current === 'system';
+  const isDark = !isSystem && DARK_PALETTES.has(current);
+  const mode: ThemeMode = isSystem ? 'system' : isDark ? 'dark' : 'light';
 
   return (
     <div className={styles.appearance}>
@@ -131,7 +131,7 @@ export function AppearanceSettingsTab() {
 
       <SectionCard title="Theme">
         <SettingRow title="Mode">
-          <SegmentedControl options={MODE_OPTIONS} value={mode} onChange={selectMode} size="sm" />
+          <SegmentedControl options={MODE_OPTIONS} value={mode} onChange={setThemeMode} size="sm" />
         </SettingRow>
         {mode !== 'dark' && (
           <SettingRow
@@ -140,7 +140,7 @@ export function AppearanceSettingsTab() {
           >
             <ThemePicker
               label="Light theme"
-              value={lightTheme}
+              value={isSystem ? lightTheme : current}
               themes={LIGHT_THEMES}
               onSelect={isSystem ? setLightTheme : setTheme}
             />
@@ -153,7 +153,7 @@ export function AppearanceSettingsTab() {
           >
             <ThemePicker
               label="Dark theme"
-              value={darkTheme}
+              value={isSystem ? darkTheme : current}
               themes={DARK_THEMES}
               onSelect={isSystem ? setDarkTheme : setTheme}
             />
@@ -163,20 +163,17 @@ export function AppearanceSettingsTab() {
 
       <SectionCard title="Code">
         <SettingRow title="Font size" desc="Applies to the editor, diffs and terminal.">
-          <div className={styles.control}>
-            <Select
-              value={codeFontSize}
-              onChange={(e) => setCodeFontSize(Number(e.target.value))}
-              className={styles.select}
-              aria-label="Code font size"
-            >
-              {CODE_FONT_SIZES.map((size) => (
-                <option key={size} value={size}>
-                  {size}px
-                </option>
-              ))}
-            </Select>
-          </div>
+          <Dropdown
+            value={codeFontSize}
+            items={CODE_FONT_SIZES}
+            getItemKey={String}
+            getItemLabel={(size) => `${size}px`}
+            onSelect={setCodeFontSize}
+            ariaLabel="Code font size"
+            width="6rem"
+            dropdownPosition="auto"
+            dropdownAlign="right"
+          />
         </SettingRow>
         <SettingRow title="Diff style" desc="Layout of the git diff view.">
           <SegmentedControl
