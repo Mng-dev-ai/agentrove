@@ -51,9 +51,9 @@ test('production desktop bundle loads chat, editor and diff view', async ({ page
   await expect(page.getByText(CHAT_TITLE).first()).toBeAttached();
   await expect(page.getByRole('textbox', { name: 'Message input' })).toBeVisible();
 
-  const editorToggle = page.getByRole('button', { name: 'Toggle Editor view' });
-  await editorToggle.click();
-  await expect(editorToggle).toHaveAttribute('aria-pressed', 'true');
+  const viewsMenu = page.getByRole('button', { name: 'Views' }).first();
+  await viewsMenu.click();
+  await page.getByRole('menuitemcheckbox', { name: /^Editor/ }).click();
   await page.getByRole('button', { name: 'Open file tree' }).first().click();
   await page.getByRole('treeitem', { name: /hello\.ts/ }).click();
   await expect(page.locator('.monaco-editor .view-lines')).toContainText('hello, smoke');
@@ -62,7 +62,8 @@ test('production desktop bundle loads chat, editor and diff view', async ({ page
     predicate: (worker) => worker.url().startsWith(`${STATIC_ORIGIN}/assets/worker-`),
     timeout: 20_000,
   });
-  await page.getByRole('button', { name: 'Toggle Diff view' }).click();
+  await viewsMenu.click();
+  await page.getByRole('menuitemcheckbox', { name: /^Diff/ }).click();
   await diffWorker;
   const diff = page.locator('diffs-container');
   await expect(diff).toContainText('hello, smoke');

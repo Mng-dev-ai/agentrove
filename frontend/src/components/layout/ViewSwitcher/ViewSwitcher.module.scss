@@ -1,16 +1,12 @@
+@use '@/styles/globals/colors' as colors;
 @use '@/styles/globals/animations' as anim;
+@use '@/styles/globals/typography' as type;
 @use '@/styles/globals/responsive' as responsive;
 
 .view-switcher {
   display: flex;
   align-items: center;
-  gap: var(--space-0-5);
-
-  // Wider on touch so neighbouring 40px targets overlap less; the band is only
-  // ~90px wide while the mobile sidebar is open, so it can't fully separate them
-  @include responsive.media('touch') {
-    gap: var(--space-1);
-  }
+  gap: var(--space-1-5);
 }
 
 .view-button {
@@ -21,7 +17,8 @@
   width: var(--space-7);
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-md);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--radius-lg);
   color: var(--theme-text-tertiary);
 
   // Dark mode rests one step dimmer than light
@@ -34,27 +31,95 @@
     color: var(--theme-text-primary);
   }
 
-  // aria-pressed already marks the on-screen view — style it directly
-  &[aria-pressed='true'] {
+  &[aria-pressed='true'],
+  &[aria-expanded='true'] {
+    border-color: var(--theme-border-hover);
     background-color: var(--theme-surface-active);
     color: var(--theme-text-primary);
-  }
-}
-
-.divider {
-  height: var(--space-3-5);
-  width: 1px;
-  margin-inline: var(--space-1);
-  background-color: var(--theme-border);
-}
-
-@container pane-header (width < 21.5rem) {
-  .view-button--collapsible {
-    display: none;
   }
 }
 
 .icon {
   height: var(--space-3-5);
   width: var(--space-3-5);
+}
+
+.row {
+  position: relative;
+
+  & + & {
+    margin-top: var(--space-0-5);
+  }
+}
+
+.item {
+  @include type.type-default;
+  @include anim.transition-colors;
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: var(--space-2);
+  border-radius: var(--radius-md);
+  padding: var(--space-1-5) var(--space-2);
+  color: var(--theme-text-tertiary);
+
+  // Half-strength so a hovered row never reads as an open view
+  @include responsive.hover {
+    background-color: colors.theme-color('surface-hover', 0.5);
+    color: var(--theme-text-primary);
+  }
+
+  &[aria-checked='true'] {
+    background-color: var(--theme-surface-active);
+    font-weight: 500;
+    color: var(--theme-text-primary);
+  }
+}
+
+.item-icon {
+  height: var(--space-3);
+  width: var(--space-3);
+  flex-shrink: 0;
+}
+
+.shortcut {
+  @include type.type-meta;
+  margin-left: auto;
+  font-weight: 400;
+  color: var(--theme-text-quaternary);
+}
+
+// Split takes the shortcut's slot on hover or keyboard focus, so a row never shows both.
+.split {
+  @include type.type-meta;
+  @include anim.transition-colors;
+  position: absolute;
+  top: 50%;
+  right: var(--space-1);
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-radius: var(--radius-md);
+  padding: var(--space-0-5) var(--space-1-5);
+  color: var(--theme-text-tertiary);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+
+  @include responsive.hover {
+    background-color: var(--theme-surface-active);
+    color: var(--theme-text-primary);
+  }
+}
+
+.row--splittable:hover,
+.row--splittable:focus-within {
+  .split {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .shortcut {
+    visibility: hidden;
+  }
 }
