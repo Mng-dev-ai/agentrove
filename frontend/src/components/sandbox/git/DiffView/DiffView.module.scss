@@ -31,7 +31,8 @@
 // Leading stays at the library's 20px: its virtualizer positions rows with that constant
 .pane {
   --diffs-font-family: var(--font-mono);
-  --diffs-font-size: #{type.$type-default-size};
+  // type-default-size is the diff size at the default code font size, 13
+  --diffs-font-size: calc(#{type.$type-default-size} * var(--code-font-size) / 13);
   position: relative;
   min-height: 0;
   flex: 1;

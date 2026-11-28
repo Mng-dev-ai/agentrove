@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/primitives/Spinner/Spinner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary/ErrorBoundary';
 import toast from 'react-hot-toast';
 import { GeneralSettingsTab } from '@/components/settings/tabs/GeneralSettingsTab/GeneralSettingsTab';
+import { AppearanceSettingsTab } from '@/components/settings/tabs/AppearanceSettingsTab/AppearanceSettingsTab';
 import { NotificationsSettingsTab } from '@/components/settings/tabs/NotificationsSettingsTab/NotificationsSettingsTab';
 import { SettingsProvider } from '@/contexts/SettingsContext';
 import { useCurrentUserQuery } from '@/hooks/queries/useAuthQueries';
@@ -298,6 +299,12 @@ export function SettingsPage() {
                             onAutoSteerQueuedMessagesChange={handleAutoSteerQueuedMessagesChange}
                             onTitleModelChange={handleTitleModelChange}
                           />
+                        </div>
+                      )}
+
+                      {activeTab === 'appearance' && (
+                        <div role="tabpanel" id="appearance-panel" aria-labelledby="appearance-tab">
+                          <AppearanceSettingsTab />
                         </div>
                       )}
 

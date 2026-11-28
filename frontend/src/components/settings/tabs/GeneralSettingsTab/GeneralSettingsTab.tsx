@@ -1,16 +1,11 @@
-import { ChevronRight } from 'lucide-react';
 import { useDraftField } from '@/hooks/useDraftField';
 import { Button } from '@/components/ui/primitives/Button/Button';
-import { Select } from '@/components/ui/primitives/Select/Select';
 import { Switch } from '@/components/ui/primitives/Switch/Switch';
 import { SectionCard, SettingRow } from '@/components/settings/SettingsCard/SettingsCard';
 import type { ApiFieldKey, GeneralSecretFieldConfig } from '@/types/settings.types';
 import type { UserSettings } from '@/types/user.types';
-import type { Theme } from '@/types/ui.types';
-import { useUIStore } from '@/store/uiStore';
 import { SecretInput } from '@/components/settings/inputs/SecretInput/SecretInput';
 import { ModelSelector } from '@/components/chat/model-selector/ModelSelector';
-import { THEMES } from '@/utils/theme';
 import styles from './GeneralSettingsTab.module.scss';
 
 interface GeneralSettingsTabProps {
@@ -22,35 +17,6 @@ interface GeneralSettingsTabProps {
   onDeleteAllChats: () => void;
   onAutoSteerQueuedMessagesChange: (enabled: boolean) => void;
   onTitleModelChange: (modelId: string) => void;
-}
-
-// Dropdown rather than a row of buttons — 9 themes is too many to lay out inline.
-// Width is bounded on the wrapper since Select itself is w-full.
-function ThemeControl() {
-  const theme = useUIStore((state) => state.theme);
-  const themeLabel = THEMES.find((opt) => opt.value === theme)?.label;
-  return (
-    <>
-      <div className={styles['theme-control']}>
-        <Select
-          value={theme}
-          onChange={(e) => useUIStore.getState().setTheme(e.target.value as Theme)}
-          className={styles['theme-select']}
-          aria-label="Theme"
-        >
-          {THEMES.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </Select>
-      </div>
-      <span className={styles['theme-display']}>
-        {themeLabel}
-        <ChevronRight className={styles['theme-chevron']} aria-hidden="true" />
-      </span>
-    </>
-  );
 }
 
 function SecretField({
@@ -113,9 +79,6 @@ export function GeneralSettingsTab({
       </SectionCard>
 
       <SectionCard title="Preferences">
-        <SettingRow title="Theme" className={styles['theme-row']}>
-          <ThemeControl />
-        </SettingRow>
         <SettingRow
           title="Auto-steer queued messages"
           desc="Send messages typed while agents are working immediately instead of queuing them until they finish."

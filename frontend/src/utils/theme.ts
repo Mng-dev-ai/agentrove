@@ -102,9 +102,14 @@ const THEME_BY_VALUE = Object.fromEntries(THEMES.map((t) => [t.value, t])) as Re
   ThemeMeta
 >;
 
+export type PaletteMeta = ThemeMeta & { value: Palette };
+
 // Stale persisted themes fall back so callers reading `.icon` don't crash.
-export const getThemeMeta = (theme: Theme): ThemeMeta =>
-  THEME_BY_VALUE[theme] ?? THEME_BY_VALUE.dark;
+export function getThemeMeta(theme: Palette): PaletteMeta;
+export function getThemeMeta(theme: Theme): ThemeMeta;
+export function getThemeMeta(theme: Theme): ThemeMeta {
+  return THEME_BY_VALUE[theme] ?? THEME_BY_VALUE.dark;
+}
 
 export const THEME_CYCLE: Theme[] = THEMES.map((t) => t.value);
 
@@ -121,6 +126,8 @@ interface PaletteTokens {
   surface: string; // deepest/page background
   surfaceSecondary: string; // raised (editor + terminal canvas)
   surfaceTertiary: string;
+  surfaceActive: string;
+  borderHover: string;
   textPrimary: string;
   textSecondary: string;
   textTertiary: string;
@@ -130,6 +137,8 @@ const toTokens = (def: PaletteDef): PaletteTokens => ({
   surface: def.surface,
   surfaceSecondary: def.surfaceSecondary,
   surfaceTertiary: def.surfaceTertiary,
+  surfaceActive: def.surfaceActive,
+  borderHover: def.borderHover,
   textPrimary: def.textPrimary,
   textSecondary: def.textSecondary,
   textTertiary: def.textTertiary,
@@ -139,3 +148,32 @@ const toTokens = (def: PaletteDef): PaletteTokens => ({
 export const CUSTOM_PALETTE_TOKENS = Object.fromEntries(
   CUSTOM_PALETTE_KEYS.map((p) => [p, toTokens(PALETTES[p])]),
 ) as Record<CustomPalette, PaletteTokens>;
+
+// The plain bases' --surface*/--border-hover/--text-* channels in styles/globals/_colors.scss.
+const BASE_PALETTE_TOKENS: Record<'light' | 'dark', PaletteTokens> = {
+  light: {
+    surface: '#f5f5f5',
+    surfaceSecondary: '#f9f9f9',
+    surfaceTertiary: '#f3f3f3',
+    surfaceActive: '#d8d8d8',
+    borderHover: '#9a9a9a',
+    textPrimary: '#0f172a',
+    textSecondary: '#475569',
+    textTertiary: '#64748b',
+  },
+  dark: {
+    surface: '#111111',
+    surfaceSecondary: '#141414',
+    surfaceTertiary: '#1e1e1e',
+    surfaceActive: '#323232',
+    borderHover: '#404040',
+    textPrimary: '#ffffff',
+    textSecondary: '#e0e0e0',
+    textTertiary: '#c0c0c0',
+  },
+};
+
+export const PALETTE_TOKENS: Record<Palette, PaletteTokens> = {
+  ...BASE_PALETTE_TOKENS,
+  ...CUSTOM_PALETTE_TOKENS,
+};

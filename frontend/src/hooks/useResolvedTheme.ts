@@ -1,7 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import { selectAppliedTheme, useUIStore } from '@/store/uiStore';
 import { DARK_PALETTES } from '@/utils/theme';
-import type { ResolvedTheme } from '@/types/ui.types';
+import type { Palette, ResolvedTheme } from '@/types/ui.types';
 
 function getMediaQuery(): MediaQueryList | null {
   if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') {
@@ -33,13 +33,16 @@ function getServerSnapshot(): boolean {
   return true;
 }
 
-export function useResolvedTheme(): ResolvedTheme {
+export function useAppliedPalette(): Palette {
   const theme = useUIStore(selectAppliedTheme);
+  const lightTheme = useUIStore((state) => state.lightTheme);
+  const darkTheme = useUIStore((state) => state.darkTheme);
   const prefersDark = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 
-  if (theme === 'system') {
-    return prefersDark ? 'dark' : 'light';
-  }
-  // Custom palettes map to a light/dark base for editor/terminal/diff theming
-  return DARK_PALETTES.has(theme) ? 'dark' : 'light';
+  if (theme !== 'system') return theme;
+  return prefersDark ? darkTheme : lightTheme;
+}
+
+export function useResolvedTheme(): ResolvedTheme {
+  return DARK_PALETTES.has(useAppliedPalette()) ? 'dark' : 'light';
 }

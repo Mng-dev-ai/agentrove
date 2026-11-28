@@ -1,6 +1,7 @@
 import { memo, lazy, Suspense } from 'react';
 import type * as monaco from 'monaco-editor';
 import { MONACO_FONT_FAMILY } from '@/config/constants';
+import { useUIStore } from '@/store/uiStore';
 import styles from './Content.module.scss';
 
 const EDITOR_OPTIONS = {
@@ -17,7 +18,6 @@ const EDITOR_OPTIONS = {
   },
   snippetSuggestions: 'inline',
   fontFamily: MONACO_FONT_FAMILY,
-  fontSize: 13,
   lineHeight: 1.5,
   renderLineHighlight: 'none',
   scrollbar: {
@@ -66,6 +66,7 @@ export const Content = memo(function Content({
   onMount,
   theme,
 }: ContentProps) {
+  const codeFontSize = useUIStore((state) => state.codeFontSize);
   // Surface tokens track the active palette's CSS vars, matching Monaco's
   // editor.background for every palette — not just the default light/dark.
   const loadingFallback = (
@@ -86,6 +87,7 @@ export const Content = memo(function Content({
           theme={theme}
           options={{
             ...EDITOR_OPTIONS,
+            fontSize: codeFontSize,
             readOnly: isReadOnly,
           }}
           onMount={onMount}

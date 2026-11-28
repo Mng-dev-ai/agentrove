@@ -5,6 +5,8 @@ import styles from './SelectItem.module.scss';
 interface SelectItemProps {
   isSelected: boolean;
   onSelect: () => void;
+  // Pointer or keyboard landed on the item, before any pick
+  onHighlight?: () => void;
   className?: string;
   children: ReactNode;
   role?: string;
@@ -13,6 +15,7 @@ interface SelectItemProps {
 export const SelectItem = memo(function SelectItem({
   isSelected,
   onSelect,
+  onHighlight,
   className,
   children,
   role,
@@ -31,6 +34,8 @@ export const SelectItem = memo(function SelectItem({
       tabIndex={0}
       aria-selected={isSelected}
       onClick={onSelect}
+      onMouseEnter={onHighlight}
+      onFocus={onHighlight}
       onKeyDown={handleKeyDown}
       className={clsx(styles['select-item'], className)}
     >

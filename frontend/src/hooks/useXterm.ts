@@ -22,6 +22,7 @@ const WRITE_ONLY_CLIPBOARD: IClipboardProvider = {
 interface UseXtermOptions {
   isVisible: boolean;
   mode: Palette;
+  fontSize: number;
   onData: (data: string) => void;
   onFit: (size: TerminalSize) => void;
 }
@@ -34,7 +35,13 @@ interface UseXtermReturn {
   wrapperRef: MutableRefObject<HTMLDivElement | null>;
 }
 
-export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): UseXtermReturn => {
+export const useXterm = ({
+  isVisible,
+  mode,
+  fontSize,
+  onData,
+  onFit,
+}: UseXtermOptions): UseXtermReturn => {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   // Set only after open() succeeds — consumers must not touch a missing renderer.
   const terminalRef = useRef<XTerm | null>(null);
@@ -47,9 +54,11 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
   const onDataRef = useRef(onData);
   const onFitRef = useRef(onFit);
   const modeRef = useRef(mode);
+  const fontSizeRef = useRef(fontSize);
   onDataRef.current = onData;
   onFitRef.current = onFit;
   modeRef.current = mode;
+  fontSizeRef.current = fontSize;
 
   const hasInitializedRef = useRef(false);
   // Stay alive through visibility toggles so hidden tabs keep scrollback.
@@ -125,7 +134,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
         allowProposedApi: true,
         // No alternate screen (tmux smcup@) — this is scroll/search history.
         scrollback: 10000,
-        fontSize: 13,
+        fontSize: fontSizeRef.current,
         // Nerd Font for PUA icons; monospace only as last-resort fallback.
         fontFamily: '"JetBrainsMono Nerd Font", monospace',
         theme: buildTerminalTheme(modeRef.current),
@@ -168,9 +177,10 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
     }
 
     terminal.options.theme = buildTerminalTheme(mode);
+    terminal.options.fontSize = fontSize;
 
     if (isVisible) {
-      // Palette can nudge cell metrics; refit after theme swap settles.
+      // Palette and font size change cell metrics; refit after the swap settles.
       const frame = requestAnimationFrame(() => {
         fitTerminal();
       });
@@ -178,7 +188,7 @@ export const useXterm = ({ isVisible, mode, onData, onFit }: UseXtermOptions): U
     }
 
     return undefined;
-  }, [mode, isReady, isVisible, fitTerminal]);
+  }, [mode, fontSize, isReady, isVisible, fitTerminal]);
 
   useEffect(() => {
     const container = wrapperRef.current;

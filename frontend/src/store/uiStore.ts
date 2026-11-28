@@ -12,6 +12,7 @@ import type {
   SplitSlot,
   WorkspaceLayout,
   LastThread,
+  TranscriptWidth,
 } from '@/types/ui.types';
 import { MAX_CHAT_PANES } from '@/types/ui.types';
 import type { DiffMode } from '@/types/sandbox.types';
@@ -34,7 +35,7 @@ import {
   type SidebarActivityKind,
   type SidebarFilters,
 } from '@/store/sidebarFilters';
-import { THEME_CYCLE } from '@/utils/theme';
+import { DARK_PALETTES, THEME_CYCLE, getThemeMeta } from '@/utils/theme';
 
 const SIDEBAR_SECTIONS = ['pinned', 'recents'] as const;
 export const MIN_SIDEBAR_WIDTH = 220;
@@ -151,6 +152,10 @@ type UIStoreState = ThemeState &
     pendingDiffMode: { chatId: string; mode: DiffMode } | null;
     diffStyle: 'unified' | 'split';
     setDiffStyle: (style: 'unified' | 'split') => void;
+    codeFontSize: number;
+    setCodeFontSize: (size: number) => void;
+    transcriptWidth: TranscriptWidth;
+    setTranscriptWidth: (width: TranscriptWidth) => void;
     pendingChatMessage: { chatId: string; message: string } | null;
     setPendingChatMessage: (payload: { chatId: string; message: string } | null) => void;
     // Selection chips for a chat's input; serialized into the prompt at send.
@@ -285,6 +290,14 @@ type SessionPanelState = Pick<
   'sessionPanelOpen' | 'splitSessionPanelChatIds' | 'splitChatIds'
 >;
 
+type ThemeSlots = Pick<ThemeState, 'lightTheme' | 'darkTheme'>;
+
+// An explicitly chosen concrete theme is the user's pick for its base.
+function slotFor(theme: Theme): Partial<ThemeSlots> {
+  if (theme === 'system') return {};
+  return DARK_PALETTES.has(theme) ? { darkTheme: theme } : { lightTheme: theme };
+}
+
 export function selectAppliedTheme(state: ThemeState): Theme {
   return state.themePreview ?? state.theme;
 }
@@ -338,9 +351,25 @@ export const useUIStore = create<UIStoreState>()(
           const i = THEME_CYCLE.indexOf(state.theme);
           return { theme: THEME_CYCLE[(i + 1) % THEME_CYCLE.length] };
         }),
-      setTheme: (theme) => set({ theme }),
+      setTheme: (theme) => set({ theme, ...slotFor(theme) }),
+      // Leaving a mode remembers the active theme, however it was chosen.
+      setThemeMode: (mode) =>
+        set((state) => {
+          const slots: ThemeSlots = {
+            lightTheme: state.lightTheme,
+            darkTheme: state.darkTheme,
+            ...slotFor(getThemeMeta(state.theme).value),
+          };
+          const theme =
+            mode === 'system' ? 'system' : mode === 'dark' ? slots.darkTheme : slots.lightTheme;
+          return { ...slots, theme };
+        }),
       themePreview: null,
       setThemePreview: (themePreview) => set({ themePreview }),
+      lightTheme: 'light',
+      setLightTheme: (lightTheme) => set({ lightTheme }),
+      darkTheme: 'dark',
+      setDarkTheme: (darkTheme) => set({ darkTheme }),
       sidebarOpen: getInitialSidebarState(),
       setSidebarOpen: (isOpen) => set({ sidebarOpen: isOpen }),
       sidebarWidth: DEFAULT_SIDEBAR_WIDTH,
@@ -461,6 +490,10 @@ export const useUIStore = create<UIStoreState>()(
       pendingDiffMode: null,
       diffStyle: 'unified',
       setDiffStyle: (diffStyle) => set({ diffStyle }),
+      codeFontSize: 13,
+      setCodeFontSize: (codeFontSize) => set({ codeFontSize }),
+      transcriptWidth: 'default',
+      setTranscriptWidth: (transcriptWidth) => set({ transcriptWidth }),
       openFileInEditor: (target, chatId, line, split = false) => {
         const state = get();
         const splitIndex = chatId ? state.splitChatIds.indexOf(chatId) : -1;
@@ -840,10 +873,14 @@ export const useUIStore = create<UIStoreState>()(
       name: 'ui-storage',
       partialize: (state) => ({
         theme: state.theme,
+        lightTheme: state.lightTheme,
+        darkTheme: state.darkTheme,
         sidebarOpen: state.sidebarOpen,
         sidebarWidth: state.sidebarWidth,
         sessionPanelOpen: state.sessionPanelOpen,
         diffStyle: state.diffStyle,
+        codeFontSize: state.codeFontSize,
+        transcriptWidth: state.transcriptWidth,
         // Status filters are session-only (empty at mount) — don't persist them.
         sidebarFilters: { ...state.sidebarFilters, statuses: [] },
         collapsedSidebarSections: state.collapsedSidebarSections,
