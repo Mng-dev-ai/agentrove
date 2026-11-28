@@ -98,6 +98,7 @@ function ThemePicker({
       searchable
       searchPlaceholder="Filter..."
       searchVariant="underline"
+      selectionStyle="background"
     />
   );
 }
